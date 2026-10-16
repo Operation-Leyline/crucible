@@ -36,46 +36,125 @@ fn source(service: &crucible_ir::ir::Service, options: &Options, path: &str) -> 
         .contents
 }
 
-/// Every name the surface gives is declared in the emitted client and
-/// models: a method or paginator in `client.ts`, an interface and each of
-/// its properties in `models.ts`.
+/// The text from `start` to the end of its indented block.
+fn block<'s>(source: &'s str, start: &str, end: &str) -> Option<&'s str> {
+    let at = source.find(start)?;
+    let rest = &source[at..];
+    Some(&rest[..rest.find(end).unwrap_or(rest.len())])
+}
+
+/// Every name the surface gives is declared in the emitted package: each
+/// method in `client.ts`, taking its operation's input interface and
+/// sending that operation; each paginator calling its method; each
+/// interface and its properties, with their types, in `models.ts`; the
+/// imports and constructor in `index.ts`, `client.ts` and the runtime.
 fn assert_declared(service: &crucible_ir::ir::Service, options: &Options, surface: &Surface) {
     let client = source(service, options, "src/client.ts");
     let models = source(service, options, "src/models.ts");
     let index = source(service, options, "src/index.ts");
+    let runtime = source(service, options, "src/runtime.ts");
+    let name = &surface.client.name;
     assert!(
-        client.contains(&format!("export class {} {{", surface.client.name)),
-        "{}",
-        surface.client.name
+        client.contains(&format!("export class {name} {{")),
+        "{name}"
     );
-    assert!(index.contains(&format!("export {{ {} }}", surface.client.name)));
+    assert!(index.contains(&format!("export {{ {name} }}")));
+    assert_eq!(
+        surface.package.imports[0],
+        format!("import {{ {name} }} from \"{}\";", options.package_name)
+    );
+    assert!(client.contains("constructor(config: ClientConfig = {})"));
+    if surface.client.construct.contains("{ endpoint }") {
+        assert!(options.endpoint.is_none());
+        assert!(runtime.contains("readonly endpoint?: string;"));
+    } else {
+        assert_eq!(surface.client.construct, format!("new {name}()"));
+        assert!(options.endpoint.is_some());
+    }
     assert_eq!(surface.operations.len(), service.operations.len());
-    for (id, operation) in &surface.operations {
+    let unqualified = |ty: &str| ty.replace(&surface.package.qualifier, "");
+    for operation in &service.operations {
+        let id = operation.id.to_string();
+        let entry = &surface.operations[&id];
+        let parameter = match &entry.input {
+            Some(input) => format!("(input: m.{}", unqualified(&input.type_name)),
+            None => "(options?: RequestOptions)".to_owned(),
+        };
+        let method = block(
+            &client,
+            &format!(
+                "
+  {}{parameter}",
+                entry.method
+            ),
+            "
+  }
+",
+        )
+        .unwrap_or_else(|| panic!("{id}: {}{parameter}", entry.method));
         assert!(
-            client.contains(&format!("\n  {}(", operation.method)),
-            "{id}: method {}",
-            operation.method
+            method.contains(&format!("this.#transport.send(spec.{},", operation.name())),
+            "{id}: {} sends another operation",
+            entry.method
         );
-        for paginator in operation.paginators.iter().flatten() {
+        for paginator in entry.paginators.iter().flatten() {
+            let body = block(
+                &client,
+                &format!(
+                    "
+  {paginator}{parameter}"
+                ),
+                "
+  }
+",
+            )
+            .unwrap_or_else(|| panic!("{id}: paginator {paginator}"));
             assert!(
-                client.contains(&format!("\n  {paginator}(")),
-                "{id}: paginator {paginator}"
+                body.contains(&format!("this.{}(page, options)", entry.method)),
+                "{id}: {paginator} pages another method"
             );
         }
-        for structure in operation.input.iter().chain(&operation.output) {
-            let start = models
-                .find(&format!("export interface {} {{", structure.type_name))
-                .unwrap_or_else(|| panic!("{id}: interface {}", structure.type_name));
-            let body = &models[start..start + models[start..].find("\n}").unwrap()];
+        let expected = [
+            (&operation.input, &entry.input),
+            (&operation.output, &entry.output),
+        ];
+        for (shape, structure) in expected {
+            let (Some(shape), Some(structure)) = (shape, structure) else {
+                assert_eq!(shape.is_some(), structure.is_some(), "{id}");
+                continue;
+            };
+            assert_eq!(
+                unqualified(&structure.type_name),
+                service.name_of(shape),
+                "{id}"
+            );
+            let body = block(
+                &models,
+                &format!("export interface {} {{", service.name_of(shape)),
+                "
+}",
+            )
+            .unwrap_or_else(|| panic!("{id}: interface {}", structure.type_name));
             for member in &structure.members {
-                assert!(
-                    body.contains(&format!("\n  {}?: {}", member.name, member.type_name))
-                        || body.contains(&format!("\n  {}: {}", member.name, member.type_name)),
-                    "{id}: {}.{} as {}",
+                let declared = body
+                    .lines()
+                    .find_map(|line| {
+                        let line = line.strip_prefix("  ")?;
+                        let (key, ty) = line.split_once(": ")?;
+                        (key.trim_end_matches('?') == member.name)
+                            .then(|| (key.ends_with('?'), ty.trim_end_matches(';').to_owned()))
+                    })
+                    .unwrap_or_else(|| panic!("{id}: {}.{}", structure.type_name, member.name));
+                assert_eq!(
+                    unqualified(&member.type_name),
+                    declared.1.replace("globalThis.", ""),
+                    "{id}: {}.{}",
                     structure.type_name,
-                    member.name,
-                    member.type_name
+                    member.name
                 );
+                if structure.style == "properties" {
+                    assert_eq!(member.optional, declared.0, "{id}: {}", member.name);
+                }
             }
         }
     }
@@ -99,7 +178,7 @@ fn weather_surface_names_what_the_client_declares() {
         Some(&["paginateListCities".to_owned()][..])
     );
     let input = list.input.as_ref().unwrap();
-    assert_eq!(input.type_name, "ListCitiesInput");
+    assert_eq!(input.type_name, "models.ListCitiesInput");
     assert_eq!(input.style, "object");
     let create = &surface.operations["example.weather#CreateCity"];
     let revision = create.input.as_ref().unwrap().members.iter();
@@ -143,7 +222,12 @@ fn defaults_and_middleware_are_in_the_surface() {
 /// paginator takes `_2`.
 #[test]
 fn collision_suffixes_match_the_emitted_client() {
-    for name in ["client-docs-surface-collisions", "hardening"] {
+    for name in [
+        "client-docs-surface-collisions",
+        "client-docs-surface-keywords",
+        "hardening",
+        "extended-types",
+    ] {
         let service = load(name);
         let options = options();
         let surface = surface(&service, &options);

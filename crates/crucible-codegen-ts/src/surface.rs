@@ -2,14 +2,18 @@
 //! `client.ts` and `models.ts` are emitted with.
 
 use crucible_codegen_common::surface::{
-    self, Client, Member, Middleware, Operation, Package, Structure,
+    self, ClientType, Member, Middleware, Operation, Package, Structure,
 };
 use crucible_ir::ShapeId;
 use crucible_ir::ir::{Service, Shape};
 
 use crate::Options;
 use crate::client::method_names;
-use crate::names::{property, ts_type};
+use crate::names::{literal, property, ts_type};
+
+/// The namespace a snippet imports the package's types under. Every
+/// generated name lives in it, so none can collide with the snippet's own.
+const MODELS: &str = "models";
 
 /// What the generated package shows its callers: the npm package, the
 /// client class, and per operation its method, paginator, and the
@@ -21,11 +25,14 @@ pub fn surface(service: &Service, options: &Options) -> surface::Surface {
     } else {
         format!("new {client}({{ endpoint }})")
     };
-    let mut out = surface::Surface::new(
-        "ts",
-        Package::new("npm", &options.package_name, &options.package_name),
-        Client::new(client, construct),
-    );
+    let mut package = Package::new("npm", &options.package_name, &options.package_name);
+    let specifier = literal(&options.package_name);
+    package.imports = vec![
+        format!("import {{ {client} }} from {specifier};"),
+        format!("import type * as {MODELS} from {specifier};"),
+    ];
+    package.qualifier = format!("{MODELS}.");
+    let mut out = surface::Surface::new("ts", package, ClientType::new(client, construct));
     out.endpoint.clone_from(&options.endpoint);
     out.middleware = options
         .middleware
@@ -50,20 +57,34 @@ pub fn surface(service: &Service, options: &Options) -> surface::Surface {
     out
 }
 
+/// `target`'s type as a snippet writes it: model and runtime types in the
+/// package's namespace, globals by their own name. The generated files
+/// reach globals through `globalThis.` (a model may be called `Date`) and
+/// import the runtime's types unqualified; a snippet does neither.
+fn caller_type(service: &Service, target: &ShapeId) -> String {
+    let qualifier = format!("{MODELS}.");
+    let ty = ts_type(service, target, &qualifier);
+    match ty.strip_prefix("globalThis.") {
+        Some(global) => global.to_owned(),
+        None if ty.starts_with(&qualifier) || !ty.starts_with(char::is_uppercase) => ty,
+        // `Unit`, `Document` and `Decimal`: the runtime's, which the
+        // package re-exports.
+        None => format!("{qualifier}{ty}"),
+    }
+}
+
 /// An interface as `models.ts` declares it: a property per member.
 fn structure(service: &Service, id: &ShapeId, style: &str) -> Structure {
-    let mut structure = Structure::new(service.name_of(id), style);
+    let mut structure = Structure::new(format!("{MODELS}.{}", service.name_of(id)), style);
     if let Some(Shape::Structure(shape)) = service.shape(id) {
         structure.members = shape
             .members
             .iter()
             .map(|member| {
                 Member::new(
-                    &member.name,
+                    member,
                     property(&member.name),
-                    // `globalThis.` guards against a model's own `Date`; a
-                    // caller writes the global's name.
-                    surface::unqualified(&ts_type(service, &member.target, ""), "."),
+                    caller_type(service, &member.target),
                 )
             })
             .collect();

@@ -1,7 +1,7 @@
 //! The CMake package's public surface (`crucible.sdks/1`), named by the
 //! functions the client and model symbols are emitted with.
 
-use crucible_codegen_common::surface::{self, Client, Member, Operation, Package, Structure};
+use crucible_codegen_common::surface::{self, ClientType, Member, Operation, Package, Structure};
 use crucible_ir::ShapeId;
 use crucible_ir::ir::{Service, Shape};
 
@@ -12,7 +12,8 @@ use crate::{Options, names};
 /// What the generated C package shows its callers: the package and
 /// header, the runtime client type and its constructor, and per operation
 /// its functions and the model structs it takes (through `set_` functions)
-/// and returns (through `get_` functions).
+/// and returns (through `get_` functions). Every symbol carries the
+/// prefix, so `#include "pkg/client.h"` brings them all in unqualified.
 pub fn surface(service: &Service, options: &Options) -> surface::Surface {
     let p = &options.prefix;
     let package = &options.package_name;
@@ -25,11 +26,14 @@ pub fn surface(service: &Service, options: &Options) -> surface::Surface {
     let construct = format!(
         "{client}_config config = {client}_defaults();{endpoint} {client} *client = NULL; {p}_error error = {{0}}; {client}_new(&config, &client, &error);"
     );
-    let mut out = surface::Surface::new(
-        "c",
-        Package::new("cmake", package, format!("{package}/client.h")),
-        Client::new(client, construct),
-    );
+    let header = format!("{package}/client.h");
+    let mut package = Package::new("cmake", package, &header);
+    package.imports = vec![format!("#include \"{header}\"")];
+    // Constructing is statements, and reports failure through `error`.
+    let mut client = ClientType::new(client, construct);
+    client.statements = true;
+    client.fallible = true;
+    let mut out = surface::Surface::new("c", package, client);
     out.endpoint.clone_from(&options.endpoint);
     for operation in &service.operations {
         let mut entry = Operation::new(function(operation, p));
@@ -58,7 +62,7 @@ fn structure(service: &Service, id: &ShapeId, p: &str, style: &str, accessor: &s
             .iter()
             .map(|member| {
                 Member::new(
-                    &member.name,
+                    member,
                     helper(&native, accessor, &names::field(&member.name)),
                     slot_type(service, &member.target, p),
                 )

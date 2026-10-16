@@ -29,11 +29,12 @@ the renderer's CSS class names and internal functions are not.
 describe` add the `crucible.sdks/1` contract (`sdks.json`), stable as
 described in [the docs guide](docs.md#the-cruciblesdks1-contract) under
 `describe/1`'s rules. Its in-memory form,
-`crucible_codegen_common::surface` (`Surface`, `Package`, `Client`,
-`Middleware`, `Operation`, `Structure`, `Member`, `unqualified`), the
+`crucible_codegen_common::surface` (`Surface`, `Package`, `ClientType`,
+`Middleware`, `Operation`, `Structure`, `Member`; the hidden
+`unqualified` is generator support), the
 `surface(&Service, &Options)` function of each client generator,
 `crucible_codegen::Client::surface`, `crucible_codegen::sdks::{FORMAT,
-FILE_NAME, load, visible_in, describe, render, file}` and
+FILE_NAME, visible_in, document, render, file}` and
 `crucible_codegen_ts::Middleware::{name, headers}` are additive. The
 structs are non-exhaustive: start from `new` and set fields, so new
 contract fields are not breaking.

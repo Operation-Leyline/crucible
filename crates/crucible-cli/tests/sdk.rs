@@ -510,8 +510,11 @@ fn describe_prints_each_sdks_surface_as_its_generator_names_it() {
     let ts = &document["sdks"]["ts"];
     assert_eq!(ts["package"]["name"], "@example/weather");
     assert_eq!(ts["client"]["name"], "WeatherClient");
-    assert_eq!(ts["endpoint"], "https://api.weather.example");
+    // The environment holds a deployment's endpoint, which a description
+    // never reads; a released SDK has it generated in.
+    assert_eq!(ts["endpoint"], serde_json::Value::Null);
     assert_eq!(ts["endpointEnv"], "WEATHER_SDK_TEST_ENDPOINT");
+    assert_eq!(ts["client"]["construct"], "new WeatherClient()");
     assert_eq!(
         ts["operations"]["example.weather#ListCities"]["paginators"][0],
         "paginateListCities"
@@ -522,16 +525,25 @@ fn describe_prints_each_sdks_surface_as_its_generator_names_it() {
         "get_city"
     );
 
-    // An unset endpoint variable is named, not required, and --out writes
-    // only the selected SDKs.
+    // An unset endpoint variable is not needed, the output is the same
+    // bytes, and --out writes only the selected SDKs, creating its
+    // directory.
     let output = Command::new(env!("CARGO_BIN_EXE_crucible"))
         .current_dir(root)
         .env_remove("WEATHER_SDK_TEST_ENDPOINT")
-        .args(["sdk", "describe", "--sdk", "ts", "--out", "sdks.json"])
+        .args([
+            "sdk",
+            "describe",
+            "--sdk",
+            "ts",
+            "--out",
+            "target/docs/sdks.json",
+        ])
         .output()
         .unwrap();
     success(output);
-    let written = json(&root.join("sdks.json"));
+    let written = json(&root.join("target/docs/sdks.json"));
+    assert_eq!(written["sdks"]["ts"], document["sdks"]["ts"]);
     assert_eq!(
         written["sdks"]
             .as_object()
@@ -547,4 +559,24 @@ fn describe_prints_each_sdks_surface_as_its_generator_names_it() {
     );
     let error = failure(crucible(root, &["sdk", "describe", "--sdk", "go"]));
     assert!(error.contains("declares no SDK \"go\""), "{error}");
+}
+
+#[test]
+fn a_reference_refuses_an_sdk_file_for_another_model() {
+    let directory = service(SDK_FILE);
+    let root = directory.path();
+    common::install_shared(root, "client-docs");
+    let error = failure(crucible(
+        root,
+        &[
+            "generate",
+            "docs",
+            "client-docs",
+            "--out",
+            "reference",
+            "--sdks",
+            "crucible-sdk.toml",
+        ],
+    ));
+    assert!(error.contains("declares SDKs for the model"), "{error}");
 }

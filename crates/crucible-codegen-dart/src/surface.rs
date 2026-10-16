@@ -1,7 +1,7 @@
 //! The package's public surface (`crucible.sdks/1`), named by the functions
 //! `client.dart` and `models.dart` are emitted with.
 
-use crucible_codegen_common::surface::{self, Client, Member, Operation, Package, Structure};
+use crucible_codegen_common::surface::{self, ClientType, Member, Operation, Package, Structure};
 use crucible_ir::ShapeId;
 use crucible_ir::ir::{Service, Shape};
 
@@ -11,6 +11,11 @@ use crate::{Options, client_name, field, operation_method, pages_method, ty};
 /// library, the client class, and per operation its method, its `Pages`
 /// stream, and the model classes it takes (named constructor arguments)
 /// and returns (fields and getters).
+///
+/// The package library exports the client, the models, `ClientConfig` and
+/// the runtime value types (`Timestamp`, `JsonValue`, `BigDecimal`) bare,
+/// so its one import brings every name in unqualified; only a blob's
+/// `Uint8List` needs `dart:typed_data` as well.
 pub fn surface(service: &Service, options: &Options) -> surface::Surface {
     let client = client_name(service);
     let construct = if options.endpoint.is_some() {
@@ -18,12 +23,11 @@ pub fn surface(service: &Service, options: &Options) -> surface::Surface {
     } else {
         format!("{client}(ClientConfig(endpoint: endpoint))")
     };
-    let package = &options.package_name;
-    let mut out = surface::Surface::new(
-        "dart",
-        Package::new("pub", package, format!("package:{package}/{package}.dart")),
-        Client::new(client, construct),
-    );
+    let package_name = &options.package_name;
+    let import = format!("package:{package_name}/{package_name}.dart");
+    let mut package = Package::new("pub", package_name, &import);
+    package.imports = vec![format!("import '{import}';")];
+    let mut out = surface::Surface::new("dart", package, ClientType::new(client, construct));
     out.endpoint.clone_from(&options.endpoint);
     for op in &service.operations {
         let method = operation_method(op);
@@ -39,6 +43,17 @@ pub fn surface(service: &Service, options: &Options) -> surface::Surface {
             .map(|id| structure(service, id, "properties"));
         out.operations.insert(op.id.to_string(), entry);
     }
+    let blobs = out
+        .operations
+        .values()
+        .flat_map(|op| op.input.iter().chain(&op.output))
+        .flat_map(|structure| &structure.members)
+        .any(|member| member.type_name.contains("Uint8List"));
+    if blobs {
+        out.package
+            .imports
+            .push("import 'dart:typed_data';".to_owned());
+    }
     out
 }
 
@@ -51,11 +66,12 @@ fn structure(service: &Service, id: &ShapeId, style: &str) -> Structure {
             .iter()
             .map(|member| {
                 Member::new(
-                    &member.name,
+                    member,
                     field(&member.name),
-                    // `core.`, `typed.` and the runtime prefixes are the
-                    // generated files' import aliases; the package exports
-                    // the names bare.
+                    // `core.`, `typed.`, `json.` and `stamp.` are the
+                    // generated files' import aliases: `dart:core` is
+                    // implicit, `dart:typed_data` is imported above when a
+                    // blob needs it, and the package exports the rest bare.
                     surface::unqualified(&ty(service, &member.target), "."),
                 )
             })

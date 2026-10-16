@@ -39,8 +39,8 @@ enum SdkCommand {
     },
     /// Print the crucible.sdks/1 document: each declared SDK's client,
     /// package, methods, paginators and models as its generator names
-    /// them, with its endpoint and default middleware. An endpoint whose
-    /// environment variable is unset is named, with a null value.
+    /// them, with its endpoint and default middleware. The environment is
+    /// not read: an `endpoint = { env = ".." }` is named, with a null value.
     Describe {
         /// Only this SDK; repeat for more. Defaults to every declared SDK.
         #[arg(long = "sdk", value_name = "NAME")]
@@ -138,12 +138,11 @@ fn sdk_file(file: Option<PathBuf>, names: &[String]) -> Result<SdkFile, String> 
     Ok(file)
 }
 
-/// [`sdk_file`] for a description, which names an endpoint variable that
-/// is not set instead of requiring it.
+/// [`sdk_file`] for a description, which never reads the environment: it
+/// names an endpoint's variable instead.
 fn described_sdk_file(file: Option<PathBuf>, names: &[String]) -> Result<SdkFile, String> {
     let path = sdk_path(file)?;
-    let file = crucible_codegen::sdks::load(&path, |name| std::env::var(name).ok())
-        .map_err(|errors| errors.to_string())?;
+    let file = sdk::load(&path).map_err(|errors| errors.to_string())?;
     file.select(names)?;
     Ok(file)
 }
@@ -249,11 +248,17 @@ fn lower(file: &SdkFile) -> Result<crucible_ir::ir::Service, String> {
 fn describe(file: &SdkFile, names: &[String], out: Option<&Path>) -> Result<(), String> {
     let selected = file.select(names)?;
     let full = lower(file)?;
-    let document = crucible_codegen::sdks::describe(file, &full, &selected)?;
+    let document = crucible_codegen::sdks::document(file, &full, &selected)?;
     let text = crucible_codegen::sdks::render(&document);
     match out {
-        Some(out) => std::fs::write(out, text)
-            .map_err(|error| format!("cannot write {}: {error}", out.display())),
+        Some(out) => {
+            if let Some(parent) = out.parent().filter(|parent| !parent.as_os_str().is_empty()) {
+                std::fs::create_dir_all(parent)
+                    .map_err(|error| format!("cannot create {}: {error}", parent.display()))?;
+            }
+            std::fs::write(out, text)
+                .map_err(|error| format!("cannot write {}: {error}", out.display()))
+        }
         None => {
             print!("{text}");
             Ok(())

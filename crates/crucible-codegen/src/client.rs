@@ -141,13 +141,25 @@ impl Client {
     ) -> Result<crucible_codegen_common::surface::Surface, Diagnostics> {
         let service = crucible_ir::project(service, audience)?;
         match *self {
-            // The client's names are the generated source's; its Cargo
-            // manifest's runtime dependency names nothing a caller calls,
-            // and may need a verified Git revision to resolve.
+            // The whole package is checked, manifest included, but an
+            // automatic runtime dependency is resolved to a stand-in: which
+            // revision the package pins names nothing a caller calls, and
+            // resolving it needs a verified Git checkout of the generator.
             #[cfg(feature = "rust")]
-            Self::Rust(_) => {
+            Self::Rust(ref options) => {
                 service.require_capabilities(&self.capabilities())?;
-                crucible_codegen_rust::generate_client(&service)?;
+                let mut options = options.clone();
+                if matches!(
+                    options.runtime,
+                    crucible_codegen_rust::RuntimeDependency::Auto
+                ) {
+                    options.runtime = crucible_codegen_rust::RuntimeDependency::Git {
+                        repository: "https://runtime.invalid/crucible".into(),
+                        revision: "0".repeat(40),
+                        version_requirement: "*".into(),
+                    };
+                }
+                crucible_codegen_rust::emit_client_package(&service, &options)?;
             }
             #[allow(unreachable_patterns, reason = "other languages are feature-gated")]
             _ => {

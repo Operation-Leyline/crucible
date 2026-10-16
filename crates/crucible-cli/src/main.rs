@@ -989,6 +989,29 @@ fn package_at(package: &Path, reference: &str) -> Result<tempfile::TempDir, Stri
 fn generate(target: Target, audience: crucible_codegen::Audience) -> Result<(), String> {
     match target {
         Target::Docs { source, out, sdks } => {
+            // Checked first: the SDK file must declare this reference's
+            // model, not another that happens to share its service ID.
+            let sdks = sdks
+                .map(|path| {
+                    let file =
+                        crucible_codegen::sdk::load(&path).map_err(|errors| errors.to_string())?;
+                    let declared = file.join(&file.model);
+                    let same = match (declared.canonicalize(), source.model.canonicalize()) {
+                        (Ok(a), Ok(b)) => a == b,
+                        _ => false,
+                    };
+                    if same {
+                        Ok(file)
+                    } else {
+                        Err(format!(
+                            "{} declares SDKs for the model {}, not {}",
+                            path.display(),
+                            declared.display(),
+                            source.model.display()
+                        ))
+                    }
+                })
+                .transpose()?;
             // As in a build: documentation and infrastructure check no
             // client capabilities, only what their generators support.
             let full = lower_cru(&source, true)?;
@@ -1001,9 +1024,7 @@ fn generate(target: Target, audience: crucible_codegen::Audience) -> Result<(), 
                     contents: file.contents,
                 })
                 .collect::<Vec<_>>();
-            if let Some(path) = sdks {
-                let file = crucible_codegen::sdks::load(&path, |name| std::env::var(name).ok())
-                    .map_err(|errors| errors.to_string())?;
+            if let Some(file) = sdks {
                 files.push(crucible_codegen::sdks::file(&file, &full, audience)?);
             }
             crucible_codegen::write(&out, &files).map_err(|e| e.to_string())?;

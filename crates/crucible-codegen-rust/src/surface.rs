@@ -1,14 +1,16 @@
 //! The Cargo SDK's public surface (`crucible.sdks/1`), named by the
 //! allocators the client methods and model builders are emitted with.
 
-use crucible_codegen_common::surface::{self, Client, Member, Operation, Package, Structure};
+use std::collections::BTreeSet;
+
+use crucible_codegen_common::surface::{self, ClientType, Member, Operation, Package, Structure};
 use crucible_ir::ShapeId;
 use crucible_ir::ir::{Service, Shape};
 
 use crate::builders::{fallible, getter_names, setter_names};
 use crate::client::{client_name, method_names};
 use crate::names::function;
-use crate::types::rust_type;
+use crate::types::{boxed_members, public_builtin};
 use crate::{ClientOptions, client_package_name};
 
 /// What the generated Cargo package shows its callers: the crate, the
@@ -17,11 +19,19 @@ use crate::{ClientOptions, client_package_name};
 pub fn surface(service: &Service, options: &ClientOptions) -> surface::Surface {
     let package = client_package_name(service, options);
     let client = client_name(service);
+    let crate_name = package.replace('-', "_");
+    let mut package = Package::new("cargo", &package, &crate_name);
+    // The crate root holds the client, the models and `runtime`.
+    package.imports = vec![format!("use {crate_name}::*;")];
     let mut out = surface::Surface::new(
         "rust",
-        Package::new("cargo", &package, package.replace('-', "_")),
-        Client::new(&client, format!("{client}::new(Config::new(endpoint))")),
+        package,
+        ClientType::new(
+            &client,
+            format!("{client}::new(runtime::Config::new(endpoint))"),
+        ),
     );
+    let boxed = boxed_members(service);
     for (operation, derived) in service.operations.iter().zip(method_names(service)) {
         let mut entry = Operation::new(function(operation.name()));
         entry.options_method = Some(derived.options);
@@ -29,18 +39,29 @@ pub fn surface(service: &Service, options: &ClientOptions) -> surface::Surface {
         entry.input = operation
             .input
             .as_ref()
-            .map(|id| structure(service, id, true));
+            .map(|id| structure(service, id, &boxed, true));
         entry.output = operation
             .output
             .as_ref()
-            .map(|id| structure(service, id, false));
+            .map(|id| structure(service, id, &boxed, false));
         out.operations.insert(operation.id.to_string(), entry);
     }
     out
 }
 
+/// `target`'s type as a caller writes it after `use sdk::*;`.
+fn caller_type(service: &Service, target: &ShapeId) -> String {
+    if target.is_prelude()
+        && let Some(Shape::Simple(simple)) = service.shape(target)
+    {
+        return public_builtin(simple.kind).to_owned();
+    }
+    service.name_of(target).to_owned()
+}
+
 /// An input as its builder sets it, or an output as its accessors read it.
-fn structure(service: &Service, id: &ShapeId, input: bool) -> Structure {
+/// A recursive member is boxed, as the model's field is.
+fn structure(service: &Service, id: &ShapeId, boxed: &BTreeSet<ShapeId>, input: bool) -> Structure {
     let style = if input { "builder" } else { "methods" };
     let mut structure = Structure::new(service.name_of(id), style);
     if let Some(Shape::Structure(shape)) = service.shape(id) {
@@ -54,11 +75,11 @@ fn structure(service: &Service, id: &ShapeId, input: bool) -> Structure {
             .members
             .iter()
             .map(|member| {
-                Member::new(
-                    &member.name,
-                    names[&member.name].clone(),
-                    surface::unqualified(&rust_type(service, &member.target, ""), "::"),
-                )
+                let mut ty = caller_type(service, &member.target);
+                if boxed.contains(&id.with_member(&member.name)) {
+                    ty = format!("Box<{ty}>");
+                }
+                Member::new(member, names[&member.name].clone(), ty)
             })
             .collect();
     }

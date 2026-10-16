@@ -39,10 +39,7 @@ fn golden(name: &str, text: &str) {
 
 /// The SDK file's every SDK, described, at `audience`.
 fn describe(path: &Path, model: &str, audience: Audience) -> Result<String, String> {
-    let file = sdks::load(path, |name| {
-        (name == "WEATHER_ENDPOINT").then(|| "https://api.weather.example".to_owned())
-    })
-    .unwrap();
+    let file = sdk::load(path).unwrap();
     let service = common::load(model);
     sdks::file(&file, &service, audience).map(|file| {
         assert_eq!(file.path, "sdks.json");
@@ -252,8 +249,11 @@ out = "generated/r"
             "{name}"
         );
     }
-    assert_eq!(sdks["ts"]["endpoint"], "https://api.weather.example");
+    // A variable's endpoint is the deployment's: named, never read, and
+    // generated in, so the client takes none.
+    assert_eq!(sdks["ts"]["endpoint"], serde_json::Value::Null);
     assert_eq!(sdks["ts"]["endpointEnv"], "WEATHER_ENDPOINT");
+    assert_eq!(sdks["ts"]["client"]["construct"], "new WeatherClient()");
     assert_eq!(sdks["python"]["endpoint"], "https://api.weather.example");
     assert_eq!(sdks["rust"]["package"]["name"], "weather-sdk");
 }

@@ -41,6 +41,28 @@ pub(crate) fn builtin(kind: SimpleKind) -> &'static str {
     }
 }
 
+/// What a client SDK's caller writes for `kind` after `use sdk::*;`: the
+/// spellings [`builtin`]'s hidden paths have in the package's public API.
+/// Runtime types go through the package's `runtime` module, which no model
+/// name can shadow.
+pub(crate) fn public_builtin(kind: SimpleKind) -> &'static str {
+    match kind {
+        SimpleKind::BigInteger => "runtime::BigInteger",
+        SimpleKind::BigDecimal => "runtime::BigDecimal",
+        SimpleKind::Boolean => "bool",
+        SimpleKind::String => "String",
+        SimpleKind::Byte => "i8",
+        SimpleKind::Short => "i16",
+        SimpleKind::Integer => "i32",
+        SimpleKind::Long => "i64",
+        SimpleKind::Float => "f32",
+        SimpleKind::Double => "f64",
+        SimpleKind::Timestamp => "runtime::time::Timestamp",
+        SimpleKind::Document => "serde_json::Value",
+        SimpleKind::Blob => "runtime::Blob",
+    }
+}
+
 /// Optional members use client `Field` or server `Option`; recursive values are boxed.
 pub(crate) fn field_type(
     service: &Service,

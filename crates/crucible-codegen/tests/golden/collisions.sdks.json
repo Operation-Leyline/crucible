@@ -4,8 +4,10 @@
     "rust": {
       "audience": "external",
       "client": {
-        "construct": "SurfaceClient::new(Config::new(endpoint))",
-        "name": "SurfaceClient"
+        "construct": "SurfaceClient::new(runtime::Config::new(endpoint))",
+        "fallible": false,
+        "name": "SurfaceClient",
+        "statements": false
       },
       "endpoint": null,
       "endpointEnv": null,
@@ -29,11 +31,13 @@
               {
                 "member": "nextToken",
                 "name": "next_token",
+                "optional": true,
                 "type": "String"
               },
               {
                 "member": "build",
                 "name": "member_build",
+                "optional": true,
                 "type": "String"
               }
             ],
@@ -48,16 +52,19 @@
               {
                 "member": "nextToken",
                 "name": "next_token",
+                "optional": true,
                 "type": "String"
               },
               {
                 "member": "info",
                 "name": "member_info",
+                "optional": true,
                 "type": "String"
               },
               {
                 "member": "count",
                 "name": "count",
+                "optional": true,
                 "type": "i64"
               }
             ],
@@ -104,14 +111,20 @@
       "package": {
         "ecosystem": "cargo",
         "import": "surface_sdk",
-        "name": "surface-sdk"
+        "imports": [
+          "use surface_sdk::*;"
+        ],
+        "name": "surface-sdk",
+        "qualifier": ""
       }
     },
     "ts": {
       "audience": "external",
       "client": {
-        "construct": "new SurfaceClient({ endpoint })",
-        "name": "SurfaceClient"
+        "construct": "new SurfaceClient()",
+        "fallible": false,
+        "name": "SurfaceClient",
+        "statements": false
       },
       "endpoint": null,
       "endpointEnv": "SURFACE_ENDPOINT",
@@ -142,16 +155,18 @@
               {
                 "member": "nextToken",
                 "name": "nextToken",
+                "optional": true,
                 "type": "string"
               },
               {
                 "member": "build",
                 "name": "build",
+                "optional": true,
                 "type": "string"
               }
             ],
             "style": "object",
-            "type": "ListThingsInput"
+            "type": "models.ListThingsInput"
           },
           "method": "listThings",
           "optionsMethod": null,
@@ -161,21 +176,24 @@
               {
                 "member": "nextToken",
                 "name": "nextToken",
+                "optional": true,
                 "type": "string"
               },
               {
                 "member": "info",
                 "name": "info",
+                "optional": true,
                 "type": "string"
               },
               {
                 "member": "count",
                 "name": "count",
+                "optional": true,
                 "type": "bigint"
               }
             ],
             "style": "properties",
-            "type": "ListThingsOutput"
+            "type": "models.ListThingsOutput"
           },
           "paginators": [
             "paginateListThings_2"
@@ -217,7 +235,12 @@
       "package": {
         "ecosystem": "npm",
         "import": "@example/surface",
-        "name": "@example/surface"
+        "imports": [
+          "import { SurfaceClient } from \"@example/surface\";",
+          "import type * as models from \"@example/surface\";"
+        ],
+        "name": "@example/surface",
+        "qualifier": "models."
       }
     }
   },

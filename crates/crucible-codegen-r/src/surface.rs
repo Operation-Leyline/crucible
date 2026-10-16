@@ -1,7 +1,7 @@
 //! The R package's public surface (`crucible.sdks/1`), named by the
 //! functions the client and model constructors are emitted with.
 
-use crucible_codegen_common::surface::{self, Client, Member, Operation, Package, Structure};
+use crucible_codegen_common::surface::{self, ClientType, Member, Operation, Package, Structure};
 use crucible_ir::ShapeId;
 use crucible_ir::ir::{Service, Shape};
 
@@ -10,6 +10,7 @@ use crate::{Options, client_name, field, method, pages, r_class};
 /// What the generated R package shows its callers: the package, the client
 /// constructor, and per operation its methods, the model constructor it
 /// takes (named arguments) and the classed list it returns (`$` elements).
+/// `library(pkg)` attaches every exported constructor unqualified.
 pub fn surface(service: &Service, options: &Options) -> surface::Surface {
     let client = client_name(service);
     let construct = if options.endpoint.is_some() {
@@ -18,11 +19,9 @@ pub fn surface(service: &Service, options: &Options) -> surface::Surface {
         format!("{client}(client_config(endpoint = endpoint))")
     };
     let package = &options.package_name;
-    let mut out = surface::Surface::new(
-        "r",
-        Package::new("cran", package, package),
-        Client::new(client, construct),
-    );
+    let mut package = Package::new("cran", package, package);
+    package.imports = vec![format!("library({})", package.name)];
+    let mut out = surface::Surface::new("r", package, ClientType::new(client, construct));
     out.endpoint.clone_from(&options.endpoint);
     for operation in &service.operations {
         let mut entry = Operation::new(method(operation));
@@ -49,7 +48,7 @@ fn structure(service: &Service, id: &ShapeId, style: &str) -> Structure {
             .iter()
             .map(|member| {
                 Member::new(
-                    &member.name,
+                    member,
                     field(&member.name),
                     r_class(service, &member.target),
                 )

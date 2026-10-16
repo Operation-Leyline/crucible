@@ -9,7 +9,7 @@ use crucible_ir::Audience;
 use crucible_ir::ir::Service;
 use serde_json::{Value, json};
 
-use crate::sdk::{Endpoint, Errors, Sdk, SdkFile};
+use crate::sdk::{Endpoint, Sdk, SdkFile};
 
 /// The contract's `format`.
 pub const FORMAT: &str = "crucible.sdks/1";
@@ -17,29 +17,12 @@ pub const FORMAT: &str = "crucible.sdks/1";
 /// Its file name beside `describe.json` in a documentation output.
 pub const FILE_NAME: &str = "sdks.json";
 
-/// The SDK file as a description reads it: [`crate::sdk::load`], then each
-/// `endpoint = { env = "NAME" }` whose variable `env` sets read and
-/// checked. One whose variable is unset stays unresolved: a description
-/// records the variable's name, and generating never needs it.
-pub fn load(
-    path: &std::path::Path,
-    env: impl Fn(&str) -> Option<String>,
-) -> Result<SdkFile, Errors> {
-    let mut file = crate::sdk::load(path)?;
-    let set: Vec<String> = file
-        .sdks
-        .iter()
-        .filter(|(_, sdk)| match &sdk.options.endpoint {
-            Some(Endpoint::Env { name, .. }) => env(name).is_some_and(|value| !value.is_empty()),
-            _ => false,
-        })
-        .map(|(name, _)| name.clone())
-        .collect();
-    if !set.is_empty() {
-        file.resolve_endpoints(&set, env)?;
-    }
-    Ok(file)
-}
+/// The endpoint a client generated from `endpoint = { env = "NAME" }`
+/// is described with. A released SDK always has its endpoint generated in
+/// (`crucible sdk generate` and `build` refuse an unset variable), so its
+/// snippets construct the client without one; which URL it holds is the
+/// deployment's, never the description's, so the environment is not read.
+const PLACEHOLDER_ENDPOINT: &str = "https://endpoint.invalid";
 
 /// The SDKs a reference for `audience` describes: every SDK for an
 /// internal reference, and only external SDKs for an external one, so an
@@ -51,12 +34,13 @@ pub fn visible_in(file: &SdkFile, audience: Audience) -> Vec<&Sdk> {
         .collect()
 }
 
-/// The `crucible.sdks/1` document for `selected` SDKs of `file`, generated
-/// from `service` (the full lowered model; each SDK projects its own
-/// audience). An `endpoint = { env = "NAME" }` whose variable is not
-/// resolved is recorded by name, with a null value. Every SDK that cannot
-/// be described is reported, in one error.
-pub fn describe(file: &SdkFile, service: &Service, selected: &[&Sdk]) -> Result<Value, String> {
+/// The `crucible.sdks/1` document for `selected` SDKs of `file` (read with
+/// [`crate::sdk::load`]: no environment), generated from `service` (the
+/// full lowered model; each SDK projects its own audience). An
+/// `endpoint = { env = "NAME" }` is recorded by its variable's name, with a
+/// null `endpoint`. Every SDK that cannot be described is reported, in one
+/// error. Deterministic: the same file and model give the same bytes.
+pub fn document(file: &SdkFile, service: &Service, selected: &[&Sdk]) -> Result<Value, String> {
     if let Some(declared) = &file.service
         && *declared != service.id.to_string()
     {
@@ -93,10 +77,10 @@ pub fn render(document: &Value) -> String {
     text
 }
 
-/// `sdks.json` for a reference at `audience`: [`describe`] of
+/// `sdks.json` for a reference at `audience`: the [`document`] of
 /// [`visible_in`].
 pub fn file(file: &SdkFile, service: &Service, audience: Audience) -> Result<crate::File, String> {
-    let document = describe(file, service, &visible_in(file, audience))?;
+    let document = document(file, service, &visible_in(file, audience))?;
     Ok(crate::File {
         path: FILE_NAME.into(),
         contents: render(&document),
@@ -106,23 +90,31 @@ pub fn file(file: &SdkFile, service: &Service, audience: Audience) -> Result<cra
 fn entry(file: &SdkFile, service: &Service, sdk: &Sdk) -> Result<Value, String> {
     let mut sdk = sdk.clone();
     let endpoint_env = match &sdk.options.endpoint {
-        Some(Endpoint::Env { name, value }) => {
-            let name = name.clone();
-            // Unresolved, the client is described without a generated-in
-            // endpoint: it then reads one from its configuration.
-            if value.is_none() {
-                sdk.options.endpoint = None;
-            }
-            Some(name)
-        }
+        Some(Endpoint::Env { name, .. }) => Some(name.clone()),
         _ => None,
     };
+    if endpoint_env.is_some() {
+        sdk.options.endpoint = Some(Endpoint::Url(PLACEHOLDER_ENDPOINT.into()));
+    }
+    // The README and license are package contents, not names: describing
+    // needs neither file.
+    sdk.metadata.readme = None;
+    sdk.metadata.license_file = None;
     let client = sdk
         .client(file, None)
         .map_err(|error| format!("sdk.{}: {error}", sdk.name))?;
-    let surface = client
+    let mut surface = client
         .surface(service, sdk.audience)
-        .map_err(|diagnostics| format!("sdk.{}:\n{diagnostics}", sdk.name))?;
+        .map_err(|diagnostics| {
+            format!(
+                "sdk.{}:
+{diagnostics}",
+                sdk.name
+            )
+        })?;
+    if endpoint_env.is_some() {
+        surface.endpoint = None;
+    }
     let mut entry = serde_json::to_value(&surface).expect("a surface is JSON data");
     let object = entry.as_object_mut().expect("a surface is an object");
     object.insert("name".into(), json!(sdk.name));

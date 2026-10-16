@@ -5,7 +5,9 @@
       "audience": "external",
       "client": {
         "construct": "weather_client_config config = weather_client_defaults(); config.endpoint = weather_string_view(endpoint); weather_client *client = NULL; weather_error error = {0}; weather_client_new(&config, &client, &error);",
-        "name": "weather_client"
+        "fallible": true,
+        "name": "weather_client",
+        "statements": true
       },
       "endpoint": null,
       "endpointEnv": null,
@@ -21,21 +23,25 @@
               {
                 "member": "name",
                 "name": "weather_models_create_city_input_set_name",
+                "optional": false,
                 "type": "weather_string"
               },
               {
                 "member": "location",
                 "name": "weather_models_create_city_input_set_location",
+                "optional": true,
                 "type": "const weather_models_location *"
               },
               {
                 "member": "clientToken",
                 "name": "weather_models_create_city_input_set_client_token",
+                "optional": true,
                 "type": "weather_string"
               },
               {
                 "member": "expectedRevision",
                 "name": "weather_models_create_city_input_set_expected_revision",
+                "optional": true,
                 "type": "int64_t"
               }
             ],
@@ -50,6 +56,7 @@
               {
                 "member": "city",
                 "name": "weather_models_create_city_output_get_city",
+                "optional": false,
                 "type": "const weather_models_city_summary *"
               }
             ],
@@ -66,11 +73,13 @@
               {
                 "member": "cityId",
                 "name": "weather_models_get_city_input_set_city_id",
+                "optional": false,
                 "type": "weather_string"
               },
               {
                 "member": "at",
                 "name": "weather_models_get_city_input_set_at",
+                "optional": true,
                 "type": "weather_timestamp"
               }
             ],
@@ -85,16 +94,19 @@
               {
                 "member": "city",
                 "name": "weather_models_get_city_output_get_city",
+                "optional": false,
                 "type": "const weather_models_city_summary *"
               },
               {
                 "member": "forecast",
                 "name": "weather_models_get_city_output_get_forecast",
+                "optional": true,
                 "type": "const weather_models_forecast *"
               },
               {
                 "member": "requestId",
                 "name": "weather_models_get_city_output_get_request_id",
+                "optional": true,
                 "type": "weather_string"
               }
             ],
@@ -111,6 +123,7 @@
               {
                 "member": "cityId",
                 "name": "weather_models_get_city_photo_input_set_city_id",
+                "optional": false,
                 "type": "weather_string"
               }
             ],
@@ -125,11 +138,13 @@
               {
                 "member": "caption",
                 "name": "weather_models_get_city_photo_output_get_caption",
+                "optional": true,
                 "type": "weather_string"
               },
               {
                 "member": "photo",
                 "name": "weather_models_get_city_photo_output_get_photo",
+                "optional": true,
                 "type": "weather_blob"
               }
             ],
@@ -146,16 +161,19 @@
               {
                 "member": "nextToken",
                 "name": "weather_models_list_cities_input_set_next_token",
+                "optional": true,
                 "type": "weather_string"
               },
               {
                 "member": "maxResults",
                 "name": "weather_models_list_cities_input_set_max_results",
+                "optional": true,
                 "type": "int32_t"
               },
               {
                 "member": "tags",
                 "name": "weather_models_list_cities_input_set_tags",
+                "optional": true,
                 "type": "const weather_models_tags *"
               }
             ],
@@ -170,11 +188,13 @@
               {
                 "member": "cities",
                 "name": "weather_models_list_cities_output_get_cities",
+                "optional": false,
                 "type": "const weather_models_city_summaries *"
               },
               {
                 "member": "nextToken",
                 "name": "weather_models_list_cities_output_get_next_token",
+                "optional": true,
                 "type": "weather_string"
               }
             ],
@@ -202,16 +222,19 @@
               {
                 "member": "cityId",
                 "name": "weather_models_put_city_photo_input_set_city_id",
+                "optional": false,
                 "type": "weather_string"
               },
               {
                 "member": "caption",
                 "name": "weather_models_put_city_photo_input_set_caption",
+                "optional": true,
                 "type": "weather_string"
               },
               {
                 "member": "photo",
                 "name": "weather_models_put_city_photo_input_set_photo",
+                "optional": false,
                 "type": "weather_blob"
               }
             ],
@@ -226,6 +249,7 @@
               {
                 "member": "photo",
                 "name": "weather_models_put_city_photo_output_get_photo",
+                "optional": false,
                 "type": "const weather_models_photo_summary *"
               }
             ],
@@ -256,14 +280,20 @@
       "package": {
         "ecosystem": "cmake",
         "import": "weather/client.h",
-        "name": "weather"
+        "imports": [
+          "#include \"weather/client.h\""
+        ],
+        "name": "weather",
+        "qualifier": ""
       }
     },
     "cpp": {
       "audience": "external",
       "client": {
         "construct": "example::weather::WeatherClient(example::weather::runtime::ClientConfig{.endpoint = endpoint})",
-        "name": "WeatherClient"
+        "fallible": false,
+        "name": "example::weather::WeatherClient",
+        "statements": false
       },
       "endpoint": null,
       "endpointEnv": null,
@@ -279,26 +309,30 @@
               {
                 "member": "name",
                 "name": "name",
-                "type": "string"
+                "optional": false,
+                "type": "std::string"
               },
               {
                 "member": "location",
                 "name": "location",
-                "type": "Location"
+                "optional": true,
+                "type": "example::weather::models::Location"
               },
               {
                 "member": "clientToken",
                 "name": "client_token",
-                "type": "string"
+                "optional": true,
+                "type": "std::string"
               },
               {
                 "member": "expectedRevision",
                 "name": "expected_revision",
-                "type": "int64_t"
+                "optional": true,
+                "type": "std::int64_t"
               }
             ],
-            "style": "fields",
-            "type": "CreateCityInput"
+            "style": "positional",
+            "type": "example::weather::models::CreateCityInput"
           },
           "method": "create_city",
           "optionsMethod": null,
@@ -308,11 +342,12 @@
               {
                 "member": "city",
                 "name": "city",
-                "type": "CitySummary"
+                "optional": false,
+                "type": "example::weather::models::CitySummary"
               }
             ],
             "style": "fields",
-            "type": "CreateCityOutput"
+            "type": "example::weather::models::CreateCityOutput"
           },
           "paginators": null
         },
@@ -324,16 +359,18 @@
               {
                 "member": "cityId",
                 "name": "city_id",
-                "type": "string"
+                "optional": false,
+                "type": "std::string"
               },
               {
                 "member": "at",
                 "name": "at",
-                "type": "Timestamp"
+                "optional": true,
+                "type": "example::weather::runtime::Timestamp"
               }
             ],
-            "style": "fields",
-            "type": "GetCityInput"
+            "style": "positional",
+            "type": "example::weather::models::GetCityInput"
           },
           "method": "get_city",
           "optionsMethod": null,
@@ -343,21 +380,24 @@
               {
                 "member": "city",
                 "name": "city",
-                "type": "CitySummary"
+                "optional": false,
+                "type": "example::weather::models::CitySummary"
               },
               {
                 "member": "forecast",
                 "name": "forecast",
-                "type": "map<Sky, Json>"
+                "optional": true,
+                "type": "std::map<example::weather::models::Sky, example::weather::runtime::Json>"
               },
               {
                 "member": "requestId",
                 "name": "request_id",
-                "type": "string"
+                "optional": true,
+                "type": "std::string"
               }
             ],
             "style": "fields",
-            "type": "GetCityOutput"
+            "type": "example::weather::models::GetCityOutput"
           },
           "paginators": null
         },
@@ -369,11 +409,12 @@
               {
                 "member": "cityId",
                 "name": "city_id",
-                "type": "string"
+                "optional": false,
+                "type": "std::string"
               }
             ],
-            "style": "fields",
-            "type": "GetCityPhotoInput"
+            "style": "positional",
+            "type": "example::weather::models::GetCityPhotoInput"
           },
           "method": "get_city_photo",
           "optionsMethod": null,
@@ -383,16 +424,18 @@
               {
                 "member": "caption",
                 "name": "caption",
-                "type": "string"
+                "optional": true,
+                "type": "std::string"
               },
               {
                 "member": "photo",
                 "name": "photo",
-                "type": "Blob"
+                "optional": true,
+                "type": "example::weather::runtime::Blob"
               }
             ],
             "style": "fields",
-            "type": "GetCityPhotoOutput"
+            "type": "example::weather::models::GetCityPhotoOutput"
           },
           "paginators": null
         },
@@ -404,21 +447,24 @@
               {
                 "member": "nextToken",
                 "name": "next_token",
-                "type": "string"
+                "optional": true,
+                "type": "std::string"
               },
               {
                 "member": "maxResults",
                 "name": "max_results",
-                "type": "int32_t"
+                "optional": true,
+                "type": "std::int32_t"
               },
               {
                 "member": "tags",
                 "name": "tags",
-                "type": "vector<string>"
+                "optional": true,
+                "type": "std::vector<std::string>"
               }
             ],
-            "style": "fields",
-            "type": "ListCitiesInput"
+            "style": "positional",
+            "type": "example::weather::models::ListCitiesInput"
           },
           "method": "list_cities",
           "optionsMethod": null,
@@ -428,16 +474,18 @@
               {
                 "member": "cities",
                 "name": "cities",
-                "type": "vector<CitySummary>"
+                "optional": false,
+                "type": "std::vector<example::weather::models::CitySummary>"
               },
               {
                 "member": "nextToken",
                 "name": "next_token",
-                "type": "string"
+                "optional": true,
+                "type": "std::string"
               }
             ],
             "style": "fields",
-            "type": "ListCitiesOutput"
+            "type": "example::weather::models::ListCitiesOutput"
           },
           "paginators": [
             "list_cities_pages"
@@ -459,21 +507,24 @@
               {
                 "member": "cityId",
                 "name": "city_id",
-                "type": "string"
+                "optional": false,
+                "type": "std::string"
               },
               {
                 "member": "caption",
                 "name": "caption",
-                "type": "string"
+                "optional": true,
+                "type": "std::string"
               },
               {
                 "member": "photo",
                 "name": "photo",
-                "type": "Blob"
+                "optional": false,
+                "type": "example::weather::runtime::Blob"
               }
             ],
-            "style": "fields",
-            "type": "PutCityPhotoInput"
+            "style": "positional",
+            "type": "example::weather::models::PutCityPhotoInput"
           },
           "method": "put_city_photo",
           "optionsMethod": null,
@@ -483,11 +534,12 @@
               {
                 "member": "photo",
                 "name": "photo",
-                "type": "PhotoSummary"
+                "optional": false,
+                "type": "example::weather::models::PhotoSummary"
               }
             ],
             "style": "fields",
-            "type": "PutCityPhotoOutput"
+            "type": "example::weather::models::PutCityPhotoOutput"
           },
           "paginators": null
         },
@@ -496,8 +548,8 @@
           "input": {
             "fallible": false,
             "members": [],
-            "style": "fields",
-            "type": "StatusInput"
+            "style": "positional",
+            "type": "example::weather::models::StatusInput"
           },
           "method": "status",
           "optionsMethod": null,
@@ -505,7 +557,7 @@
             "fallible": false,
             "members": [],
             "style": "fields",
-            "type": "StatusOutput"
+            "type": "example::weather::models::StatusOutput"
           },
           "paginators": null
         }
@@ -513,14 +565,20 @@
       "package": {
         "ecosystem": "cmake",
         "import": "weather/client.hpp",
-        "name": "weather"
+        "imports": [
+          "#include \"weather/client.hpp\""
+        ],
+        "name": "weather",
+        "qualifier": "example::weather::"
       }
     },
     "csharp": {
       "audience": "external",
       "client": {
         "construct": "new WeatherClient(new ClientConfig { Endpoint = endpoint })",
-        "name": "WeatherClient"
+        "fallible": false,
+        "name": "WeatherClient",
+        "statements": false
       },
       "endpoint": null,
       "endpointEnv": null,
@@ -536,21 +594,25 @@
               {
                 "member": "name",
                 "name": "Name",
+                "optional": false,
                 "type": "string"
               },
               {
                 "member": "location",
                 "name": "Location",
+                "optional": true,
                 "type": "Location"
               },
               {
                 "member": "clientToken",
                 "name": "ClientToken",
+                "optional": true,
                 "type": "string"
               },
               {
                 "member": "expectedRevision",
                 "name": "ExpectedRevision",
+                "optional": true,
                 "type": "long"
               }
             ],
@@ -565,6 +627,7 @@
               {
                 "member": "city",
                 "name": "City",
+                "optional": false,
                 "type": "CitySummary"
               }
             ],
@@ -581,12 +644,14 @@
               {
                 "member": "cityId",
                 "name": "CityId",
+                "optional": false,
                 "type": "string"
               },
               {
                 "member": "at",
                 "name": "At",
-                "type": "DateTimeOffset"
+                "optional": true,
+                "type": "System.DateTimeOffset"
               }
             ],
             "style": "fields",
@@ -600,16 +665,19 @@
               {
                 "member": "city",
                 "name": "City",
+                "optional": false,
                 "type": "CitySummary"
               },
               {
                 "member": "forecast",
                 "name": "Forecast",
-                "type": "Dictionary<Sky, JsonNode>"
+                "optional": true,
+                "type": "System.Collections.Generic.Dictionary<Sky, System.Text.Json.Nodes.JsonNode>"
               },
               {
                 "member": "requestId",
                 "name": "RequestIdValue",
+                "optional": true,
                 "type": "string"
               }
             ],
@@ -626,6 +694,7 @@
               {
                 "member": "cityId",
                 "name": "CityId",
+                "optional": false,
                 "type": "string"
               }
             ],
@@ -640,11 +709,13 @@
               {
                 "member": "caption",
                 "name": "Caption",
+                "optional": true,
                 "type": "string"
               },
               {
                 "member": "photo",
                 "name": "Photo",
+                "optional": true,
                 "type": "byte[]"
               }
             ],
@@ -661,17 +732,20 @@
               {
                 "member": "nextToken",
                 "name": "NextToken",
+                "optional": true,
                 "type": "string"
               },
               {
                 "member": "maxResults",
                 "name": "MaxResults",
+                "optional": true,
                 "type": "int"
               },
               {
                 "member": "tags",
                 "name": "Tags",
-                "type": "List<string>"
+                "optional": true,
+                "type": "System.Collections.Generic.List<string>"
               }
             ],
             "style": "fields",
@@ -685,11 +759,13 @@
               {
                 "member": "cities",
                 "name": "Cities",
-                "type": "List<CitySummary>"
+                "optional": false,
+                "type": "System.Collections.Generic.List<CitySummary>"
               },
               {
                 "member": "nextToken",
                 "name": "NextToken",
+                "optional": true,
                 "type": "string"
               }
             ],
@@ -716,16 +792,19 @@
               {
                 "member": "cityId",
                 "name": "CityId",
+                "optional": false,
                 "type": "string"
               },
               {
                 "member": "caption",
                 "name": "Caption",
+                "optional": true,
                 "type": "string"
               },
               {
                 "member": "photo",
                 "name": "Photo",
+                "optional": false,
                 "type": "byte[]"
               }
             ],
@@ -740,6 +819,7 @@
               {
                 "member": "photo",
                 "name": "Photo",
+                "optional": false,
                 "type": "PhotoSummary"
               }
             ],
@@ -770,14 +850,21 @@
       "package": {
         "ecosystem": "nuget",
         "import": "Example.Weather",
-        "name": "Example.Weather"
+        "imports": [
+          "using Example.Weather;",
+          "using Example.Weather.Models;"
+        ],
+        "name": "Example.Weather",
+        "qualifier": ""
       }
     },
     "dart": {
       "audience": "external",
       "client": {
         "construct": "WeatherClient(ClientConfig(endpoint: endpoint))",
-        "name": "WeatherClient"
+        "fallible": false,
+        "name": "WeatherClient",
+        "statements": false
       },
       "endpoint": null,
       "endpointEnv": null,
@@ -793,21 +880,25 @@
               {
                 "member": "name",
                 "name": "name",
+                "optional": false,
                 "type": "String"
               },
               {
                 "member": "location",
                 "name": "location",
+                "optional": true,
                 "type": "Location"
               },
               {
                 "member": "clientToken",
                 "name": "clientToken",
+                "optional": true,
                 "type": "String"
               },
               {
                 "member": "expectedRevision",
                 "name": "expectedRevision",
+                "optional": true,
                 "type": "BigInt"
               }
             ],
@@ -822,6 +913,7 @@
               {
                 "member": "city",
                 "name": "city",
+                "optional": false,
                 "type": "CitySummary"
               }
             ],
@@ -838,11 +930,13 @@
               {
                 "member": "cityId",
                 "name": "cityId",
+                "optional": false,
                 "type": "String"
               },
               {
                 "member": "at",
                 "name": "at",
+                "optional": true,
                 "type": "Timestamp"
               }
             ],
@@ -857,16 +951,19 @@
               {
                 "member": "city",
                 "name": "city",
+                "optional": false,
                 "type": "CitySummary"
               },
               {
                 "member": "forecast",
                 "name": "forecast",
+                "optional": true,
                 "type": "Forecast"
               },
               {
                 "member": "requestId",
                 "name": "requestId",
+                "optional": true,
                 "type": "String"
               }
             ],
@@ -883,6 +980,7 @@
               {
                 "member": "cityId",
                 "name": "cityId",
+                "optional": false,
                 "type": "String"
               }
             ],
@@ -897,11 +995,13 @@
               {
                 "member": "caption",
                 "name": "caption",
+                "optional": true,
                 "type": "String"
               },
               {
                 "member": "photo",
                 "name": "photo",
+                "optional": true,
                 "type": "Uint8List"
               }
             ],
@@ -918,16 +1018,19 @@
               {
                 "member": "nextToken",
                 "name": "nextToken",
+                "optional": true,
                 "type": "String"
               },
               {
                 "member": "maxResults",
                 "name": "maxResults",
+                "optional": true,
                 "type": "int"
               },
               {
                 "member": "tags",
                 "name": "tags",
+                "optional": true,
                 "type": "Tags"
               }
             ],
@@ -942,11 +1045,13 @@
               {
                 "member": "cities",
                 "name": "cities",
+                "optional": false,
                 "type": "CitySummaries"
               },
               {
                 "member": "nextToken",
                 "name": "nextToken",
+                "optional": true,
                 "type": "String"
               }
             ],
@@ -973,16 +1078,19 @@
               {
                 "member": "cityId",
                 "name": "cityId",
+                "optional": false,
                 "type": "String"
               },
               {
                 "member": "caption",
                 "name": "caption",
+                "optional": true,
                 "type": "String"
               },
               {
                 "member": "photo",
                 "name": "photo",
+                "optional": false,
                 "type": "Uint8List"
               }
             ],
@@ -997,6 +1105,7 @@
               {
                 "member": "photo",
                 "name": "photo",
+                "optional": false,
                 "type": "PhotoSummary"
               }
             ],
@@ -1027,14 +1136,21 @@
       "package": {
         "ecosystem": "pub",
         "import": "package:weather/weather.dart",
-        "name": "weather"
+        "imports": [
+          "import 'package:weather/weather.dart';",
+          "import 'dart:typed_data';"
+        ],
+        "name": "weather",
+        "qualifier": ""
       }
     },
     "go": {
       "audience": "external",
       "client": {
         "construct": "weather.NewWeatherClient(weather.Config{Endpoint: endpoint})",
-        "name": "WeatherClient"
+        "fallible": true,
+        "name": "weather.WeatherClient",
+        "statements": false
       },
       "endpoint": null,
       "endpointEnv": null,
@@ -1050,26 +1166,30 @@
               {
                 "member": "name",
                 "name": "Name",
-                "type": "CityName"
+                "optional": false,
+                "type": "weather.CityName"
               },
               {
                 "member": "location",
                 "name": "Location",
-                "type": "*Location"
+                "optional": true,
+                "type": "weather.Optional[*weather.Location]"
               },
               {
                 "member": "clientToken",
                 "name": "ClientToken",
-                "type": "string"
+                "optional": true,
+                "type": "weather.Optional[string]"
               },
               {
                 "member": "expectedRevision",
                 "name": "ExpectedRevision",
-                "type": "int64"
+                "optional": true,
+                "type": "weather.Optional[int64]"
               }
             ],
             "style": "fields",
-            "type": "CreateCityInput"
+            "type": "weather.CreateCityInput"
           },
           "method": "CreateCity",
           "optionsMethod": null,
@@ -1079,11 +1199,12 @@
               {
                 "member": "city",
                 "name": "City",
-                "type": "*CitySummary"
+                "optional": false,
+                "type": "*weather.CitySummary"
               }
             ],
             "style": "fields",
-            "type": "CreateCityOutput"
+            "type": "weather.CreateCityOutput"
           },
           "paginators": null
         },
@@ -1095,16 +1216,18 @@
               {
                 "member": "cityId",
                 "name": "CityId",
-                "type": "CityId"
+                "optional": false,
+                "type": "weather.CityId"
               },
               {
                 "member": "at",
                 "name": "At",
-                "type": "DateTime"
+                "optional": true,
+                "type": "weather.Optional[weather.DateTime]"
               }
             ],
             "style": "fields",
-            "type": "GetCityInput"
+            "type": "weather.GetCityInput"
           },
           "method": "GetCity",
           "optionsMethod": null,
@@ -1114,21 +1237,24 @@
               {
                 "member": "city",
                 "name": "City",
-                "type": "*CitySummary"
+                "optional": false,
+                "type": "*weather.CitySummary"
               },
               {
                 "member": "forecast",
                 "name": "Forecast",
-                "type": "Forecast"
+                "optional": true,
+                "type": "weather.Optional[weather.Forecast]"
               },
               {
                 "member": "requestId",
                 "name": "RequestId",
-                "type": "string"
+                "optional": true,
+                "type": "weather.Optional[string]"
               }
             ],
             "style": "fields",
-            "type": "GetCityOutput"
+            "type": "weather.GetCityOutput"
           },
           "paginators": null
         },
@@ -1140,11 +1266,12 @@
               {
                 "member": "cityId",
                 "name": "CityId",
-                "type": "CityId"
+                "optional": false,
+                "type": "weather.CityId"
               }
             ],
             "style": "fields",
-            "type": "GetCityPhotoInput"
+            "type": "weather.GetCityPhotoInput"
           },
           "method": "GetCityPhoto",
           "optionsMethod": null,
@@ -1154,16 +1281,18 @@
               {
                 "member": "caption",
                 "name": "Caption",
-                "type": "string"
+                "optional": true,
+                "type": "weather.Optional[string]"
               },
               {
                 "member": "photo",
                 "name": "Photo",
-                "type": "Photo"
+                "optional": true,
+                "type": "weather.Optional[weather.Photo]"
               }
             ],
             "style": "fields",
-            "type": "GetCityPhotoOutput"
+            "type": "weather.GetCityPhotoOutput"
           },
           "paginators": null
         },
@@ -1175,21 +1304,24 @@
               {
                 "member": "nextToken",
                 "name": "NextToken",
-                "type": "string"
+                "optional": true,
+                "type": "weather.Optional[string]"
               },
               {
                 "member": "maxResults",
                 "name": "MaxResults",
-                "type": "int32"
+                "optional": true,
+                "type": "weather.Optional[int32]"
               },
               {
                 "member": "tags",
                 "name": "Tags",
-                "type": "Tags"
+                "optional": true,
+                "type": "weather.Optional[weather.Tags]"
               }
             ],
             "style": "fields",
-            "type": "ListCitiesInput"
+            "type": "weather.ListCitiesInput"
           },
           "method": "ListCities",
           "optionsMethod": null,
@@ -1199,16 +1331,18 @@
               {
                 "member": "cities",
                 "name": "Cities",
-                "type": "CitySummaries"
+                "optional": false,
+                "type": "weather.CitySummaries"
               },
               {
                 "member": "nextToken",
                 "name": "NextToken",
-                "type": "string"
+                "optional": true,
+                "type": "weather.Optional[string]"
               }
             ],
             "style": "fields",
-            "type": "ListCitiesOutput"
+            "type": "weather.ListCitiesOutput"
           },
           "paginators": [
             "ListCitiesPages"
@@ -1230,21 +1364,24 @@
               {
                 "member": "cityId",
                 "name": "CityId",
-                "type": "CityId"
+                "optional": false,
+                "type": "weather.CityId"
               },
               {
                 "member": "caption",
                 "name": "Caption",
-                "type": "string"
+                "optional": true,
+                "type": "weather.Optional[string]"
               },
               {
                 "member": "photo",
                 "name": "Photo",
-                "type": "Photo"
+                "optional": false,
+                "type": "weather.Photo"
               }
             ],
             "style": "fields",
-            "type": "PutCityPhotoInput"
+            "type": "weather.PutCityPhotoInput"
           },
           "method": "PutCityPhoto",
           "optionsMethod": null,
@@ -1254,11 +1391,12 @@
               {
                 "member": "photo",
                 "name": "Photo",
-                "type": "*PhotoSummary"
+                "optional": false,
+                "type": "*weather.PhotoSummary"
               }
             ],
             "style": "fields",
-            "type": "PutCityPhotoOutput"
+            "type": "weather.PutCityPhotoOutput"
           },
           "paginators": null
         },
@@ -1268,7 +1406,7 @@
             "fallible": false,
             "members": [],
             "style": "fields",
-            "type": "StatusInput"
+            "type": "weather.StatusInput"
           },
           "method": "Status",
           "optionsMethod": null,
@@ -1276,7 +1414,7 @@
             "fallible": false,
             "members": [],
             "style": "fields",
-            "type": "StatusOutput"
+            "type": "weather.StatusOutput"
           },
           "paginators": null
         }
@@ -1284,14 +1422,20 @@
       "package": {
         "ecosystem": "go",
         "import": "example.com/weather",
-        "name": "example.com/weather"
+        "imports": [
+          "import weather \"example.com/weather\""
+        ],
+        "name": "example.com/weather",
+        "qualifier": "weather."
       }
     },
     "java": {
       "audience": "external",
       "client": {
-        "construct": "new WeatherClient(config)",
-        "name": "WeatherClient"
+        "construct": "ClientConfig config = new ClientConfig();\nconfig.endpoint = endpoint;\nWeatherClient client = new WeatherClient(config);",
+        "fallible": false,
+        "name": "WeatherClient",
+        "statements": true
       },
       "endpoint": null,
       "endpointEnv": null,
@@ -1307,26 +1451,30 @@
               {
                 "member": "name",
                 "name": "name",
+                "optional": false,
                 "type": "String"
               },
               {
                 "member": "location",
                 "name": "location",
-                "type": "Location"
+                "optional": true,
+                "type": "com.example.weather.model.Location"
               },
               {
                 "member": "clientToken",
                 "name": "clientToken",
+                "optional": true,
                 "type": "String"
               },
               {
                 "member": "expectedRevision",
                 "name": "expectedRevision",
+                "optional": true,
                 "type": "Long"
               }
             ],
             "style": "builder",
-            "type": "CreateCityInput"
+            "type": "com.example.weather.model.CreateCityInput"
           },
           "method": "createCity",
           "optionsMethod": null,
@@ -1336,11 +1484,12 @@
               {
                 "member": "city",
                 "name": "city",
-                "type": "CitySummary"
+                "optional": false,
+                "type": "com.example.weather.model.CitySummary"
               }
             ],
             "style": "methods",
-            "type": "CreateCityOutput"
+            "type": "com.example.weather.model.CreateCityOutput"
           },
           "paginators": null
         },
@@ -1352,16 +1501,18 @@
               {
                 "member": "cityId",
                 "name": "cityId",
+                "optional": false,
                 "type": "String"
               },
               {
                 "member": "at",
                 "name": "at",
-                "type": "Instant"
+                "optional": true,
+                "type": "java.time.Instant"
               }
             ],
             "style": "builder",
-            "type": "GetCityInput"
+            "type": "com.example.weather.model.GetCityInput"
           },
           "method": "getCity",
           "optionsMethod": null,
@@ -1371,21 +1522,24 @@
               {
                 "member": "city",
                 "name": "city",
-                "type": "CitySummary"
+                "optional": false,
+                "type": "com.example.weather.model.CitySummary"
               },
               {
                 "member": "forecast",
                 "name": "forecast",
-                "type": "Map<Sky, JsonElement>"
+                "optional": true,
+                "type": "java.util.Map<com.example.weather.model.Sky, com.google.gson.JsonElement>"
               },
               {
                 "member": "requestId",
                 "name": "requestId",
+                "optional": true,
                 "type": "String"
               }
             ],
             "style": "methods",
-            "type": "GetCityOutput"
+            "type": "com.example.weather.model.GetCityOutput"
           },
           "paginators": null
         },
@@ -1397,11 +1551,12 @@
               {
                 "member": "cityId",
                 "name": "cityId",
+                "optional": false,
                 "type": "String"
               }
             ],
             "style": "builder",
-            "type": "GetCityPhotoInput"
+            "type": "com.example.weather.model.GetCityPhotoInput"
           },
           "method": "getCityPhoto",
           "optionsMethod": null,
@@ -1411,16 +1566,18 @@
               {
                 "member": "caption",
                 "name": "caption",
+                "optional": true,
                 "type": "String"
               },
               {
                 "member": "photo",
                 "name": "photo",
+                "optional": true,
                 "type": "byte[]"
               }
             ],
             "style": "methods",
-            "type": "GetCityPhotoOutput"
+            "type": "com.example.weather.model.GetCityPhotoOutput"
           },
           "paginators": null
         },
@@ -1432,21 +1589,24 @@
               {
                 "member": "nextToken",
                 "name": "nextToken",
+                "optional": true,
                 "type": "String"
               },
               {
                 "member": "maxResults",
                 "name": "maxResults",
+                "optional": true,
                 "type": "Integer"
               },
               {
                 "member": "tags",
                 "name": "tags",
-                "type": "List<String>"
+                "optional": true,
+                "type": "java.util.List<String>"
               }
             ],
             "style": "builder",
-            "type": "ListCitiesInput"
+            "type": "com.example.weather.model.ListCitiesInput"
           },
           "method": "listCities",
           "optionsMethod": null,
@@ -1456,16 +1616,18 @@
               {
                 "member": "cities",
                 "name": "cities",
-                "type": "List<CitySummary>"
+                "optional": false,
+                "type": "java.util.List<com.example.weather.model.CitySummary>"
               },
               {
                 "member": "nextToken",
                 "name": "nextToken",
+                "optional": true,
                 "type": "String"
               }
             ],
             "style": "methods",
-            "type": "ListCitiesOutput"
+            "type": "com.example.weather.model.ListCitiesOutput"
           },
           "paginators": [
             "listCitiesPages",
@@ -1488,21 +1650,24 @@
               {
                 "member": "cityId",
                 "name": "cityId",
+                "optional": false,
                 "type": "String"
               },
               {
                 "member": "caption",
                 "name": "caption",
+                "optional": true,
                 "type": "String"
               },
               {
                 "member": "photo",
                 "name": "photo",
+                "optional": false,
                 "type": "byte[]"
               }
             ],
             "style": "builder",
-            "type": "PutCityPhotoInput"
+            "type": "com.example.weather.model.PutCityPhotoInput"
           },
           "method": "putCityPhoto",
           "optionsMethod": null,
@@ -1512,11 +1677,12 @@
               {
                 "member": "photo",
                 "name": "photo",
-                "type": "PhotoSummary"
+                "optional": false,
+                "type": "com.example.weather.model.PhotoSummary"
               }
             ],
             "style": "methods",
-            "type": "PutCityPhotoOutput"
+            "type": "com.example.weather.model.PutCityPhotoOutput"
           },
           "paginators": null
         },
@@ -1526,7 +1692,7 @@
             "fallible": false,
             "members": [],
             "style": "builder",
-            "type": "StatusInput"
+            "type": "com.example.weather.model.StatusInput"
           },
           "method": "status",
           "optionsMethod": null,
@@ -1534,7 +1700,7 @@
             "fallible": false,
             "members": [],
             "style": "methods",
-            "type": "StatusOutput"
+            "type": "com.example.weather.model.StatusOutput"
           },
           "paginators": null
         }
@@ -1542,14 +1708,21 @@
       "package": {
         "ecosystem": "maven",
         "import": "com.example.weather",
-        "name": "com.example:weather"
+        "imports": [
+          "import com.example.weather.ClientConfig;",
+          "import com.example.weather.WeatherClient;"
+        ],
+        "name": "com.example:weather",
+        "qualifier": "com.example.weather.model."
       }
     },
     "kotlin": {
       "audience": "external",
       "client": {
         "construct": "WeatherClient(ClientConfig(endpoint = endpoint))",
-        "name": "WeatherClient"
+        "fallible": false,
+        "name": "WeatherClient",
+        "statements": false
       },
       "endpoint": null,
       "endpointEnv": null,
@@ -1565,21 +1738,25 @@
               {
                 "member": "name",
                 "name": "name",
+                "optional": false,
                 "type": "String"
               },
               {
                 "member": "location",
                 "name": "location",
+                "optional": true,
                 "type": "Location"
               },
               {
                 "member": "clientToken",
                 "name": "clientToken",
+                "optional": true,
                 "type": "String"
               },
               {
                 "member": "expectedRevision",
                 "name": "expectedRevision",
+                "optional": true,
                 "type": "Long"
               }
             ],
@@ -1594,6 +1771,7 @@
               {
                 "member": "city",
                 "name": "city",
+                "optional": false,
                 "type": "CitySummary"
               }
             ],
@@ -1610,12 +1788,14 @@
               {
                 "member": "cityId",
                 "name": "cityId",
+                "optional": false,
                 "type": "String"
               },
               {
                 "member": "at",
                 "name": "at",
-                "type": "Instant"
+                "optional": true,
+                "type": "kotlin.time.Instant"
               }
             ],
             "style": "dsl",
@@ -1629,16 +1809,19 @@
               {
                 "member": "city",
                 "name": "city",
+                "optional": false,
                 "type": "CitySummary"
               },
               {
                 "member": "forecast",
                 "name": "forecast",
+                "optional": true,
                 "type": "Forecast"
               },
               {
                 "member": "requestId",
                 "name": "requestIdValue",
+                "optional": true,
                 "type": "String"
               }
             ],
@@ -1655,6 +1838,7 @@
               {
                 "member": "cityId",
                 "name": "cityId",
+                "optional": false,
                 "type": "String"
               }
             ],
@@ -1669,11 +1853,13 @@
               {
                 "member": "caption",
                 "name": "caption",
+                "optional": true,
                 "type": "String"
               },
               {
                 "member": "photo",
                 "name": "photo",
+                "optional": true,
                 "type": "ByteArray"
               }
             ],
@@ -1690,16 +1876,19 @@
               {
                 "member": "nextToken",
                 "name": "nextToken",
+                "optional": true,
                 "type": "String"
               },
               {
                 "member": "maxResults",
                 "name": "maxResults",
+                "optional": true,
                 "type": "Int"
               },
               {
                 "member": "tags",
                 "name": "tags",
+                "optional": true,
                 "type": "Tags"
               }
             ],
@@ -1714,11 +1903,13 @@
               {
                 "member": "cities",
                 "name": "cities",
+                "optional": false,
                 "type": "CitySummaries"
               },
               {
                 "member": "nextToken",
                 "name": "nextToken",
+                "optional": true,
                 "type": "String"
               }
             ],
@@ -1745,16 +1936,19 @@
               {
                 "member": "cityId",
                 "name": "cityId",
+                "optional": false,
                 "type": "String"
               },
               {
                 "member": "caption",
                 "name": "caption",
+                "optional": true,
                 "type": "String"
               },
               {
                 "member": "photo",
                 "name": "photo",
+                "optional": false,
                 "type": "ByteArray"
               }
             ],
@@ -1769,6 +1963,7 @@
               {
                 "member": "photo",
                 "name": "photo",
+                "optional": false,
                 "type": "PhotoSummary"
               }
             ],
@@ -1799,14 +1994,22 @@
       "package": {
         "ecosystem": "maven",
         "import": "com.example.weather",
-        "name": "com.example:weather-kotlin"
+        "imports": [
+          "import com.example.weather.WeatherClient",
+          "import com.example.weather.ClientConfig",
+          "import com.example.weather.model.*"
+        ],
+        "name": "com.example:weather-kotlin",
+        "qualifier": ""
       }
     },
     "php": {
       "audience": "external",
       "client": {
         "construct": "new \\Example\\Weather\\WeatherClient(new \\Example\\Weather\\Runtime\\ClientConfig(endpoint: $endpoint))",
-        "name": "WeatherClient"
+        "fallible": false,
+        "name": "\\Example\\Weather\\WeatherClient",
+        "statements": false
       },
       "endpoint": null,
       "endpointEnv": null,
@@ -1822,26 +2025,30 @@
               {
                 "member": "name",
                 "name": "name",
+                "optional": false,
                 "type": "string"
               },
               {
                 "member": "location",
                 "name": "location",
-                "type": "Location"
+                "optional": true,
+                "type": "\\Example\\Weather\\Location"
               },
               {
                 "member": "clientToken",
                 "name": "clientToken",
+                "optional": true,
                 "type": "string"
               },
               {
                 "member": "expectedRevision",
                 "name": "expectedRevision",
+                "optional": true,
                 "type": "int"
               }
             ],
             "style": "keywords",
-            "type": "CreateCityInput"
+            "type": "\\Example\\Weather\\CreateCityInput"
           },
           "method": "createCity",
           "optionsMethod": null,
@@ -1851,11 +2058,12 @@
               {
                 "member": "city",
                 "name": "city",
-                "type": "CitySummary"
+                "optional": false,
+                "type": "\\Example\\Weather\\CitySummary"
               }
             ],
             "style": "properties",
-            "type": "CreateCityOutput"
+            "type": "\\Example\\Weather\\CreateCityOutput"
           },
           "paginators": null
         },
@@ -1867,16 +2075,18 @@
               {
                 "member": "cityId",
                 "name": "cityId",
+                "optional": false,
                 "type": "string"
               },
               {
                 "member": "at",
                 "name": "at",
-                "type": "Timestamp"
+                "optional": true,
+                "type": "\\Example\\Weather\\Runtime\\Timestamp"
               }
             ],
             "style": "keywords",
-            "type": "GetCityInput"
+            "type": "\\Example\\Weather\\GetCityInput"
           },
           "method": "getCity",
           "optionsMethod": null,
@@ -1886,21 +2096,24 @@
               {
                 "member": "city",
                 "name": "city",
-                "type": "CitySummary"
+                "optional": false,
+                "type": "\\Example\\Weather\\CitySummary"
               },
               {
                 "member": "forecast",
                 "name": "forecast",
-                "type": "array<string|int, JsonValue>"
+                "optional": true,
+                "type": "array<string|int, \\Example\\Weather\\Runtime\\JsonValue>"
               },
               {
                 "member": "requestId",
                 "name": "requestId",
+                "optional": true,
                 "type": "string"
               }
             ],
             "style": "properties",
-            "type": "GetCityOutput"
+            "type": "\\Example\\Weather\\GetCityOutput"
           },
           "paginators": null
         },
@@ -1912,11 +2125,12 @@
               {
                 "member": "cityId",
                 "name": "cityId",
+                "optional": false,
                 "type": "string"
               }
             ],
             "style": "keywords",
-            "type": "GetCityPhotoInput"
+            "type": "\\Example\\Weather\\GetCityPhotoInput"
           },
           "method": "getCityPhoto",
           "optionsMethod": null,
@@ -1926,16 +2140,18 @@
               {
                 "member": "caption",
                 "name": "caption",
+                "optional": true,
                 "type": "string"
               },
               {
                 "member": "photo",
                 "name": "photo",
+                "optional": true,
                 "type": "string"
               }
             ],
             "style": "properties",
-            "type": "GetCityPhotoOutput"
+            "type": "\\Example\\Weather\\GetCityPhotoOutput"
           },
           "paginators": null
         },
@@ -1947,21 +2163,24 @@
               {
                 "member": "nextToken",
                 "name": "nextToken",
+                "optional": true,
                 "type": "string"
               },
               {
                 "member": "maxResults",
                 "name": "maxResults",
+                "optional": true,
                 "type": "int"
               },
               {
                 "member": "tags",
                 "name": "tags",
+                "optional": true,
                 "type": "list<string>"
               }
             ],
             "style": "keywords",
-            "type": "ListCitiesInput"
+            "type": "\\Example\\Weather\\ListCitiesInput"
           },
           "method": "listCities",
           "optionsMethod": null,
@@ -1971,16 +2190,18 @@
               {
                 "member": "cities",
                 "name": "cities",
-                "type": "list<CitySummary>"
+                "optional": false,
+                "type": "list<\\Example\\Weather\\CitySummary>"
               },
               {
                 "member": "nextToken",
                 "name": "nextToken",
+                "optional": true,
                 "type": "string"
               }
             ],
             "style": "properties",
-            "type": "ListCitiesOutput"
+            "type": "\\Example\\Weather\\ListCitiesOutput"
           },
           "paginators": [
             "listCitiesPages"
@@ -2002,21 +2223,24 @@
               {
                 "member": "cityId",
                 "name": "cityId",
+                "optional": false,
                 "type": "string"
               },
               {
                 "member": "caption",
                 "name": "caption",
+                "optional": true,
                 "type": "string"
               },
               {
                 "member": "photo",
                 "name": "photo",
+                "optional": false,
                 "type": "string"
               }
             ],
             "style": "keywords",
-            "type": "PutCityPhotoInput"
+            "type": "\\Example\\Weather\\PutCityPhotoInput"
           },
           "method": "putCityPhoto",
           "optionsMethod": null,
@@ -2026,11 +2250,12 @@
               {
                 "member": "photo",
                 "name": "photo",
-                "type": "PhotoSummary"
+                "optional": false,
+                "type": "\\Example\\Weather\\PhotoSummary"
               }
             ],
             "style": "properties",
-            "type": "PutCityPhotoOutput"
+            "type": "\\Example\\Weather\\PutCityPhotoOutput"
           },
           "paginators": null
         },
@@ -2040,7 +2265,7 @@
             "fallible": false,
             "members": [],
             "style": "keywords",
-            "type": "StatusInput"
+            "type": "\\Example\\Weather\\StatusInput"
           },
           "method": "status",
           "optionsMethod": null,
@@ -2048,7 +2273,7 @@
             "fallible": false,
             "members": [],
             "style": "properties",
-            "type": "StatusOutput"
+            "type": "\\Example\\Weather\\StatusOutput"
           },
           "paginators": null
         }
@@ -2056,14 +2281,18 @@
       "package": {
         "ecosystem": "composer",
         "import": "Example\\Weather",
-        "name": "example/weather"
+        "imports": [],
+        "name": "example/weather",
+        "qualifier": "\\Example\\Weather\\"
       }
     },
     "python": {
       "audience": "external",
       "client": {
-        "construct": "WeatherClient()",
-        "name": "WeatherClient"
+        "construct": "example_weather.WeatherClient()",
+        "fallible": false,
+        "name": "example_weather.WeatherClient",
+        "statements": false
       },
       "endpoint": "https://api.weather.example",
       "endpointEnv": null,
@@ -2079,26 +2308,30 @@
               {
                 "member": "name",
                 "name": "name",
-                "type": "CityName"
+                "optional": false,
+                "type": "example_weather.CityName"
               },
               {
                 "member": "location",
                 "name": "location",
-                "type": "Location"
+                "optional": true,
+                "type": "example_weather.Location"
               },
               {
                 "member": "clientToken",
                 "name": "client_token",
+                "optional": true,
                 "type": "str"
               },
               {
                 "member": "expectedRevision",
                 "name": "expected_revision",
+                "optional": true,
                 "type": "int"
               }
             ],
             "style": "keywords",
-            "type": "CreateCityInput"
+            "type": "example_weather.CreateCityInput"
           },
           "method": "create_city",
           "optionsMethod": null,
@@ -2108,11 +2341,12 @@
               {
                 "member": "city",
                 "name": "city",
-                "type": "CitySummary"
+                "optional": false,
+                "type": "example_weather.CitySummary"
               }
             ],
             "style": "properties",
-            "type": "CreateCityOutput"
+            "type": "example_weather.CreateCityOutput"
           },
           "paginators": null
         },
@@ -2124,16 +2358,18 @@
               {
                 "member": "cityId",
                 "name": "city_id",
-                "type": "CityId"
+                "optional": false,
+                "type": "example_weather.CityId"
               },
               {
                 "member": "at",
                 "name": "at",
-                "type": "DateTime"
+                "optional": true,
+                "type": "example_weather.DateTime"
               }
             ],
             "style": "keywords",
-            "type": "GetCityInput"
+            "type": "example_weather.GetCityInput"
           },
           "method": "get_city",
           "optionsMethod": null,
@@ -2143,21 +2379,24 @@
               {
                 "member": "city",
                 "name": "city",
-                "type": "CitySummary"
+                "optional": false,
+                "type": "example_weather.CitySummary"
               },
               {
                 "member": "forecast",
                 "name": "forecast",
-                "type": "Forecast"
+                "optional": true,
+                "type": "example_weather.Forecast"
               },
               {
                 "member": "requestId",
                 "name": "request_id",
+                "optional": true,
                 "type": "str"
               }
             ],
             "style": "properties",
-            "type": "GetCityOutput"
+            "type": "example_weather.GetCityOutput"
           },
           "paginators": null
         },
@@ -2169,11 +2408,12 @@
               {
                 "member": "cityId",
                 "name": "city_id",
-                "type": "CityId"
+                "optional": false,
+                "type": "example_weather.CityId"
               }
             ],
             "style": "keywords",
-            "type": "GetCityPhotoInput"
+            "type": "example_weather.GetCityPhotoInput"
           },
           "method": "get_city_photo",
           "optionsMethod": null,
@@ -2183,16 +2423,18 @@
               {
                 "member": "caption",
                 "name": "caption",
+                "optional": true,
                 "type": "str"
               },
               {
                 "member": "photo",
                 "name": "photo",
-                "type": "Photo"
+                "optional": true,
+                "type": "example_weather.Photo"
               }
             ],
             "style": "properties",
-            "type": "GetCityPhotoOutput"
+            "type": "example_weather.GetCityPhotoOutput"
           },
           "paginators": null
         },
@@ -2204,21 +2446,24 @@
               {
                 "member": "nextToken",
                 "name": "next_token",
+                "optional": true,
                 "type": "str"
               },
               {
                 "member": "maxResults",
                 "name": "max_results",
+                "optional": true,
                 "type": "int"
               },
               {
                 "member": "tags",
                 "name": "tags",
-                "type": "Tags"
+                "optional": true,
+                "type": "example_weather.Tags"
               }
             ],
             "style": "keywords",
-            "type": "ListCitiesInput"
+            "type": "example_weather.ListCitiesInput"
           },
           "method": "list_cities",
           "optionsMethod": null,
@@ -2228,16 +2473,18 @@
               {
                 "member": "cities",
                 "name": "cities",
-                "type": "CitySummaries"
+                "optional": false,
+                "type": "example_weather.CitySummaries"
               },
               {
                 "member": "nextToken",
                 "name": "next_token",
+                "optional": true,
                 "type": "str"
               }
             ],
             "style": "properties",
-            "type": "ListCitiesOutput"
+            "type": "example_weather.ListCitiesOutput"
           },
           "paginators": [
             "list_cities_pages"
@@ -2259,21 +2506,24 @@
               {
                 "member": "cityId",
                 "name": "city_id",
-                "type": "CityId"
+                "optional": false,
+                "type": "example_weather.CityId"
               },
               {
                 "member": "caption",
                 "name": "caption",
+                "optional": true,
                 "type": "str"
               },
               {
                 "member": "photo",
                 "name": "photo",
-                "type": "Photo"
+                "optional": false,
+                "type": "example_weather.Photo"
               }
             ],
             "style": "keywords",
-            "type": "PutCityPhotoInput"
+            "type": "example_weather.PutCityPhotoInput"
           },
           "method": "put_city_photo",
           "optionsMethod": null,
@@ -2283,11 +2533,12 @@
               {
                 "member": "photo",
                 "name": "photo",
-                "type": "PhotoSummary"
+                "optional": false,
+                "type": "example_weather.PhotoSummary"
               }
             ],
             "style": "properties",
-            "type": "PutCityPhotoOutput"
+            "type": "example_weather.PutCityPhotoOutput"
           },
           "paginators": null
         },
@@ -2297,7 +2548,7 @@
             "fallible": false,
             "members": [],
             "style": "keywords",
-            "type": "StatusInput"
+            "type": "example_weather.StatusInput"
           },
           "method": "status",
           "optionsMethod": null,
@@ -2305,7 +2556,7 @@
             "fallible": false,
             "members": [],
             "style": "properties",
-            "type": "StatusOutput"
+            "type": "example_weather.StatusOutput"
           },
           "paginators": null
         }
@@ -2313,14 +2564,20 @@
       "package": {
         "ecosystem": "pypi",
         "import": "example_weather",
-        "name": "example-weather"
+        "imports": [
+          "import example_weather"
+        ],
+        "name": "example-weather",
+        "qualifier": "example_weather."
       }
     },
     "r": {
       "audience": "external",
       "client": {
         "construct": "WeatherClient(client_config(endpoint = endpoint))",
-        "name": "WeatherClient"
+        "fallible": false,
+        "name": "WeatherClient",
+        "statements": false
       },
       "endpoint": null,
       "endpointEnv": null,
@@ -2336,21 +2593,25 @@
               {
                 "member": "name",
                 "name": "name",
+                "optional": false,
                 "type": "character"
               },
               {
                 "member": "location",
                 "name": "location",
+                "optional": true,
                 "type": "Location"
               },
               {
                 "member": "clientToken",
                 "name": "client_token",
+                "optional": true,
                 "type": "character"
               },
               {
                 "member": "expectedRevision",
                 "name": "expected_revision",
+                "optional": true,
                 "type": "crucible_long"
               }
             ],
@@ -2365,6 +2626,7 @@
               {
                 "member": "city",
                 "name": "city",
+                "optional": false,
                 "type": "CitySummary"
               }
             ],
@@ -2381,11 +2643,13 @@
               {
                 "member": "cityId",
                 "name": "city_id",
+                "optional": false,
                 "type": "character"
               },
               {
                 "member": "at",
                 "name": "at",
+                "optional": true,
                 "type": "crucible_timestamp"
               }
             ],
@@ -2400,16 +2664,19 @@
               {
                 "member": "city",
                 "name": "city",
+                "optional": false,
                 "type": "CitySummary"
               },
               {
                 "member": "forecast",
                 "name": "forecast",
+                "optional": true,
                 "type": "list"
               },
               {
                 "member": "requestId",
                 "name": "request_id",
+                "optional": true,
                 "type": "character"
               }
             ],
@@ -2426,6 +2693,7 @@
               {
                 "member": "cityId",
                 "name": "city_id",
+                "optional": false,
                 "type": "character"
               }
             ],
@@ -2440,11 +2708,13 @@
               {
                 "member": "caption",
                 "name": "caption",
+                "optional": true,
                 "type": "character"
               },
               {
                 "member": "photo",
                 "name": "photo",
+                "optional": true,
                 "type": "raw"
               }
             ],
@@ -2461,16 +2731,19 @@
               {
                 "member": "nextToken",
                 "name": "next_token",
+                "optional": true,
                 "type": "character"
               },
               {
                 "member": "maxResults",
                 "name": "max_results",
+                "optional": true,
                 "type": "numeric"
               },
               {
                 "member": "tags",
                 "name": "tags",
+                "optional": true,
                 "type": "list"
               }
             ],
@@ -2485,11 +2758,13 @@
               {
                 "member": "cities",
                 "name": "cities",
+                "optional": false,
                 "type": "list"
               },
               {
                 "member": "nextToken",
                 "name": "next_token",
+                "optional": true,
                 "type": "character"
               }
             ],
@@ -2516,16 +2791,19 @@
               {
                 "member": "cityId",
                 "name": "city_id",
+                "optional": false,
                 "type": "character"
               },
               {
                 "member": "caption",
                 "name": "caption",
+                "optional": true,
                 "type": "character"
               },
               {
                 "member": "photo",
                 "name": "photo",
+                "optional": false,
                 "type": "raw"
               }
             ],
@@ -2540,6 +2818,7 @@
               {
                 "member": "photo",
                 "name": "photo",
+                "optional": false,
                 "type": "PhotoSummary"
               }
             ],
@@ -2570,14 +2849,20 @@
       "package": {
         "ecosystem": "cran",
         "import": "weather",
-        "name": "weather"
+        "imports": [
+          "library(weather)"
+        ],
+        "name": "weather",
+        "qualifier": ""
       }
     },
     "ruby": {
       "audience": "external",
       "client": {
         "construct": "ExampleWeather::WeatherClient.new(ExampleWeather::Runtime::ClientConfig.new(endpoint: endpoint))",
-        "name": "WeatherClient"
+        "fallible": false,
+        "name": "ExampleWeather::WeatherClient",
+        "statements": false
       },
       "endpoint": null,
       "endpointEnv": null,
@@ -2593,26 +2878,30 @@
               {
                 "member": "name",
                 "name": "name",
+                "optional": false,
                 "type": "String"
               },
               {
                 "member": "location",
                 "name": "location",
-                "type": "Location"
+                "optional": true,
+                "type": "ExampleWeather::Location"
               },
               {
                 "member": "clientToken",
                 "name": "client_token",
+                "optional": true,
                 "type": "String"
               },
               {
                 "member": "expectedRevision",
                 "name": "expected_revision",
+                "optional": true,
                 "type": "Integer"
               }
             ],
             "style": "keywords",
-            "type": "CreateCityInput"
+            "type": "ExampleWeather::CreateCityInput"
           },
           "method": "create_city",
           "optionsMethod": null,
@@ -2622,11 +2911,12 @@
               {
                 "member": "city",
                 "name": "city",
-                "type": "CitySummary"
+                "optional": false,
+                "type": "ExampleWeather::CitySummary"
               }
             ],
             "style": "properties",
-            "type": "CreateCityOutput"
+            "type": "ExampleWeather::CreateCityOutput"
           },
           "paginators": null
         },
@@ -2638,16 +2928,18 @@
               {
                 "member": "cityId",
                 "name": "city_id",
+                "optional": false,
                 "type": "String"
               },
               {
                 "member": "at",
                 "name": "at",
-                "type": "Timestamp"
+                "optional": true,
+                "type": "ExampleWeather::Runtime::Timestamp"
               }
             ],
             "style": "keywords",
-            "type": "GetCityInput"
+            "type": "ExampleWeather::GetCityInput"
           },
           "method": "get_city",
           "optionsMethod": null,
@@ -2657,21 +2949,24 @@
               {
                 "member": "city",
                 "name": "city",
-                "type": "CitySummary"
+                "optional": false,
+                "type": "ExampleWeather::CitySummary"
               },
               {
                 "member": "forecast",
                 "name": "forecast",
-                "type": "Hash{String => JsonValue}"
+                "optional": true,
+                "type": "Hash{String => ExampleWeather::Runtime::JsonValue}"
               },
               {
                 "member": "requestId",
                 "name": "request_id",
+                "optional": true,
                 "type": "String"
               }
             ],
             "style": "properties",
-            "type": "GetCityOutput"
+            "type": "ExampleWeather::GetCityOutput"
           },
           "paginators": null
         },
@@ -2683,11 +2978,12 @@
               {
                 "member": "cityId",
                 "name": "city_id",
+                "optional": false,
                 "type": "String"
               }
             ],
             "style": "keywords",
-            "type": "GetCityPhotoInput"
+            "type": "ExampleWeather::GetCityPhotoInput"
           },
           "method": "get_city_photo",
           "optionsMethod": null,
@@ -2697,16 +2993,18 @@
               {
                 "member": "caption",
                 "name": "caption",
+                "optional": true,
                 "type": "String"
               },
               {
                 "member": "photo",
                 "name": "photo",
+                "optional": true,
                 "type": "String"
               }
             ],
             "style": "properties",
-            "type": "GetCityPhotoOutput"
+            "type": "ExampleWeather::GetCityPhotoOutput"
           },
           "paginators": null
         },
@@ -2718,21 +3016,24 @@
               {
                 "member": "nextToken",
                 "name": "next_token",
+                "optional": true,
                 "type": "String"
               },
               {
                 "member": "maxResults",
                 "name": "max_results",
+                "optional": true,
                 "type": "Integer"
               },
               {
                 "member": "tags",
                 "name": "tags",
+                "optional": true,
                 "type": "Array<String>"
               }
             ],
             "style": "keywords",
-            "type": "ListCitiesInput"
+            "type": "ExampleWeather::ListCitiesInput"
           },
           "method": "list_cities",
           "optionsMethod": null,
@@ -2742,16 +3043,18 @@
               {
                 "member": "cities",
                 "name": "cities",
-                "type": "Array<CitySummary>"
+                "optional": false,
+                "type": "Array<ExampleWeather::CitySummary>"
               },
               {
                 "member": "nextToken",
                 "name": "next_token",
+                "optional": true,
                 "type": "String"
               }
             ],
             "style": "properties",
-            "type": "ListCitiesOutput"
+            "type": "ExampleWeather::ListCitiesOutput"
           },
           "paginators": [
             "list_cities_pages"
@@ -2773,21 +3076,24 @@
               {
                 "member": "cityId",
                 "name": "city_id",
+                "optional": false,
                 "type": "String"
               },
               {
                 "member": "caption",
                 "name": "caption",
+                "optional": true,
                 "type": "String"
               },
               {
                 "member": "photo",
                 "name": "photo",
+                "optional": false,
                 "type": "String"
               }
             ],
             "style": "keywords",
-            "type": "PutCityPhotoInput"
+            "type": "ExampleWeather::PutCityPhotoInput"
           },
           "method": "put_city_photo",
           "optionsMethod": null,
@@ -2797,11 +3103,12 @@
               {
                 "member": "photo",
                 "name": "photo",
-                "type": "PhotoSummary"
+                "optional": false,
+                "type": "ExampleWeather::PhotoSummary"
               }
             ],
             "style": "properties",
-            "type": "PutCityPhotoOutput"
+            "type": "ExampleWeather::PutCityPhotoOutput"
           },
           "paginators": null
         },
@@ -2811,7 +3118,7 @@
             "fallible": false,
             "members": [],
             "style": "keywords",
-            "type": "StatusInput"
+            "type": "ExampleWeather::StatusInput"
           },
           "method": "status",
           "optionsMethod": null,
@@ -2819,7 +3126,7 @@
             "fallible": false,
             "members": [],
             "style": "properties",
-            "type": "StatusOutput"
+            "type": "ExampleWeather::StatusOutput"
           },
           "paginators": null
         }
@@ -2827,14 +3134,20 @@
       "package": {
         "ecosystem": "rubygems",
         "import": "example_weather",
-        "name": "example_weather"
+        "imports": [
+          "require 'example_weather'"
+        ],
+        "name": "example_weather",
+        "qualifier": "ExampleWeather::"
       }
     },
     "rust": {
       "audience": "external",
       "client": {
-        "construct": "WeatherClient::new(Config::new(endpoint))",
-        "name": "WeatherClient"
+        "construct": "WeatherClient::new(runtime::Config::new(endpoint))",
+        "fallible": false,
+        "name": "WeatherClient",
+        "statements": false
       },
       "endpoint": null,
       "endpointEnv": null,
@@ -2850,21 +3163,25 @@
               {
                 "member": "name",
                 "name": "name",
+                "optional": false,
                 "type": "CityName"
               },
               {
                 "member": "location",
                 "name": "location",
+                "optional": true,
                 "type": "Location"
               },
               {
                 "member": "clientToken",
                 "name": "client_token",
+                "optional": true,
                 "type": "String"
               },
               {
                 "member": "expectedRevision",
                 "name": "expected_revision",
+                "optional": true,
                 "type": "i64"
               }
             ],
@@ -2879,6 +3196,7 @@
               {
                 "member": "city",
                 "name": "city",
+                "optional": false,
                 "type": "CitySummary"
               }
             ],
@@ -2895,11 +3213,13 @@
               {
                 "member": "cityId",
                 "name": "city_id",
+                "optional": false,
                 "type": "CityId"
               },
               {
                 "member": "at",
                 "name": "at",
+                "optional": true,
                 "type": "DateTime"
               }
             ],
@@ -2914,16 +3234,19 @@
               {
                 "member": "city",
                 "name": "city",
+                "optional": false,
                 "type": "CitySummary"
               },
               {
                 "member": "forecast",
                 "name": "forecast",
+                "optional": true,
                 "type": "Forecast"
               },
               {
                 "member": "requestId",
                 "name": "request_id",
+                "optional": true,
                 "type": "String"
               }
             ],
@@ -2940,6 +3263,7 @@
               {
                 "member": "cityId",
                 "name": "city_id",
+                "optional": false,
                 "type": "CityId"
               }
             ],
@@ -2954,11 +3278,13 @@
               {
                 "member": "caption",
                 "name": "caption",
+                "optional": true,
                 "type": "String"
               },
               {
                 "member": "photo",
                 "name": "photo",
+                "optional": true,
                 "type": "Photo"
               }
             ],
@@ -2975,16 +3301,19 @@
               {
                 "member": "nextToken",
                 "name": "next_token",
+                "optional": true,
                 "type": "String"
               },
               {
                 "member": "maxResults",
                 "name": "max_results",
+                "optional": true,
                 "type": "i32"
               },
               {
                 "member": "tags",
                 "name": "tags",
+                "optional": true,
                 "type": "Tags"
               }
             ],
@@ -2999,11 +3328,13 @@
               {
                 "member": "cities",
                 "name": "cities",
+                "optional": false,
                 "type": "CitySummaries"
               },
               {
                 "member": "nextToken",
                 "name": "next_token",
+                "optional": true,
                 "type": "String"
               }
             ],
@@ -3030,16 +3361,19 @@
               {
                 "member": "cityId",
                 "name": "city_id",
+                "optional": false,
                 "type": "CityId"
               },
               {
                 "member": "caption",
                 "name": "caption",
+                "optional": true,
                 "type": "String"
               },
               {
                 "member": "photo",
                 "name": "photo",
+                "optional": false,
                 "type": "Photo"
               }
             ],
@@ -3054,6 +3388,7 @@
               {
                 "member": "photo",
                 "name": "photo",
+                "optional": false,
                 "type": "PhotoSummary"
               }
             ],
@@ -3084,14 +3419,20 @@
       "package": {
         "ecosystem": "cargo",
         "import": "weather_sdk",
-        "name": "weather-sdk"
+        "imports": [
+          "use weather_sdk::*;"
+        ],
+        "name": "weather-sdk",
+        "qualifier": ""
       }
     },
     "swift": {
       "audience": "external",
       "client": {
         "construct": "try WeatherClient(ClientConfig(endpoint: endpoint))",
-        "name": "WeatherClient"
+        "fallible": true,
+        "name": "WeatherClient",
+        "statements": false
       },
       "endpoint": null,
       "endpointEnv": null,
@@ -3107,21 +3448,25 @@
               {
                 "member": "name",
                 "name": "name",
+                "optional": false,
                 "type": "String"
               },
               {
                 "member": "location",
                 "name": "location",
+                "optional": true,
                 "type": "Location"
               },
               {
                 "member": "clientToken",
                 "name": "clientToken",
+                "optional": true,
                 "type": "String"
               },
               {
                 "member": "expectedRevision",
                 "name": "expectedRevision",
+                "optional": true,
                 "type": "Int64"
               }
             ],
@@ -3136,6 +3481,7 @@
               {
                 "member": "city",
                 "name": "city",
+                "optional": false,
                 "type": "CitySummary"
               }
             ],
@@ -3152,11 +3498,13 @@
               {
                 "member": "cityId",
                 "name": "cityId",
+                "optional": false,
                 "type": "String"
               },
               {
                 "member": "at",
                 "name": "at",
+                "optional": true,
                 "type": "Timestamp"
               }
             ],
@@ -3171,16 +3519,19 @@
               {
                 "member": "city",
                 "name": "city",
+                "optional": false,
                 "type": "CitySummary"
               },
               {
                 "member": "forecast",
                 "name": "forecast",
+                "optional": true,
                 "type": "Forecast"
               },
               {
                 "member": "requestId",
                 "name": "requestId",
+                "optional": true,
                 "type": "String"
               }
             ],
@@ -3197,6 +3548,7 @@
               {
                 "member": "cityId",
                 "name": "cityId",
+                "optional": false,
                 "type": "String"
               }
             ],
@@ -3211,12 +3563,14 @@
               {
                 "member": "caption",
                 "name": "caption",
+                "optional": true,
                 "type": "String"
               },
               {
                 "member": "photo",
                 "name": "photo",
-                "type": "Data"
+                "optional": true,
+                "type": "Foundation.Data"
               }
             ],
             "style": "properties",
@@ -3232,16 +3586,19 @@
               {
                 "member": "nextToken",
                 "name": "nextToken",
+                "optional": true,
                 "type": "String"
               },
               {
                 "member": "maxResults",
                 "name": "maxResults",
+                "optional": true,
                 "type": "Int32"
               },
               {
                 "member": "tags",
                 "name": "tags",
+                "optional": true,
                 "type": "Tags"
               }
             ],
@@ -3256,11 +3613,13 @@
               {
                 "member": "cities",
                 "name": "cities",
+                "optional": false,
                 "type": "CitySummaries"
               },
               {
                 "member": "nextToken",
                 "name": "nextToken",
+                "optional": true,
                 "type": "String"
               }
             ],
@@ -3287,17 +3646,20 @@
               {
                 "member": "cityId",
                 "name": "cityId",
+                "optional": false,
                 "type": "String"
               },
               {
                 "member": "caption",
                 "name": "caption",
+                "optional": true,
                 "type": "String"
               },
               {
                 "member": "photo",
                 "name": "photo",
-                "type": "Data"
+                "optional": false,
+                "type": "Foundation.Data"
               }
             ],
             "style": "keywords",
@@ -3311,6 +3673,7 @@
               {
                 "member": "photo",
                 "name": "photo",
+                "optional": false,
                 "type": "PhotoSummary"
               }
             ],
@@ -3341,16 +3704,23 @@
       "package": {
         "ecosystem": "swiftpm",
         "import": "Weather",
-        "name": "Weather"
+        "imports": [
+          "import Foundation",
+          "import Weather"
+        ],
+        "name": "Weather",
+        "qualifier": ""
       }
     },
     "ts": {
       "audience": "external",
       "client": {
         "construct": "new WeatherClient()",
-        "name": "WeatherClient"
+        "fallible": false,
+        "name": "WeatherClient",
+        "statements": false
       },
-      "endpoint": "https://api.weather.example",
+      "endpoint": null,
       "endpointEnv": "WEATHER_ENDPOINT",
       "language": "ts",
       "middleware": [
@@ -3371,26 +3741,30 @@
               {
                 "member": "name",
                 "name": "name",
-                "type": "CityName"
+                "optional": false,
+                "type": "models.CityName"
               },
               {
                 "member": "location",
                 "name": "location",
-                "type": "Location"
+                "optional": true,
+                "type": "models.Location"
               },
               {
                 "member": "clientToken",
                 "name": "clientToken",
+                "optional": true,
                 "type": "string"
               },
               {
                 "member": "expectedRevision",
                 "name": "expectedRevision",
+                "optional": true,
                 "type": "bigint"
               }
             ],
             "style": "object",
-            "type": "CreateCityInput"
+            "type": "models.CreateCityInput"
           },
           "method": "createCity",
           "optionsMethod": null,
@@ -3400,11 +3774,12 @@
               {
                 "member": "city",
                 "name": "city",
-                "type": "CitySummary"
+                "optional": false,
+                "type": "models.CitySummary"
               }
             ],
             "style": "properties",
-            "type": "CreateCityOutput"
+            "type": "models.CreateCityOutput"
           },
           "paginators": null
         },
@@ -3416,16 +3791,18 @@
               {
                 "member": "cityId",
                 "name": "cityId",
-                "type": "CityId"
+                "optional": false,
+                "type": "models.CityId"
               },
               {
                 "member": "at",
                 "name": "at",
-                "type": "DateTime"
+                "optional": true,
+                "type": "models.DateTime"
               }
             ],
             "style": "object",
-            "type": "GetCityInput"
+            "type": "models.GetCityInput"
           },
           "method": "getCity",
           "optionsMethod": null,
@@ -3435,21 +3812,24 @@
               {
                 "member": "city",
                 "name": "city",
-                "type": "CitySummary"
+                "optional": false,
+                "type": "models.CitySummary"
               },
               {
                 "member": "forecast",
                 "name": "forecast",
-                "type": "Forecast"
+                "optional": true,
+                "type": "models.Forecast"
               },
               {
                 "member": "requestId",
                 "name": "requestId",
+                "optional": true,
                 "type": "string"
               }
             ],
             "style": "properties",
-            "type": "GetCityOutput"
+            "type": "models.GetCityOutput"
           },
           "paginators": null
         },
@@ -3461,11 +3841,12 @@
               {
                 "member": "cityId",
                 "name": "cityId",
-                "type": "CityId"
+                "optional": false,
+                "type": "models.CityId"
               }
             ],
             "style": "object",
-            "type": "GetCityPhotoInput"
+            "type": "models.GetCityPhotoInput"
           },
           "method": "getCityPhoto",
           "optionsMethod": null,
@@ -3475,16 +3856,18 @@
               {
                 "member": "caption",
                 "name": "caption",
+                "optional": true,
                 "type": "string"
               },
               {
                 "member": "photo",
                 "name": "photo",
-                "type": "Photo"
+                "optional": true,
+                "type": "models.Photo"
               }
             ],
             "style": "properties",
-            "type": "GetCityPhotoOutput"
+            "type": "models.GetCityPhotoOutput"
           },
           "paginators": null
         },
@@ -3496,21 +3879,24 @@
               {
                 "member": "nextToken",
                 "name": "nextToken",
+                "optional": true,
                 "type": "string"
               },
               {
                 "member": "maxResults",
                 "name": "maxResults",
+                "optional": true,
                 "type": "number"
               },
               {
                 "member": "tags",
                 "name": "tags",
-                "type": "Tags"
+                "optional": true,
+                "type": "models.Tags"
               }
             ],
             "style": "object",
-            "type": "ListCitiesInput"
+            "type": "models.ListCitiesInput"
           },
           "method": "listCities",
           "optionsMethod": null,
@@ -3520,16 +3906,18 @@
               {
                 "member": "cities",
                 "name": "cities",
-                "type": "CitySummaries"
+                "optional": false,
+                "type": "models.CitySummaries"
               },
               {
                 "member": "nextToken",
                 "name": "nextToken",
+                "optional": true,
                 "type": "string"
               }
             ],
             "style": "properties",
-            "type": "ListCitiesOutput"
+            "type": "models.ListCitiesOutput"
           },
           "paginators": [
             "paginateListCities"
@@ -3551,21 +3939,24 @@
               {
                 "member": "cityId",
                 "name": "cityId",
-                "type": "CityId"
+                "optional": false,
+                "type": "models.CityId"
               },
               {
                 "member": "caption",
                 "name": "caption",
+                "optional": true,
                 "type": "string"
               },
               {
                 "member": "photo",
                 "name": "photo",
-                "type": "Photo"
+                "optional": false,
+                "type": "models.Photo"
               }
             ],
             "style": "object",
-            "type": "PutCityPhotoInput"
+            "type": "models.PutCityPhotoInput"
           },
           "method": "putCityPhoto",
           "optionsMethod": null,
@@ -3575,11 +3966,12 @@
               {
                 "member": "photo",
                 "name": "photo",
-                "type": "PhotoSummary"
+                "optional": false,
+                "type": "models.PhotoSummary"
               }
             ],
             "style": "properties",
-            "type": "PutCityPhotoOutput"
+            "type": "models.PutCityPhotoOutput"
           },
           "paginators": null
         },
@@ -3589,7 +3981,7 @@
             "fallible": false,
             "members": [],
             "style": "object",
-            "type": "StatusInput"
+            "type": "models.StatusInput"
           },
           "method": "status",
           "optionsMethod": null,
@@ -3597,7 +3989,7 @@
             "fallible": false,
             "members": [],
             "style": "properties",
-            "type": "StatusOutput"
+            "type": "models.StatusOutput"
           },
           "paginators": null
         }
@@ -3605,7 +3997,12 @@
       "package": {
         "ecosystem": "npm",
         "import": "@example/weather",
-        "name": "@example/weather"
+        "imports": [
+          "import { WeatherClient } from \"@example/weather\";",
+          "import type * as models from \"@example/weather\";"
+        ],
+        "name": "@example/weather",
+        "qualifier": "models."
       }
     }
   },

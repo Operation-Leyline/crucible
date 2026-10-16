@@ -66,10 +66,13 @@ pub(crate) fn exported(value: &str) -> String {
     result
 }
 
-fn simple(kind: SimpleKind) -> &'static str {
-    match kind {
+/// The Go type of a simple kind. `Decimal` is the package's own, so it
+/// takes `qualifier` (empty inside the package); the rest are the
+/// language's or the standard library's.
+fn simple(kind: SimpleKind, qualifier: &str) -> String {
+    let native = match kind {
         SimpleKind::BigInteger => "*big.Int",
-        SimpleKind::BigDecimal => "Decimal",
+        SimpleKind::BigDecimal => return format!("{qualifier}Decimal"),
         SimpleKind::String => "string",
         SimpleKind::Boolean => "bool",
         SimpleKind::Byte => "int8",
@@ -81,7 +84,8 @@ fn simple(kind: SimpleKind) -> &'static str {
         SimpleKind::Timestamp => "time.Time",
         SimpleKind::Document => "any",
         SimpleKind::Blob => "[]byte",
-    }
+    };
+    native.to_owned()
 }
 
 fn nullable_ty(service: &Service, id: &ShapeId, sparse: bool) -> String {
@@ -94,20 +98,42 @@ fn nullable_ty(service: &Service, id: &ShapeId, sparse: bool) -> String {
 }
 
 pub(crate) fn ty(service: &Service, id: &ShapeId) -> String {
+    qualified_ty(service, id, "")
+}
+
+/// [`ty`] as code outside the package writes it: the package's own types
+/// prefixed with `qualifier` (`weather.`).
+pub(crate) fn qualified_ty(service: &Service, id: &ShapeId, qualifier: &str) -> String {
     let shape = service.shape(id).expect("lowered target");
     if id.is_prelude() {
         return match shape {
-            Shape::Simple(s) => simple(s.kind).into(),
+            Shape::Simple(s) => simple(s.kind, qualifier),
             Shape::IntEnum(_) => unreachable!("integer enums are capability-gated"),
-            Shape::Unit { .. } => "Unit".into(),
+            Shape::Unit { .. } => format!("{qualifier}Unit"),
             _ => unreachable!("prelude shape"),
         };
     }
     let name = type_name(service, id);
     if matches!(shape, Shape::Structure(_) | Shape::Union(_)) {
-        format!("*{name}")
+        format!("*{qualifier}{name}")
     } else {
-        name
+        format!("{qualifier}{name}")
+    }
+}
+
+/// A structure or union member's field type: its value's type, wrapped in
+/// `Optional` when the member may be absent and in every union.
+pub(crate) fn field_type(
+    service: &Service,
+    shape: &Shape,
+    member: &crucible_ir::ir::Member,
+    qualifier: &str,
+) -> String {
+    let t = qualified_ty(service, &member.target, qualifier);
+    if member.optional_on_client() || matches!(shape, Shape::Union(_)) {
+        format!("{qualifier}Optional[{t}]")
+    } else {
+        t
     }
 }
 
@@ -341,7 +367,9 @@ fn emit_package(
                 models.push_str(")\n\n");
             }
             Shape::Unit { .. } => models.push_str(&format!("type {name} = Unit\n\n")),
-            Shape::Simple(s) => models.push_str(&format!("type {name} = {}\n\n", simple(s.kind))),
+            Shape::Simple(s) => {
+                models.push_str(&format!("type {name} = {}\n\n", simple(s.kind, "")))
+            }
             Shape::List(l) => models.push_str(&format!(
                 "type {name} []{}\n\n",
                 nullable_ty(service, &l.member.target, l.sparse)
@@ -381,12 +409,7 @@ fn emit_package(
                         m.docs.as_deref(),
                         &m.notes,
                     );
-                    let t = ty(service, &m.target);
-                    let t = if m.optional_on_client() || matches!(shape, Shape::Union(_)) {
-                        format!("Optional[{t}]")
-                    } else {
-                        t
-                    };
+                    let t = field_type(service, shape, m, "");
                     models.push_str(&format!("    {} {t}\n", exported(&m.name)));
                 }
                 if matches!(shape, Shape::Union(_)) {

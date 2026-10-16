@@ -135,9 +135,10 @@ document: for each SDK, its package, client class, per-operation method,
 paginators and model members as its generator names them, with the
 endpoint and default middleware the file resolves to. A documentation
 site renders SDK snippets from it instead of re-deriving each language's
-names. An `endpoint = { env = ".." }` whose variable is unset is described
-by its name with a null value, so a docs build needs no deployment
-variables. It runs at the pinned revision, like `config`, since the names
+names. It never reads the environment: an `endpoint = { env = ".." }` is
+described by its variable's name with a null value, so a docs build needs
+no deployment variables and gives the same bytes everywhere. `--out`
+creates the file's directory. It runs at the pinned revision, like `config`, since the names
 are the pinned generators'.
 
 **One compiler for SDKs and server.** When the service's `Cargo.lock`

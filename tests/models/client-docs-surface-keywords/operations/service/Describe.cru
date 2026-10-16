@@ -1,0 +1,23 @@
+operation Describe {
+    http POST "/Describe"
+    input {
+        in?: string
+        object?: string
+        type?: string
+        default?: string
+        self?: string
+        class?: string
+        fun?: string
+        def?: string
+        func?: string
+        end?: string
+        when?: string
+        struct?: string
+    }
+    output {
+        in?: string
+        object?: string
+        type?: string
+        class?: string
+    }
+}

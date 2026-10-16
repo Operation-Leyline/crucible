@@ -40,13 +40,14 @@ version's section when it is prepared.
 
 - `crucible.sdks/1` (`sdks.json`): each declared SDK's public surface,
   named by its generator, for documentation sites. Per SDK: the package
-  (ecosystem, install coordinate, import), the client class and how to
-  construct it, the endpoint or its environment variable, default
+  (ecosystem, install coordinate, import, the import lines and qualifier
+  its types resolve under), the client class and how to construct it, the
+  endpoint or its environment variable (never read), default
   middleware with the headers it adds (`content-sha256` adds
   `x-amz-content-sha256`), and per operation the method, async and options
   variants, paginators, and input and output types with each member's
-  native name and type. Names come from the generators' own allocators, so
-  collision suffixes are included. Print it with
+  native name, type and optionality. Names come from the generators' own
+  allocators, so collision suffixes and keyword escapes are included. Print it with
   `crucible sdk describe [--sdk <name>]... [--out <file>]`, or write it
   beside `describe.json` with `DocsOutput::sdks("crucible-sdk.toml")` or
   `crucible generate docs --sdks crucible-sdk.toml`. Each client generator

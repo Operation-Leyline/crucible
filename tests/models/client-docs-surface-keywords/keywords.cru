@@ -1,0 +1,8 @@
+/// Member names that are reserved words in some client language. Each
+/// generator escapes or renames them, and `crucible.sdks/1` must name the
+/// identifier the generated code declares.
+service Keywords {
+    version "1"
+    protocol json
+    operations [Describe]
+}

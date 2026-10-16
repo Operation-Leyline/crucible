@@ -2,6 +2,7 @@
 
 use std::path::Path;
 
+use crucible_codegen_common::surface::Surface;
 use crucible_codegen_python::{Options, emit, surface};
 
 fn load(name: &str) -> crucible_ir::ir::Service {
@@ -29,53 +30,126 @@ fn source(files: &[crucible_codegen_python::File], suffix: &str) -> String {
         .clone()
 }
 
+/// The text of `class {name}` up to the next top-level declaration.
+fn class_block<'a>(code: &'a str, name: &str) -> &'a str {
+    let start = [format!("\nclass {name}:"), format!("\nclass {name}(")]
+        .iter()
+        .find_map(|header| code.find(header.as_str()))
+        .unwrap_or_else(|| panic!("no class {name}"));
+    let rest = &code[start + 1..];
+    let end = rest[1..]
+        .find("\nclass ")
+        .or_else(|| rest[1..].find("\n@dataclass"))
+        .map_or(rest.len(), |at| at + 1);
+    &rest[..end]
+}
+
+/// Every name the surface gives is declared where it should be: each
+/// method on the client, taking its operation's input type and calling its
+/// own operation, and each member inside its own dataclass.
+fn assert_declared(service: &crucible_ir::ir::Service, options: &Options, surface: &Surface) {
+    let files = emit(service, options).unwrap();
+    let client = source(&files, "client.py");
+    let models = source(&files, "models.py");
+    let init = source(&files, "__init__.py");
+    let qualifier = &surface.package.qualifier;
+    assert_eq!(qualifier, &format!("{}.", options.module_name));
+    assert_eq!(
+        surface.package.imports[0],
+        format!("import {}", options.module_name)
+    );
+    let class = surface
+        .client
+        .name
+        .strip_prefix(qualifier.as_str())
+        .unwrap();
+    let block = class_block(&client, class);
+    assert!(block.starts_with(&format!("class {class}(SyncClient):")));
+    assert!(init.contains(&format!("from .client import {class}, ")));
+    // The constructor takes the endpoint keyword the construct passes.
+    assert!(block.contains("def __init__(self, endpoint: str | None = None, **kwargs: Any)"));
+    assert_eq!(surface.operations.len(), service.operations.len());
+    for (id, operation) in &surface.operations {
+        let op = service
+            .operations
+            .iter()
+            .find(|op| op.id.to_string() == *id)
+            .unwrap();
+        let input = operation.input.as_ref().map(|input| {
+            format!(
+                "m.{}",
+                input.type_name.strip_prefix(qualifier.as_str()).unwrap()
+            )
+        });
+        let declared = |method: &str, call: &str| {
+            let header = format!("    def {method}(self, ");
+            let start = block
+                .find(&header)
+                .unwrap_or_else(|| panic!("{id}: no {method}"));
+            let body = &block[start..];
+            let body = &body[..body[1..].find("\n    def ").map_or(body.len(), |at| at + 1)];
+            match &input {
+                Some(input) => assert!(
+                    body.starts_with(&format!("{header}input: {input}")),
+                    "{id}: {method} takes {input}"
+                ),
+                None => assert!(
+                    body.starts_with(&format!("{header}**options")),
+                    "{id}: {method} takes no input"
+                ),
+            }
+            assert!(
+                body.contains(&format!("self.{call}(\"{}\", ", op.name())),
+                "{id}: {method} calls {}",
+                op.name()
+            );
+        };
+        declared(&operation.method, "_call");
+        for pages in operation.paginators.iter().flatten() {
+            declared(pages, "_pages");
+        }
+        for structure in [&operation.input, &operation.output].into_iter().flatten() {
+            let name = structure
+                .type_name
+                .strip_prefix(qualifier.as_str())
+                .unwrap();
+            assert!(
+                init.contains(&format!("    {name},\n")),
+                "{name} is exported"
+            );
+            let block = class_block(&models, name);
+            for member in &structure.members {
+                let native = member
+                    .type_name
+                    .strip_prefix(qualifier.as_str())
+                    .unwrap_or(&member.type_name);
+                assert!(
+                    block.contains(&format!("\n    {}: {native}", member.name)),
+                    "{name}.{}: {native}",
+                    member.name
+                );
+            }
+        }
+    }
+}
+
 #[test]
 fn surface_names_what_the_package_declares() {
-    for model in ["weather", "client-docs"] {
+    for model in [
+        "weather",
+        "client-docs",
+        "client-docs-surface-keywords",
+        "extended-types",
+    ] {
         let service = load(model);
-        let options = options(Some("https://weather.example"));
-        let files = emit(&service, &options).unwrap();
-        let client = source(&files, "client.py");
-        let models = source(&files, "models.py");
-        let surface = surface(&service, &options);
-        assert_eq!(surface.language, "python");
-        assert_eq!(surface.package.ecosystem, "pypi");
-        assert_eq!(surface.package.name, "weather-client");
-        assert_eq!(surface.package.import, "weather_client");
-        assert_eq!(
-            surface.client.construct,
-            format!("{}()", surface.client.name)
-        );
-        assert!(client.contains(&format!("class {}(SyncClient):", surface.client.name)));
-        assert_eq!(surface.operations.len(), service.operations.len());
-        for operation in surface.operations.values() {
-            assert!(
-                client.contains(&format!("    def {}(self, ", operation.method)),
-                "{model}: {}",
-                operation.method
-            );
-            assert!(client.contains(&format!("    async def {}(self, ", operation.method)));
-            for pages in operation.paginators.iter().flatten() {
-                assert!(
-                    client.contains(&format!("    def {pages}(self, ")),
-                    "{pages}"
-                );
-            }
-            for structure in [&operation.input, &operation.output].into_iter().flatten() {
-                assert!(
-                    models.contains(&format!("class {}:", structure.type_name)),
-                    "{}",
-                    structure.type_name
-                );
-                for member in &structure.members {
-                    assert!(
-                        models.contains(&format!("    {}: {}", member.name, member.type_name)),
-                        "{}.{}",
-                        structure.type_name,
-                        member.name
-                    );
-                }
-            }
+        for endpoint in [Some("https://weather.example"), None] {
+            let options = options(endpoint);
+            let surface = surface(&service, &options);
+            assert_eq!(surface.language, "python");
+            assert_eq!(surface.package.ecosystem, "pypi");
+            assert_eq!(surface.package.name, "weather-client");
+            assert_eq!(surface.package.import, "weather_client");
+            assert_declared(&service, &options, &surface);
         }
     }
 }
@@ -84,21 +158,61 @@ fn surface_names_what_the_package_declares() {
 fn weather_surface_spells_python() {
     let service = load("weather");
     let surface = surface(&service, &options(None));
-    assert_eq!(surface.client.name, "WeatherClient");
-    assert_eq!(surface.client.construct, "WeatherClient(endpoint=endpoint)");
+    assert_eq!(surface.client.name, "weather_client.WeatherClient");
+    assert_eq!(
+        surface.client.construct,
+        "weather_client.WeatherClient(endpoint=endpoint)"
+    );
+    assert!(!surface.client.statements && !surface.client.fallible);
+    let configured =
+        crucible_codegen_python::surface(&service, &options(Some("https://x.example")));
+    assert_eq!(
+        configured.client.construct,
+        "weather_client.WeatherClient()"
+    );
+    assert_eq!(
+        surface.package.imports,
+        ["import weather_client"],
+        "Weather's members name only its own aliases"
+    );
     let list = &surface.operations["example.weather#ListCities"];
     assert_eq!(list.method, "list_cities");
     assert_eq!(list.paginators, Some(vec!["list_cities_pages".to_owned()]));
     let input = list.input.as_ref().unwrap();
-    assert_eq!(input.type_name, "ListCitiesInput");
+    assert_eq!(input.type_name, "weather_client.ListCitiesInput");
     assert_eq!(input.style, "keywords");
     assert_eq!(input.members[0].name, "next_token");
     assert_eq!(input.members[0].type_name, "str");
+    assert!(input.members[0].optional);
     assert_eq!(list.output.as_ref().unwrap().style, "properties");
+    let create = surface.operations["example.weather#CreateCity"]
+        .input
+        .as_ref()
+        .unwrap();
+    assert_eq!(create.members[0].type_name, "weather_client.CityName");
+    assert!(!create.members[0].optional);
     assert!(
         surface.operations["example.weather#Ping"]
             .paginators
             .is_none()
+    );
+}
+
+/// Reserved words take the emitter's `_` suffix.
+#[test]
+fn keywords_take_the_emitted_suffix() {
+    let surface = surface(&load("client-docs-surface-keywords"), &options(None));
+    let input = surface.operations["example.keywords#Describe"]
+        .input
+        .as_ref()
+        .unwrap();
+    let names: Vec<_> = input.members.iter().map(|m| m.name.as_str()).collect();
+    assert_eq!(
+        names,
+        [
+            "in_", "object", "type", "default", "self_", "class_", "fun", "def_", "func", "end",
+            "when", "struct"
+        ]
     );
 }
 

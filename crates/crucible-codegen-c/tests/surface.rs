@@ -1,7 +1,11 @@
 //! The surface (`crucible.sdks/1`) names what the generated package
-//! declares: every operation function, page iterator, model and accessor.
+//! declares: every operation function (taking its operation's input and
+//! calling that operation), page iterator, model and accessor, with the
+//! types the declarations spell, and the statements that construct a
+//! client from the runtime's declarations.
 
 use crucible_codegen_c::{Options, emit, surface};
+use crucible_codegen_common::surface::Surface;
 use crucible_ir::ir::Service;
 
 fn options() -> Options {
@@ -28,27 +32,106 @@ fn file<'a>(files: &'a [crucible_codegen_c::File], path: &str) -> &'a str {
         .contents
 }
 
-/// Asserts that every name the surface gives is declared in the header
-/// the generator emits for `service`, with the type the surface states.
-fn assert_declared(service: &Service) -> crucible_codegen_common::surface::Surface {
-    let options = options();
-    let files = emit(service, &options).unwrap();
-    let client = file(&files, "include/weather_client/client.h");
-    let models = file(&files, "include/weather_client/models.h");
-    let surface = surface(service, &options);
+/// The text from `start` to the first `end` after it.
+fn block<'a>(text: &'a str, start: &str, end: &str) -> &'a str {
+    let at = text.find(start).unwrap_or_else(|| panic!("no {start:?}"));
+    let length = text[at..]
+        .find(end)
+        .unwrap_or_else(|| panic!("{start:?} ends"));
+    &text[at..at + length]
+}
+
+/// Asserts that every name the surface gives is declared in the package
+/// the generator emits for `service` with `options`, and returns it.
+fn assert_declared(service: &Service, options: &Options) -> Surface {
+    let files = emit(service, options).unwrap();
+    let package = &options.package_name;
+    let p = &options.prefix;
+    let client = file(&files, &format!("include/{package}/client.h"));
+    let source = file(&files, "src/client.c");
+    let models = file(&files, &format!("include/{package}/models.h"));
+    let runtime = file(
+        &files,
+        &format!("include/{package}/runtime/client_runtime.h"),
+    );
+    let types = file(&files, &format!("include/{package}/runtime/types.h"));
+    let surface = surface(service, options);
+    assert_eq!(surface.package.import, format!("{package}/client.h"));
+    assert_eq!(
+        surface.package.imports,
+        [format!("#include \"{package}/client.h\"")]
+    );
+    assert_eq!(surface.package.qualifier, "");
+    assert!(surface.client.statements && surface.client.fallible);
+
+    // `construct` declares `config`, `client` and `error` with the
+    // runtime's types and calls the generated constructor.
+    let name = &surface.client.name;
+    assert_eq!(name, &format!("{p}_client"));
     assert!(client.contains(&format!(
-        "weather_status {name}_new(const {name}_config *config, {name} **output",
-        name = surface.client.name
+        "{p}_status {name}_new(const {name}_config *config, {name} **output, {p}_error *error);"
     )));
+    assert!(runtime.contains(&format!("{name}_config {name}_defaults(void);")));
+    let end = runtime.find(&format!("}} {name}_config;")).unwrap();
+    let config = &runtime[runtime[..end].rfind("typedef struct").unwrap()..end];
+    assert!(
+        config.contains(&format!("{p}_string endpoint;")),
+        "{config}"
+    );
+    assert!(types.contains(&format!("}} {p}_error;")));
+    let set_endpoint = match &options.endpoint {
+        Some(_) => String::new(),
+        None => {
+            assert!(types.contains(&format!("{p}_string {p}_string_view(const char *text);")));
+            format!(" config.endpoint = {p}_string_view(endpoint);")
+        }
+    };
+    assert_eq!(
+        surface.client.construct,
+        format!(
+            "{name}_config config = {name}_defaults();{set_endpoint} {name} *client = NULL; {p}_error error = {{0}}; {name}_new(&config, &client, &error);"
+        )
+    );
+
     assert_eq!(surface.operations.len(), service.operations.len());
-    let declares = |name: &str| client.contains(&format!("\nweather_status {name}("));
     for operation in &service.operations {
         let entry = &surface.operations[&operation.id.to_string()];
-        assert!(declares(&entry.method), "{}", entry.method);
-        for paginator in entry.paginators.iter().flatten() {
-            assert!(declares(paginator), "{paginator}");
+        let function = &entry.method;
+        let input = entry.input.as_ref().map_or(String::new(), |input| {
+            format!("const {} *input, ", input.type_name)
+        });
+        let operation_name = format!("\"{}\", {}}}", operation.name(), operation.name().len());
+        // Declared with this operation's input, and defined to call this
+        // operation.
+        let signature = format!(
+            "{p}_status {function}({p}_client *client, {input}{p}_cancelled_fn cancelled, void *cancel_user, {function}_result *result, {p}_error *error)"
+        );
+        assert!(client.contains(&format!("{signature};")), "{signature}");
+        assert!(
+            block(source, &format!("{signature} {{"), "\n}\n").contains(&operation_name),
+            "{function} calls {}",
+            operation.name()
+        );
+        if let Some(output) = &entry.output {
+            assert!(client.contains(&format!(
+                "typedef struct {{ {p}_result base; const {} *value; }} {function}_result;",
+                output.type_name
+            )));
         }
         assert_eq!(entry.paginators.is_some(), operation.paginated.is_some());
+        if let Some(paginators) = &entry.paginators {
+            let [pages_new, pages_next] = &paginators[..] else {
+                panic!("{function}: a constructor and a step");
+            };
+            let signature = format!(
+                "{p}_status {pages_new}({p}_client *client, {input}{p}_cancelled_fn cancelled, void *cancel_user, {p}_pages **pages, {p}_error *error)"
+            );
+            assert!(client.contains(&format!("{signature};")), "{signature}");
+            assert!(block(source, &format!("{signature} {{"), "\n}\n").contains(&operation_name));
+            assert!(client.contains(&format!(
+                "{p}_status {pages_next}({p}_pages *pages, bool *has_page, {function}_result *result, {p}_error *error);"
+            )));
+        }
         if let Some(input) = &entry.input {
             assert_eq!(input.style, "setters");
             assert!(models.contains(&format!("\nstruct {} {{", input.type_name)));
@@ -77,16 +160,11 @@ fn assert_declared(service: &Service) -> crucible_codegen_common::surface::Surfa
 
 #[test]
 fn weather_surface_names_the_generated_declarations() {
-    let surface = assert_declared(&load("weather"));
+    let surface = assert_declared(&load("weather"), &options());
     assert_eq!(surface.language, "c");
     assert_eq!(surface.package.ecosystem, "cmake");
     assert_eq!(surface.package.name, "weather_client");
-    assert_eq!(surface.package.import, "weather_client/client.h");
     assert_eq!(surface.client.name, "weather_client");
-    assert_eq!(
-        surface.client.construct,
-        "weather_client_config config = weather_client_defaults(); config.endpoint = weather_string_view(endpoint); weather_client *client = NULL; weather_error error = {0}; weather_client_new(&config, &client, &error);"
-    );
     let list = &surface.operations["example.weather#ListCities"];
     assert_eq!(list.method, "weather_operations_list_cities");
     assert_eq!(
@@ -98,19 +176,74 @@ fn weather_surface_names_the_generated_declarations() {
     );
     let output = list.output.as_ref().unwrap();
     assert_eq!(output.type_name, "weather_models_list_cities_output");
+    let create = surface.operations["example.weather#CreateCity"]
+        .input
+        .as_ref()
+        .unwrap();
+    let revision = create
+        .members
+        .iter()
+        .find(|member| member.member == "expectedRevision")
+        .unwrap();
+    assert_eq!(
+        revision.name,
+        "weather_models_create_city_input_set_expected_revision"
+    );
+    assert!(revision.optional);
+    assert!(!create.members[0].optional, "name is required");
 }
 
+/// Another prefix and package, with a generated-in endpoint: every symbol
+/// follows the prefix, and constructing sets no endpoint.
 #[test]
-fn a_default_endpoint_needs_no_configuration() {
-    let service = load("weather");
-    let mut options = options();
-    options.endpoint = Some("https://api.weather.example".into());
-    let surface = surface(&service, &options);
+fn another_prefix_names_every_symbol() {
+    let options = Options {
+        package_name: "forecast".into(),
+        prefix: "fc".into(),
+        package_version: "0.0.0".into(),
+        endpoint: Some("https://api.weather.example".into()),
+    };
+    let surface = assert_declared(&load("weather"), &options);
     assert!(!surface.client.construct.contains("endpoint"));
+    assert_eq!(surface.client.name, "fc_client");
     assert_eq!(
         surface.endpoint.as_deref(),
         Some("https://api.weather.example")
     );
+    assert_eq!(
+        surface.operations["example.weather#GetCity"].method,
+        "fc_operations_get_city"
+    );
+}
+
+/// Members named for C keywords take the `_value` suffix the accessors
+/// declare (`..._set_default_value`, `..._set_struct_value`); the others
+/// keep their names.
+#[test]
+fn keyword_members_are_named_as_declared() {
+    let surface = assert_declared(&load("client-docs-surface-keywords"), &options());
+    let input = surface.operations["example.keywords#Describe"]
+        .input
+        .as_ref()
+        .unwrap();
+    let name = |member: &str| {
+        input
+            .members
+            .iter()
+            .find(|m| m.member == member)
+            .unwrap()
+            .name
+            .clone()
+    };
+    assert_eq!(
+        name("default"),
+        "weather_models_describe_input_set_default_value"
+    );
+    assert_eq!(
+        name("struct"),
+        "weather_models_describe_input_set_struct_value"
+    );
+    assert_eq!(name("in"), "weather_models_describe_input_set_in");
 }
 
 /// C's `_pages_new`/`_pages_next` suffixes leave the derived names other
@@ -118,7 +251,7 @@ fn a_default_endpoint_needs_no_configuration() {
 /// the fixture generates, and the surface names what it declares.
 #[test]
 fn derived_names_beside_colliding_operations_are_declared() {
-    let surface = assert_declared(&load("client-docs-surface-collisions"));
+    let surface = assert_declared(&load("client-docs-surface-collisions"), &options());
     let list = &surface.operations["example.surface#ListThings"];
     assert_eq!(
         list.paginators,

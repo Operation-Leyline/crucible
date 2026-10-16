@@ -79,8 +79,8 @@ pub(crate) fn sdks_file(
     audience: crucible_codegen::Audience,
 ) -> Result<crucible_codegen::File, String> {
     println!("cargo::rerun-if-changed={}", path.display());
-    let file = crucible_codegen::sdks::load(path, |name| std::env::var(name).ok())
-        .map_err(|errors| errors.to_string())?;
+    // The environment is never read: an endpoint's variable is named.
+    let file = crucible_codegen::sdk::load(path).map_err(|errors| errors.to_string())?;
     let declared = file.join(&file.model);
     let same = match (declared.canonicalize(), model.source.canonicalize()) {
         (Ok(a), Ok(b)) => a == b,

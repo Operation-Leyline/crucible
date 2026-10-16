@@ -23,7 +23,7 @@ pub struct Surface {
     /// The target, as `crucible generate` spells it: `rust`, `ts`, ...
     pub language: String,
     pub package: Package,
-    pub client: Client,
+    pub client: ClientType,
     /// The endpoint the client uses when its configuration names none.
     pub endpoint: Option<String>,
     /// Middleware every client runs by default, ahead of the caller's.
@@ -33,7 +33,7 @@ pub struct Surface {
 }
 
 impl Surface {
-    pub fn new(language: &str, package: Package, client: Client) -> Self {
+    pub fn new(language: &str, package: Package, client: ClientType) -> Self {
         Self {
             language: language.to_owned(),
             package,
@@ -65,6 +65,11 @@ impl Middleware {
 }
 
 /// How a caller gets the package and refers to it in code.
+///
+/// Every native spelling in a surface (the client's name and construction,
+/// input and output types, member types) resolves in a source file that
+/// starts with [`Package::imports`]; the package's own declarations carry
+/// [`Package::qualifier`] where those imports leave them qualified.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 #[non_exhaustive]
@@ -78,6 +83,16 @@ pub struct Package {
     /// What source code names to use the package: a crate path, an import
     /// specifier, a module, package or namespace, a header.
     pub import: String,
+    /// The source lines a snippet starts with, in order: `use`, `import`,
+    /// `require`, `#include` or `library` lines that bring the package (and
+    /// any platform library its types name) into scope.
+    pub imports: Vec<String>,
+    /// The prefix the package's own declarations take after [`imports`]:
+    /// Go `weather.`, Ruby `Weather::`, empty where the imports bring them
+    /// in unqualified. Types in the surface already include it.
+    ///
+    /// [`imports`]: Package::imports
+    pub qualifier: String,
 }
 
 impl Package {
@@ -86,6 +101,8 @@ impl Package {
             ecosystem: ecosystem.to_owned(),
             name: name.into(),
             import: import.into(),
+            imports: Vec::new(),
+            qualifier: String::new(),
         }
     }
 }
@@ -94,20 +111,30 @@ impl Package {
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 #[non_exhaustive]
-pub struct Client {
-    /// The class, struct or type name; C's is its service prefix's type.
+pub struct ClientType {
+    /// The class, struct or type name, qualified as [`Package::qualifier`]
+    /// says; C's is its service prefix's client type.
     pub name: String,
-    /// A native expression that constructs the client. Where the client
-    /// needs an endpoint (none is generated in), the expression reads it
-    /// from a variable named `endpoint`.
+    /// Native source that constructs the client: an expression, or with
+    /// [`ClientType::statements`] a statement sequence that declares a
+    /// variable `client`. Where no endpoint is generated into the client,
+    /// it reads one from a variable named `endpoint`.
     pub construct: String,
+    /// `construct` is a statement sequence declaring `client`, not an
+    /// expression (C, Java).
+    pub statements: bool,
+    /// Constructing can fail: Go's constructor also returns an `error`,
+    /// Swift's throws (`construct` carries its `try`), C's reports one.
+    pub fallible: bool,
 }
 
-impl Client {
+impl ClientType {
     pub fn new(name: impl Into<String>, construct: impl Into<String>) -> Self {
         Self {
             name: name.into(),
             construct: construct.into(),
+            statements: false,
+            fallible: false,
         }
     }
 }
@@ -149,7 +176,7 @@ impl Operation {
 #[serde(rename_all = "camelCase")]
 #[non_exhaustive]
 pub struct Structure {
-    /// The native type, as a caller names it after importing the package.
+    /// The native type, as a caller names it after [`Package::imports`].
     #[serde(rename = "type")]
     pub type_name: String,
     /// For an input, how a caller constructs it; for an output, how a
@@ -179,23 +206,36 @@ pub struct Member {
     /// The model's member name.
     pub member: String,
     /// The native identifier: a property, field, setter, getter or
-    /// keyword argument, as the structure's style uses it.
+    /// keyword argument, as the structure's style uses it, escaped as the
+    /// generated code writes it (Kotlin's backticks, C#'s `@`, Rust's `r#`).
     pub name: String,
-    /// The native type the member's value has, as a caller writes it.
+    /// The native type, as a caller writes it after [`Package::imports`]:
+    /// what the style's form takes or yields. That is the value's type,
+    /// unless the language's field holds a wrapper a bare value does not
+    /// convert to (Go's `Optional[T]`).
     #[serde(rename = "type")]
     pub type_name: String,
+    /// The member may be absent: the model's client nullability
+    /// (`optional_on_client`), whatever the language spells it with.
+    pub optional: bool,
 }
 
 impl Member {
-    pub fn new(member: &str, name: impl Into<String>, type_name: impl Into<String>) -> Self {
+    pub fn new(
+        member: &crucible_ir::ir::Member,
+        name: impl Into<String>,
+        type_name: impl Into<String>,
+    ) -> Self {
         Self {
-            member: member.to_owned(),
+            member: member.name.clone(),
             name: name.into(),
             type_name: type_name.into(),
+            optional: member.optional_on_client(),
         }
     }
 }
 
+#[doc(hidden)]
 /// `path` without Rust- and C++-style qualifiers: `::std::vec::Vec<::a::B>`
 /// reads `Vec<B>`, as a caller writes it after importing the package.
 pub fn unqualified(path: &str, separator: &str) -> String {
