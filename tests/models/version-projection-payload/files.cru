@@ -2,7 +2,7 @@
 service Files {
     version "v2"
     protocol json
-    operations [PutFile, GetFile]
+    operations [PutFile, GetFile, PutReport]
 }
 
 /// Stores a file, as text now.
@@ -29,9 +29,25 @@ readonly operation GetFile {
     }
 }
 
+/// A report's bytes.
+blob Report { mediaType "application/vnd.ms-excel" }
+
+/// Stores a report sent raw now.
+idempotent operation PutReport {
+    http PUT "/reports/{id}"
+    input {
+        id: string
+        @payload
+        report: Report
+    }
+    output { ok: boolean }
+}
+
 migration "v2" from "v1" {
     /// The body is text: a PNG then, plain text now.
     retype PutFile.input.body -> string by hook
     /// The file is read as bytes: text then, a PDF now.
     retype GetFile.output.data -> Bytes by hook
+    /// The report is the raw body, a spreadsheet: a JSON member then.
+    retype PutReport.input.report -> Report by hook
 }

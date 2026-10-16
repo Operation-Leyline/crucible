@@ -1058,3 +1058,28 @@ fn a_step_inside_a_reshape_under_a_new_id_is_skipped() {
     assert_eq!(members(v1, &size), ["width: Integer", "height: Integer"]);
     assert!(!v1.shapes.contains_key(&area));
 }
+
+/// A member the release sent in the JSON body, which the newer model makes
+/// the `@payload` while retyping it, is a body member at the release
+/// again: no payload binding, and the release's `Content-Type`, whatever
+/// media type either target declares.
+#[test]
+fn a_member_retyped_into_a_payload_is_the_releases_body_member() {
+    let (service, _) = load("tests/models/version-projection-payload");
+    let projections = projected(&service);
+    let v1 = at(&projections, "v1");
+    let report = operation(v1, "PutReport");
+    assert_eq!(report.request.payload, None);
+    assert_eq!(report.request.body, ["report"]);
+    assert_eq!(
+        report.protocol_headers.get("Content-Type"),
+        Some(&"application/json".to_owned())
+    );
+    let now = operation(&service, "PutReport");
+    assert_eq!(
+        now.request.payload.as_ref().map(|p| p.media_type.as_str()),
+        Some("application/vnd.ms-excel")
+    );
+    let frozen = operation(&service.versions[0].service, "PutReport");
+    assert_eq!(json(&report.request), json(&frozen.request));
+}

@@ -603,69 +603,72 @@ impl Undo<'_> {
         self.changed.insert(new.clone());
         self.restored_members.insert(new.with_member(member));
         self.resolve(&target);
-        // Where the member travels is the release's too, a payload's kind
-        // and media type included.
-        let frozen_service = self.frozen;
+        // Where the member travels is the release's too, whole: a body
+        // member, a header or a payload, with its kind, media type and
+        // encodings. A release with no binding to take from leaves it as it
+        // is: nothing in the IR could derive one.
+        let order: Vec<String> = match self.out.shapes.get(new) {
+            Some(Shape::Structure(s) | Shape::Union(s)) => {
+                s.members.iter().map(|m| m.name.clone()).collect()
+            }
+            _ => Vec::new(),
+        };
         let frozen_operations = &self.frozen_operations;
-        let shapes = &self.out.shapes;
         for operation in &mut self.out.operations {
-            let older_operation = frozen_operations.get(&operation.id).copied();
+            let Some(older_operation) = frozen_operations.get(&operation.id).copied() else {
+                continue;
+            };
             if operation.input.as_ref() == Some(new) {
-                let then = older_operation.map(|op| &op.request);
-                restore_encodings(&mut operation.request, then, member, older);
-                restore_payload(
-                    &mut operation.request.payload,
-                    then.and_then(|b| b.payload.as_ref()),
-                    shapes,
-                    &target,
+                restore_location(
+                    &mut operation.request,
+                    &older_operation.request,
                     member,
                     older,
+                    &order,
                 );
             }
             if operation.output.as_ref() == Some(new) {
-                let then = older_operation.map(|op| &op.response);
-                restore_encodings(&mut operation.response, then, member, older);
-                restore_payload(
-                    &mut operation.response.payload,
-                    then.and_then(|b| b.payload.as_ref()),
-                    shapes,
-                    &target,
+                restore_location(
+                    &mut operation.response,
+                    &older_operation.response,
                     member,
                     older,
+                    &order,
                 );
             }
         }
-        let older_error = error_info(frozen_service, old);
-        // An error's payload, read before the error is borrowed to change.
-        let mut error_payload = match self.out.shapes.get(new) {
-            Some(Shape::Structure(s)) => s.error.as_ref().map(|e| e.payload.clone()),
-            _ => None,
-        };
-        if let Some(payload) = &mut error_payload {
-            restore_payload(
-                payload,
-                older_error.and_then(|e| e.payload.as_ref()),
-                &self.out.shapes,
-                &target,
-                member,
-                older,
-            );
-        }
+        let older_error = error_info(self.frozen, old);
         if let Some(Shape::Structure(s)) = self.out.shapes.get_mut(new)
             && let Some(error) = &mut s.error
+            && let Some(then) = older_error
         {
-            if let Some(payload) = error_payload {
-                error.payload = payload;
+            place(
+                &mut error.headers,
+                then.headers
+                    .iter()
+                    .find(|b| b.member == older)
+                    .map(|b| crate::ir::Binding {
+                        member: member.to_owned(),
+                        name: b.name.clone(),
+                    }),
+                |b| &b.member,
+                member,
+                &order,
+            );
+            if error.payload.as_ref().is_some_and(|p| p.member == member)
+                || then.payload.as_ref().is_some_and(|p| p.member == older)
+            {
+                error.payload = renamed_payload(then.payload.as_ref(), member, older);
             }
             restore_entry(
                 &mut error.timestamp_formats,
-                older_error.map(|e| &e.timestamp_formats),
+                Some(&then.timestamp_formats),
                 member,
                 older,
             );
             restore_entry(
                 &mut error.header_encodings,
-                older_error.map(|e| &e.header_encodings),
+                Some(&then.header_encodings),
                 member,
                 older,
             );
@@ -1396,67 +1399,109 @@ fn restore_entry<T: Clone>(
     }
 }
 
-/// A retyped member's payload binding, when it is the payload: the
-/// release's, under the member's current name. Where the release has none
-/// to take, its kind follows the restored target, keeping the newer media
-/// type only for a kind it already had; the IR keeps no `@mediaType` of its
-/// own to read one from.
-fn restore_payload(
-    payload: &mut Option<crate::ir::Payload>,
-    then: Option<&crate::ir::Payload>,
-    shapes: &BTreeMap<ShapeId, Shape>,
-    target: &ShapeId,
+/// Where a retyped member travels, as the release's operation bound it
+/// (by its older name, now `member`): a label, a query parameter, a header,
+/// a body member or the payload, and its encodings. Each list keeps member
+/// order, `order` being the structure's members.
+fn restore_location(
+    bindings: &mut Bindings,
+    then: &Bindings,
     member: &str,
     older: &str,
+    order: &[String],
 ) {
-    let Some(now) = payload.as_mut().filter(|p| p.member == member) else {
-        return;
-    };
-    if let Some(then) = then.filter(|p| p.member == older) {
-        *now = crate::ir::Payload {
-            member: member.to_owned(),
-            ..then.clone()
-        };
-        return;
+    let named = |found: bool| found.then(|| member.to_owned());
+    place(
+        &mut bindings.labels,
+        named(then.labels.iter().any(|l| l == older)),
+        String::as_str,
+        member,
+        order,
+    );
+    place(
+        &mut bindings.body,
+        named(then.body.iter().any(|b| b == older)),
+        String::as_str,
+        member,
+        order,
+    );
+    for (list, older_list) in [
+        (&mut bindings.query, &then.query),
+        (&mut bindings.headers, &then.headers),
+    ] {
+        place(
+            list,
+            older_list
+                .iter()
+                .find(|b| b.member == older)
+                .map(|b| crate::ir::Binding {
+                    member: member.to_owned(),
+                    name: b.name.clone(),
+                }),
+            |b| &b.member,
+            member,
+            order,
+        );
     }
-    use crate::ir::{PayloadKind, SimpleKind};
-    let kind = match shapes.get(target) {
-        Some(Shape::Simple(s)) => match s.kind {
-            SimpleKind::Blob => PayloadKind::Blob,
-            SimpleKind::String => PayloadKind::String,
-            SimpleKind::Document => PayloadKind::Document,
-            _ => return,
-        },
-        Some(Shape::Enum(_)) => PayloadKind::String,
-        Some(Shape::Structure(_) | Shape::Union(_)) => PayloadKind::Document,
-        _ => return,
-    };
-    if kind != now.kind {
-        now.media_type = match kind {
-            PayloadKind::Blob => "application/octet-stream",
-            PayloadKind::String => "text/plain",
-            PayloadKind::Document => "application/json",
-        }
-        .to_owned();
-        now.kind = kind;
+    if bindings
+        .payload
+        .as_ref()
+        .is_some_and(|p| p.member == member)
+        || then.payload.as_ref().is_some_and(|p| p.member == older)
+    {
+        bindings.payload = renamed_payload(then.payload.as_ref(), member, older);
     }
-}
-
-/// A retyped member's timestamp format and header encoding, as the
-/// release's operation encoded it.
-fn restore_encodings(bindings: &mut Bindings, older: Option<&Bindings>, member: &str, from: &str) {
     restore_entry(
         &mut bindings.timestamp_formats,
-        older.map(|b| &b.timestamp_formats),
+        Some(&then.timestamp_formats),
         member,
-        from,
+        older,
     );
     restore_entry(
         &mut bindings.header_encodings,
-        older.map(|b| &b.header_encodings),
+        Some(&then.header_encodings),
         member,
-        from,
+        older,
     );
+}
+
+/// The release's payload binding when it is the member's, under the
+/// member's current name; none when the release sent the member otherwise.
+fn renamed_payload(
+    then: Option<&crate::ir::Payload>,
+    member: &str,
+    older: &str,
+) -> Option<crate::ir::Payload> {
+    then.filter(|p| p.member == older)
+        .map(|p| crate::ir::Payload {
+            member: member.to_owned(),
+            ..p.clone()
+        })
+}
+
+/// `list` without its entry for `member`, then with `entry`, if any, before
+/// the first entry for a member `order` lists after `member`.
+fn place<T>(
+    list: &mut Vec<T>,
+    entry: Option<T>,
+    name: impl Fn(&T) -> &str,
+    member: &str,
+    order: &[String],
+) {
+    list.retain(|item| name(item) != member);
+    let Some(entry) = entry else {
+        return;
+    };
+    let rank = |item: &str| order.iter().position(|m| m == item);
+    let at = rank(member);
+    let index = list
+        .iter()
+        .position(|item| match (rank(name(item)), at) {
+            (Some(other), Some(at)) => other > at,
+            _ => false,
+        })
+        .unwrap_or(list.len());
+    list.insert(index, entry);
 }
 
 /// A member renamed from `to` back to `from` in an operation's bindings,

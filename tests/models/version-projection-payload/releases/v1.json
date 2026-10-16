@@ -162,6 +162,72 @@
           "payload": null
         },
         "traits": {}
+      },
+      {
+        "protocol_headers": {
+          "Content-Type": "application/json"
+        },
+        "response_protocol_headers": {
+          "Content-Type": "application/json"
+        },
+        "internal": false,
+        "id": "example.payload#PutReport",
+        "auth": [],
+        "resource": null,
+        "docs": "Stores a report sent in the JSON body.",
+        "notes": {
+          "deprecated": null,
+          "since": null,
+          "unstable": false,
+          "external_docs": {}
+        },
+        "method": "PUT",
+        "uri": {
+          "segments": [
+            {
+              "Literal": "reports"
+            },
+            {
+              "Label": "id"
+            }
+          ],
+          "query": [],
+          "greedy_labels": []
+        },
+        "status": 200,
+        "input": "example.payload#PutReportInput",
+        "output": "example.payload#PutReportOutput",
+        "errors": [],
+        "readonly": false,
+        "idempotent": true,
+        "idempotency_token": null,
+        "paginated": null,
+        "examples": [],
+        "request": {
+          "timestamp_formats": {},
+          "header_encodings": {},
+          "labels": [
+            "id"
+          ],
+          "query": [],
+          "headers": [],
+          "body": [
+            "report"
+          ],
+          "payload": null
+        },
+        "response": {
+          "timestamp_formats": {},
+          "header_encodings": {},
+          "labels": [],
+          "query": [],
+          "headers": [],
+          "body": [
+            "ok"
+          ],
+          "payload": null
+        },
+        "traits": {}
       }
     ],
     "resources": {},
@@ -203,6 +269,28 @@
           },
           "timestamp_format": null,
           "docs": null,
+          "notes": {
+            "deprecated": null,
+            "since": null,
+            "unstable": false,
+            "external_docs": {}
+          },
+          "traits": {}
+        }
+      },
+      "example.payload#Csv": {
+        "Simple": {
+          "internal": false,
+          "sensitive": false,
+          "kind": "String",
+          "constraints": {
+            "length": null,
+            "range": null,
+            "pattern": null,
+            "unique_items": false
+          },
+          "timestamp_format": null,
+          "docs": "A report, as CSV text.",
           "notes": {
             "deprecated": null,
             "since": null,
@@ -400,6 +488,125 @@
         }
       },
       "example.payload#PutFileOutput": {
+        "Structure": {
+          "internal": false,
+          "sensitive": false,
+          "strict": false,
+          "input": false,
+          "members": [
+            {
+              "internal": false,
+              "sensitive": false,
+              "name": "ok",
+              "target": "crucible.api#Boolean",
+              "required": true,
+              "default": null,
+              "wire_default": null,
+              "idempotency_token": false,
+              "mutability": null,
+              "constraints": {
+                "length": null,
+                "range": null,
+                "pattern": null,
+                "unique_items": false
+              },
+              "timestamp_format": null,
+              "wire_timestamp_format": "date-time",
+              "docs": null,
+              "notes": {
+                "deprecated": null,
+                "since": null,
+                "unstable": false,
+                "external_docs": {}
+              },
+              "traits": {}
+            }
+          ],
+          "error": null,
+          "docs": null,
+          "notes": {
+            "deprecated": null,
+            "since": null,
+            "unstable": false,
+            "external_docs": {}
+          },
+          "traits": {}
+        }
+      },
+      "example.payload#PutReportInput": {
+        "Structure": {
+          "internal": false,
+          "sensitive": false,
+          "strict": false,
+          "input": true,
+          "members": [
+            {
+              "internal": false,
+              "sensitive": false,
+              "name": "id",
+              "target": "crucible.api#String",
+              "required": true,
+              "default": null,
+              "wire_default": null,
+              "idempotency_token": false,
+              "mutability": null,
+              "constraints": {
+                "length": null,
+                "range": null,
+                "pattern": null,
+                "unique_items": false
+              },
+              "timestamp_format": null,
+              "wire_timestamp_format": "date-time",
+              "docs": null,
+              "notes": {
+                "deprecated": null,
+                "since": null,
+                "unstable": false,
+                "external_docs": {}
+              },
+              "traits": {}
+            },
+            {
+              "internal": false,
+              "sensitive": false,
+              "name": "report",
+              "target": "example.payload#Csv",
+              "required": true,
+              "default": null,
+              "wire_default": null,
+              "idempotency_token": false,
+              "mutability": null,
+              "constraints": {
+                "length": null,
+                "range": null,
+                "pattern": null,
+                "unique_items": false
+              },
+              "timestamp_format": null,
+              "wire_timestamp_format": "date-time",
+              "docs": null,
+              "notes": {
+                "deprecated": null,
+                "since": null,
+                "unstable": false,
+                "external_docs": {}
+              },
+              "traits": {}
+            }
+          ],
+          "error": null,
+          "docs": null,
+          "notes": {
+            "deprecated": null,
+            "since": null,
+            "unstable": false,
+            "external_docs": {}
+          },
+          "traits": {}
+        }
+      },
+      "example.payload#PutReportOutput": {
         "Structure": {
           "internal": false,
           "sensitive": false,
