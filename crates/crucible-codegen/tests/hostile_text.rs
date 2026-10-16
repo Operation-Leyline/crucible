@@ -11,7 +11,9 @@
 //! and a line that starts with `@` is a tag to JSDoc, PHPDoc, YARD, Doxygen
 //! and roxygen.
 
-use crucible_codegen::{Client, File, Generator, Server};
+#[cfg(feature = "all-outputs")]
+use crucible_codegen::Generator;
+use crucible_codegen::{Client, File, Server};
 use crucible_ir::ir::Service;
 #[cfg(feature = "all-outputs")]
 use serde_json::Value;
