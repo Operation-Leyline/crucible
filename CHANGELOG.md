@@ -579,7 +579,8 @@ version's section when it is prepared.
   like any other's, into `Service::doc_links`; a label naming what only the
   release the migration comes from had (a removed operation, a member's
   older name) is accepted as text, and one naming nothing in either is a
-  compile error (decision 80). Release snapshots are unchanged:
+  compile error (decision 80). Only the compiled package's migrations are
+  checked: an imported package's describe its own releases. Release snapshots are unchanged:
   `snapshot::write` leaves out `Service::versions`.
 
 - `.cru`: a `[Name]` doc link that names nothing is a compile error, reported

@@ -92,6 +92,7 @@ pub(crate) fn lower(
         resource_notes: BTreeMap::new(),
         doc_link_sites: BTreeSet::new(),
         migration_link_sites: BTreeSet::new(),
+        own_files: package.files.len(),
         releases: package
             .baseline
             .as_deref()
@@ -515,6 +516,9 @@ struct Lowerer<'a> {
     migration_link_sites: BTreeSet<(String, usize, u32, u32, String)>,
     /// The directory of the frozen releases, beside the baseline.
     releases: Option<std::path::PathBuf>,
+    /// How many of the files are the package's own, which come first: an
+    /// imported package's migrations are its own compile's.
+    own_files: usize,
     /// The package's and its imports' policy rules, which a doc link may
     /// name without linking anywhere.
     rule_names: BTreeSet<String>,
@@ -659,11 +663,15 @@ impl<'a> Lowerer<'a> {
                         .as_ref()
                         .is_some_and(|release| names_in_release(release, &label))
                     {
-                        self.error(
-                            file,
-                            Span { start, end },
-                            format!("{message}, nor in release \"{from}\", which this migration comes from"),
+                        // Name the release before the advice on brackets.
+                        let release = format!(
+                            ", nor in release \"{from}\", which this migration comes from;"
                         );
+                        let message = match message.split_once(';') {
+                            Some((what, advice)) => format!("{what}{release}{advice}"),
+                            None => format!("{message}{release}"),
+                        };
+                        self.error(file, Span { start, end }, message);
                     }
                 }
             }
@@ -790,6 +798,9 @@ impl<'a> Lowerer<'a> {
                     // Migrations are checked against the baseline by `guard`,
                     // but their documentation and their steps' link into the
                     // current model like any other (decision 80).
+                    // An imported package's migrations describe its own
+                    // releases, which its own compile checks them against.
+                    Decl::Migration(_) if file >= self.own_files => continue,
                     Decl::Migration(migration) => {
                         let from = &migration.from.value;
                         self.migration_doc(file, item.doc.as_ref(), from);

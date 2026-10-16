@@ -1597,7 +1597,9 @@ references are to the code as of the design.
     label there may also name what the release the migration comes from
     had (a removed operation, a member's older name): it is accepted with
     no entry and renders as its text, while one the current model has links
-    as any other, and one in neither is an error. Only the
+    as any other, and one in neither is an error. Only the compiled
+    package's migrations are checked so: an imported package's are its own
+    compile's, against its own releases. Only the
     broken-link callback makes a doc link, never a destination or definition
     the model wrote, so model text cannot pose as one.
     `crucible_ir::doc_links::links` is the one finder (pulldown-cmark's
