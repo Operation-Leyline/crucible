@@ -26,12 +26,13 @@ const LINKS_EXTERNAL = golden("links-external");
 const HISTORY = golden("history-internal");
 const HISTORY_EXTERNAL = golden("history-external");
 const VERSIONED = golden("versioned-external");
+const VERSIONED_V1 = golden("versioned-v1-external");
 const SENDER = golden("sender-external");
 // Weather's internal description with its schemas shared and omitted.
 const schemas = (name) => JSON.parse(readFileSync(join(crate, "tests", "golden", "schemas", `${name}.json`), "utf8"));
 const WEATHER_SHARED = schemas("weather-shared");
 const WEATHER_OMIT = schemas("weather-omit");
-const DESCRIPTIONS = { WEATHER, WEATHER_EXTERNAL, CATALOG, PERMISSIONS, PERMISSIONS_EXTERNAL, SAMPLES, LINKS, LINKS_EXTERNAL, HISTORY, HISTORY_EXTERNAL, VERSIONED, WEATHER_SHARED, WEATHER_OMIT, SENDER };
+const DESCRIPTIONS = { WEATHER, WEATHER_EXTERNAL, CATALOG, PERMISSIONS, PERMISSIONS_EXTERNAL, SAMPLES, LINKS, LINKS_EXTERNAL, HISTORY, HISTORY_EXTERNAL, VERSIONED, VERSIONED_V1, WEATHER_SHARED, WEATHER_OMIT, SENDER };
 
 // ---- walking rendered nodes ----------------------------------------------
 
@@ -578,9 +579,18 @@ test("the test fixtures cover all goldens the generator ships", () => {
     "samples-external",
     "sender-external",
     "versioned-external",
+    "versioned-v1-external",
     "weather-external",
     "weather-internal",
   ].sort());
+});
+
+test("an older release's reference says which release it documents and which is current", () => {
+  const line = textOf(x.overviewView(x.index(VERSIONED_V1))).replace(/\n/g, "");
+  assert.match(line, /This reference documents release v1; the current release is v4\./);
+  const current = textOf(x.overviewView(x.index(VERSIONED))).replace(/\n/g, "");
+  assert.match(current, /The current release is v4\./);
+  assert.doesNotMatch(current, /This reference documents release/);
 });
 
 test("doc links become hash routes to the page for their id", () => {

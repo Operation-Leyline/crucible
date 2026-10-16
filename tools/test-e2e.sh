@@ -15,8 +15,11 @@ node --test crates/crucible-server-runtime-rust/tests/explorer/*.test.mjs
 
 cargo run -q -p crucible-cli -- generate ts tests/models/weather \
   --out e2e/generated/weather-ts --package-name @example/weather >/dev/null
+cargo run -q -p crucible-cli -- generate ts e2e/weather-service/versioned --api-version v1 \
+  --out e2e/generated/shop-v1-ts --package-name @example/shop-v1 >/dev/null
 cargo test -q --locked --manifest-path e2e/Cargo.toml
 cargo build -q --locked --manifest-path e2e/Cargo.toml
+cargo build -q --locked --manifest-path e2e/Cargo.toml -p weather-service --example versioned_shop
 
 target="${CARGO_TARGET_DIR:-e2e/target}"
 bin="$target/debug/weather-service"

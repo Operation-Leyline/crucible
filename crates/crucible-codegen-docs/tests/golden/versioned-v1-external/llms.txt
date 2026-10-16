@@ -1,0 +1,64 @@
+# Shop
+
+> The API reference of Shop.
+
+Every page below is Markdown. Requests are JSON over HTTP; each operation's page gives its method and URI, its headers, its request and response with an example, its errors and its pagination. This reference documents release `v1`; the current release is `v4`, which has a reference of its own. Send `Crucible-Version: v1` on every request you make; an operation a third party calls says what its sender sends instead. `describe.json` holds the whole reference as data (`crucible.describe/1`).
+
+## Overview
+
+- [Service overview](src/index.md): protocol, authentication, service errors, and the operations of each resource
+
+## Operations
+
+- [CountItems](src/operations/API_CountItems.md): `GET /count`.
+- [DeleteItem](src/operations/API_DeleteItem.md): `DELETE /items/{id}`.
+- [GetItem](src/operations/API_GetItem.md): `GET /items/{id}`.
+- [GetLabel](src/operations/API_GetLabel.md): `GET /labels/{id}`. One label\.
+- [ListItems](src/operations/API_ListItems.md): `GET /items`.
+- [ListLabels](src/operations/API_ListLabels.md): `GET /labels`. Every label on the shelf\, and the kinds of item they mark\.
+- [PutLabel](src/operations/API_PutLabel.md): `PUT /labels/{id}`. Replaces a label\.
+- [RecordPayment](src/operations/API_RecordPayment.md): `POST /payments`. Called by Payments, which signs it in the `Payment-Signature` header. A payment processor\'s delivery \(decision 81\)\.
+
+## Data types
+
+- [InternalServerException](src/shapes/InternalServerException.md): error, HTTP 500. An unexpected server failure\.
+- [ValidationException](src/shapes/ValidationException.md): error, HTTP 400. A request cannot be parsed or does not satisfy the service\'s input model\.
+- [ValidationExceptionField](src/shapes/ValidationExceptionField.md): structure. A request field that failed validation\.
+- [ValidationExceptionFieldList](src/shapes/ValidationExceptionFieldList.md): list.
+- [ValidationExceptionReason](src/shapes/ValidationExceptionReason.md): enum. A machine\-readable reason\; clients never need to parse message text\.
+- [CountItemsInput](src/shapes/CountItemsInput.md): structure.
+- [CountItemsOutput](src/shapes/CountItemsOutput.md): structure.
+- [CountUnavailableException](src/shapes/CountUnavailableException.md): error, HTTP 503.
+- [DeleteItemInput](src/shapes/DeleteItemInput.md): structure.
+- [DeleteItemOutput](src/shapes/DeleteItemOutput.md): structure.
+- [GetItemInput](src/shapes/GetItemInput.md): structure.
+- [GetItemOutput](src/shapes/GetItemOutput.md): structure.
+- [GetLabelInput](src/shapes/GetLabelInput.md): structure.
+- [GetLabelOutput](src/shapes/GetLabelOutput.md): structure.
+- [ItemNotFoundException](src/shapes/ItemNotFoundException.md): error, HTTP 404.
+- [Kind](src/shapes/Kind.md): enum.
+- [Kinds](src/shapes/Kinds.md): list.
+- [Label](src/shapes/Label.md): structure. An item\'s label\.
+- [Labels](src/shapes/Labels.md): list.
+- [ListItemsInput](src/shapes/ListItemsInput.md): structure.
+- [ListItemsOutput](src/shapes/ListItemsOutput.md): structure.
+- [ListLabelsOutput](src/shapes/ListLabelsOutput.md): structure.
+- [Names](src/shapes/Names.md): list.
+- [PutLabelInput](src/shapes/PutLabelInput.md): structure.
+- [PutLabelOutput](src/shapes/PutLabelOutput.md): structure.
+- [RecordPaymentInput](src/shapes/RecordPaymentInput.md): structure.
+- [RecordPaymentOutput](src/shapes/RecordPaymentOutput.md): structure.
+
+## Releases
+
+- [Releases](src/releases.md): every supported release, oldest first
+- [v1](src/releases/v1.md): what changed in v1
+- [v2](src/releases/v2.md): what changed in v2
+- [v3](src/releases/v3.md): what changed in v3
+- [v4](src/releases/v4.md): what changed in v4, the current release
+
+## Optional
+
+- [llms-full.txt](llms-full.txt): every page above in one file
+- [describe.json](describe.json): the whole reference as JSON (`crucible.describe/1`)
+- [changes.json](changes.json): the release chain alone (`crucible.changes/1`)

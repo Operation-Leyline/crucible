@@ -1,0 +1,13 @@
+# ValidationException
+
+<p>A request cannot be parsed or does not satisfy the service's input model.</p>
+
+Type: <code>structure</code>.
+
+## Members
+
+| Member | Wire location | Type | Required | Default | Constraints | Description |
+|---|---|---|---|---|---|---|
+| <code>message</code> | <code>message</code> | <code>string</code> | Yes | — | — |  |
+| <code>reason</code> | <code>reason</code> | [ValidationExceptionReason](../shapes/ValidationExceptionReason.md) | Yes | — | — |  |
+| <code>fieldList</code> | <code>fieldList</code> | [ValidationExceptionFieldList](../shapes/ValidationExceptionFieldList.md) | No | — | — |  |
