@@ -17,6 +17,7 @@ fn weather() -> Service {
 
 fn rust() -> Client {
     Client::Rust(crucible_codegen::RustOptions {
+        content_sha256: false,
         package_name: Some("weather-sdk".into()),
         package_version: "1.2.3".into(),
         runtime: RuntimeDependency::Git {

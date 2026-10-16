@@ -111,9 +111,17 @@ version's section when it is prepared.
   `curl` command. A body with an unprintable character is sent through
   `base64 -d`, and a header value no request may carry is left out of the
   command and listed in `omitted`, so a pasted command cannot be
-  interrupted or end a bracketed paste. `crucible_codegen_common::snippet`
+  interrupted or end a bracketed paste. A structure or document payload
+  is the body, as JSON. Neither a snippet nor the raw request carries an
+  example's idempotency token, and a defaulted member an example leaves
+  out is written with its default. `crucible_codegen_common::snippet`
   holds the shared, typed reading of the value
   ([docs/docs.md](docs/docs.md#snippets)).
+- SDK files: `middleware = ["content-sha256"]` on a Rust SDK makes its
+  client send `x-amz-content-sha256` (the SHA-256 of each body) whatever
+  `Config` it is given, as the TypeScript client's default middleware
+  does; its surface, snippets and `AGENTS.md` say so.
+  `crucible_codegen_rust::ClientOptions::content_sha256` is the option.
 - SDK files: `agents = "<path>"`, beside `readme`, replaces a package's
   generated `AGENTS.md` (`crucible generate rust|ts --agents <path>`, and
   `.agents(path)` on the Rust and TypeScript build helpers). Every

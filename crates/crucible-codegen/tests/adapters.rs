@@ -10,6 +10,7 @@ fn adapters_preserve_every_native_emitters_output() {
         let full = common::load(fixture);
         let service = crucible_ir::project(&full, crucible_codegen::Audience::External).unwrap();
         let rust_options = crucible_codegen::RustOptions {
+            content_sha256: false,
             package_name: Some("weather-sdk".into()),
             package_version: "1.0.0".into(),
             runtime: crucible_codegen::RuntimeDependency::Git {

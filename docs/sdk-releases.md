@@ -71,7 +71,9 @@ channel = { git = "git@github.com:Operation-Pigeon/mailpigeon-rs.git", tag = "v{
   `package` (what the builder's `.package(..)` sets), `group_id`,
   `artifact_id`, `package_id` (C#), `module_name`, `namespace`, `prefix`
   (C), `module_path` (Go), `client_name` and `package_json` (TypeScript),
-  `endpoint`, `middleware` (TypeScript), and
+  `endpoint`, `middleware` (TypeScript and Rust: `["content-sha256"]`
+  makes the client send `x-amz-content-sha256`, the SHA-256 of each body,
+  whatever configuration it is given), and
   `runtime = { git, rev, version }` or `runtime_path` (Rust).
   `endpoint` may be `{ env = "NAME" }`, read when the SDK is selected. A key the
   language does not take is an error at that key: Rust takes no

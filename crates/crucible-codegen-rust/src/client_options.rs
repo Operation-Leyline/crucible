@@ -11,6 +11,10 @@ pub struct ClientOptions {
     pub runtime: RuntimeDependency,
     /// Description, URLs, license, authors, README, keywords and `private`.
     pub metadata: PackageMetadata,
+    /// The client sends `x-amz-content-sha256`, the SHA-256 of each body,
+    /// whatever `Config` it is given (`middleware = ["content-sha256"]`):
+    /// a service whose front door signs requests needs it on every write.
+    pub content_sha256: bool,
 }
 
 impl Default for ClientOptions {
@@ -20,6 +24,7 @@ impl Default for ClientOptions {
             package_version: env!("CARGO_PKG_VERSION").into(),
             runtime: RuntimeDependency::Auto,
             metadata: PackageMetadata::default(),
+            content_sha256: false,
         }
     }
 }

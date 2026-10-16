@@ -45,7 +45,9 @@ fn expr(service: &Service, node: &Node<'_>, indent: &str, needs: &mut Needs) -> 
         Kind::Number { kind, text } => match (shape, kind) {
             (Some(Shape::IntEnum(_)), _) => format!("{}({text})", service.name_of(node.target)),
             (_, SimpleKind::Long | SimpleKind::BigInteger) => match text.parse::<i64>() {
-                Ok(value) if value.abs() <= SAFE_INTEGER => format!("BigInt.from({value})"),
+                Ok(value) if value.unsigned_abs() <= SAFE_INTEGER.unsigned_abs() => {
+                    format!("BigInt.from({value})")
+                }
                 _ => format!("BigInt.parse({})", literal(text)),
             },
             (_, SimpleKind::BigDecimal) => format!("BigDecimal({})", literal(text)),
@@ -57,7 +59,12 @@ fn expr(service: &Service, node: &Node<'_>, indent: &str, needs: &mut Needs) -> 
             },
             _ => text.clone(),
         },
-        Kind::Timestamp(instant) => format!("Timestamp.parse({})", literal(&instant.rfc3339)),
+        // `parse` reads RFC 3339 with a four-digit year from 0001; another
+        // instant is built from its seconds and nanoseconds.
+        Kind::Timestamp(instant) if instant.calendar() => {
+            format!("Timestamp.parse({})", literal(&instant.rfc3339))
+        }
+        Kind::Timestamp(instant) => format!("Timestamp({}, {})", instant.seconds, instant.nanos),
         Kind::Blob(bytes) => match std::str::from_utf8(bytes) {
             Ok(text) if !text.chars().any(char::is_control) => {
                 needs.convert = true;

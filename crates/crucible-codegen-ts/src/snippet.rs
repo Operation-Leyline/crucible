@@ -47,7 +47,12 @@ fn expr(node: &Node<'_>, indent: &str, decimal: &mut bool) -> String {
             }
             _ => text.clone(),
         },
-        Kind::Timestamp(instant) => format!("new Date({})", literal(&instant.rfc3339)),
+        // `Date` parses a four-digit year; another instant is its
+        // milliseconds since the epoch.
+        Kind::Timestamp(instant) if instant.calendar() => {
+            format!("new Date({})", literal(&instant.rfc3339))
+        }
+        Kind::Timestamp(instant) => format!("new Date({})", instant.millis()),
         Kind::Blob(bytes) => match std::str::from_utf8(bytes) {
             Ok(text) if !text.chars().any(char::is_control) => {
                 format!("new TextEncoder().encode({})", literal(text))

@@ -25,6 +25,7 @@ No modeled errors.
 
 - [Bulk](operations/API_Bulk.md)
 - [Check](operations/API_Check.md)
+- [Edges](operations/API_Edges.md)
 - [GetGraph](operations/API_GetGraph.md)
 - [PutGraph](operations/API_PutGraph.md)
 - [Walk](operations/API_Walk.md)

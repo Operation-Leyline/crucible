@@ -916,6 +916,574 @@
       "status": 200,
       "uri": "/check"
     },
+    "example.samples#Edges": {
+      "auth": [],
+      "documentation": {
+        "html": "<p>Values at the edges of what each language represents, in an example:\nboth ends of <code>long</code>, <code>bigInteger</code> and <code>bigDecimal</code> past 64 bits,\ninstants with nanoseconds, before the epoch, with an offset and at both\nends of the calendar, a null in a sparse recursive map and list, a\nmember left to its default, and an idempotency token the snippets leave\nto the client.</p>\n",
+        "markdown": "Values at the edges of what each language represents, in an example:\nboth ends of `long`, `bigInteger` and `bigDecimal` past 64 bits,\ninstants with nanoseconds, before the epoch, with an offset and at both\nends of the calendar, a null in a sparse recursive map and list, a\nmember left to its default, and an idempotency token the snippets leave\nto the client.",
+        "text": "Values at the edges of what each language represents, in an example:\nboth ends of long, bigInteger and bigDecimal past 64 bits,\ninstants with nanoseconds, before the epoch, with an offset and at both\nends of the calendar, a null in a sparse recursive map and list, a\nmember left to its default, and an idempotency token the snippets leave\nto the client."
+      },
+      "errors": [],
+      "examples": [
+        {
+          "allowConstraintErrors": false,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "error": null,
+          "input": {
+            "body": {
+              "early": -1.5,
+              "first": "0001-01-01T00:00:00Z",
+              "huge": 123456789012345678901234567890,
+              "largest": 9223372036854775807,
+              "last": "9999-12-31T23:59:59.999Z",
+              "names": [
+                "x",
+                null
+              ],
+              "negativeHuge": -123456789012345678901234567890,
+              "offset": "2026-01-15T04:00:00Z",
+              "precise": "2026-01-15T09:30:00.123456789Z",
+              "smallest": -9223372036854775808,
+              "tiny": 0.000000000000000000000000000001,
+              "token": "fixed-token-the-client-replaces",
+              "tree": {
+                "a": {
+                  "children": {
+                    "b": null
+                  }
+                },
+                "c": {}
+              },
+              "wide": -98765432109876543210.0123456789
+            },
+            "headers": {
+              "Content-Type": "application/json"
+            },
+            "labels": {},
+            "method": "POST",
+            "payload": null,
+            "query": [],
+            "uri": "/edges"
+          },
+          "output": null,
+          "title": "Values at the edges"
+        }
+      ],
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
+      "id": "example.samples#Edges",
+      "idempotencyToken": "token",
+      "idempotent": true,
+      "input": "example.samples#EdgesInput",
+      "inputSchema": {
+        "$defs": {
+          "crucible.api.BigDecimal": {
+            "type": "number"
+          },
+          "crucible.api.BigInteger": {
+            "type": "integer"
+          },
+          "crucible.api.Integer": {
+            "format": "int32",
+            "maximum": 2147483647,
+            "minimum": -2147483648,
+            "type": "integer"
+          },
+          "crucible.api.Long": {
+            "format": "int64",
+            "maximum": 9223372036854775807,
+            "minimum": -9223372036854775808,
+            "type": "integer"
+          },
+          "crucible.api.String": {
+            "type": "string"
+          },
+          "crucible.api.Timestamp": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "example.samples.Branch": {
+            "properties": {
+              "children": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/example.samples.Tree"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "type": "object"
+          },
+          "example.samples.EdgesInput": {
+            "properties": {
+              "early": {
+                "anyOf": [
+                  {
+                    "type": "number",
+                    "x-crucible-timestamp-format": "epoch-seconds"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "first": {
+                "anyOf": [
+                  {
+                    "format": "date-time",
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "huge": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/crucible.api.BigInteger"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "largest": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/crucible.api.Long"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "last": {
+                "anyOf": [
+                  {
+                    "format": "date-time",
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "level": {
+                "$ref": "#/$defs/crucible.api.Integer",
+                "default": 3,
+                "x-crucible-default": 3
+              },
+              "names": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/example.samples.SparseLabels"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "negativeHuge": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/crucible.api.BigInteger"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "offset": {
+                "anyOf": [
+                  {
+                    "format": "date-time",
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "precise": {
+                "anyOf": [
+                  {
+                    "format": "date-time",
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "smallest": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/crucible.api.Long"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "tiny": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/crucible.api.BigDecimal"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "token": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/crucible.api.String"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "SDKs send this automatically. When calling the API directly, send a unique value for each intended operation, and the same value when retrying it; a service may refuse a request without one."
+              },
+              "tree": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/example.samples.Tree"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "wide": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/crucible.api.BigDecimal"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "type": "object"
+          },
+          "example.samples.EpochTime": {
+            "type": "number",
+            "x-crucible-timestamp-format": "epoch-seconds"
+          },
+          "example.samples.SparseLabels": {
+            "items": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/crucible.api.String"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "type": "array",
+            "uniqueItems": false
+          },
+          "example.samples.Tree": {
+            "additionalProperties": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/example.samples.Branch"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "description": "A map that reaches itself through its values, whose entries may be null.",
+            "propertyNames": {
+              "$ref": "#/$defs/crucible.api.String"
+            },
+            "type": "object"
+          }
+        },
+        "properties": {
+          "early": {
+            "anyOf": [
+              {
+                "type": "number",
+                "x-crucible-timestamp-format": "epoch-seconds"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "first": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "huge": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/crucible.api.BigInteger"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "largest": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/crucible.api.Long"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "last": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "level": {
+            "$ref": "#/$defs/crucible.api.Integer",
+            "default": 3,
+            "x-crucible-default": 3
+          },
+          "names": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/example.samples.SparseLabels"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "negativeHuge": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/crucible.api.BigInteger"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "offset": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "precise": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "smallest": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/crucible.api.Long"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "tiny": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/crucible.api.BigDecimal"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "token": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/crucible.api.String"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "SDKs send this automatically. When calling the API directly, send a unique value for each intended operation, and the same value when retrying it; a service may refuse a request without one."
+          },
+          "tree": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/example.samples.Tree"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "wide": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/crucible.api.BigDecimal"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object"
+      },
+      "internal": false,
+      "method": "POST",
+      "name": "Edges",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "output": null,
+      "outputSchema": {
+        "$defs": {},
+        "maxProperties": 0,
+        "type": "object"
+      },
+      "pagination": null,
+      "protocol": "crucibleJson",
+      "protocolHeaders": {
+        "Content-Type": "application/json"
+      },
+      "readonly": false,
+      "request": {
+        "body": [
+          "smallest",
+          "largest",
+          "huge",
+          "negativeHuge",
+          "tiny",
+          "wide",
+          "precise",
+          "early",
+          "offset",
+          "first",
+          "last",
+          "tree",
+          "names",
+          "level",
+          "token"
+        ],
+        "headerEncodings": {},
+        "headers": [],
+        "labels": [],
+        "payload": null,
+        "query": [],
+        "timestampFormats": {}
+      },
+      "resources": [],
+      "response": {
+        "body": [],
+        "headerEncodings": {},
+        "headers": [],
+        "labels": [],
+        "payload": null,
+        "query": [],
+        "timestampFormats": {}
+      },
+      "responseProtocolHeaders": {},
+      "sample": {
+        "fallbacks": [],
+        "generated": true,
+        "input": {
+          "body": {
+            "early": 1768469400,
+            "first": "2026-01-15T09:30:00Z",
+            "huge": 1,
+            "largest": 1,
+            "last": "2026-01-15T09:30:00Z",
+            "level": 3,
+            "names": [
+              "names"
+            ],
+            "negativeHuge": 1,
+            "offset": "2026-01-15T09:30:00Z",
+            "precise": "2026-01-15T09:30:00Z",
+            "smallest": 1,
+            "tiny": 1.5,
+            "token": "3f2b8c1e-5d4a-4e6f-9a7b-0c1d2e3f4a5b",
+            "tree": {
+              "key": {}
+            },
+            "wide": 1.5
+          },
+          "headers": {
+            "Content-Type": "application/json"
+          },
+          "labels": {},
+          "method": "POST",
+          "payload": null,
+          "query": [],
+          "uri": "/edges"
+        },
+        "minimalInput": {
+          "body": {},
+          "headers": {
+            "Content-Type": "application/json"
+          },
+          "labels": {},
+          "method": "POST",
+          "payload": null,
+          "query": [],
+          "uri": "/edges"
+        },
+        "output": {
+          "body": null,
+          "headers": {},
+          "labels": {},
+          "payload": null,
+          "query": []
+        }
+      },
+      "status": 200,
+      "uri": "/edges"
+    },
     "example.samples#GetGraph": {
       "auth": [],
       "documentation": {
@@ -2393,6 +2961,66 @@
     "version": "1"
   },
   "shapes": {
+    "crucible.api#BigDecimal": {
+      "constraints": {
+        "length": null,
+        "pattern": null,
+        "range": null,
+        "uniqueItems": false
+      },
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
+      "id": "crucible.api#BigDecimal",
+      "internal": false,
+      "kind": "bigDecimal",
+      "members": [],
+      "name": "BigDecimal",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false
+    },
+    "crucible.api#BigInteger": {
+      "constraints": {
+        "length": null,
+        "pattern": null,
+        "range": null,
+        "uniqueItems": false
+      },
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
+      "id": "crucible.api#BigInteger",
+      "internal": false,
+      "kind": "bigInteger",
+      "members": [],
+      "name": "BigInteger",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false
+    },
     "crucible.api#Boolean": {
       "constraints": {
         "length": null,
@@ -2785,6 +3413,69 @@
       "kind": "string",
       "members": [],
       "name": "Bounded",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false
+    },
+    "example.samples#Branch": {
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "error": null,
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
+      "id": "example.samples#Branch",
+      "internal": false,
+      "kind": "structure",
+      "members": [
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "children",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": true,
+          "required": false,
+          "sensitive": false,
+          "target": "example.samples#Tree",
+          "targetName": "Tree",
+          "targetType": "map",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "children"
+        }
+      ],
+      "name": "Branch",
       "notes": {
         "deprecated": null,
         "externalDocs": {},
@@ -3412,6 +4103,587 @@
         }
       ],
       "name": "CheckInput",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false
+    },
+    "example.samples#EdgesInput": {
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "error": null,
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
+      "id": "example.samples#EdgesInput",
+      "internal": false,
+      "kind": "structure",
+      "members": [
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "smallest",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": true,
+          "required": false,
+          "sensitive": false,
+          "target": "crucible.api#Long",
+          "targetName": "Long",
+          "targetType": "long",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "smallest"
+        },
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "largest",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": true,
+          "required": false,
+          "sensitive": false,
+          "target": "crucible.api#Long",
+          "targetName": "Long",
+          "targetType": "long",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "largest"
+        },
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "huge",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": true,
+          "required": false,
+          "sensitive": false,
+          "target": "crucible.api#BigInteger",
+          "targetName": "BigInteger",
+          "targetType": "bigInteger",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "huge"
+        },
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "negativeHuge",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": true,
+          "required": false,
+          "sensitive": false,
+          "target": "crucible.api#BigInteger",
+          "targetName": "BigInteger",
+          "targetType": "bigInteger",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "negativeHuge"
+        },
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "tiny",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": true,
+          "required": false,
+          "sensitive": false,
+          "target": "crucible.api#BigDecimal",
+          "targetName": "BigDecimal",
+          "targetType": "bigDecimal",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "tiny"
+        },
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "wide",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": true,
+          "required": false,
+          "sensitive": false,
+          "target": "crucible.api#BigDecimal",
+          "targetName": "BigDecimal",
+          "targetType": "bigDecimal",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "wide"
+        },
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "precise",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": true,
+          "required": false,
+          "sensitive": false,
+          "target": "crucible.api#Timestamp",
+          "targetName": "Timestamp",
+          "targetType": "timestamp",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "precise"
+        },
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "early",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": true,
+          "required": false,
+          "sensitive": false,
+          "target": "example.samples#EpochTime",
+          "targetName": "EpochTime",
+          "targetType": "timestamp",
+          "timestampFormat": "epoch-seconds",
+          "wireDefault": null,
+          "wireName": "early"
+        },
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "offset",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": true,
+          "required": false,
+          "sensitive": false,
+          "target": "crucible.api#Timestamp",
+          "targetName": "Timestamp",
+          "targetType": "timestamp",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "offset"
+        },
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "first",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": true,
+          "required": false,
+          "sensitive": false,
+          "target": "crucible.api#Timestamp",
+          "targetName": "Timestamp",
+          "targetType": "timestamp",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "first"
+        },
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "last",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": true,
+          "required": false,
+          "sensitive": false,
+          "target": "crucible.api#Timestamp",
+          "targetName": "Timestamp",
+          "targetType": "timestamp",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "last"
+        },
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "tree",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": true,
+          "required": false,
+          "sensitive": false,
+          "target": "example.samples#Tree",
+          "targetName": "Tree",
+          "targetType": "map",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "tree"
+        },
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "names",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": true,
+          "required": false,
+          "sensitive": false,
+          "target": "example.samples#SparseLabels",
+          "targetName": "SparseLabels",
+          "targetType": "list",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "names"
+        },
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": 3,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "level",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": false,
+          "required": false,
+          "sensitive": false,
+          "target": "crucible.api#Integer",
+          "targetName": "Integer",
+          "targetType": "integer",
+          "timestampFormat": "date-time",
+          "wireDefault": 3,
+          "wireName": "level"
+        },
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "token",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": true,
+          "required": false,
+          "sensitive": false,
+          "target": "crucible.api#String",
+          "targetName": "String",
+          "targetType": "string",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "token"
+        }
+      ],
+      "name": "EdgesInput",
       "notes": {
         "deprecated": null,
         "externalDocs": {},
@@ -5962,6 +7234,76 @@
       },
       "sensitive": false
     },
+    "example.samples#SparseLabels": {
+      "constraints": {
+        "length": null,
+        "pattern": null,
+        "range": null,
+        "uniqueItems": false
+      },
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
+      "id": "example.samples#SparseLabels",
+      "internal": false,
+      "kind": "list",
+      "members": [
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "member",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": true,
+          "required": false,
+          "sensitive": false,
+          "target": "crucible.api#String",
+          "targetName": "String",
+          "targetType": "string",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "member"
+        }
+      ],
+      "name": "SparseLabels",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false,
+      "set": false,
+      "sparse": true
+    },
     "example.samples#Tags": {
       "constraints": {
         "length": {
@@ -6171,6 +7513,112 @@
         "unstable": false
       },
       "sensitive": false
+    },
+    "example.samples#Tree": {
+      "constraints": {
+        "length": null,
+        "pattern": null,
+        "range": null,
+        "uniqueItems": false
+      },
+      "documentation": {
+        "html": "<p>A map that reaches itself through its values, whose entries may be null.</p>\n",
+        "markdown": "A map that reaches itself through its values, whose entries may be null.",
+        "text": "A map that reaches itself through its values, whose entries may be null."
+      },
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
+      "id": "example.samples#Tree",
+      "internal": false,
+      "kind": "map",
+      "members": [
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "key",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": true,
+          "required": false,
+          "sensitive": false,
+          "target": "crucible.api#String",
+          "targetName": "String",
+          "targetType": "string",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "key"
+        },
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "value",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": true,
+          "required": false,
+          "sensitive": false,
+          "target": "example.samples#Branch",
+          "targetName": "Branch",
+          "targetType": "structure",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "value"
+        }
+      ],
+      "name": "Tree",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false,
+      "sparse": true
     },
     "example.samples#WalkInput": {
       "documentation": {

@@ -77,6 +77,15 @@ impl Timestamp {
         self.seconds * 1000 + i64::from(self.nanos / 1_000_000)
     }
 
+    /// Whether the instant is a calendar date with a four-digit year from
+    /// 0001 to 9999: what RFC 3339 parsers (`Timestamp.parse`,
+    /// `Instant.parse`, `new Date(..)`) read. Another (year 0, or past
+    /// 9999) is built from its seconds and nanoseconds instead.
+    pub fn calendar(&self) -> bool {
+        // 0001-01-01T00:00:00Z and 10000-01-01T00:00:00Z.
+        (-62_135_596_800..253_402_300_800).contains(&self.seconds)
+    }
+
     /// Seconds since the epoch as decimal text: `1768469400`, or
     /// `1768469400.25` with a fraction.
     pub fn epoch_text(&self) -> String {
@@ -182,11 +191,15 @@ fn structure<'a>(
     value: &Value,
 ) -> Node<'a> {
     let object = value.as_object();
+    // A member the value leaves out takes its modelled default, written
+    // out: some languages' constructors (Ruby's, Swift's, PHP's, R's)
+    // require every member with a default, so a snippet that omitted one
+    // would fail before it sent anything.
     let members = shape
         .members
         .iter()
         .filter_map(|m| {
-            let value = object?.get(&m.name)?;
+            let value = object?.get(&m.name).or(m.default.as_ref())?;
             Some((m, member(service, m, value)))
         })
         .collect();
@@ -316,7 +329,7 @@ pub fn call<'a>(service: &'a Service, operation: &'a Operation) -> Call<'a> {
         None => (None, None),
         Some((id, shape)) => match example.and_then(|e| e.input.as_ref().map(|v| (e, v))) {
             Some((example, value)) => (
-                Some(structure(service, id, shape, value)),
+                Some(without_token(structure(service, id, shape, value))),
                 Some(example.title.as_str()),
             ),
             None => {
@@ -337,13 +350,10 @@ pub fn call<'a>(service: &'a Service, operation: &'a Operation) -> Call<'a> {
                         !optional || member.to_string().len() <= SAMPLE_BUDGET
                     });
                 }
-                let mut node = structure(service, id, shape, &value);
-                // A fixed idempotency token in copied code would replay
-                // one logical request forever: the client fills it.
-                if let Kind::Structure(members) = &mut node.kind {
-                    members.retain(|(m, _)| !m.idempotency_token);
-                }
-                (Some(node), None)
+                (
+                    Some(without_token(structure(service, id, shape, &value))),
+                    None,
+                )
             }
         },
     };
@@ -390,6 +400,16 @@ pub fn call<'a>(service: &'a Service, operation: &'a Operation) -> Call<'a> {
         pages,
         bearer,
     }
+}
+
+/// `node` without its idempotency token, whether an example or a sample
+/// set it: a fixed token in copied code would replay one logical request
+/// forever, so the client fills a fresh one.
+fn without_token(mut node: Node<'_>) -> Node<'_> {
+    if let Kind::Structure(members) = &mut node.kind {
+        members.retain(|(m, _)| !m.idempotency_token);
+    }
+    node
 }
 
 /// The longest optional member value, as JSON text, a sampled snippet
@@ -466,8 +486,15 @@ pub fn env_var(service: &Service, suffix: &str) -> String {
 /// middleware's headers.
 pub fn added_headers(service: &Service, middleware: &[crate::surface::Middleware]) -> Vec<String> {
     let mut headers = Vec::new();
-    if service.auth.iter().any(|s| service.is_bearer(s)) {
-        headers.push("Authorization: Bearer <token>".to_owned());
+    // Only operations that name a bearer scheme send the token: a public
+    // one never asks for it.
+    let bearer = |op: &Operation| !op.public && op.auth.iter().any(|s| service.is_bearer(s));
+    if service.operations.iter().any(bearer) {
+        headers.push(if service.operations.iter().all(bearer) {
+            "Authorization: Bearer <token>".to_owned()
+        } else {
+            "Authorization: Bearer <token> (except on public operations)".to_owned()
+        });
     }
     if let Some(version) = &service.api_version {
         headers.push(format!("Crucible-Version: {version}"));
@@ -535,5 +562,18 @@ mod tests {
         };
         assert_eq!(instant.epoch_text(), "1768469400.25");
         assert_eq!(instant.millis(), 1_768_469_400_250);
+        assert!(instant.calendar());
+        let year_zero = Timestamp {
+            rfc3339: "0000-12-31T23:59:59Z".into(),
+            seconds: -62_135_596_801,
+            nanos: 0,
+        };
+        assert!(!year_zero.calendar());
+        let year_10000 = Timestamp {
+            rfc3339: String::new(),
+            seconds: 253_402_300_800,
+            nanos: 0,
+        };
+        assert!(!year_10000.calendar());
     }
 }

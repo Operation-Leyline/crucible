@@ -67,12 +67,7 @@ fn expr<'a>(service: &'a Service, options: &Options, node: &Node<'a>, indent: &s
         }
         Kind::Timestamp(instant) => {
             // `parse` reads RFC 3339 with a four-digit year from 0001.
-            let calendar = instant.rfc3339.len() > 4
-                && instant.rfc3339.as_bytes()[..4]
-                    .iter()
-                    .all(u8::is_ascii_digit)
-                && !instant.rfc3339.starts_with("0000");
-            if calendar {
+            if instant.calendar() {
                 format!(
                     "{}::parse({})",
                     runtime(options, "Timestamp"),

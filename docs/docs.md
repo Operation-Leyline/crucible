@@ -766,19 +766,28 @@ as `x-amz-content-sha256`); the input, written with native literals of
 real values; the call; each top-level output member read; and one modelled
 error handled by its generated type. The values are the operation's first
 `example` with an input, or else its generated [sample](#generated-samples)
-with every member, less a client-filled idempotency token and any optional
-member whose sample is longer than 160 characters of JSON, and a comment
-says which. Values keep their types: `long` is a TypeScript `bigint`, a
+with every member, less any optional member whose sample is longer than 160
+characters of JSON, and a comment says which. Either way the idempotency
+token is left out, for the client to fill: a fixed token in copied code
+would replay one logical request. A member with a modelled default that the
+example leaves out is written with its default, since some languages'
+constructors require it. An instant outside the years 0001 to 9999, which
+RFC 3339 parsers refuse, is built from its seconds where the language
+otherwise parses calendar text. Values keep their types: `long` is a TypeScript `bigint`, a
 timestamp is the language's instant type, a blob its byte type, an enum or
 union its generated value, and optional members take whatever presence
 wrapper the language's field needs. The error is the one an example shows,
 else the operation's first declared error, else the service's.
 
 `paginatedSnippet` is the same program iterating the generated paginator
-(`paginators[0]`), without the input token, printing each page's items.
+(`paginators[0]`), without the input token, printing each page's items,
+and handling the same modelled error where a later page can fail with it.
 Snippets are deterministic, contain no credential, and are compile-checked
 per language by its qualification script against the Weather and Samples
-models (`tools/test-ts.sh`, `tools/test-consumers.py` for Rust, and each
+models (Samples' `Edges` example holds both ends of `long`, `bigInteger`
+and `bigDecimal` past 64 bits, instants with nanoseconds, before the epoch,
+with an offset and at both ends of the calendar, and nulls in a sparse
+recursive map and list) (`tools/test-ts.sh`, `tools/test-consumers.py` for Rust, and each
 `tools/test-<language>.py`). The same snippet appears in the generated
 package's `README.md` and `AGENTS.md` ([clients](clients.md#generated-package-documentation)).
 

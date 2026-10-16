@@ -9,6 +9,9 @@ use crucible_codegen::sdk;
 use crucible_codegen::sdks;
 use crucible_ir::Audience;
 
+#[cfg(feature = "all-clients")]
+#[path = "common/clients.rs"]
+mod clients;
 mod common;
 
 /// A service repository holding `text` as its SDK file and `model` as its
@@ -353,4 +356,146 @@ fn a_sample_request_carries_no_idempotency_token() {
         .map(|byte| format!("{byte:02x}"))
         .collect();
     assert!(put["snippet"].as_str().unwrap().contains(&digest), "{put}");
+}
+
+/// A structure or document payload is the whole body: its JSON, with the
+/// digest over exactly those bytes (`payload-bindings`' `PutRecord` and
+/// `PutDocument`).
+#[test]
+fn a_structured_payload_is_the_raw_request_body() {
+    let text = "schema_version = 1\nmodel = \"model\"\n\n[sdk.ts]\npackage = \"@example/payloads\"\nmiddleware = [\"content-sha256\"]\nout = \"generated/ts\"\n";
+    let (_directory, path) = repository("payload-bindings", text);
+    let text = describe(&path, "payload-bindings", Audience::External).unwrap();
+    let document: serde_json::Value = serde_json::from_str(&text).unwrap();
+    let operations = &document["http"]["operations"];
+    let ids: Vec<&String> = operations.as_object().unwrap().keys().collect();
+    for name in ["PutRecord", "PutDocument"] {
+        let id = ids
+            .iter()
+            .find(|id| id.ends_with(&format!("#{name}")))
+            .unwrap_or_else(|| panic!("{name} in {ids:?}"));
+        let put = &operations[id.as_str()];
+        let body = put["body"]
+            .as_str()
+            .unwrap_or_else(|| panic!("{name}: {put}"));
+        assert_eq!(put["bodyEncoding"], "utf-8", "{name}: {put}");
+        serde_json::from_str::<serde_json::Value>(body).unwrap();
+        let digest: String = <sha2::Sha256 as sha2::Digest>::digest(body.as_bytes())
+            .iter()
+            .map(|byte| format!("{byte:02x}"))
+            .collect();
+        let snippet = put["snippet"].as_str().unwrap();
+        assert!(snippet.contains(&digest), "{name}: {snippet}");
+        assert!(snippet.contains("--data-binary"), "{name}: {snippet}");
+    }
+}
+
+/// A Rust SDK that declares `content-sha256` sends the digest whatever
+/// `Config` it is given (a front door that signs requests refuses a write
+/// without it), and its surface, snippets and AGENTS.md say so.
+#[test]
+fn a_rust_sdk_with_content_sha256_sends_the_digest() {
+    let text = "schema_version = 1\nmodel = \"model\"\n\n[sdk.rust]\npackage = \"weather-sdk\"\nmiddleware = [\"content-sha256\"]\nout = \"generated/rust\"\n";
+    let (_directory, path) = repository("weather", text);
+    let file = sdk::load(&path).unwrap();
+    let sdk = &file.sdks["rust"];
+    let crucible_codegen::Client::Rust(mut options) = sdk.client(&file, Some("1.0.0")).unwrap()
+    else {
+        unreachable!("a Rust SDK")
+    };
+    assert!(options.content_sha256);
+    options.runtime = crucible_codegen::RuntimeDependency::Git {
+        repository: "https://github.com/Operation-Leyline/crucible".into(),
+        revision: "a".repeat(40),
+        version_requirement: "*".into(),
+    };
+    let service = common::load("weather");
+    let files = crucible_codegen_rust::emit_client_package(&service, &options).unwrap();
+    let source = &files
+        .iter()
+        .find(|f| f.path == "src/lib.rs")
+        .unwrap()
+        .contents;
+    assert!(
+        source.contains("Transport::new(config.content_sha256(true))"),
+        "the client turns the digest on"
+    );
+    let agents = &files
+        .iter()
+        .find(|f| f.path == "AGENTS.md")
+        .unwrap()
+        .contents;
+    assert!(agents.contains("x-amz-content-sha256"), "{agents}");
+    let text = describe(&path, "weather", Audience::External).unwrap();
+    let document: serde_json::Value = serde_json::from_str(&text).unwrap();
+    let rust = &document["sdks"]["rust"];
+    assert_eq!(rust["middleware"][0]["headers"][0], "x-amz-content-sha256");
+    let create = rust["operations"]["example.weather#CreateCity"]["snippet"]
+        .as_str()
+        .unwrap();
+    assert!(create.contains("x-amz-content-sha256"), "{create}");
+}
+
+/// Samples' `Edges` example holds values at the edges of what each
+/// language represents, a defaulted member it leaves out, and a fixed
+/// idempotency token. Every language writes a snippet for it, writes the
+/// default in, and leaves the token for the client to fill.
+#[cfg(feature = "all-clients")]
+#[test]
+fn edge_values_reach_every_language_without_the_token() {
+    let service = common::load("samples");
+    for (language, client) in clients::clients() {
+        let surface = client.surface(&service, Audience::External).unwrap();
+        let edges = &surface.operations["example.samples#Edges"].snippet;
+        assert!(
+            !edges.contains("fixed-token-the-client-replaces"),
+            "{language}: {edges}"
+        );
+        assert!(edges.contains("9223372036854775807"), "{language}: {edges}");
+        assert!(
+            edges.contains("123456789012345678901234567890"),
+            "{language}: {edges}"
+        );
+        // `level` defaults to 3, which the example leaves out.
+        assert!(edges.contains('3'), "{language}: {edges}");
+    }
+}
+
+/// A service whose operations are not all authenticated says which send
+/// the token: `hardening` has a public operation beside bearer ones.
+#[test]
+fn public_operations_are_named_where_the_token_is_described() {
+    let service = common::load("hardening");
+    let headers = crucible_codegen_common::snippet::added_headers(&service, &[]);
+    assert!(
+        headers.contains(&"Authorization: Bearer <token> (except on public operations)".to_owned()),
+        "{headers:?}"
+    );
+}
+
+/// An instant before year 1 (which RFC 3339 parsers refuse) is built from
+/// its seconds where the language parses calendar text otherwise.
+#[cfg(feature = "all-clients")]
+#[test]
+fn instants_outside_the_calendar_are_built_from_seconds() {
+    let service = common::load_with("samples", |package| {
+        for file in &mut package.files {
+            file.text = file
+                .text
+                .replace("first: \"0001-01-01T00:00:00Z\"", "first: -62167219200");
+        }
+    });
+    for (language, client) in clients::clients() {
+        let expected = match language {
+            "ts" => "new Date(-62167219200000)",
+            "rust" => "runtime::time::Timestamp::from_timestamp(-62167219200, 0)",
+            "ruby" => "Runtime::Timestamp.new(-62167219200, 0)",
+            "php" => r"Runtime\Timestamp(-62167219200, 0)",
+            "dart" => "Timestamp(-62167219200, 0)",
+            _ => continue,
+        };
+        let surface = client.surface(&service, Audience::External).unwrap();
+        let edges = &surface.operations["example.samples#Edges"].snippet;
+        assert!(edges.contains(expected), "{language}: {expected}\n{edges}");
+    }
 }

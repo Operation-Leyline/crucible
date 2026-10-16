@@ -79,6 +79,7 @@ fn sdk_compiles_with_shapes_named_like_bare_identifiers() {
     let files = emit_client_package(
         &service(),
         &ClientOptions {
+            content_sha256: false,
             package_name: Some("bare-identifiers-sdk".into()),
             package_version: "0.0.0".into(),
             runtime: RuntimeDependency::Path(crate_path("crucible-client-runtime-rust")),

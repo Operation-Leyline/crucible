@@ -113,6 +113,7 @@ fn rustdoc_resolves_every_link_in_the_server_and_the_sdk() {
     let files = emit_client_package(
         &external(),
         &ClientOptions {
+            content_sha256: false,
             package_name: Some("doc-links-sdk".into()),
             package_version: "0.0.0".into(),
             runtime: RuntimeDependency::Path(crate_path("crucible-client-runtime-rust")),

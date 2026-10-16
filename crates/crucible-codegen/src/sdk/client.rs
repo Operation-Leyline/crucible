@@ -108,6 +108,7 @@ impl Sdk {
                     package_name: options.package.clone(),
                     package_version: version.clone(),
                     metadata: self.release_metadata(file, &version)?,
+                    content_sha256: options.middleware.iter().any(|m| m == "content-sha256"),
                     ..Default::default()
                 };
                 if let Some(runtime) = &options.runtime {

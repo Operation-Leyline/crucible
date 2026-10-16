@@ -6,7 +6,7 @@
 //! The request is the one `describe.json` shows for the operation: its first
 //! example with an input, else its generated sample, built by the same code
 //! (`crucible_codegen_common::describe`), so the reference and the snippet
-//! never disagree about a label, a query parameter or a body. A sample
+//! never disagree about a label, a query parameter or a body. The request
 //! leaves out the idempotency token, as the SDK snippets do: a fixed token
 //! in a copied command would replay one logical request forever.
 //!
@@ -81,12 +81,20 @@ fn printable(c: char) -> bool {
 
 fn body(message: &Value) -> Option<Body> {
     if let Some(payload) = message["payload"].as_object() {
-        let value = payload.get("value")?.as_str()?;
-        return Some(if payload.get("encoding") == Some(&json!("base64")) {
-            Body::base64(base64_bytes(value).unwrap_or_default())
-        } else {
-            Body::of(value.as_bytes().to_vec())
-        });
+        return match payload.get("value")? {
+            Value::Null => None,
+            Value::String(value) if payload.get("encoding") == Some(&json!("base64")) => {
+                Some(Body::base64(base64_bytes(value).unwrap_or_default()))
+            }
+            Value::String(value) => Some(Body::of(value.as_bytes().to_vec())),
+            // A structure or document payload is its JSON value, sent as
+            // the whole body.
+            document => Some(Body::of(
+                serde_json::to_string(document)
+                    .expect("a document serializes")
+                    .into_bytes(),
+            )),
+        };
     }
     let document = message.get("body").filter(|body| !body.is_null())?;
     let text = serde_json::to_string(document).expect("a document serializes");
@@ -169,8 +177,13 @@ pub(super) fn document(
             .into_iter()
             .flatten()
             .find(|example| !example["input"].is_null());
+        // An example's token, like a sample's, is left out: a copied
+        // command repeated with it would replay one logical request.
         let (message, title) = match example {
-            Some(example) => (example["input"].clone(), example["title"].clone()),
+            Some(example) => (
+                without_token(operation, &example["input"]),
+                example["title"].clone(),
+            ),
             None => (
                 without_token(operation, &described["sample"]["input"]),
                 Value::Null,

@@ -55,12 +55,8 @@ fn expr(
         Kind::Number { kind, text } => number(*kind, text, needs),
         // `parse` takes RFC 3339 for years 1 through 9999; the seconds and
         // nanoseconds constructor holds any other instant.
-        Kind::Timestamp(instant)
-            if instant
-                .rfc3339
-                .get(..4)
-                .is_some_and(|year| year.bytes().all(|b| b.is_ascii_digit())) =>
-        {
+        // `parse` reads RFC 3339 with a four-digit year from 0001.
+        Kind::Timestamp(instant) if instant.calendar() => {
             format!(
                 "{module}::Runtime::Timestamp.parse({})",
                 literal(&instant.rfc3339)

@@ -537,43 +537,29 @@ pub(crate) fn snippets(
         // The method is `[[nodiscard]]`; an empty output is discarded.
         _ => lines.push(format!("static_cast<void>({invoke});")),
     }
-    match call.error {
-        Some(case) => {
-            let name = service.name_of(case.id);
-            let message = match case.read {
-                Some(member)
-                    if !member.optional_on_client()
-                        && matches!(
-                            service.shape(&member.target),
-                            Some(Shape::Simple(s)) if s.kind == SimpleKind::String
-                        ) =>
-                {
-                    format!("error.{}", field(&member.name))
-                }
-                Some(member) => format!(
-                    "{}(error.{})",
-                    writer.runtime("debug_value"),
-                    field(&member.name)
-                ),
-                None => "error.what()".to_owned(),
-            };
-            body.push_str(&format!("{INDENT}try {{\n"));
-            for line in &lines {
-                body.push_str(&format!("{INDENT}{INDENT}{line}\n"));
+    // The modelled error a handler catches: its type, name and message.
+    let handler = call.error.map(|case| {
+        let name = service.name_of(case.id);
+        let message = match case.read {
+            Some(member)
+                if !member.optional_on_client()
+                    && matches!(
+                        service.shape(&member.target),
+                        Some(Shape::Simple(s)) if s.kind == SimpleKind::String
+                    ) =>
+            {
+                format!("error.{}", field(&member.name))
             }
-            body.push_str(&format!(
-                "{INDENT}}} catch (const {model}& error) {{\n\
-                 {INDENT}{INDENT}std::cerr << \"{name} (HTTP \" << error.metadata().status << \"): \" << {message} << '\\n';\n\
-                 {INDENT}{INDENT}return 1;\n{INDENT}}}\n",
-                model = writer.model(case.id),
-            ));
-        }
-        None => {
-            for line in &lines {
-                body.push_str(&format!("{INDENT}{line}\n"));
-            }
-        }
-    }
+            Some(member) => format!(
+                "{}(error.{})",
+                writer.runtime("debug_value"),
+                field(&member.name)
+            ),
+            None => "error.what()".to_owned(),
+        };
+        (writer.model(case.id), name.to_owned(), message)
+    });
+    body.push_str(&guarded(&lines, handler.as_ref()));
     let snippet = program(service, options, middleware, writer.limits, &body);
 
     let paginated = paginator.zip(call.pages).map(|(paginator, pages)| {
@@ -592,22 +578,53 @@ pub(crate) fn snippets(
             None => "",
         };
         body.push_str(&format!(
-            "{INDENT}// Each page is one response; the paginator sends `{}` for the next.\n\
-             {INDENT}auto pages = client.{paginator}({argument});\n\
-             {INDENT}while (auto page = pages.next()) {{\n",
+            "{INDENT}// Each page is one response; the paginator sends `{}` for the next.\n",
             pages.paginated.input_token
         ));
         let read = match pages.items {
             Some(items) => format!("page->{}", field(&items.name)),
             None => "*page".to_owned(),
         };
-        body.push_str(&format!(
-            "{INDENT}{INDENT}std::cout << {}({read}) << '\\n';\n{INDENT}}}\n",
-            writer.runtime("debug_value")
-        ));
+        // A later page can fail with the modelled error too: the loop is
+        // inside the same handler as the call's.
+        let lines = vec![
+            format!("auto pages = client.{paginator}({argument});"),
+            "while (auto page = pages.next()) {".to_owned(),
+            format!(
+                "{INDENT}std::cout << {}({read}) << '\\n';",
+                writer.runtime("debug_value")
+            ),
+            "}".to_owned(),
+        ];
+        body.push_str(&guarded(&lines, handler.as_ref()));
         program(service, options, middleware, writer.limits, &body)
     });
     (snippet, paginated)
+}
+
+/// `lines` as statements of `main`, inside a `try` that catches the
+/// modelled error `handler` names (its type, name and message), if any.
+fn guarded(lines: &[String], handler: Option<&(String, String, String)>) -> String {
+    let mut out = String::new();
+    match handler {
+        Some((model, name, message)) => {
+            out.push_str(&format!("{INDENT}try {{\n"));
+            for line in lines {
+                out.push_str(&format!("{INDENT}{INDENT}{line}\n"));
+            }
+            out.push_str(&format!(
+                "{INDENT}}} catch (const {model}& error) {{\n\
+                 {INDENT}{INDENT}std::cerr << \"{name} (HTTP \" << error.metadata().status << \"): \" << {message} << '\\n';\n\
+                 {INDENT}{INDENT}return 1;\n{INDENT}}}\n"
+            ));
+        }
+        None => {
+            for line in lines {
+                out.push_str(&format!("{INDENT}{line}\n"));
+            }
+        }
+    }
+    out
 }
 
 /// The root input's constructor arguments as a declaration's

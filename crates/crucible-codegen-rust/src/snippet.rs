@@ -62,9 +62,14 @@ impl Renderer<'_> {
                 }
                 _ => text.clone(),
             },
-            Kind::Timestamp(instant) => format!(
+            Kind::Timestamp(instant) if instant.calendar() => format!(
                 "runtime::time::parse_date_time({}).ok_or(\"an RFC 3339 instant\")?",
                 literal(&instant.rfc3339)
+            ),
+            // RFC 3339 has no five-digit year: build it from its seconds.
+            Kind::Timestamp(instant) => format!(
+                "runtime::time::Timestamp::from_timestamp({}, {}).ok_or(\"an instant\")?",
+                instant.seconds, instant.nanos
             ),
             Kind::Blob(bytes) => match std::str::from_utf8(bytes) {
                 Ok(text) if !text.chars().any(char::is_control) => {

@@ -8,6 +8,7 @@ pub fn clients() -> Vec<(&'static str, Client)> {
         (
             "rust",
             Client::Rust(crucible_codegen::RustOptions {
+                content_sha256: false,
                 package_name: Some("hostile-sdk".into()),
                 package_version: "1.0.0".into(),
                 runtime: crucible_codegen::RuntimeDependency::Git {

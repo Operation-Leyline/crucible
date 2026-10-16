@@ -233,9 +233,14 @@ int main() {
         std::vector<std::string>{"coastal", "capital"});
 
     // Each page is one response; the paginator sends `nextToken` for the next.
-    auto pages = client.list_cities_pages(input);
-    while (auto page = pages.next()) {
-        std::cout << sdk::runtime::debug_value(page->cities) << '\n';
+    try {
+        auto pages = client.list_cities_pages(input);
+        while (auto page = pages.next()) {
+            std::cout << sdk::runtime::debug_value(page->cities) << '\n';
+        }
+    } catch (const sdk::models::ThrottlingError& error) {
+        std::cerr << "ThrottlingError (HTTP " << error.metadata().status << "): " << error.message << '\n';
+        return 1;
     }
     return 0;
 }

@@ -215,15 +215,25 @@ impl Literal<'_> {
             if entries.is_empty() {
                 return format!("new {class}()");
             }
-            let map = self.imports.name("java.util.Map");
+            // `Map.entry` and `Collectors.toMap` refuse a null value, which
+            // a sparse map holds: collect `SimpleEntry`s, which take one,
+            // with `put`.
+            let (key, value) = match self.service.shape(node.target) {
+                Some(Shape::Map(shape)) => (
+                    crate::ty(self.service, &shape.key.target, self.package),
+                    crate::ty(self.service, &shape.value.target, self.package),
+                ),
+                _ => ("java.lang.String".to_owned(), "java.lang.Object".to_owned()),
+            };
+            let entry = self.imports.name("java.util.AbstractMap");
             let stream = self.imports.name("java.util.stream.Stream");
-            let collectors = self.imports.name("java.util.stream.Collectors");
+            let (key, value) = (without_java_lang(&key), without_java_lang(&value));
             let items: Vec<String> = pairs()
                 .into_iter()
-                .map(|pair| format!("{map}.entry({pair})"))
+                .map(|pair| format!("new {entry}.SimpleEntry<{key}, {value}>({pair})"))
                 .collect();
             return format!(
-                "{stream}.of({}).collect({collectors}.toMap({map}.Entry::getKey, {map}.Entry::getValue, (first, second) -> second, {class}::new))",
+                "{stream}.of({}).collect({class}::new, (map, item) -> map.put(item.getKey(), item.getValue()), {class}::putAll)",
                 arguments(&items, indent)
             );
         }
