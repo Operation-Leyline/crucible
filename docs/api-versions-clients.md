@@ -239,13 +239,17 @@ Paths resolve by name, as now.
   there is a statement of its own: excepting `S$a` too leaves the step
   inert, with a warning. Inert by default would serve `v1` without the
   member and say nothing.
-- **No silent skips in the generator.** `conversion()` passes over a step
-  whose shape or member it cannot find with a bare `continue`
-  (`versions.rs:638`, `688`, `732`, `954`, `1049`), and `emit` over an
-  operation gone without a handler (`versions.rs:113`). Each becomes a
-  diagnostic naming the step and the release, once per operation and
-  step, before projections land: a skipped conversion serves a release
-  wrong without a word (AGENTS.md).
+- **No silent skips in the generator** (built, PR 2). `conversion()`
+  passed over a step whose shape or member it could not find with a bare
+  `continue`, and `emit` over an operation gone without a handler. Each is
+  a diagnostic now, naming the step and the release, once per operation
+  and step, before projections land: a skipped conversion serves a
+  release wrong without a word (AGENTS.md). A step's subject is reported
+  for each operation whose values reach it, and for every operation when
+  neither release has it; an operation gone without `remove operation`
+  once per migration, however many older chains reach the gap. A `rename`
+  of an enum value is converted by nothing: it is reported when the wire
+  value changes, and needs no conversion when it does not.
 
 ### Collisions
 
@@ -628,7 +632,7 @@ symbol to its own.
 ## Order
 
 Each line is one pull request, in this order unless it says otherwise. 5a
-is built, and so is PR 1.
+is built, and so are PRs 1 and 2.
 
 1. **Steps carry both sides.** *Built.* `VersionStep::Require` gains `old`
    and `from`, `Hook::Require` gains `from`, `AddEnumValue` gains `old`,
@@ -645,10 +649,14 @@ is built, and so is PR 1.
    moved refusal with its span, from `tests/models/version-require-retyped`;
    a snapshot is the same with the steps as without; generator goldens do
    not change.
-2. **No silent skips in conversions.** The six bare `continue`s become
-   diagnostics, one per operation and step. *Crate:*
+2. **No silent skips in conversions.** *Built.* The six bare `continue`s
+   become diagnostics, one per operation and step. *Crate:*
    crucible-codegen-rust. *Tests:* `crucible-codegen-rust/tests/versions.rs`,
-   one IR edited to reach each.
+   one IR edited to reach each, and the two the compiler accepts as
+   packages: `tests/models/version-gone-operation` (an older migration
+   that drops an operation without `remove operation`) and
+   `tests/models/version-renamed-enum-value` (a `rename` of an enum value
+   whose wire value changes, its breaks excepted).
 3. **History and versions in `describe.json`.** `crucible_ir::versions::history`
    derives history; the audience projection projects `Service::versions`
    and drops internal steps; `describe.rs` serializes both. *Crates:*

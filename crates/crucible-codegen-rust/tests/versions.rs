@@ -519,3 +519,193 @@ migration \"v2\" from \"v1\" {{
     assert!(at("upgrade_put_note_input_bytes") < at(r#"from: "size", to: "bytes""#));
     assert!(at("downgrade_put_note_output_bytes") < at(r#"from: "bytes", to: "size""#));
 }
+
+/// The shared test package `tests/models/<name>`.
+fn model(name: &str) -> PathBuf {
+    Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../tests/models")
+        .join(name)
+}
+
+/// The diagnostics generating `service` reports, one per line.
+fn reported(service: &Service) -> Vec<String> {
+    generate(service, &Options::default())
+        .expect_err("the generator refuses the model")
+        .iter()
+        .map(ToString::to_string)
+        .collect()
+}
+
+#[test]
+fn an_operation_gone_without_a_handler_is_reported_once() {
+    let reported = reported(&lower(&model("version-gone-operation")));
+    // v1 and v2 both reach the gap the migration from v2 left.
+    assert_eq!(
+        reported,
+        [
+            "example.gone#CountItems: CountItems is not in API version v3, and the migration from v2 has no `remove operation CountItems`; nothing serves it at v2 or before"
+        ],
+        "{reported:#?}"
+    );
+}
+
+#[test]
+fn a_renamed_enum_value_is_reported_unless_its_wire_value_is_kept() {
+    let reported = reported(&lower(&model("version-renamed-enum-value")));
+    assert_eq!(
+        reported,
+        [
+            "example.renamed#Kind$TINY: `rename Kind.SMALL -> TINY`, in the migration from API version v1, changes an enum value's wire value, which is not converted for GetItem yet"
+        ],
+        "{reported:#?}"
+    );
+    // The same rename with the wire value kept: nothing on the wire
+    // changes, so nothing converts.
+    let dir = package(
+        "renamed-enum-value-kept",
+        &V1.replace(
+            "enum Kind { SMALL, LARGE }",
+            "enum Kind { TINY = \"SMALL\", LARGE }",
+        ),
+        "migration \"v2\" from \"v1\" {\n    rename Kind.SMALL -> TINY\n}\n",
+    );
+    generate(&lower(&dir), &Options::default()).expect("a kept wire value converts nothing");
+}
+
+#[test]
+fn a_step_its_release_does_not_have_is_reported_not_skipped() {
+    use crucible_ir::ir::{Hook, VersionStep};
+
+    let fixture =
+        lower(&Path::new(env!("CARGO_MANIFEST_DIR")).join("../../e2e/weather-service/versioned"));
+    // Each edit makes one step name what its release does not have, as
+    // only an edited IR can: lowering checks every step against both
+    // releases. `index` is the older release whose migration it edits.
+    type Edit = fn(&mut VersionStep) -> bool;
+    let cases: [(&str, usize, Edit, &[&str]); 5] = [
+        (
+            "rename",
+            0,
+            |step| match step {
+                VersionStep::Rename { from, .. } if from == "name" => {
+                    "gone".clone_into(from);
+                    true
+                }
+                _ => false,
+            },
+            &[
+                "example.shop#GetItemOutput$gone: `rename GetItemOutput.gone -> title`, in the migration from API version v1, names example.shop#GetItemOutput$gone, which API version v1 does not have; GetItem is not converted across it",
+            ],
+        ),
+        (
+            "require by default",
+            1,
+            |step| match step {
+                VersionStep::Require { member, .. } => {
+                    "gone".clone_into(member);
+                    true
+                }
+                _ => false,
+            },
+            &[
+                "example.shop#ListItemsInput$gone: `require ListItemsInput.gone default ..`, in the migration from API version v2, names example.shop#ListItemsInput$gone, which API version v3 does not have; ListItems is not converted across it",
+            ],
+        ),
+        (
+            "add enum value",
+            1,
+            |step| match step {
+                VersionStep::AddEnumValue { downgrade, .. } => {
+                    "GONE".clone_into(downgrade);
+                    true
+                }
+                _ => false,
+            },
+            &[
+                "example.shop#Kind$GONE: `add Kind.HUGE downgrade GONE`, in the migration from API version v2, names example.shop#Kind$GONE, which API version v2 does not have; GetItem is not converted across it",
+                "example.shop#Kind$GONE: `add Kind.HUGE downgrade GONE`, in the migration from API version v2, names example.shop#Kind$GONE, which API version v2 does not have; ListItems is not converted across it",
+            ],
+        ),
+        (
+            "retype",
+            1,
+            |step| match step {
+                VersionStep::Hooked {
+                    hook: Hook::Retype { member, .. },
+                    ..
+                } if member == "force" => {
+                    "gone".clone_into(member);
+                    true
+                }
+                _ => false,
+            },
+            &[
+                "example.shop#DeleteItemInput$gone: `retype DeleteItemInput.gone by hook`, in the migration from API version v2, names example.shop#DeleteItemInput$gone, which API version v2 does not have; DeleteItem is not converted across it",
+            ],
+        ),
+        (
+            "require by hook",
+            0,
+            |step| match step {
+                VersionStep::Hooked {
+                    hook: Hook::Require { member, .. },
+                    ..
+                } => {
+                    "gone".clone_into(member);
+                    true
+                }
+                _ => false,
+            },
+            &[
+                "example.shop#ListItemsInput$gone: `require ListItemsInput.gone by hook`, in the migration from API version v1, names example.shop#ListItemsInput$gone, which API version v2 does not have; ListItems is not converted across it",
+            ],
+        ),
+    ];
+    for (name, index, edit, expected) in cases {
+        let mut service = fixture.clone();
+        let edited = service.versions[index]
+            .steps
+            .iter_mut()
+            .filter_map(|step| edit(step).then_some(()))
+            .count();
+        assert_eq!(edited, 1, "{name}: one step edited");
+        let reported = reported(&service);
+        // Once for each operation whose values reach the step's shape,
+        // however many older versions' chains cross it; not for the others.
+        let unresolved: Vec<&str> = reported
+            .iter()
+            .map(String::as_str)
+            .filter(|line| line.ends_with("is not converted across it"))
+            .collect();
+        assert_eq!(unresolved, expected, "{name}: {reported:#?}");
+    }
+
+    // A shape neither release has reaches no operation, and leaves the step
+    // meaningless for all of them: each reports it.
+    let mut service = fixture.clone();
+    let gone: crucible_ir::ShapeId = "example.shop#Gone".parse().unwrap();
+    for step in &mut service.versions[0].steps {
+        if let VersionStep::Rename { old, new, from, .. } = step
+            && from == "name"
+        {
+            *old = gone.clone();
+            *new = gone.clone();
+        }
+    }
+    let reported = reported(&service);
+    let operations: Vec<&str> = reported
+        .iter()
+        .filter(|line| line.starts_with("example.shop#Gone$name: `rename Gone.name -> title`"))
+        .filter_map(|line| line.rsplit("; ").next())
+        .collect();
+    assert_eq!(
+        operations,
+        [
+            "CountItems is not converted across it",
+            "DeleteItem is not converted across it",
+            "GetItem is not converted across it",
+            "ListItems is not converted across it",
+        ],
+        "{reported:#?}"
+    );
+}

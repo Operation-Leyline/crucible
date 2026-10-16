@@ -558,6 +558,19 @@ version's section when it is prepared.
 
 ### Changed
 
+- The Rust server generator reports what it used to skip silently when it
+  converts between API versions, so a release is never served wrong
+  without a word. An operation an older migration dropped without
+  `remove operation` (the guard checks only the newest migration's
+  removals) is an error naming it and the migration, once. A `rename` of
+  an enum value whose wire value changes is an error for each operation
+  that reaches the enum: nothing converts it; one that keeps the wire
+  value needs no conversion and generates as before. A step naming a shape
+  or member its release does not have, which only an edited IR can hold,
+  is an error for each operation it bears on. A service whose model has
+  either of the first two no longer generates; declare the
+  `remove operation` step, or keep the enum value's wire value.
+
 - `.cru`: `require S.m by hook` on a member that a `retype` of the same
   migration also names is refused by the compiler, at the requirement
   (`crucible check`, the build and the editor), instead of by the Rust

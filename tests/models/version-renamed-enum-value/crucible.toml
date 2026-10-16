@@ -1,0 +1,20 @@
+# A `rename` of an enum value whose wire value changes
+# (crucible-codegen-rust/tests/versions.rs). The guard sees the value
+# removed and another added, which the package excepts; the Rust server
+# generator reports that it cannot convert the value for older clients.
+# v1 is frozen under releases/, v2 is current.
+[model]
+namespace = "example.renamed"
+
+[model.baseline]
+path = "releases/v1.json"
+
+[[exceptions]]
+rule = "compatibility.enum"
+shape = "example.renamed#Kind"
+reason = "SMALL is TINY now, on the wire too"
+
+[[exceptions]]
+rule = "compatibility.sdk"
+shape = "example.renamed#Kind"
+reason = "SMALL is TINY now, on the wire too"

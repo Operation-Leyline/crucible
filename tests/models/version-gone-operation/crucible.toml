@@ -1,0 +1,11 @@
+# An operation two older releases have, gone from the next one without a
+# `remove operation` step (crucible-codegen-rust/tests/versions.rs). The
+# compiler checks only the steps an older migration declares, so it accepts
+# this package; the Rust server generator reports what it cannot serve,
+# once for both releases. v1 to v3 are frozen under releases/, v4 is
+# current.
+[model]
+namespace = "example.gone"
+
+[model.baseline]
+path = "releases/v3.json"

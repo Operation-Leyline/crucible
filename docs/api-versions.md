@@ -275,7 +275,10 @@ examples against the server at its version as generated tests
 - **Not converted, and reported:** a member inside a recursive shape; a
   renamed member, reshaped or retyped structure, or added enum value
   inside an error; an enum that keys a map; `add .. downgrade` on a union
-  or intEnum; a member with its own wire encoding converted by a hook.
+  or intEnum; a member with its own wire encoding converted by a hook; a
+  `rename` of an enum value that changes its wire value; an operation an
+  older migration dropped without `remove operation`; a step naming what
+  its release does not have, which only an edited IR can hold.
 - **The explorer** cannot yet be generated from a `.cru` package, the
   only kind with versions; when it can, its requests will need to name
   the current version.
