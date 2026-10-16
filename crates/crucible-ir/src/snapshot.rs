@@ -33,7 +33,8 @@ use crate::ir::Service;
 /// 62c in docs/idl/decisions.md), and dropped the service's `renames` and
 /// each member's `client_optional`, which a `.cru` model never sets.
 /// [`read`] maps every `smithy.api#..` id of an older snapshot to its
-/// `crucible.api` id, drops `client_optional` and an empty `renames`, and
+/// `crucible.api` id as it deserializes (each value the IR types as a
+/// [`crate::ShapeId`], so free-form text is never touched), drops `client_optional` and an empty `renames`, and
 /// refuses a snapshot that renamed a shape. A `.cru` release never set
 /// `client_optional`; one frozen from a Smithy model (`@input`,
 /// `@clientOptional`) reads with the server's optionality, so a comparison
@@ -197,8 +198,15 @@ pub fn read(text: &str) -> Result<Service, String> {
         migrate_format_4(&mut value)?;
     }
     value["format"] = serde_json::Value::from(FORMAT);
-    let snapshot: Snapshot = serde_json::from_value(value.clone())
-        .map_err(|error| format!("release snapshot format {format}: {error}"))?;
+    let parse = || serde_json::from_value::<Snapshot>(value.clone());
+    let snapshot = if format <= 4 {
+        // Every id the IR's types hold, and nothing else, moves to the
+        // current prelude (format 5).
+        crate::shape_id::mapping_ids(crate::ShapeId::with_current_prelude, parse)
+    } else {
+        parse()
+    }
+    .map_err(|error| format!("release snapshot format {format}: {error}"))?;
     // Whatever this compiler does not know would be dropped silently: a
     // newer compiler wrote it, and only a newer one reads it right.
     let read = serde_json::to_value(&snapshot).expect("the IR serializes");
@@ -419,16 +427,19 @@ fn drop_scopes_of(
 /// vocabulary in.
 const OLD_PRELUDE: &str = "smithy.api";
 
-/// Reads a format 4 (or older, already migrated) snapshot as format 5:
-/// every id in the old prelude namespace becomes its [`crate::PRELUDE`]
-/// id, wherever it appears (a member's target, an auth scheme, a map key),
-/// and the fields a `.cru` model never set are dropped.
+/// Readies a format 4 (or older, already migrated) snapshot for format 5:
+/// drops the fields a `.cru` model never set, and refuses a map that
+/// spells one id both ways. [`read`] then maps every id in the old prelude
+/// namespace to its [`crate::PRELUDE`] id as it deserializes the IR, so
+/// exactly the positions the IR's types declare as ids move (a member's
+/// target, an auth scheme, a shape map's key) and free-form text (a
+/// version, a title, a default, documentation) never does.
 fn migrate_format_4(value: &mut serde_json::Value) -> Result<(), String> {
     use serde_json::Value;
     let Some(service) = value.get_mut("service") else {
         return Ok(());
     };
-    map_prelude_ids(service)?;
+    refuse_both_spellings(service)?;
     let Some(service) = service.as_object_mut() else {
         return Ok(());
     };
@@ -453,104 +464,34 @@ fn migrate_format_4(value: &mut serde_json::Value) -> Result<(), String> {
     Ok(())
 }
 
-/// Fields of the serialized IR whose whole value is the model's data or
-/// prose, never an id: defaults, examples, documentation, external doc
-/// links.
-const DATA_FIELDS: &[&str] = &[
-    "default",
-    "wire_default",
-    "examples",
-    "docs",
-    "sunset_docs",
-    "external_docs",
-];
+/// The current spelling of `key` when it is an id in the old prelude.
+fn current_spelling(key: &str) -> Option<String> {
+    let id: crate::ShapeId = key.parse().ok()?;
+    (id.namespace() == OLD_PRELUDE).then(|| id.with_current_prelude().to_string())
+}
 
-/// Fields whose string value is the model's text, never an id: an enum
-/// value, a pattern, a deprecation message, an exception's reason, and a
-/// member, header or query parameter name.
-const TEXT_FIELDS: &[&str] = &["value", "pattern", "message", "reason", "name"];
-
-/// Maps whose keys are labels and whose values are ids.
-const LABEL_KEYED: &[&str] = &["doc_links", "doc_link_operations"];
-
-/// Rewrites, in place, every id in the serialized IR `value` that `map`
-/// renames: strings and map keys where the IR stores a shape, member,
-/// trait or auth scheme id, and not the model's own data ([`DATA_FIELDS`],
-/// [`TEXT_FIELDS`], raw trait values, doc link labels). A map that would
-/// hold one key twice afterwards is refused, with that key, rather than
-/// merged.
-pub(crate) fn rewrite_ids(
-    value: &mut serde_json::Value,
-    map: &dyn Fn(&str) -> Option<String>,
-) -> Result<(), String> {
+/// Refuses an object that has both an old prelude id and its current
+/// spelling as keys: mapped, the two would merge into one.
+fn refuse_both_spellings(value: &serde_json::Value) -> Result<(), String> {
     use serde_json::Value;
     match value {
-        Value::String(text) => {
-            if let Some(new) = map(text) {
-                *text = new;
-            }
-        }
-        Value::Array(items) => {
-            for item in items {
-                rewrite_ids(item, map)?;
-            }
-        }
+        Value::Array(items) => items.iter().try_for_each(refuse_both_spellings),
         Value::Object(fields) => {
-            for (key, mut field) in std::mem::take(fields) {
-                let data = DATA_FIELDS.contains(&key.as_str())
-                    || (TEXT_FIELDS.contains(&key.as_str()) && field.is_string());
-                if key == "traits" {
-                    // Keys are trait ids; values are the author's.
-                    if let Value::Object(traits) = &mut field {
-                        for (id, application) in std::mem::take(traits) {
-                            insert(traits, map(&id).unwrap_or(id), application)?;
-                        }
-                    }
-                } else if LABEL_KEYED.contains(&key.as_str()) {
-                    if let Value::Object(links) = &mut field {
-                        for target in links.values_mut() {
-                            rewrite_ids(target, map)?;
-                        }
-                    }
-                } else if !data {
-                    rewrite_ids(&mut field, map)?;
+            for (key, field) in fields {
+                if let Some(current) = current_spelling(key)
+                    && fields.contains_key(&current)
+                {
+                    return Err(format!(
+                        "the release snapshot names `{current}` in both the `{OLD_PRELUDE}` and the `{}` spelling",
+                        crate::PRELUDE
+                    ));
                 }
-                insert(fields, map(&key).unwrap_or(key), field)?;
+                refuse_both_spellings(field)?;
             }
+            Ok(())
         }
-        _ => {}
+        _ => Ok(()),
     }
-    Ok(())
-}
-
-fn insert(
-    fields: &mut serde_json::Map<String, serde_json::Value>,
-    key: String,
-    value: serde_json::Value,
-) -> Result<(), String> {
-    if fields.contains_key(&key) {
-        return Err(key);
-    }
-    fields.insert(key, value);
-    Ok(())
-}
-
-/// Rewrites every id in the old prelude namespace to its [`crate::PRELUDE`]
-/// id ([`rewrite_ids`]). Prose that happens to mention one is not an id
-/// (it does not parse as one) and is left alone.
-fn map_prelude_ids(value: &mut serde_json::Value) -> Result<(), String> {
-    let mapped = |text: &str| {
-        let rest = text.strip_prefix(OLD_PRELUDE)?.strip_prefix('#')?;
-        text.parse::<crate::ShapeId>()
-            .ok()
-            .map(|_| format!("{}#{rest}", crate::PRELUDE))
-    };
-    rewrite_ids(value, &mapped).map_err(|key| {
-        format!(
-            "the release snapshot names `{key}` in both the `{OLD_PRELUDE}` and the `{}` spelling",
-            crate::PRELUDE
-        )
-    })
 }
 
 /// The members of a serialized shape: a structure's or union's, a list's
@@ -633,7 +574,11 @@ fn unknown(original: &serde_json::Value, read: &serde_json::Value, at: String) -
                 } else {
                     format!("{at}.{key}")
                 };
-                match read.get(key) {
+                // An old prelude id read as its current spelling.
+                let known = read
+                    .get(key)
+                    .or_else(|| current_spelling(key).and_then(|key| read.get(&key)));
+                match known {
                     Some(known) => unknown(value, known, path),
                     // A field at its zero value, which this compiler may skip
                     // writing: reading it as absent changes nothing.
@@ -664,82 +609,5 @@ fn is_zero(value: &serde_json::Value) -> bool {
         serde_json::Value::String(text) => text.is_empty(),
         serde_json::Value::Array(items) => items.is_empty(),
         serde_json::Value::Object(fields) => fields.is_empty(),
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use serde_json::json;
-
-    /// Ids are mapped where the IR stores them; the model's own data that
-    /// happens to spell one is left as written.
-    #[test]
-    fn only_id_positions_are_mapped() {
-        let old = "smithy.api#String";
-        let mut service = json!({
-            "auth": ["smithy.api#httpBearerAuth"],
-            "auth_schemes": {"smithy.api#httpBearerAuth": {"kind": "bearer"}},
-            "internal_traits": ["smithy.api#internalNote"],
-            "doc_links": {"smithy.api#String": "smithy.api#String"},
-            "doc_link_operations": {"Op.member": "example#Op"},
-            "exceptions": [{"rule": "r", "reason": old}],
-            "shapes": {
-                "example#Name": {"Simple": {
-                    "kind": "String",
-                    "constraints": {"pattern": old},
-                    "notes": {"deprecated": {"message": old, "since": null}},
-                    "docs": old,
-                    "traits": {"smithy.api#documentation": old, "example#tag": old}
-                }},
-                "example#Kind": {"Enum": {"values": [{"name": "A", "value": old}]}},
-                "example#Shape": {"Structure": {"members": [{
-                    "name": "m",
-                    "target": old,
-                    "default": old,
-                    "wire_default": old
-                }]}}
-            },
-            "operations": [{
-                "id": "example#Op",
-                "examples": [{"input": {"m": old}}],
-                "request": {"headers": [{"member": "m", "name": old}]}
-            }]
-        });
-        super::map_prelude_ids(&mut service).unwrap();
-        // Mapped: ids, as values and as keys.
-        assert_eq!(service["auth"][0], "crucible.api#httpBearerAuth");
-        assert!(service["auth_schemes"]["crucible.api#httpBearerAuth"].is_object());
-        assert_eq!(service["internal_traits"][0], "crucible.api#internalNote");
-        assert!(
-            service["shapes"]["example#Name"]["Simple"]["traits"]["crucible.api#documentation"]
-                .is_string()
-        );
-        let member = &service["shapes"]["example#Shape"]["Structure"]["members"][0];
-        assert_eq!(member["target"], "crucible.api#String");
-        // A doc link's label is text; its target is an id.
-        assert_eq!(
-            service["doc_links"]["smithy.api#String"],
-            "crucible.api#String"
-        );
-        // Left alone: defaults, examples, docs, patterns, messages, reasons,
-        // enum values, names and raw trait values.
-        assert_eq!(member["default"], old);
-        assert_eq!(member["wire_default"], old);
-        assert_eq!(service["operations"][0]["examples"][0]["input"]["m"], old);
-        let simple = &service["shapes"]["example#Name"]["Simple"];
-        assert_eq!(simple["docs"], old);
-        assert_eq!(simple["constraints"]["pattern"], old);
-        assert_eq!(simple["notes"]["deprecated"]["message"], old);
-        assert_eq!(simple["traits"]["crucible.api#documentation"], old);
-        assert_eq!(simple["traits"]["example#tag"], old);
-        assert_eq!(
-            service["shapes"]["example#Kind"]["Enum"]["values"][0]["value"],
-            old
-        );
-        assert_eq!(service["exceptions"][0]["reason"], old);
-        assert_eq!(
-            service["operations"][0]["request"]["headers"][0]["name"],
-            old
-        );
     }
 }

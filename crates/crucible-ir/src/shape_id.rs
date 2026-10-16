@@ -123,8 +123,41 @@ impl fmt::Display for ShapeId {
 impl<'de> Deserialize<'de> for ShapeId {
     fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
         let text = String::deserialize(deserializer)?;
-        text.parse().map_err(serde::de::Error::custom)
+        let id: ShapeId = text.parse().map_err(serde::de::Error::custom)?;
+        Ok(READ_MAP.with(|map| match &*map.borrow() {
+            Some(map) => map(id),
+            None => id,
+        }))
     }
+}
+
+type IdMap = std::rc::Rc<dyn Fn(ShapeId) -> ShapeId>;
+
+thread_local! {
+    /// The rewrite [`mapping_ids`] applies to every id deserialized on this
+    /// thread while it runs.
+    static READ_MAP: std::cell::RefCell<Option<IdMap>> = const { std::cell::RefCell::new(None) };
+}
+
+/// Runs `read` with every [`ShapeId`] deserialized on this thread passed
+/// through `map`: each place the IR's types store an id (a field, a list
+/// item or a map key typed `ShapeId`), and nothing else, since free-form
+/// strings, values and documentation are not ids. Release snapshots map
+/// their retired prelude ids this way, so a new id field in the IR is
+/// mapped by its type alone.
+pub(crate) fn mapping_ids<T>(
+    map: impl Fn(ShapeId) -> ShapeId + 'static,
+    read: impl FnOnce() -> T,
+) -> T {
+    struct Reset(Option<IdMap>);
+    impl Drop for Reset {
+        fn drop(&mut self) {
+            READ_MAP.with(|map| *map.borrow_mut() = self.0.take());
+        }
+    }
+    let previous = READ_MAP.with(|slot| slot.borrow_mut().replace(std::rc::Rc::new(map)));
+    let _reset = Reset(previous);
+    read()
 }
 
 impl serde::Serialize for ShapeId {

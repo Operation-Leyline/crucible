@@ -1315,8 +1315,10 @@ these are working choices, changed freely as implementation teaches.
     bindings (a provider context `target`, mapped on read) and the
     `when_trait` shim still use. Release snapshots move to format 5:
     reading an older one maps each `smithy.api#..` id to its `crucible.api`
-    id in memory, only where the IR stores ids (never in defaults, examples,
-    documentation, enum values, patterns or raw trait values), and drops
+    id in memory as it deserializes the IR, so exactly the positions the
+    IR's types declare as ids move and free-form text (a version, a title,
+    a default, an example, documentation, a raw trait's value) never does,
+    and drops
     `client_optional` (a Smithy-era release reads its client-optional
     members with the server's optionality); the file, and so its lock
     digest, is never rewritten, and the compatibility guard compares the

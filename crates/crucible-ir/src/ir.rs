@@ -475,9 +475,10 @@ impl Service {
 
     /// The service with the shape `id` called `name` (in its namespace)
     /// wherever the IR names it: test support for generators' name
-    /// diagnostics, which reach names a `.cru` model cannot spell. Only ids
-    /// are rewritten, as a snapshot's are ([`crate::snapshot`]): the model's
-    /// own data and the wire codes the IR settled are unchanged.
+    /// diagnostics, which reach names a `.cru` model cannot spell. Only the
+    /// positions the IR's types declare as ids change, as a snapshot's
+    /// retired prelude ids do: the model's own text and data, and the wire
+    /// codes the IR settled, are unchanged.
     #[doc(hidden)]
     pub fn rename_shape(&mut self, id: &ShapeId, name: &str) {
         let new = ShapeId::new(id.namespace(), name);
@@ -485,20 +486,21 @@ impl Service {
             !self.shapes.contains_key(&new),
             "{new} exists; renaming {id} to it would merge two shapes"
         );
-        let (old, new) = (id.to_string(), new.to_string());
-        let renamed = |text: &str| {
-            if text == old {
-                Some(new.clone())
-            } else {
-                text.strip_prefix(old.as_str())
-                    .filter(|rest| rest.starts_with('$'))
-                    .map(|rest| format!("{new}{rest}"))
-            }
-        };
-        let mut value = serde_json::to_value(&*self).expect("the IR serializes");
-        crate::snapshot::rewrite_ids(&mut value, &renamed)
-            .unwrap_or_else(|key| panic!("renaming {old} to {new} would merge two `{key}`"));
-        *self = serde_json::from_value(value).expect("the renamed IR reads back");
+        let (old, renamed) = (id.clone(), new);
+        let value = serde_json::to_value(&*self).expect("the IR serializes");
+        *self = crate::shape_id::mapping_ids(
+            move |id| {
+                if id.root() != old {
+                    id
+                } else if let Some(member) = id.member() {
+                    renamed.with_member(member)
+                } else {
+                    renamed.clone()
+                }
+            },
+            || serde_json::from_value(value),
+        )
+        .expect("the renamed IR reads back");
     }
 
     /// The name a shape goes by in this service: the name in its id.

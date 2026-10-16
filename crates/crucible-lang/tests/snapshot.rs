@@ -143,6 +143,138 @@ fn a_format_4_snapshot_reads_with_the_prelude_mapped() {
     assert!(read.auth.iter().all(|id| id.is_prelude()));
 }
 
+/// Every string and map key of `value` that parses as a shape id, moved to
+/// the old prelude namespace.
+fn into_old_prelude(value: &mut serde_json::Value) {
+    use serde_json::Value;
+    let moved = |text: &str| {
+        text.parse::<crucible_ir::ShapeId>().ok().map(|id| {
+            let mut moved = crucible_ir::ShapeId::new("smithy.api", id.name());
+            if let Some(member) = id.member() {
+                moved = moved.with_member(member);
+            }
+            moved.to_string()
+        })
+    };
+    match value {
+        Value::String(text) => {
+            if let Some(new) = moved(text) {
+                *text = new;
+            }
+        }
+        Value::Array(items) => items.iter_mut().for_each(into_old_prelude),
+        Value::Object(fields) => {
+            for (key, mut field) in std::mem::take(fields) {
+                into_old_prelude(&mut field);
+                fields.insert(moved(&key).unwrap_or(key), field);
+            }
+        }
+        _ => {}
+    }
+}
+
+/// Every position the IR's types declare as an id is mapped on read, so an
+/// id field added to the IR is mapped by its type: each package's snapshot,
+/// with every id moved into the old prelude namespace, reads back with none
+/// left there.
+#[test]
+fn every_id_position_the_ir_declares_is_mapped() {
+    let mut dirs: Vec<_> = std::fs::read_dir(models())
+        .unwrap()
+        .map(|entry| entry.unwrap().path())
+        .filter(|path| path.join("crucible.toml").exists())
+        .collect();
+    dirs.sort();
+    let mut checked = 0;
+    for dir in dirs {
+        let Ok(service) = crucible_lang::load_service(&dir) else {
+            continue;
+        };
+        let mut value: serde_json::Value =
+            serde_json::from_str(&snapshot::write(&service, "test")).unwrap();
+        value["format"] = serde_json::json!(4);
+        into_old_prelude(&mut value["service"]);
+        let read = snapshot::read(&value.to_string())
+            .unwrap_or_else(|error| panic!("{}: {error}", dir.display()));
+        let written = snapshot::write(&read, "test");
+        if let Some(at) = written.find("smithy.api#") {
+            panic!(
+                "{}: an id the read did not map: ..{}..",
+                dir.display(),
+                &written[at.saturating_sub(120)..(at + 60).min(written.len())]
+            );
+        }
+        checked += 1;
+    }
+    assert!(checked > 20, "only {checked} packages loaded");
+}
+
+/// Free-form text that spells an old prelude id is the model's, not an id:
+/// a version, a title, documentation, a default, an enum value, an
+/// example, a pattern and a raw trait's value read as written.
+#[test]
+fn free_form_text_that_spells_an_old_id_is_kept() {
+    let old = serde_json::json!("smithy.api#String");
+    let mut value = format_4(&weather());
+    let service = &mut value["service"];
+    for field in ["version", "title", "docs"] {
+        service[field] = old.clone();
+    }
+    service["traits"]["example.weather#note"] = old.clone();
+    let example = service["operations"]
+        .as_array_mut()
+        .unwrap()
+        .iter_mut()
+        .find_map(|operation| operation["examples"].get_mut(0))
+        .expect("weather has an example");
+    example["input"] = serde_json::json!({"name": old.clone()});
+    let shapes = service["shapes"].as_object_mut().unwrap();
+    let mut kinds = Vec::new();
+    for (id, shape) in shapes.iter_mut() {
+        if let Some(values) = shape.pointer_mut("/Enum/values")
+            && let Some(first) = values.get_mut(0)
+            && !kinds.contains(&"enum")
+        {
+            first["value"] = old.clone();
+            kinds.push("enum");
+        }
+        if let Some(pattern) = shape.pointer_mut("/Simple/constraints/pattern")
+            && pattern.is_string()
+            && !kinds.contains(&"pattern")
+        {
+            *pattern = old.clone();
+            kinds.push("pattern");
+        }
+        if let Some(members) = shape
+            .pointer_mut("/Structure/members")
+            .and_then(|m| m.as_array_mut())
+            && !kinds.contains(&"default")
+            && !id.starts_with("smithy.api#")
+            && let Some(member) = members.get_mut(0)
+        {
+            member["default"] = old.clone();
+            kinds.push("default");
+        }
+    }
+    assert_eq!(kinds.len(), 3, "{kinds:?}");
+    let expected = value.clone();
+    let read = snapshot::read(&value.to_string()).unwrap();
+    assert_eq!(read.version, "smithy.api#String");
+    assert_eq!(read.title.as_deref(), Some("smithy.api#String"));
+    let written: serde_json::Value = serde_json::from_str(&snapshot::write(&read, "test")).unwrap();
+    // Every one of them, and nothing else, still spells the old id.
+    let count =
+        |value: &serde_json::Value| value.to_string().matches("\"smithy.api#String\"").count();
+    let planted = 3 + 1 + 1 + kinds.len();
+    assert_eq!(
+        count(&written["service"]),
+        planted,
+        "{}",
+        written["service"]
+    );
+    assert!(count(&expected["service"]) > planted);
+}
+
 #[test]
 fn a_snapshot_with_both_spellings_of_an_id_is_refused() {
     let mut value = format_4(&weather());
