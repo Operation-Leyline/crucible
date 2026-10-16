@@ -1115,8 +1115,10 @@ pass in `reports/`.
     must match one; see [api-policy.md](../api-policy.md). Each release is
     a snapshot of its compiled model, never recompiled. Decisions 53-56 are built for Rust
     services, with the version carried in a header (57); see
-    [api-versions.md](../api-versions.md). Declared `conversion`s, client
-    versions (57, 57a) and example replay (59) are not built yet.)* **The source is always the latest model; history is a chain of frozen
+    [api-versions.md](../api-versions.md). Clients send their release
+    (57, phase 5a). Projections and SDK lines per release (57a) are
+    settled in decisions 68-79 and not built; declared `conversion`s and
+    example replay (59) are not built yet.)* **The source is always the latest model; history is a chain of frozen
     artifacts plus declared changes.** Each released version's compiled
     artifact is checked in under `releases/` and never edited. A
     `migration "2026-11-01" from "2026-09-04" { .. }` block declares how to
@@ -1213,7 +1215,9 @@ pass in `reports/`.
     it" without shipping every historical version in 14 SDKs; the SDK's
     major version follows source breaks in its own API version.
 
-57a. **Every supported version keeps its own SDK line, and additive
+57a. *(Settled for implementation in decisions 68-79: releases are
+    projections of the current model, checked against their frozen
+    releases.)* **Every supported version keeps its own SDK line, and additive
     changes reach all of them.** Because additive changes apply to every
     version (decision 51), the compiler can produce the current model as
     seen at any supported version by running the migrations backwards,
@@ -1358,6 +1362,146 @@ these are working choices, changed freely as implementation teaches.
     `.cru` package with resource lowering (decision 63 notes the language has
     none yet), so their resource-dependent tests are `#[ignore]`d until it
     lands. The remaining mentions of Smithy in this file are history.
+
+## API versions across releases
+
+Phase 5 of [api-versions-clients.md](../api-versions-clients.md): older
+releases as projections of the current model (57a), one SDK line per
+release, and a reference that spans releases. Clients sending their
+release (5a) is built; these settle what blocked the rest. Line
+references are to the code as of the design.
+
+68. **A projection is checked with the guard's comparison, at error.**
+    `diff(frozen r, projected r)`, both families at `error` whatever the
+    manifest's `[compatibility]` says, with its `[[exceptions]]`, wherever
+    the guard runs; plain `diff`, since the projection has put older names
+    back. An error names the release and the migration that should have
+    declared the break. Additions get no rule of their own: one
+    `sdk_source` reports (`checker.rs:596-629`) was declared at its release
+    by a step, which undo removes, or excepted, and undo keeps member
+    order. Settings do not apply because an older line receives every
+    change in a minor release, which the SDK release rule judges at error
+    too; exceptions do, since frozen releases do not record the manifest's,
+    and one stays while a release before its break is supported. Findings
+    are deduplicated by rule and id. *Why:* one set of rules, and an undo
+    gap cannot pass silently.
+
+69. **A name an older release still uses cannot be reused.** An older name
+    of a renamed member, a member name removed under an exception, a
+    removed operation's name, a route a moved or removed operation had, and
+    an id a restored definition reaches that is declared again as a
+    structurally different shape are each an error at the new declaration,
+    naming the release that uses the old one; every projection also passes
+    `validate::service`. *Why:* an older request's name would mean two
+    things, a projection would hold two operations with one id, and a
+    re-added member shifts positional construction in the older line.
+
+70. **What a step names on its older side must survive.** Every supported
+    step is checked again against the two projections; removing a downgrade
+    value, a downgrade error or a member it maps is an error at the step
+    until the release is dropped. It is not restored: a restored value
+    could be sent by older clients and read by no handler, and one
+    conversion cannot invent the mapping. A step whose newer side was
+    removed since under an exception is an error at the older name, naming
+    that exception; excepting the older name too leaves the step inert,
+    with a warning.
+
+71. **A shape's identity is its id, in every release.** Steps resolve
+    against projections: the new side in the newer projection, the old
+    side in the frozen release. A shape renamed since a supported step
+    named it is an error at the step, naming the missing id; a `rename` of
+    a shape would be a later shortcut (54a). The generator's silent skips
+    (`versions.rs:113`, `638`, `688`, `732`, `954`, `1049`) become
+    diagnostics first, and `crucible_lang::versions` collects every
+    diagnostic with its span instead of stopping at the first
+    (`guard.rs:1029-1034`). *Why:* the ids the server converts by must be
+    the ones steps were checked against.
+
+72. **Steps carry both sides, and undo composes them.** `Require` and
+    `Hook::Require` gain their old side and older name, `AddEnumValue` its
+    old side, `Move` its older route, `Reshape` its members;
+    `Hook::Conversion` becomes a `Retype` by conversion; steps and
+    migrations keep their `///`. `Service::versions` is never in a snapshot
+    (`snapshot.rs:46`), so the format does not change, and a model inside an
+    `ApiVersion` carries no `versions` of its own. Undo builds each
+    element's older definition once, whole definitions first, then a
+    member's definition, requiredness and name, regardless of declaration
+    order, as the guard checks each step on its own. A `retype` restores
+    the frozen member whole (target, constraints, timestamp format,
+    default, nullability) at its current name and position. A restored
+    definition's targets are the projection's where the id exists, else
+    copied from the frozen release. *Why:* reverse declaration order breaks
+    a `require` written before the `rename` it follows, and a retype's
+    cover includes constraints and timestamps (`guard.rs:257-262`).
+
+73. **Projection is an IR transform in crucible-ir, driven by
+    crucible-lang.** Beside the audience projection (`audience.rs:17`), it
+    recomputes reachable shapes, recursion groups and feature uses, and
+    takes bindings, pagination, timestamp formats and examples from the
+    frozen release for what it restores. An operation's authentication is
+    its frozen release's when the release has it, the current model's when
+    it was added since; permissions are the current model's, except that a
+    restored operation keeps its release's requirements mapped to today's
+    permissions. crucible-lang's `versions()` resolves the steps and runs
+    the checks, for the build, the CLI and the editor alike. The audience
+    projection projects `Service::versions` too. *Why:* a frozen release is
+    never recompiled (52), so there is no lowering to finish; and each
+    release's entry already authenticates with its own schemes
+    (`authenticator_chain.rs:45-72`).
+
+74. **Additions do not reach inside a reshape or a removal.** The older
+    side of `reshape` and `remove operation` is the frozen definition; a
+    member added since to that structure, or to a removed operation's own
+    shapes, is not in releases before the step. The one exception to 51,
+    stated in the reference (`history.missing`). *Why:* the hook converts
+    the whole value, and the older definition has no place for what came
+    later.
+
+75. **The server generator serves projections, and their types grow.**
+    Version modules, hook types and legacy handlers' types are projected.
+    An operation added since that needs a hook direction a released
+    migration lacked makes that migration's trait require the method, its
+    documentation naming the operation; it is not hidden at older releases
+    and gets no failing default. *Why:* hiding breaks 51, and a default that
+    fails at run time is a silent skip.
+
+76. **An SDK line is chosen with `model(..).api_version(..)`,
+    `--api-version` or an SDK file's `api_version`, and records its release
+    as `crucible.json`'s `serviceVersion`.** Rust and TypeScript write it in
+    schema 2, the other languages in schema 1. The "`version` changed"
+    signal never fires on a line; its releases are classified by the other
+    signals, so an excepted break that reaches it is a major. A projection
+    is the model whose `version` names one of its own `versions`; the Rust
+    server generator refuses it. *Why:* every client already writes
+    `crucible.json`.
+
+77. **The reference dates every element from the release chain.**
+    `history.added` is the release the element first appeared in,
+    following renames, `null` when the oldest supported release has it;
+    `history.changed` lists the releases whose steps name it;
+    `history.missing` the releases that cannot see it because it sits
+    inside a later reshape or removal. `crucible_ir::versions::history`
+    derives them; `describe.rs` serializes. `@since` stays the author's
+    fallback. *Why:* derived, it cannot drift; appearance and availability
+    are different facts; `null` stays true when old releases are dropped.
+
+78. **`describe.json` carries the release chain** in a `versions` block,
+    always present (`null` without an `api_version`): the current release,
+    the carrier, and per release its sunset, its migration's documentation
+    and each step with what an older client sees instead, self-contained
+    through `older.shapes`. Older definitions come from the frozen releases
+    projected to the document's audience, and a step whose subjects are all
+    internal is left out of an external document. It needs no projection
+    and ships first. *Why:* one source for the reference, the upgrade
+    guides and tools, and no leak of internal API.
+
+79. **The current release is the primary reference; an older release's is
+    a 5c output.** `generate docs --api-version` renders a projection, with
+    current documentation except where undo restored a frozen definition,
+    whose documentation is the release's (frozen releases keep `docs`;
+    only `crucible-model.json` strips them, `snapshot.rs:68-155`). *Why:*
+    new clients read the current release, and documentation fixes reach
+    every line.
 
 ## Settled in the syntax pass
 
