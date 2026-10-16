@@ -425,6 +425,8 @@ pub struct ServerOutput {
     audience: Audience,
     explorer_audience: Audience,
     pub(crate) policy: Option<PathBuf>,
+    /// Show the model's warnings and policy findings ([`Model::report_warnings`]).
+    pub(crate) report: bool,
     model_output: Option<PathBuf>,
 }
 
@@ -448,6 +450,7 @@ impl ServerOutput {
             audience: Audience::External,
             explorer_audience: Audience::Internal,
             policy: None,
+            report: true,
             model_output: None,
         }
     }
@@ -586,9 +589,9 @@ impl ServerOutput {
             Side::Server => crucible_codegen_rust::capabilities(),
             Side::Client => crucible_codegen_rust::client_capabilities(),
         };
-        let service = cru::lower(&self.model, self.service.as_ref())?;
+        let service = cru::lower(&self.model, self.service.as_ref(), self.report)?;
         if let Some(policy) = &self.policy {
-            check_policy(&service, policy)?;
+            check_policy(&service, policy, self.report)?;
         }
         let service = if self.side == Side::Client {
             // A client never calls a sender-signed operation (decision 81).
@@ -639,25 +642,34 @@ fn absolute(path: &Path) -> PathBuf {
     root.join(path)
 }
 
-fn check_policy(service: &crucible_ir::ir::Service, policy: &Path) -> Result<(), String> {
+/// Applies the policy at `policy`: an error finding fails the build, and
+/// with `show` each warning and excepted finding is a Cargo warning.
+fn check_policy(
+    service: &crucible_ir::ir::Service,
+    policy: &Path,
+    show: bool,
+) -> Result<(), String> {
     let config = crucible_policy::Config::load(policy)?;
     let report = crucible_policy::check(service, &config);
-    for finding in &report.findings {
-        if let Some(reason) = &finding.exception {
-            println!(
-                "cargo::warning=excepted[{}] {}: {}",
-                finding.rule,
-                finding.shape,
-                reason.replace(['\n', '\r'], " ")
-            );
-        }
-        if finding.severity == crucible_policy::Severity::Warning && finding.exception.is_none() {
-            println!(
-                "cargo::warning=[{}] {}: {}",
-                finding.rule,
-                finding.shape,
-                finding.message.replace(['\n', '\r'], " ")
-            );
+    if show {
+        for finding in &report.findings {
+            if let Some(reason) = &finding.exception {
+                println!(
+                    "cargo::warning=excepted[{}] {}: {}",
+                    finding.rule,
+                    finding.shape,
+                    reason.replace(['\n', '\r'], " ")
+                );
+            }
+            if finding.severity == crucible_policy::Severity::Warning && finding.exception.is_none()
+            {
+                println!(
+                    "cargo::warning=[{}] {}: {}",
+                    finding.rule,
+                    finding.shape,
+                    finding.message.replace(['\n', '\r'], " ")
+                );
+            }
         }
     }
     if report.has_errors() {

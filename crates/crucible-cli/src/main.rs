@@ -637,7 +637,8 @@ impl MetadataArgs {
 
 #[derive(Clone, Copy, ValueEnum)]
 enum MiddlewareArg {
-    /// `x-amz-content-sha256` on every request with a body.
+    /// `x-amz-content-sha256` on every POST, PUT and PATCH and on any
+    /// other request with a body.
     ContentSha256,
 }
 

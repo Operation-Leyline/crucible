@@ -426,6 +426,11 @@ fn a_rust_sdk_with_content_sha256_sends_the_digest() {
         .unwrap()
         .contents;
     assert!(agents.contains("x-amz-content-sha256"), "{agents}");
+    // A bodiless GET or DELETE goes without it.
+    assert!(
+        agents.contains("and `x-amz-content-sha256` (content-sha256) on every POST, PUT and PATCH"),
+        "{agents}"
+    );
     let text = describe(&path, "weather", Audience::External).unwrap();
     let document: serde_json::Value = serde_json::from_str(&text).unwrap();
     let rust = &document["sdks"]["rust"];
@@ -458,6 +463,70 @@ fn edge_values_reach_every_language_without_the_token() {
         );
         // `level` defaults to 3, which the example leaves out.
         assert!(edges.contains('3'), "{language}: {edges}");
+    }
+}
+
+/// Every language's README.md and AGENTS.md show each import once per
+/// code block, and where the client runs `content-sha256` they say which
+/// requests carry its header: every POST, PUT and PATCH and any other
+/// request with a body, not every request.
+#[cfg(feature = "all-clients")]
+#[test]
+fn package_guides_show_each_import_once_and_where_the_digest_goes() {
+    let service = common::load("weather");
+    let imports = [
+        "use ",
+        "import ",
+        "using ",
+        "require ",
+        "require_once ",
+        "#include ",
+        "library(",
+        "from ",
+    ];
+    for (language, mut client) in clients::clients() {
+        let digest = match &mut client {
+            crucible_codegen::Client::Rust(options) => {
+                options.content_sha256 = true;
+                true
+            }
+            crucible_codegen::Client::Ts(options) => {
+                options.middleware = vec![crucible_codegen::TsMiddleware::ContentSha256];
+                true
+            }
+            _ => false,
+        };
+        let files = client.emit(&service).unwrap();
+        let guides: Vec<_> = files
+            .iter()
+            .filter(|file| file.path.ends_with("README.md") || file.path.ends_with("AGENTS.md"))
+            .collect();
+        assert!(guides.len() >= 2, "{language}: no README.md and AGENTS.md");
+        for guide in guides {
+            let text = &guide.contents;
+            for block in text.split("```").skip(1).step_by(2) {
+                let mut seen = std::collections::BTreeSet::new();
+                for line in block.lines().filter(|line| {
+                    imports
+                        .iter()
+                        .any(|import| line.trim_start().starts_with(import))
+                }) {
+                    assert!(
+                        seen.insert(line),
+                        "{language} {}: {line:?} twice in\n{block}",
+                        guide.path
+                    );
+                }
+            }
+            if digest {
+                assert!(
+                    text.contains("on every POST, PUT and PATCH")
+                        && !text.contains("(content-sha256) on every request"),
+                    "{language} {}:\n{text}",
+                    guide.path
+                );
+            }
+        }
     }
 }
 

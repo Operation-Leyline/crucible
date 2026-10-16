@@ -62,6 +62,19 @@ impl Model {
         self
     }
 
+    /// Whether this build shows the model's warnings: compiler warnings and
+    /// advice, compatibility findings and policy findings (warnings and
+    /// excepted ones), each a `cargo::warning`. On by default. Pass false
+    /// in a build that compiles a model another build in the same Cargo
+    /// invocation already reports, such as a service whose model crate's
+    /// `publish()` applies the model's policy, so each finding is printed
+    /// once. Errors still fail the build either way.
+    pub fn report_warnings(mut self, report: bool) -> Self {
+        self.package.take();
+        self.builder.report = report;
+        self
+    }
+
     fn path(&self) -> &Path {
         &self.builder.source
     }
@@ -93,6 +106,7 @@ impl Model {
         let mut output = crate::ServerOutput::new(self.path());
         output.service = self.builder.service.clone();
         output.policy = self.builder.policy.clone();
+        output.report = self.builder.report;
         output.options.require_rejection = true;
         output
     }

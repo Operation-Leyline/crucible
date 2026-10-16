@@ -17,6 +17,17 @@ version's section when it is prepared.
 
 ### Added
 
+- `crucible_build::model(..).report_warnings(false)`: a build that
+  compiles a model another build of the same Cargo invocation already
+  reports (a service generating from a model crate whose `publish()`
+  applies the model's policy) prints none of the model's
+  `cargo::warning` lines (compiler warnings and advice, compatibility
+  findings, policy warnings and excepted findings), so each prints once.
+  Errors still fail the build. The default is unchanged. A server build
+  that also exports the model (`model_output`, `CRUCIBLE_MODEL_OUT`) no
+  longer prints its warnings a second time. See
+  [docs/api-policy.md](docs/api-policy.md#in-a-cru-packages-manifest).
+
 - Sender-signed operations (decision 81 in
   [docs/idl/decisions.md](docs/idl/decisions.md)): `@sender("Stripe",
   signature: signature)` on a `public` operation says a third party calls
@@ -1088,6 +1099,17 @@ version's section when it is prepared.
 
 ### Fixed
 
+- A generated Rust SDK's README.md and AGENTS.md show `use <crate>::*;`
+  once in the client block, not twice. The shared guide drops a line of a
+  language's construction statements that repeats one of the package's
+  imports, so no language prints an import twice.
+- The README.md, AGENTS.md and snippet comments of a Rust or TypeScript
+  SDK with `content-sha256` no longer say `x-amz-content-sha256` is sent
+  on every request: they say what the runtimes do, every POST, PUT and
+  PATCH (the empty body's digest when there is none) and any other
+  request with a body, never a bodiless GET or DELETE. The wording lives
+  once, in `crucible_codegen_common::surface::Middleware::content_sha256`
+  (`sent_on`, not part of `crucible.sdks/1`).
 - The compatibility guard follows a migration's renames into permission
   requirements: a `requires .. when` condition or a binding that reads a
   renamed input member is the same clause by its new name, not a new

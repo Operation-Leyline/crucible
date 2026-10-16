@@ -37,7 +37,9 @@ pub fn surface(service: &Service, options: &Options) -> surface::Surface {
     out.middleware = options
         .middleware
         .iter()
-        .map(|middleware| Middleware::new(middleware.name(), middleware.headers()))
+        .map(|middleware| match middleware {
+            crate::Middleware::ContentSha256 => Middleware::content_sha256(),
+        })
         .collect();
     let names = method_names(service);
     for operation in &service.operations {

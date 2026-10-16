@@ -542,42 +542,73 @@ pub fn env_var(service: &Service, suffix: &str) -> String {
     out
 }
 
-/// What the client adds to every request beside the operation's own
-/// headers, for a snippet's comment: `Authorization: Bearer` where the
-/// service has bearer auth, `Crucible-Version`, and each default
-/// middleware's headers.
-pub fn added_headers(service: &Service, middleware: &[crate::surface::Middleware]) -> Vec<String> {
+/// A header the client adds beside the operation's own: what it sends,
+/// a note the sentence puts in parentheses after it (the middleware that
+/// adds it), and the requests it goes on, where that is not every request.
+struct Added {
+    header: String,
+    note: Option<String>,
+    sent_on: Option<String>,
+}
+
+fn added(service: &Service, middleware: &[crate::surface::Middleware]) -> Vec<Added> {
     let mut headers = Vec::new();
     // Only operations that name a bearer scheme send the token: a public
     // one never asks for it.
     let bearer = |op: &Operation| !op.public && op.auth.iter().any(|s| service.is_bearer(s));
     if service.operations.iter().any(bearer) {
-        headers.push(if service.operations.iter().all(bearer) {
-            "Authorization: Bearer <token>".to_owned()
-        } else {
-            "Authorization: Bearer <token> (except on public operations)".to_owned()
+        headers.push(Added {
+            header: "Authorization: Bearer <token>".to_owned(),
+            note: (!service.operations.iter().all(bearer))
+                .then(|| "except on public operations".to_owned()),
+            sent_on: None,
         });
     }
     if let Some(version) = &service.api_version {
-        headers.push(format!("Crucible-Version: {version}"));
+        headers.push(Added {
+            header: format!("Crucible-Version: {version}"),
+            note: None,
+            sent_on: None,
+        });
     }
     for middleware in middleware {
         for header in &middleware.headers {
-            headers.push(format!("{header} ({})", middleware.name));
+            headers.push(Added {
+                header: header.clone(),
+                note: Some(middleware.name.clone()),
+                sent_on: middleware.sent_on.clone(),
+            });
         }
     }
     headers
 }
 
+/// What the client adds beside the operation's own headers, for a
+/// snippet's comment: `Authorization: Bearer` where the service has bearer
+/// auth, `Crucible-Version`, and each default middleware's headers.
+pub fn added_headers(service: &Service, middleware: &[crate::surface::Middleware]) -> Vec<String> {
+    added(service, middleware).iter().map(plain).collect()
+}
+
+/// A header as a code comment names it, its note in parentheses.
+fn plain(added: &Added) -> String {
+    match &added.note {
+        Some(note) => format!("{} ({note})", added.header),
+        None => added.header.clone(),
+    }
+}
+
 /// [`added_headers`] as one sentence, or `None` when there are none:
-/// `The client sends Authorization: Bearer <token>, Crucible-Version:
-/// 2026-10-01 and x-amz-content-sha256 (content-sha256) on every request.`
-/// For a code comment; [`added_headers_markdown`] is the Markdown form.
+/// `The client sends Authorization: Bearer <token> and Crucible-Version:
+/// 2026-10-01 on every request, and x-amz-content-sha256 (content-sha256)
+/// on every POST, PUT and PATCH ...`: a middleware that adds its header to
+/// some requests only says which. For a code comment;
+/// [`added_headers_markdown`] is the Markdown form.
 pub fn added_headers_sentence(
     service: &Service,
     middleware: &[crate::surface::Middleware],
 ) -> Option<String> {
-    sentence(added_headers(service, middleware))
+    sentence(&added(service, middleware), plain)
 }
 
 /// [`added_headers_sentence`] with each header as a Markdown code span,
@@ -586,29 +617,47 @@ pub fn added_headers_markdown(
     service: &Service,
     middleware: &[crate::surface::Middleware],
 ) -> Option<String> {
-    sentence(
-        added_headers(service, middleware)
-            .into_iter()
-            .map(|header| match header.split_once(" (") {
-                Some((header, rest)) => format!(
-                    "{} ({})",
-                    crate::guide::code_span(header),
-                    crate::guide::markdown_text(rest.trim_end_matches(')'))
-                ),
-                None => crate::guide::code_span(&header),
-            })
-            .collect(),
-    )
+    sentence(&added(service, middleware), |added| {
+        let header = crate::guide::code_span(&added.header);
+        match &added.note {
+            Some(note) => format!("{header} ({})", crate::guide::markdown_text(note)),
+            None => header,
+        }
+    })
 }
 
-fn sentence(headers: Vec<String>) -> Option<String> {
-    let (last, rest) = headers.split_last()?;
-    let list = if rest.is_empty() {
-        last.clone()
-    } else {
-        format!("{} and {last}", rest.join(", "))
-    };
-    Some(format!("The client sends {list} on every request."))
+/// The headers as one sentence: those sent on every request first, then
+/// each group a middleware sends on some requests only, with which.
+fn sentence(headers: &[Added], render: impl Fn(&Added) -> String) -> Option<String> {
+    let mut groups: Vec<(Option<&str>, Vec<String>)> = Vec::new();
+    for added in headers {
+        let sent_on = added.sent_on.as_deref();
+        match groups.iter_mut().find(|(group, _)| *group == sent_on) {
+            Some((_, list)) => list.push(render(added)),
+            None => groups.push((sent_on, vec![render(added)])),
+        }
+    }
+    // Stable: every-request headers lead, the rest keep their order.
+    groups.sort_by_key(|(sent_on, _)| sent_on.is_some());
+    let clauses: Vec<String> = groups
+        .iter()
+        .map(|(sent_on, list)| {
+            let (last, rest) = list.split_last().expect("a group has a header");
+            let list = if rest.is_empty() {
+                last.clone()
+            } else {
+                format!("{} and {last}", rest.join(", "))
+            };
+            format!("{list} on {}", sent_on.unwrap_or("every request"))
+        })
+        .collect();
+    let (first, rest) = clauses.split_first()?;
+    let mut text = first.clone();
+    for clause in rest {
+        text.push_str(", and ");
+        text.push_str(clause);
+    }
+    Some(format!("The client sends {text}."))
 }
 
 #[cfg(test)]

@@ -15,7 +15,7 @@ import type * as models from "@example/weather";
 const client = new WeatherClient({ token: process.env.WEATHER_TOKEN });
 ```
 
-- Headers: The client sends `Authorization: Bearer <token>`, `Crucible-Version: 2026-10-01` and `x-amz-content-sha256` (content-sha256) on every request. Do not set them yourself.
+- Headers: The client sends `Authorization: Bearer <token>` and `Crucible-Version: 2026-10-01` on every request, and `x-amz-content-sha256` (content-sha256) on every POST, PUT and PATCH (the empty body's digest when there is none) and any other request with a body. Do not set them yourself.
 - Middleware: the service requires `content-sha256` (adds x-amz-content-sha256); the client runs it by default.
 - Operations: one method per operation, such as `createCity`, `getCity`, `getCityPhoto`. Each takes its input type and returns its output type.
 - Pagination: A paginated operation also has a `paginate<Operation>` method returning an async iterator of pages (`for await (const page of client.paginateListCities(input))`): each page is one response, and it stops when the response carries no next token.
@@ -30,7 +30,7 @@ const client = new WeatherClient({ token: process.env.WEATHER_TOKEN });
 import { NotFoundError, WeatherClient } from "@example/weather";
 import type * as models from "@example/weather";
 
-// The client sends Authorization: Bearer <token>, Crucible-Version: 2026-10-01 and x-amz-content-sha256 (content-sha256) on every request.
+// The client sends Authorization: Bearer <token> and Crucible-Version: 2026-10-01 on every request, and x-amz-content-sha256 (content-sha256) on every POST, PUT and PATCH (the empty body's digest when there is none) and any other request with a body.
 const client = new WeatherClient({ token: process.env.WEATHER_TOKEN });
 
 // Values from the model's example "Read a city".

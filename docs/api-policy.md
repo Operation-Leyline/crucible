@@ -74,6 +74,31 @@ operations = "PascalCase"
 members = { case = "camelCase", severity = "warning" }
 ```
 
+Every build that compiles the package applies that policy, so a workspace
+with two such builds prints each warning twice: a model crate whose
+`publish()` applies the policy, and a service that generates from the
+published model. The second build can leave the report to the first:
+
+```rust,ignore
+// The model crate's build.rs, `crucible_build::model("api").publish()`,
+// reports the model's warnings; this one only enforces them.
+fn main() {
+    crucible_build::model("example_model")
+        .report_warnings(false)
+        .server()
+        .generate();
+}
+```
+
+`report_warnings(false)` silences what the model build prints as
+`cargo::warning`: compiler warnings and advice, compatibility findings the
+policy makes warnings, and policy warnings and excepted findings. Errors
+still fail the build. Use it only where another build of the same Cargo
+invocation reports the model: Cargo shows a build script's warnings only
+for a package in the workspace, so a model crate fetched from a registry or
+Git reports nothing, and a model crate's `publish()` compiles the model only
+when it has a policy to apply.
+
 The language server applies the same policy as you type: a finding shows at
 the name it concerns, as an error or a warning, and a naming finding offers
 a rename to the configured case. It looks for the policy in the package's

@@ -319,18 +319,25 @@ an idempotency token. An idempotency token the caller leaves unset is generated 
 and reused on every attempt; set it yourself to replay one logical request across calls.";
 
 /// The package's imports, then the statements constructing the client:
-/// what a caller copies to get a client.
+/// what a caller copies to get a client. Each import is shown once: a line
+/// of the statements that repeats one of the package's imports is dropped,
+/// so statements that open with the import do not print it twice.
 fn construct(surface: &Surface, guide: &Guide) -> String {
-    if surface.package.imports.is_empty() {
+    let imports = &surface.package.imports;
+    if imports.is_empty() {
         // PHP's autoloader needs no import line.
-        guide.construct.clone()
-    } else {
-        format!(
-            "{}\n\n{}",
-            surface.package.imports.join("\n"),
-            guide.construct
-        )
+        return guide.construct.clone();
     }
+    let statements: Vec<&str> = guide
+        .construct
+        .lines()
+        .filter(|line| !imports.iter().any(|import| import == line.trim_end()))
+        .collect();
+    format!(
+        "{}\n\n{}",
+        imports.join("\n"),
+        statements.join("\n").trim_start_matches('\n')
+    )
 }
 
 /// What the package's install section shows: shell lines, a manifest
@@ -618,7 +625,28 @@ pub fn agents(service: &Service, surface: &Surface, guide: &Guide) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::{code_span, markdown_text, markdown_url};
+    use super::{Guide, code_span, construct, markdown_text, markdown_url};
+    use crate::surface::{ClientType, Package, Surface};
+
+    #[test]
+    fn the_client_block_shows_each_import_once() {
+        let mut package = Package::new("cargo", "weather-sdk", "weather_sdk");
+        package.imports = vec!["use weather_sdk::*;".to_owned()];
+        let surface = Surface::new("rust", package, ClientType::new("WeatherClient", ""));
+        let mut guide = Guide::new("Rust", "rust");
+        let expected = "use weather_sdk::*;\n\nlet client = WeatherClient::new(config);";
+        // Statements that open with the package's import show it once.
+        guide.construct = "use weather_sdk::*;\n\nlet client = WeatherClient::new(config);".into();
+        assert_eq!(construct(&surface, &guide), expected);
+        guide.construct = "let client = WeatherClient::new(config);".into();
+        assert_eq!(construct(&surface, &guide), expected);
+        // An import of something else stays.
+        guide.construct = "use std::env;\n\nlet client = WeatherClient::new(config);".into();
+        assert_eq!(
+            construct(&surface, &guide),
+            "use weather_sdk::*;\n\nuse std::env;\n\nlet client = WeatherClient::new(config);"
+        );
+    }
 
     #[test]
     fn model_text_stays_one_line_of_text() {

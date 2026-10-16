@@ -24,7 +24,13 @@ pub(crate) fn manifest_policy(path: &Path) -> Option<std::path::PathBuf> {
 }
 
 /// Compiles the package at `path` and lowers `service`, or its only service.
-pub(crate) fn lower(path: &Path, service: Option<&ShapeId>) -> Result<Service, String> {
+/// With `report`, its warnings and advice are shown as Cargo warnings; a
+/// build that leaves them to another build of the same model passes false.
+pub(crate) fn lower(
+    path: &Path,
+    service: Option<&ShapeId>,
+    report: bool,
+) -> Result<Service, String> {
     // Cargo watches a directory recursively, so any edited `.cru` file reruns
     // the build script.
     println!("cargo::rerun-if-changed={}", path.display());
@@ -56,17 +62,19 @@ pub(crate) fn lower(path: &Path, service: Option<&ShapeId>) -> Result<Service, S
         return Err(format!("{} does not compile:\n{rendered}", path.display()));
     }
     // Warnings and advice do not fail the build; Cargo shows each one.
-    for line in rendered
-        .lines()
-        .filter(|line| line.contains(": warning: ") || line.contains(": advice: "))
-    {
-        println!("cargo::warning={line}");
+    if report {
+        for line in rendered
+            .lines()
+            .filter(|line| line.contains(": warning: ") || line.contains(": advice: "))
+        {
+            println!("cargo::warning={line}");
+        }
     }
     let config = match manifest_policy(path) {
         Some(manifest) => crucible_policy::Config::load(&manifest)?,
         None => crucible_policy::Config::default(),
     };
-    let versions = check_baseline(path, &package, &compiled, &config)?;
+    let versions = check_baseline(path, &package, &compiled, &config, report)?;
     let mut service = compiled.service.expect("checked above");
     service.versions = versions;
     Ok(service)
@@ -78,7 +86,8 @@ pub(crate) fn lower(path: &Path, service: Option<&ShapeId>) -> Result<Service, S
 /// file is rewritten only when it changes, so a watched export does not
 /// rerun the build that wrote it.
 pub(crate) fn export(path: &Path, service: Option<&ShapeId>, out: &Path) -> Result<(), String> {
-    let model = lower(path, service)?;
+    // The build that exports the model has already lowered and reported it.
+    let model = lower(path, service, false)?;
     let compiler = format!("crucible-build {}", env!("CARGO_PKG_VERSION"));
     let text = crucible_ir::snapshot::write(&model, &compiler);
     if std::fs::read_to_string(out).is_ok_and(|current| current == text) {
@@ -121,12 +130,14 @@ pub(crate) fn export(path: &Path, service: Option<&ShapeId>, out: &Path) -> Resu
 /// current model and checked against itself. A breaking change no
 /// migration declares fails the build, as does a migration step that does
 /// not match what changed or a projection that is not its release; every
-/// problem is listed, and a finding the policy makes a warning is shown.
+/// problem is listed, and a finding the policy makes a warning is shown
+/// when `report` asks for it.
 fn check_baseline(
     path: &Path,
     package: &crucible_lang::Package,
     compiled: &crucible_lang::Compiled,
     config: &crucible_policy::Config,
+    report: bool,
 ) -> Result<Vec<crucible_ir::ir::ApiVersion>, String> {
     // The releases directory: the baseline, older releases and their lock.
     if let Some(releases) = package
@@ -142,8 +153,10 @@ fn check_baseline(
     if let Some(failure) = checked.failure(path, compiled) {
         return Err(failure);
     }
-    for line in checked.render(compiled).lines() {
-        println!("cargo::warning={line}");
+    if report {
+        for line in checked.render(compiled).lines() {
+            println!("cargo::warning={line}");
+        }
     }
     Ok(checked.versions.versions)
 }

@@ -32,10 +32,7 @@ pub fn surface(service: &Service, options: &ClientOptions) -> surface::Surface {
         ),
     );
     if options.content_sha256 {
-        out.middleware = vec![surface::Middleware::new(
-            "content-sha256",
-            &["x-amz-content-sha256"],
-        )];
+        out.middleware = vec![surface::Middleware::content_sha256()];
     }
     let boxed = boxed_members(service);
     for (operation, derived) in service.operations.iter().zip(method_names(service)) {

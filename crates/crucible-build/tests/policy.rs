@@ -62,3 +62,66 @@ fn a_package_manifest_policy_applies_without_selecting_it() {
     );
     assert!(model(&package).server().render().is_ok());
 }
+
+/// Two builds that compile one model (a model crate that publishes it, and
+/// a service that generates from it) print its findings once: the second
+/// leaves them to the first with `report_warnings(false)`, and still fails
+/// on an error finding.
+#[test]
+fn a_build_can_leave_the_model_warnings_to_another() {
+    let package = weather_package(
+        "policy-reported-once",
+        "[rules.naming]\noperations = { case = \"camelCase\", severity = \"warning\" }\n",
+    );
+    // Cargo reads `cargo::warning` from stdout, which the test harness
+    // captures: run the build in a child test and read what it prints.
+    let printed = |report: &str| {
+        let output = std::process::Command::new(std::env::current_exe().unwrap())
+            .args(["print_the_model_warnings", "--exact", "--nocapture"])
+            .env("CRUCIBLE_BUILD_TEST_PACKAGE", &package)
+            .env("CRUCIBLE_BUILD_TEST_REPORT", report)
+            .output()
+            .unwrap();
+        assert!(output.status.success(), "{output:?}");
+        String::from_utf8(output.stdout)
+            .unwrap()
+            .lines()
+            .filter(|line| line.starts_with("cargo::warning="))
+            .map(str::to_owned)
+            .collect::<Vec<_>>()
+    };
+    let reported = printed("true");
+    assert!(
+        reported
+            .iter()
+            .any(|line| line.contains("naming.operations")),
+        "{reported:?}"
+    );
+    assert_eq!(printed("false"), Vec::<String>::new());
+
+    let package = weather_package(
+        "policy-reported-elsewhere-error",
+        "[rules.naming]\noperations = \"camelCase\"\n",
+    );
+    let error = model(&package)
+        .report_warnings(false)
+        .server()
+        .render()
+        .unwrap_err();
+    assert!(error.contains("naming.operations"), "{error}");
+}
+
+/// The child of [`a_build_can_leave_the_model_warnings_to_another`]: does
+/// nothing unless it names a package.
+#[test]
+fn print_the_model_warnings() {
+    let Some(package) = std::env::var_os("CRUCIBLE_BUILD_TEST_PACKAGE") else {
+        return;
+    };
+    let report = std::env::var("CRUCIBLE_BUILD_TEST_REPORT").unwrap() == "true";
+    model(PathBuf::from(package))
+        .report_warnings(report)
+        .server()
+        .render()
+        .unwrap();
+}

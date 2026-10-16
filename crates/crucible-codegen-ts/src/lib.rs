@@ -123,7 +123,8 @@ const RESERVED: &[&str] = &[
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Middleware {
-    /// `x-amz-content-sha256` on every request with a body.
+    /// `x-amz-content-sha256` on every POST, PUT and PATCH and on any
+    /// other request with a body.
     ContentSha256,
 }
 

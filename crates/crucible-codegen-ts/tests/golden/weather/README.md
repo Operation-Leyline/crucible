@@ -21,7 +21,7 @@ import type * as models from "@example/weather";
 const client = new WeatherClient({ token: process.env.WEATHER_TOKEN });
 ```
 
-`token` is the bearer token: a string, or a function returning one or a promise of one, called for every attempt so a refreshed token is used. The client sends `Authorization: Bearer <token>`, `Crucible-Version: 2026-10-01` and `x-amz-content-sha256` (content-sha256) on every request.
+`token` is the bearer token: a string, or a function returning one or a promise of one, called for every attempt so a refreshed token is used. The client sends `Authorization: Bearer <token>` and `Crucible-Version: 2026-10-01` on every request, and `x-amz-content-sha256` (content-sha256) on every POST, PUT and PATCH (the empty body's digest when there is none) and any other request with a body.
 
 ## Call an operation
 
@@ -31,7 +31,7 @@ const client = new WeatherClient({ token: process.env.WEATHER_TOKEN });
 import { NotFoundError, WeatherClient } from "@example/weather";
 import type * as models from "@example/weather";
 
-// The client sends Authorization: Bearer <token>, Crucible-Version: 2026-10-01 and x-amz-content-sha256 (content-sha256) on every request.
+// The client sends Authorization: Bearer <token> and Crucible-Version: 2026-10-01 on every request, and x-amz-content-sha256 (content-sha256) on every POST, PUT and PATCH (the empty body's digest when there is none) and any other request with a body.
 const client = new WeatherClient({ token: process.env.WEATHER_TOKEN });
 
 // Values from the model's example "Read a city".
@@ -62,7 +62,7 @@ A paginated operation also has a `paginate<Operation>` method returning an async
 import { WeatherClient } from "@example/weather";
 import type * as models from "@example/weather";
 
-// The client sends Authorization: Bearer <token>, Crucible-Version: 2026-10-01 and x-amz-content-sha256 (content-sha256) on every request.
+// The client sends Authorization: Bearer <token> and Crucible-Version: 2026-10-01 on every request, and x-amz-content-sha256 (content-sha256) on every POST, PUT and PATCH (the empty body's digest when there is none) and any other request with a body.
 const client = new WeatherClient({ token: process.env.WEATHER_TOKEN });
 
 // Values from the model's example "List the first page".
