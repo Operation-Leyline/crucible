@@ -176,10 +176,11 @@ adds no clocks, build paths, or deployment-specific values.
 
 *Designed, not built:* two additive fields for API versions. Every
 operation, shape, member and enum value gains `history` (`added`,
-`changed`: the releases it arrived and changed in, derived from the frozen
-releases and their migrations), and the root gains `versions` (the
-supported releases, oldest first, with their sunsets, the version header,
-and each migration's steps as an older client sees them). Their schema and
+`changed`, `missing`: the releases it first appeared and changed in, and
+those that cannot see it, derived from the frozen releases and their
+migrations), and the root gains `versions`, always present (the supported
+releases, oldest first, with their sunsets, the version header, and each
+migration's steps as an older client sees them, or `null`). Their schema and
 derivation are in [api-versions-clients.md](api-versions-clients.md#api-documentation-across-releases);
 these tables take them when they are built.
 

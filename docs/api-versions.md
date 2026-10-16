@@ -25,7 +25,7 @@ Phase 4 adds the hooked steps (`by hook`, `reshape`, `retype`,
 [api-versions-clients.md](api-versions-clients.md): generated clients
 send their version (built), older versions become projections of the
 current model, with an SDK line and a reference per version, and upgrade
-guides (settled in decisions 67-78).
+guides (settled in decisions 68-79).
 
 ## Versions
 
@@ -255,8 +255,9 @@ examples against the server at its version as generated tests
   prepares a plan for each version's entry, so a request is
   authenticated by its own version's schemes. A tightened requirement is a
   breaking change the guard reports, which no migration step declares.
-  After 5b this holds only for an operation a later version removed; the
-  rest carry the current model's auth (decision 72).
+  After 5b it still holds for every operation the release had; one added
+  since, which the release never declared, takes the current schemes
+  (decision 73).
 - **Not converted, and reported:** a member inside a recursive shape; a
   renamed member, reshaped or retyped structure, or added enum value
   inside an error; an enum that keys a map; `add .. downgrade` on a union
