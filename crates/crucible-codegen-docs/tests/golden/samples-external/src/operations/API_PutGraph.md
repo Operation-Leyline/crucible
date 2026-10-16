@@ -6,16 +6,19 @@ Protocol: <code>crucibleJson</code>.
 
 ## Authentication
 
-Effective schemes: <code>[]</code>. Optional authentication: null.
+None: this operation takes no credential.
 
 ## Request syntax
 
 ```http
 PUT /graphs/{graphId}?since={since} HTTP/1.1
 Content-Type: application/json
+Crucible-Version: 1
 X-Region: {region}
 If-Modified-Since: {modifiedSince}
 ```
+
+<code>Crucible-Version</code> names the release this page describes. A request without it is served at the release the service chooses for unversioned requests, which may be an older one.
 
 ### Request parameters
 
@@ -104,10 +107,12 @@ Last-Modified: {lastModified}
 
 ## Errors
 
-| Error | HTTP status | Fault | Retryable | Description |
-|---|---|---|---|---|
-| [GraphNotFound](../shapes/GraphNotFound.md) | 404 | client | No |  |
-| [Busy](../shapes/Busy.md) | 503 | server | Yes |  |
+| Error | Code | HTTP status | Fault | Retryable | Description |
+|---|---|---|---|---|---|
+| [GraphNotFound](../shapes/GraphNotFound.md) | <code>GraphNotFound</code> | 404 | client | No |  |
+| [Busy](../shapes/Busy.md) | <code>Busy</code> | 503 | server | Yes |  |
+
+An error response names its code in the <code>X-Crucible-Error</code> header and in its JSON body.
 
 ## Idempotency and retries
 

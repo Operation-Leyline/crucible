@@ -27,7 +27,9 @@ the renderer's CSS class names and internal functions are not. The
 `crucible.changes/1` contract (`changes.json`, beside `describe.json`) is
 stable under the same rules, as described in
 [the docs guide](docs.md#changesjson); `Description::versions` and
-`describe::sort_keys` are additive.
+`describe::sort_keys` are additive. `llms.txt` and `llms-full.txt` (the Markdown pages'
+index for agents, beside `index.html`) and the `src/` page paths they link
+are stable file names; their prose is not.
 
 `DocsOutput::sdks`, `crucible generate docs --sdks` and `crucible sdk
 describe` add the `crucible.sdks/1` contract (`sdks.json`), stable as

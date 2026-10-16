@@ -37,8 +37,12 @@ fn golden(name: &str, package: &str, audience: Audience) {
 fn golden_files(name: &str, files: Vec<crucible_codegen_docs::File>) {
     let files: Vec<_> = files
         .into_iter()
-        // describe.js repeats describe.json; the site test pins that.
-        .filter(|f| f.path != "describe.js" && !SITE_RUNTIME.contains(&f.path.as_str()))
+        // describe.js repeats describe.json, and llms-full.txt the pages;
+        // the site and llms tests pin those.
+        .filter(|f| {
+            !["describe.js", "llms-full.txt"].contains(&f.path.as_str())
+                && !SITE_RUNTIME.contains(&f.path.as_str())
+        })
         .collect();
     let root = Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("tests/golden")
@@ -903,4 +907,88 @@ fn release_names_read_back_as_written() {
             }
         }
     }
+}
+
+/// `llms.txt` links every page, each to a generated file, and
+/// `llms-full.txt` holds every page, each under a comment naming it.
+#[test]
+fn llms_txt_indexes_every_page_and_llms_full_holds_them() {
+    let cases = [
+        files(WEATHER, Audience::External),
+        files(WEATHER, Audience::Internal),
+        files(CATALOG, Audience::Internal),
+        generate(&project(&leyline(), Audience::External).unwrap()).unwrap(),
+        versioned_files(&package_dir("version-history"), Audience::Internal),
+    ];
+    for files in cases {
+        let file = |path: &str| {
+            files
+                .iter()
+                .find(|f| f.path == path)
+                .unwrap_or_else(|| panic!("{path}"))
+                .contents
+                .clone()
+        };
+        let index = file("llms.txt");
+        assert!(index.starts_with("# "), "{index}");
+        assert!(index.contains("\n\n> "), "a summary: {index}");
+        let linked: BTreeSet<String> = destinations(&index).into_iter().collect();
+        for destination in &linked {
+            assert!(
+                files.iter().any(|f| &f.path == destination),
+                "{destination} is not generated: {index}"
+            );
+        }
+        let full = file("llms-full.txt");
+        for page in files
+            .iter()
+            .filter(|f| f.path.starts_with("src/") && f.path != "src/SUMMARY.md")
+        {
+            assert!(linked.contains(&page.path), "llms.txt links {}", page.path);
+            assert!(
+                full.contains(&format!(
+                    "<!-- {} -->\n\n{}",
+                    page.path,
+                    page.contents.trim_end()
+                )),
+                "llms-full.txt holds {}",
+                page.path
+            );
+        }
+    }
+}
+
+/// Every operation page says how to call it on its own: the credential
+/// and release headers in the request syntax, and each error's code.
+#[test]
+fn operation_pages_carry_the_headers_and_error_codes_a_caller_sends_and_reads() {
+    let files = files(WEATHER, Audience::External);
+    let page = |path: &str| {
+        files
+            .iter()
+            .find(|f| f.path == path)
+            .unwrap_or_else(|| panic!("{path}"))
+            .contents
+            .clone()
+    };
+    let get = page("src/operations/API_GetCity.md");
+    assert!(
+        get.contains(
+            "GET /cities/{cityId}?at={at} HTTP/1.1\nAuthorization: Bearer {token}\nCrucible-Version: 2026-10-01\n"
+        ),
+        "{get}"
+    );
+    assert!(
+        get.contains("| <code>NotFoundError</code> | 404 |"),
+        "{get}"
+    );
+    assert!(
+        get.contains("<code>X-Crucible-Error</code> header"),
+        "{get}"
+    );
+    let create = page("src/operations/API_CreateCity.md");
+    assert!(
+        create.contains("Content-Type: application/json\nAuthorization: Bearer {token}\n"),
+        "{create}"
+    );
 }

@@ -17,6 +17,18 @@ version's section when it is prepared.
 
 ### Added
 
+- The API reference has Markdown for agents: `llms.txt` beside
+  `index.html` (the llms.txt convention: the service, what every request
+  sends, and a linked line per page, operations and data types with their
+  method, URI, kind and first sentence) and `llms-full.txt`, every page in
+  one file. Each page's Markdown keeps its one path under `src/`; the
+  mapping from the static reference's routes is in
+  [docs/docs.md](docs/docs.md#markdown-for-agents). Operation pages now
+  carry what a caller needs without another page: the `Authorization` and
+  `Crucible-Version` headers in the request syntax, the authentication
+  scheme as the header it sends (or that the operation takes no
+  credential), and each error's wire code and the header that carries it.
+
 - Release history in the API reference (decisions 77 and 78 in
   [docs/idl/decisions.md](docs/idl/decisions.md)). `describe.json`
   (`crucible.describe/1`, additive) gives every operation, shape, member

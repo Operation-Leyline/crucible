@@ -5,15 +5,19 @@ Protocol: <code>crucibleJson</code>.
 
 ## Authentication
 
-Effective schemes: <code>[&quot;crucible.api#httpBearerAuth&quot;]</code>. Optional authentication: null.
+- Bearer token (<code>crucible.api#httpBearerAuth</code>): send <code>Authorization: Bearer &lt;token&gt;</code>.
 
 ## Request syntax
 
 ```http
 POST /cities HTTP/1.1
 Content-Type: application/json
+Authorization: Bearer {token}
+Crucible-Version: 2026-10-01
 X-Expected-Revision: {expectedRevision}
 ```
+
+<code>Crucible-Version</code> names the release this page describes. A request without it is served at the release the service chooses for unversioned requests, which may be an older one.
 
 ### Request parameters
 
@@ -58,11 +62,13 @@ Content-Type: application/json
 
 ## Errors
 
-| Error | HTTP status | Fault | Retryable | Description |
-|---|---|---|---|---|
-| [ConflictError](../shapes/ConflictError.md) | 409 | client | No |  |
-| [ThrottlingError](../shapes/ThrottlingError.md) | 429 | client | Yes (throttling) |  |
-| [ValidationError](../shapes/ValidationError.md) | 400 | client | No |  |
+| Error | Code | HTTP status | Fault | Retryable | Description |
+|---|---|---|---|---|---|
+| [ConflictError](../shapes/ConflictError.md) | <code>ConflictError</code> | 409 | client | No |  |
+| [ThrottlingError](../shapes/ThrottlingError.md) | <code>ThrottlingError</code> | 429 | client | Yes (throttling) |  |
+| [ValidationError](../shapes/ValidationError.md) | <code>ValidationError</code> | 400 | client | No |  |
+
+An error response names its code in the <code>X-Crucible-Error</code> header and in its JSON body.
 
 ## Idempotency and retries
 

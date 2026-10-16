@@ -6,7 +6,8 @@ syntax, modeled errors, pagination, idempotency, and examples. Resource lifecycl
 tables and data-type pages connect those operation pages.
 
 The output is Markdown in mdBook layout, a versioned `describe.json` contract,
-and a static single-page HTML reference that renders that contract in a browser. It retains information that an OpenAPI conversion cannot carry,
+a static single-page HTML reference that renders that contract in a browser,
+and an `llms.txt` index of the Markdown pages for agents. It retains information that an OpenAPI conversion cannot carry,
 including resources, pagination, idempotency tokens, retryable errors, and all
 documentation notes. The Markdown and HTML renderers, and the in-service Explorer, read the same
 description data.
@@ -78,6 +79,8 @@ explorer.css
 describe.json
 describe.js
 changes.json
+llms.txt
+llms-full.txt
 sdks.json           (with an SDK file)
 book.toml
 src/
@@ -107,8 +110,54 @@ a leading or trailing `.` or a Windows device name (`con`) has its first
 character escaped too. Two release pages that would share a file where
 case folds are refused (`docs.filename`) before any file is written.
 
+Each operation page is complete on its own, so a reader that fetches one
+page can call the operation: its method and URI, the headers every request
+sends (the fixed `Content-Type`, `Authorization: Bearer {token}` for each
+bearer scheme, `Crucible-Version` with the current release), the modelled
+parameters and body, the response, the errors with the code each carries
+in `X-Crucible-Error` and the body, idempotency, pagination, and the
+model's examples or, without any, the generated sample.
+
 With mdBook installed, `mdbook build generated/weather-docs` renders the
 Markdown. Crucible does not launch mdBook or serve the HTML reference.
+
+## Markdown for agents
+
+An agent reads Markdown it can fetch by URL far more reliably than a
+single-page HTML reference, and fetches `.md` URLs rather than negotiating
+an `Accept` header. The output's root therefore holds, beside `index.html`:
+
+- `llms.txt`, following the [llms.txt](https://llmstxt.org/) convention:
+  an H1 with the service's title, a blockquote with the first sentence of
+  its documentation, a paragraph on what every request sends, then
+  sections of links, each with a one-line description: `Overview` (the
+  service overview and the permissions page), `Operations` (method, URI
+  and first sentence of each), `Data types` (kind, an error's status, and
+  first sentence), `Releases` (a chain of more than one release), and
+  `Optional` (`llms-full.txt`, `describe.json`, `changes.json`).
+  Operations and types are in shape-id order, and internal and deprecated
+  items say so.
+- `llms-full.txt`: every page `llms.txt` links, in its order, each under an
+  `<!-- src/... -->` comment naming the file it came from, so a reader can
+  resolve the page's relative links.
+
+Every page's Markdown has one stable path, the file under `src/`, and
+`llms.txt` links those paths relative to the root. Serve the output
+directory as it is generated and each page's Markdown is at a stable URL
+beside the HTML: no copy is made. The mapping from the static reference's
+routes is fixed:
+
+| Static reference | Markdown |
+|---|---|
+| `index.html` (overview) | `src/index.md` |
+| `#/op/<id>` | `src/operations/API_<Name>.md` |
+| `#/shape/<id>` | `src/shapes/<Name>.md` |
+| `#/release/<name>` | `src/releases/<escaped name>.md` |
+| mdBook's `<page>.html` | `src/<page>.md` |
+
+A site that publishes mdBook's `book/` output alone, without `src/`,
+publishes `src/` beside it, or rewrites `llms.txt`'s `src/` prefix to where
+it puts the pages.
 
 ## Static HTML reference
 
@@ -665,8 +714,8 @@ assembles the document.
 
 Weather and RPC Catalog goldens include every generated file in both audiences,
 except the identical renderer files, which have one reviewed copy under
-`tests/golden/site`, and `describe.js`, which tests compare with
-`describe.json`.
+`tests/golden/site`, `describe.js`, which tests compare with
+`describe.json`, and `llms-full.txt`, which tests compare with the pages.
 The Catalog fixture covers documentation notes, pagination, unions, enums,
 idempotency, RPC headers, timestamp examples, and arbitrary-precision wire values.
 The Links goldens (`tests/models/doc-links`) cover doc links in both audiences.

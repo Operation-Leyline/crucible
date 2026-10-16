@@ -5,13 +5,16 @@ Protocol: <code>crucibleJson</code>.
 
 ## Authentication
 
-Effective schemes: <code>[]</code>. Optional authentication: null.
+None: this operation takes no credential.
 
 ## Request syntax
 
 ```http
 GET /graphs/{graphId} HTTP/1.1
+Crucible-Version: 1
 ```
+
+<code>Crucible-Version</code> names the release this page describes. A request without it is served at the release the service chooses for unversioned requests, which may be an older one.
 
 ### Request parameters
 
@@ -36,9 +39,11 @@ Content-Type: application/octet-stream
 
 ## Errors
 
-| Error | HTTP status | Fault | Retryable | Description |
-|---|---|---|---|---|
-| [GraphNotFound](../shapes/GraphNotFound.md) | 404 | client | No |  |
+| Error | Code | HTTP status | Fault | Retryable | Description |
+|---|---|---|---|---|---|
+| [GraphNotFound](../shapes/GraphNotFound.md) | <code>GraphNotFound</code> | 404 | client | No |  |
+
+An error response names its code in the <code>X-Crucible-Error</code> header and in its JSON body.
 
 ## Idempotency and retries
 
