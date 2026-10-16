@@ -1,0 +1,10 @@
+# Refused: a route a moved operation had, given to another operation while
+# the release that routes it there is supported (decision 69). v2 moves
+# GetItem from `GET "/items/{id}"`; v3 routes FindItem there, which a v1
+# request for GetItem would also reach. v1 and v2 are frozen under releases/;
+# v3 is current.
+[model]
+namespace = "example.route"
+
+[model.baseline]
+path = "releases/v2.json"

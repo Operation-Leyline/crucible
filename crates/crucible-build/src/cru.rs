@@ -68,13 +68,27 @@ pub(crate) fn lower(path: &Path, service: Option<&ShapeId>) -> Result<Service, S
     };
     // The frozen releases, read once for the guard and the versions.
     let releases = crucible_lang::Releases::default();
-    check_baseline(path, &package, &compiled, &config, &releases)?;
+    let guard = check_baseline(path, &package, &compiled, &config, &releases)?;
     // The older versions the service still serves, for generators that
-    // serve them (docs/api-versions.md).
-    let versions =
-        crucible_lang::versions_in(&package, &compiled, package.files.len(), &config, &releases)?;
+    // serve them (docs/api-versions.md), each the current model projected
+    // back to its release and checked against it.
+    let mut versions =
+        crucible_lang::versions_in(&package, &compiled, package.files.len(), &config, &releases);
+    if let Some(guard) = &guard {
+        versions.without(guard);
+    }
+    if versions.has_errors() {
+        return Err(format!(
+            "{} does not serve its older releases:\n{}",
+            path.display(),
+            versions.render(&compiled)
+        ));
+    }
+    for line in versions.render(&compiled).lines() {
+        println!("cargo::warning={line}");
+    }
     let mut service = compiled.service.expect("checked above");
-    service.versions = versions;
+    service.versions = versions.versions;
     Ok(service)
 }
 
@@ -124,18 +138,18 @@ pub(crate) fn export(path: &Path, service: Option<&ShapeId>, out: &Path) -> Resu
 /// baseline, with the `[compatibility]` settings of its manifest. A breaking
 /// change no migration declares fails the build, as does a migration step
 /// that does not match what changed; a finding the policy makes a warning
-/// is shown.
+/// is shown. The guard, when the package has a baseline.
 fn check_baseline(
     path: &Path,
     package: &crucible_lang::Package,
     compiled: &crucible_lang::Compiled,
     config: &crucible_policy::Config,
     releases: &crucible_lang::Releases,
-) -> Result<(), String> {
+) -> Result<Option<crucible_lang::Guard>, String> {
     let Some(guard) =
         crucible_lang::guard_in(package, compiled, package.files.len(), config, releases)
     else {
-        return Ok(());
+        return Ok(None);
     };
     // The releases directory: the baseline, older releases and their lock.
     if let Some(releases) = package
@@ -157,5 +171,5 @@ fn check_baseline(
     for line in guard.render(compiled).lines() {
         println!("cargo::warning={line}");
     }
-    Ok(())
+    Ok(Some(guard))
 }

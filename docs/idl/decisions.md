@@ -1485,8 +1485,11 @@ references are to the code as of the design.
     change in a minor release, which the SDK release rule judges at error
     too; exceptions do, since frozen releases do not record the manifest's,
     and one stays while a release before its break is supported. Findings
-    are deduplicated by rule and id. *Why:* one set of rules, and an undo
-    gap cannot pass silently.
+    are deduplicated by rule and id, against the guard's undeclared errors
+    too; one the guard's settings make a warning stays, at error. Only
+    error findings are reported: an authorization change is a warning by
+    design, which the guard gives where it is made. *Why:* one set of
+    rules, and an undo gap cannot pass silently.
 
 69. **A name an older release still uses cannot be reused.** An older name
     of a renamed member, a member name removed under an exception, a
@@ -1506,7 +1509,9 @@ references are to the code as of the design.
     conversion cannot invent the mapping. A step whose newer side was
     removed since under an exception is an error at the older name, naming
     that exception; excepting the older name too leaves the step inert,
-    with a warning.
+    with a warning, and out of the steps the server converts. A step that
+    no longer resolves for another reason a later change made is reported
+    as the newer projection refuses it.
 
 71. **A shape's identity is its id, in every release.** Steps resolve
     against projections: the new side in the newer projection, the old
@@ -1518,10 +1523,9 @@ references are to the code as of the design.
     (refused at the migration's `from` unless a `compatibility.operation`
     exception retires it, as decision 70 leaves an excepted step inert
     with a warning) and an enum value's rename (converted); the others
-    can only be reached by an edited IR. Still to come:
-    `crucible_lang::versions` collects every diagnostic with its span
-    instead of stopping at the first. *Why:* the ids the server converts
-    by must be the ones steps were checked against.
+    can only be reached by an edited IR. `crucible_lang::versions`
+    collects every diagnostic with its span (built, PR 5). *Why:* the ids
+    the server converts by must be the ones steps were checked against.
 
 72. **Steps carry both sides, and undo composes them.** `Require` and
     `Hook::Require` gain their old side and older name, `AddEnumValue` its

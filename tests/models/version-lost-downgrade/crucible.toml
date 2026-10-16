@@ -1,0 +1,14 @@
+# Refused: a value a step downgrades to, removed since (decision 70). v2 adds
+# Kind.HUGE, which v1 clients see as LARGE; v3 removes LARGE under the
+# exception below, so v1 would be sent a value its release, as now seen, does
+# not have. v1 and v2 are frozen under releases/; v3 is current.
+[model]
+namespace = "example.downgrade"
+
+[model.baseline]
+path = "releases/v2.json"
+
+[[exceptions]]
+rule = "compatibility.sdk"
+shape = "example.downgrade#Kind$LARGE"
+reason = "Nothing is large any more"

@@ -14,7 +14,7 @@ use serde_json::Value;
 use crate::Diagnostics;
 use crate::ir::{
     Binding, Bindings, Constraints, Example, Operation, Segment, Service, Shape, SimpleKind,
-    Structure,
+    Structure, Uri,
 };
 use crate::lower_examples::Check;
 use crate::shape_id::ShapeId;
@@ -332,26 +332,40 @@ fn error_codes(service: &Service, diagnostics: &mut Diagnostics) {
     }
 }
 
+/// What tells a route apart from another: its method, its path with label
+/// names left out but greediness kept, and its literal query values.
+fn route_key<'a>(method: &'a str, uri: &Uri) -> RouteKey<'a> {
+    let path = uri
+        .segments
+        .iter()
+        .map(|segment| match segment {
+            Segment::Literal(value) => format!("literal:{value}"),
+            Segment::Label(name) if uri.greedy_labels.contains(name) => "greedy".to_owned(),
+            Segment::Label(_) => "label".to_owned(),
+        })
+        .collect();
+    let mut query = uri.query.clone();
+    query.sort();
+    (method, path, query)
+}
+
+type RouteKey<'a> = (&'a str, Vec<String>, Vec<(String, Option<String>)>);
+
+/// Whether two routes answer the same requests, as [`service`] compares
+/// an operation's with every other's: `GET "/items/{id}"` and
+/// `GET "/items/{name}"` do.
+pub fn same_route(method: &str, uri: &Uri, other_method: &str, other: &Uri) -> bool {
+    route_key(method, uri) == route_key(other_method, other)
+}
+
 /// Label names do not distinguish routes; greediness and literal query
 /// values do.
 pub(crate) fn routes(operations: &[Operation], diagnostics: &mut Diagnostics) {
     let mut seen = BTreeMap::new();
     for operation in operations {
-        let path: Vec<_> = operation
-            .uri
-            .segments
-            .iter()
-            .map(|segment| match segment {
-                Segment::Literal(value) => format!("literal:{value}"),
-                Segment::Label(name) if operation.uri.greedy_labels.contains(name) => {
-                    "greedy".to_owned()
-                }
-                Segment::Label(_) => "label".to_owned(),
-            })
-            .collect();
-        let mut query = operation.uri.query.clone();
-        query.sort();
-        if let Some(previous) = seen.insert((&operation.method, path, query), &operation.id) {
+        if let Some(previous) =
+            seen.insert(route_key(&operation.method, &operation.uri), &operation.id)
+        {
             diagnostics.push(
                 &operation.id,
                 format!("HTTP route conflicts with {previous}"),

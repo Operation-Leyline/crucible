@@ -1,0 +1,15 @@
+# Refused, three times over: one package with several problems, each
+# reported (decision 68, AGENTS.md). v2 renames GetItem's `name` to `title`,
+# removes CountItems and adds Kind.HUGE downgrading to LARGE; v3 adds a new
+# `name`, declares CountItems again and removes LARGE. v1 and v2 are frozen
+# under releases/; v3 is current.
+[model]
+namespace = "example.many"
+
+[model.baseline]
+path = "releases/v2.json"
+
+[[exceptions]]
+rule = "compatibility.sdk"
+shape = "example.many#Kind$LARGE"
+reason = "Nothing is large any more"

@@ -1,0 +1,30 @@
+service Shop {
+    version "v3"
+    protocol json
+    operations [GetItem, GetTag]
+}
+
+readonly operation GetItem {
+    http GET "/items/{id}"
+    input { id: string }
+    output { name: string }
+}
+
+/// Reads a tag.
+readonly operation GetTag {
+    http GET "/tags/{label}"
+    input { label: string }
+    output { tag: Tag }
+}
+
+/// A tag, weighed.
+structure Tag {
+    label: string
+    weight: integer
+}
+
+migration "v2" from "v1" {
+    remove operation ListTags
+}
+
+migration "v3" from "v2" {}

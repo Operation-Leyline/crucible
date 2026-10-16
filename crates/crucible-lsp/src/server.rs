@@ -840,17 +840,29 @@ impl Server {
             .as_ref()
             .map(|config| policy::findings(&compiled, own, config))
             .unwrap_or_default();
-        // The compatibility guard, against the frozen baseline, as the build
-        // applies it.
+        // The compatibility guard, against the frozen baseline, and the
+        // older releases, each projected and checked, as the build applies
+        // them. Both read the frozen releases this server keeps.
         let mut baseline_notes = Vec::new();
         let config = config.unwrap_or_default();
+        let mut versions =
+            crucible_lang::versions_in(&package, &compiled, own, &config, &self.releases);
         match crucible_lang::guard_in(&package, &compiled, own, &config, &self.releases) {
             None => {}
             Some(Err(problem)) => baseline_notes.push((true, problem)),
             Some(Ok(guard)) => {
+                versions.without(&guard);
                 let (placed, unplaced) = policy::compatibility(&compiled, own, guard);
                 policy.extend(placed);
                 baseline_notes.extend(unplaced);
+            }
+        }
+        let (placed, unplaced) = policy::versions(versions);
+        policy.extend(placed);
+        // A release that does not load stops the guard and the chain alike.
+        for note in unplaced {
+            if !baseline_notes.contains(&note) {
+                baseline_notes.push(note);
             }
         }
         Unit {

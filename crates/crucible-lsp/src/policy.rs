@@ -138,6 +138,30 @@ pub fn compatibility(
     (placed, unplaced)
 }
 
+/// What building and checking the older releases found, at its place:
+/// a step, a reused name, an example a release leaves out. A problem with
+/// no place in a model file shows on the manifest.
+pub fn versions(versions: crucible_lang::Versions) -> (Vec<Finding>, Vec<(bool, String)>) {
+    let mut placed = Vec::new();
+    let mut unplaced = Vec::new();
+    for item in versions.diagnostics {
+        let Some(file) = item.file else {
+            unplaced.push((item.diagnostic.is_error(), item.diagnostic.message));
+            continue;
+        };
+        placed.push(Finding {
+            file,
+            start: item.diagnostic.span.start,
+            end: item.diagnostic.span.end,
+            error: item.diagnostic.is_error(),
+            rule: "versions".into(),
+            message: item.diagnostic.message,
+            rename: None,
+        });
+    }
+    (placed, unplaced)
+}
+
 /// Where the name of `id`'s declaration is written in the package's own
 /// files: the declaration's span covers its body; this is its name.
 fn name_of(compiled: &Compiled, own: usize, id: &ShapeId) -> Option<(usize, u32, u32)> {

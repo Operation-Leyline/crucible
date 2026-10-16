@@ -700,6 +700,37 @@ version's section when it is prepared.
 
 ### Changed
 
+- `.cru`: the compiler projects the current model back to every older
+  release it serves and checks the projection against the frozen release
+  (decisions 68-71 in [docs/idl/decisions.md](docs/idl/decisions.md);
+  [docs/api-versions-clients.md](docs/api-versions-clients.md#the-check)),
+  in the build, `crucible check`, `generate`, `compile` and the editor.
+  The check is the guard's comparison with both families at error,
+  whatever `[compatibility]` says, and the manifest's `[[exceptions]]`; a
+  finding is reported once, at the step that names it or at the
+  migration's `from`, naming the release and the migration that should
+  have declared it. New refusals, each at the new declaration or the
+  step: a member named as an older name of a renamed one, a member
+  removed under an exception and added again, an operation named as a
+  removed one, a route a moved or removed operation had, a shape id a
+  restored definition reaches declared again as a different shape, a
+  value a step downgrades to removed since, a shape renamed since a step
+  named it, and a step whose newer side was removed under an exception
+  while its older side is not excepted too (excepted too, the step is
+  inert, with a warning). An example a release cannot hold is left out of
+  it with a warning at the example. Packages: `tests/models/version-*`
+  (see *Migration*).
+- `crucible_lang::versions` and `versions_in` return `Versions`: the
+  versions and every diagnostic with its file and span, across every
+  migration and projection, instead of the first problem as a string
+  (`has_errors`, `render`, `into_result`, and `without(&Guard)`, which
+  leaves out what the guard reports already). An older migration's step
+  resolves its newer side against the newer release's projection.
+- `ApiVersion::release` holds an older release's frozen model, beside
+  `service`, the model it is served from, which is still the frozen
+  release. Undo, the release history, the audience view of older releases
+  and `describe.json`'s older definitions read `release`.
+
 - Every generated SDK package, in all 14 languages, now carries a
   generated `README.md` (install line with the exact package and
   version, client construction, a complete call, pagination, errors,
@@ -1050,6 +1081,20 @@ version's section when it is prepared.
   feature is refused with a message naming it.
 
 ### Fixed
+
+- The compatibility guard follows a migration's renames into permission
+  requirements: a `requires .. when` condition or a binding that reads a
+  renamed input member is the same clause by its new name, not a new
+  requirement, so no spurious `compatibility.authorization` warning
+  (#346). The walk is the projection's, now
+  `crucible_ir::versions::rename_path`.
+- A `retype` declares the binding change it causes: a payload's kind and
+  media type following its target, and a member moved between the JSON
+  body and the payload (`compatibility.bindings`, and for a move
+  `compatibility.member` and `compatibility.required` on the member),
+  when the members the migration retypes explain the operation's whole
+  binding change. `tests/models/version-projection-payload` needs no
+  exception for it any more (#348).
 
 - Examples and defaults are checked against `range` the way the generated
   server checks a request (#337). A `bigDecimal`, a `bigInteger` and every
@@ -1592,6 +1637,40 @@ version's section when it is prepared.
   they named client text: see *Migration*.
 
 ### Migration
+
+- **Older releases are checked as the current model sees them.** A
+  versioned `.cru` package that builds today can be refused, at the place
+  each diagnostic names:
+  - a name an older release still uses, reused by the current model (a
+    renamed member's older name, a member removed under an exception, a
+    removed operation's name, a moved or removed operation's route, a
+    removed definition's shape id): give the new declaration another name
+    or route while that release is supported, or drop the release (its
+    migration and frozen file);
+  - a value an `add .. downgrade` step downgrades to, or an error or
+    member a step maps, removed since: keep it, `@deprecated`, until the
+    release is dropped;
+  - a shape renamed since a step named it: keep its name while the
+    release is supported;
+  - a `remove operation` whose operation's requirements no longer name a
+    current permission (its resource's identifiers or parents changed
+    since), which the Rust server generator used to report: the compiler
+    now refuses it at the step, as the projection of that release cannot
+    be built;
+  - a step whose newer side was removed under an exception: except the
+    older side's findings too (the step is then inert, with a warning), or
+    keep the member;
+  - a projection that is not its frozen release, such as an addition a
+    package with `sdk_source` at `warning` accepted for its current line:
+    the older lines receive it in a minor release, so except it in
+    `[[exceptions]]` (`rule` and `shape` as the message names them), or
+    declare a step.
+- **`crucible_lang::versions` returns `Versions`, not a `Result`.** Read
+  `versions.versions` after checking `has_errors()`, render the problems
+  with `render(&compiled)`, or call `into_result(&compiled)` for the old
+  `Result<Vec<ApiVersion>, String>` shape. Call `without(&guard)` before
+  showing them beside the guard's. Code that builds an `ir::ApiVersion`
+  sets `release`, the frozen model, as well as `service`.
 
 - **Generated SDK packages own `README.md` and `AGENTS.md`.** A package
   directory that already holds a handwritten one, which generation did not

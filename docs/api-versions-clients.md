@@ -421,6 +421,38 @@ recomputed on the projection (decision 73):
   removes becomes the downgrade. Every operation's fixed protocol headers
   (`Protocol::request_headers`, `response_headers`) and greedy-label
   feature use are recomputed from its projected bindings and route.
+- **What PR 5 settled in building it.** `crucible_lang::versions`
+  returns `Versions`: the versions, and every diagnostic with its file and
+  span (`has_errors`, `render`, `into_result`). The build, `check`,
+  `generate`, `compile` and the editor run the guard and then the
+  versions through one `Releases`, and `Versions::without(&guard)` leaves
+  out what the guard reports already: the same problem at the same place
+  (the newest migration's steps and drops, which both check), and a
+  finding of the check the guard reports as an undeclared error. A
+  finding the guard's settings make a warning stays, at error. Findings
+  are shown once by rule and id, at the newest release that has them, at
+  the step whose ids name the finding's (else at the migration's `from`).
+  The check reports only error findings: `compatibility.authorization`
+  is a warning by design, and the guard reports it where the requirement
+  was added. A step that no longer resolves against the newer projection
+  but did against the release it was written for is one of three things:
+  a name the release still uses, taken since (decision 69, at the new
+  declaration); a shape gone since (decision 71, at the step; an
+  operation gone since was retired, which the check judges); or a newer
+  side removed since (decision 70), an error at the step naming the
+  exceptions that removed it and the older ids still open, or, when the
+  check finds nothing open at the older side, an inert step left out of
+  `ApiVersion::steps` with a warning. What a collision, a refused drop or
+  a gone shape explains is not reported again by the check. A colliding
+  step is left out of the undo, so `validate::service` runs on each
+  projection with no targeted collision. Every older migration's steps are
+  lowered against the newer projection (same ids, as decision 71 has it),
+  and their messages name the release: `release "v1"`, or `release "v1"
+  as the current model sees it` for the re-check against projections.
+  `ApiVersion::release` holds the frozen model and `service` is still
+  frozen too; undo, the history, the audience view of older releases and
+  `describe.json`'s older definitions read `release`, so PR 6 changes
+  `service` alone.
 - **Release first, audience second.** `project(projected(r), audience)`:
   undo needs the internal shapes a step may name. The audience projection
   never touches `Service::versions` (`audience.rs:17`), so an external
@@ -676,7 +708,7 @@ symbol to its own.
 ## Order
 
 Each line is one pull request, in this order unless it says otherwise. 5a
-is built, and so are PRs 1 to 4.
+is built, and so are PRs 1 to 5.
 
 1. **Steps carry both sides.** *Built.* `VersionStep::Require` gains `old`
    and `from`, `Hook::Require` gains `from`, `AddEnumValue` gains `old`,
@@ -756,7 +788,7 @@ is built, and so are PRs 1 to 4.
    documentation aside, where nothing added since reaches it; for every
    step, that undoing its migration without it leaves a finding; and
    edited IR for what the compiler will refuse.
-5. **The compiler projects and checks.** `versions()` resolves steps
+5. **The compiler projects and checks.** *Built.* `versions()` resolves steps
    newest first against projections, re-checks them, refuses collisions
    and lost old sides, runs the projection check, surfaces
    `Projection::warnings` with spans at the examples, and returns every
@@ -773,7 +805,19 @@ is built, and so are PRs 1 to 4.
    step whose newer side was removed under an exception, an incompatible
    projection) with its diagnostic and position; one package with several
    problems, all reported; an LSP test of where one shows. CHANGELOG: the
-   new refusals, which can fail a model that builds today.
+   new refusals, which can fail a model that builds today. *As built:* the
+   packages are `tests/models/version-reused-member-name`,
+   `version-readded-member`, `version-reused-operation-name`,
+   `version-reused-route`, `version-reused-shape-id`,
+   `version-lost-downgrade`, `version-renamed-shape`,
+   `version-lost-newer-side` (and `version-inert-step`, the same with the
+   older side excepted too, a warning), `version-incompatible-projection`
+   and `version-many-problems`, checked in
+   `crucible-lang/tests/version_checks.rs`; the editor's test is
+   `crucible-lsp/tests/protocol.rs`. Two guard fixes the check relies on
+   came with it: a rename follows into permission bindings and `when`
+   paths (#346), and a `retype` declares the binding change it causes
+   (#348). See *What PR 5 settled*, below.
 6. **Serving projections.** `ApiVersion::service` becomes the projection;
    version modules, hooks and legacy handlers use projected types; hook
    methods name the operations that need them; empty conversions are

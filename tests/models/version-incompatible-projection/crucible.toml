@@ -1,0 +1,13 @@
+# Refused: a projection that is not its frozen release (decision 68). The
+# package runs `sdk_source` at warning, so the guard only warns about the
+# required member v2 adds to GetItem's output; v1 receives it too, and the
+# projection check runs both families at error whatever the settings, so the
+# break needs an exception. v1 is frozen under releases/; v2 is current.
+[model]
+namespace = "example.incompatible"
+
+[model.baseline]
+path = "releases/v1.json"
+
+[compatibility]
+sdk_source = { enabled = true, severity = "warning" }

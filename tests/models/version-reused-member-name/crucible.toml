@@ -1,0 +1,9 @@
+# Refused: a member named as the older name of a renamed one (decision 69).
+# v2 renames GetItem's `name` to `title`; v3 adds a new `name`, which a v1
+# request's `name` would also mean. v1 and v2 are frozen under releases/; v3 is
+# current.
+[model]
+namespace = "example.reused"
+
+[model.baseline]
+path = "releases/v2.json"

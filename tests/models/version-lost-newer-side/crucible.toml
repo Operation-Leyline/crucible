@@ -1,0 +1,20 @@
+# Refused: a step whose newer side was removed since under an exception
+# (decision 70). v2 renames GetItem's `name` to `title`; v3 removes `title`
+# under the exceptions below, but v1 still has `name`, which its clients would
+# lose unseen. Excepting `name` too leaves the step inert
+# (version-inert-step). v1 and v2 are frozen under releases/; v3 is current.
+[model]
+namespace = "example.lost"
+
+[model.baseline]
+path = "releases/v2.json"
+
+[[exceptions]]
+rule = "compatibility.member"
+shape = "example.lost#GetItemOutput$title"
+reason = "Items have no title any more"
+
+[[exceptions]]
+rule = "compatibility.sdk"
+shape = "example.lost#GetItemOutput$title"
+reason = "Items have no title any more"

@@ -1,0 +1,19 @@
+service Shop {
+    version "v3"
+    protocol json
+    operations [GetItem]
+}
+
+readonly operation GetItem {
+    http GET "/items/{id}"
+    input { id: string }
+    output {
+        name: string
+        /// The size again, as a new member.
+        size?: integer
+    }
+}
+
+migration "v2" from "v1" {}
+
+migration "v3" from "v2" {}

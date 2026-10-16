@@ -1,0 +1,29 @@
+# A step whose newer side was removed since under an exception, with its
+# older side excepted too: the step is inert, with a warning (decision 70).
+# version-lost-newer-side without the last two exceptions is refused. v1 and
+# v2 are frozen under releases/; v3 is current.
+[model]
+namespace = "example.lost"
+
+[model.baseline]
+path = "releases/v2.json"
+
+[[exceptions]]
+rule = "compatibility.member"
+shape = "example.lost#GetItemOutput$title"
+reason = "Items have no title any more"
+
+[[exceptions]]
+rule = "compatibility.sdk"
+shape = "example.lost#GetItemOutput$title"
+reason = "Items have no title any more"
+
+[[exceptions]]
+rule = "compatibility.member"
+shape = "example.lost#GetItemOutput$name"
+reason = "v1 clients lose the name with the title"
+
+[[exceptions]]
+rule = "compatibility.sdk"
+shape = "example.lost#GetItemOutput$name"
+reason = "v1 clients lose the name with the title"

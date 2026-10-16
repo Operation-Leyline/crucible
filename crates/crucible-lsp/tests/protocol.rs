@@ -1047,6 +1047,62 @@ fn breaking_changes_against_the_baseline_show_as_you_type() {
     client.stop();
 }
 
+/// What projecting an older release refuses shows where the build reports
+/// it: a member named as an older name of a renamed one, at the new member,
+/// and gone once it is renamed.
+#[test]
+fn a_name_an_older_release_still_uses_shows_at_the_new_declaration() {
+    let model =
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("../../tests/models/version-reused-member-name");
+    let dir = Path::new(env!("CARGO_TARGET_TMPDIR")).join("lsp-versions");
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(dir.join("releases")).unwrap();
+    for file in [
+        "crucible.toml",
+        "shop.cru",
+        "releases/v1.json",
+        "releases/v2.json",
+        "releases/crucible.lock",
+    ] {
+        std::fs::copy(model.join(file), dir.join(file)).unwrap();
+    }
+    let text = std::fs::read_to_string(dir.join("shop.cru")).unwrap();
+    let shop = uri(&dir.join("shop.cru"));
+    let mut client = Client::start();
+    client.open(&shop, &text);
+    let diagnostics = client.diagnostics(&shop);
+    let reused = diagnostics
+        .iter()
+        .find(|d| d["code"] == "versions")
+        .unwrap_or_else(|| panic!("{diagnostics:#?}"));
+    assert_eq!(reused["severity"], 1);
+    assert!(
+        reused["message"]
+            .as_str()
+            .unwrap()
+            .starts_with("`GetItemOutput.name` is the older name of `GetItemOutput.title`, which release \"v1\" still uses"),
+        "{reused:#?}"
+    );
+    assert_eq!(
+        reused["range"]["start"],
+        position(&text, "name?: string", 0)
+    );
+    assert_eq!(
+        reused["range"]["start"],
+        json!({ "line": 12, "character": 8 })
+    );
+
+    // Another name frees it.
+    let renamed = text.replace("name?: string", "nickname?: string");
+    client.change(&shop, 2, &renamed);
+    let diagnostics = client.diagnostics(&shop);
+    assert!(
+        diagnostics.iter().all(|d| d["severity"] != 1),
+        "{diagnostics:#?}"
+    );
+    client.stop();
+}
+
 #[test]
 fn nested_and_deleted_packages_stay_current() {
     let root = Path::new(env!("CARGO_TARGET_TMPDIR")).join("lsp-nested");

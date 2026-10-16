@@ -1,0 +1,19 @@
+# Refused: a member removed under an exception and added again while a
+# release that had it is supported (decision 69). v2 drops GetItem's `size`
+# under the exceptions below; v3 adds a new `size`, which would sit at v1's
+# `size` in v1's line. v1 and v2 are frozen under releases/; v3 is current.
+[model]
+namespace = "example.readded"
+
+[model.baseline]
+path = "releases/v2.json"
+
+[[exceptions]]
+rule = "compatibility.member"
+shape = "example.readded#GetItemOutput$size"
+reason = "v2 no longer reports a size"
+
+[[exceptions]]
+rule = "compatibility.sdk"
+shape = "example.readded#GetItemOutput$size"
+reason = "v2 no longer reports a size"

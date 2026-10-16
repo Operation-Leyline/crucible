@@ -1,0 +1,23 @@
+service Shop {
+    version "v3"
+    protocol json
+    operations [GetItem, CountItems]
+}
+
+readonly operation GetItem {
+    http GET "/items/{id}"
+    input { id: string }
+    output { name: string }
+}
+
+/// Counts the items again, at another route.
+readonly operation CountItems {
+    http GET "/items/count"
+    output { total: integer }
+}
+
+migration "v2" from "v1" {
+    remove operation CountItems
+}
+
+migration "v3" from "v2" {}

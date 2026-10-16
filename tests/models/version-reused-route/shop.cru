@@ -1,0 +1,24 @@
+service Shop {
+    version "v3"
+    protocol json
+    operations [GetItem, FindItem]
+}
+
+readonly operation GetItem {
+    http GET "/things/{id}"
+    input { id: string }
+    output { name: string }
+}
+
+/// Finds an item by its name.
+readonly operation FindItem {
+    http GET "/items/{name}"
+    input { name: string }
+    output { id: string }
+}
+
+migration "v2" from "v1" {
+    move GetItem from GET "/items/{id}"
+}
+
+migration "v3" from "v2" {}
