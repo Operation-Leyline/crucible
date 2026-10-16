@@ -86,8 +86,8 @@ pub mod empty {
             true,
             false,
             &[
-                ::crucible_server_runtime_rust::__generated::member_info("message", ::crucible_server_runtime_rust::__generated::operation::Location::Body, ::crucible_server_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_7, &[]),
-                ::crucible_server_runtime_rust::__generated::member_info("retryAfterSeconds", ::crucible_server_runtime_rust::__generated::operation::Location::Header("retry-after"), ::crucible_server_runtime_rust::__generated::operation::Scalar::Integer, &__redaction::R_6, &[]),
+                ::crucible_server_runtime_rust::__generated::member_info("message", ::crucible_server_runtime_rust::__generated::operation::Location::Body, ::crucible_server_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_1, &[]),
+                ::crucible_server_runtime_rust::__generated::member_info("retryAfterSeconds", ::crucible_server_runtime_rust::__generated::operation::Location::Header("retry-after"), ::crucible_server_runtime_rust::__generated::operation::Scalar::Integer, &__redaction::R_0, &[]),
             ],
         );
 
@@ -137,7 +137,7 @@ pub mod empty {
             false,
             false,
             &[
-                ::crucible_server_runtime_rust::__generated::member_info("message", ::crucible_server_runtime_rust::__generated::operation::Location::Body, ::crucible_server_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_7, &[]),
+                ::crucible_server_runtime_rust::__generated::member_info("message", ::crucible_server_runtime_rust::__generated::operation::Location::Body, ::crucible_server_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_1, &[]),
             ],
         );
 
@@ -193,9 +193,9 @@ pub mod empty {
             false,
             false,
             &[
-                ::crucible_server_runtime_rust::__generated::member_info("message", ::crucible_server_runtime_rust::__generated::operation::Location::Body, ::crucible_server_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_7, &[]),
-                ::crucible_server_runtime_rust::__generated::member_info("reason", ::crucible_server_runtime_rust::__generated::operation::Location::Body, ::crucible_server_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_5, &[]),
-                ::crucible_server_runtime_rust::__generated::member_info("fieldList", ::crucible_server_runtime_rust::__generated::operation::Location::Body, ::crucible_server_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_4, &[]),
+                ::crucible_server_runtime_rust::__generated::member_info("message", ::crucible_server_runtime_rust::__generated::operation::Location::Body, ::crucible_server_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_1, &[]),
+                ::crucible_server_runtime_rust::__generated::member_info("reason", ::crucible_server_runtime_rust::__generated::operation::Location::Body, ::crucible_server_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_7, &[]),
+                ::crucible_server_runtime_rust::__generated::member_info("fieldList", ::crucible_server_runtime_rust::__generated::operation::Location::Body, ::crucible_server_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_6, &[]),
             ],
         );
 
@@ -234,13 +234,13 @@ pub mod empty {
     #[allow(dead_code, unused_imports)]
     mod __redaction {
         use ::crucible_server_runtime_rust::__generated::operation::Redaction;
-        pub(super) static R_0: Redaction = Redaction::Structure(&[("message", &R_7), ("retryAfterSeconds", &R_6)]);
-        pub(super) static R_1: Redaction = Redaction::Structure(&[("message", &R_7)]);
-        pub(super) static R_2: Redaction = Redaction::Structure(&[("message", &R_7), ("reason", &R_5), ("fieldList", &R_4)]);
-        pub(super) static R_3: Redaction = Redaction::Structure(&[("name", &R_7), ("message", &R_7)]);
-        pub(super) static R_4: Redaction = Redaction::List(&R_3);
-        pub(super) static R_5: Redaction = Redaction::Public;
-        pub(super) static R_6: Redaction = Redaction::Public;
+        pub(super) static R_0: Redaction = Redaction::Public;
+        pub(super) static R_1: Redaction = Redaction::Public;
+        pub(super) static R_2: Redaction = Redaction::Structure(&[("message", &R_1), ("retryAfterSeconds", &R_0)]);
+        pub(super) static R_3: Redaction = Redaction::Structure(&[("message", &R_1)]);
+        pub(super) static R_4: Redaction = Redaction::Structure(&[("message", &R_1), ("reason", &R_7), ("fieldList", &R_6)]);
+        pub(super) static R_5: Redaction = Redaction::Structure(&[("name", &R_1), ("message", &R_1)]);
+        pub(super) static R_6: Redaction = Redaction::List(&R_5);
         pub(super) static R_7: Redaction = Redaction::Public;
     }
 

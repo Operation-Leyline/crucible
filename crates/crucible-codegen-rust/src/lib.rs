@@ -1,4 +1,4 @@
-//! The Smithy adaptor for Rust: generates, from one service, the code that
+//! The Rust generator: generates, from one service, the code that
 //! plugs it into the crucible framework. `crucible-build` runs it from a
 //! service's build script; the service includes the result with
 //! `crucible_server_runtime_rust::include_service!()`.
@@ -97,7 +97,7 @@ pub struct Options {
     /// Without it, only structures with `@crucible.protocols#strict` do.
     pub strict_inputs: bool,
     /// Fail generation if the model cannot supply a request rejection error.
-    /// Enabled by the single-crate Smithy build helper. Advanced services that
+    /// Enabled by the single-crate build helper. Advanced services that
     /// provide their own `on_rejection` handler leave this disabled.
     pub require_rejection: bool,
 }

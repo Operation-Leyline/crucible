@@ -56,6 +56,34 @@
     }
   ],
   "shapes": {
+    "crucible.api#Document": {
+      "kind": "document",
+      "sensitive": false
+    },
+    "crucible.api#Double": {
+      "kind": "number",
+      "sensitive": false
+    },
+    "crucible.api#Integer": {
+      "kind": "integer",
+      "sensitive": false
+    },
+    "crucible.api#Long": {
+      "kind": "integer",
+      "sensitive": false
+    },
+    "crucible.api#String": {
+      "kind": "string",
+      "sensitive": false
+    },
+    "crucible.api#Timestamp": {
+      "kind": "timestamp",
+      "sensitive": false
+    },
+    "crucible.api#Unit": {
+      "kind": "unit",
+      "sensitive": false
+    },
     "example.weather#CityId": {
       "kind": "string",
       "sensitive": false
@@ -91,7 +119,7 @@
         {
           "name": "population",
           "flag": "population",
-          "target": "smithy.api#Long",
+          "target": "crucible.api#Long",
           "description": "",
           "required": false,
           "sensitive": false
@@ -99,7 +127,7 @@
         {
           "name": "updatedAt",
           "flag": "updated-at",
-          "target": "smithy.api#Timestamp",
+          "target": "crucible.api#Timestamp",
           "description": "",
           "required": false,
           "sensitive": false,
@@ -109,7 +137,7 @@
         {
           "name": "createdAt",
           "flag": "created-at",
-          "target": "smithy.api#Timestamp",
+          "target": "crucible.api#Timestamp",
           "description": "Deprecated since 2026-08: Use updatedAt.",
           "required": false,
           "sensitive": false,
@@ -125,7 +153,7 @@
         {
           "name": "message",
           "flag": "message",
-          "target": "smithy.api#String",
+          "target": "crucible.api#String",
           "description": "",
           "required": true,
           "sensitive": false
@@ -139,7 +167,7 @@
         {
           "name": "latitude",
           "flag": "latitude",
-          "target": "smithy.api#Double",
+          "target": "crucible.api#Double",
           "description": "",
           "required": true,
           "sensitive": false
@@ -147,7 +175,7 @@
         {
           "name": "longitude",
           "flag": "longitude",
-          "target": "smithy.api#Double",
+          "target": "crucible.api#Double",
           "description": "",
           "required": true,
           "sensitive": false
@@ -177,7 +205,7 @@
         {
           "name": "clientToken",
           "flag": "client-token",
-          "target": "smithy.api#String",
+          "target": "crucible.api#String",
           "description": "",
           "required": false,
           "sensitive": false
@@ -185,7 +213,7 @@
         {
           "name": "expectedRevision",
           "flag": "expected-revision",
-          "target": "smithy.api#Long",
+          "target": "crucible.api#Long",
           "description": "",
           "required": false,
           "sensitive": false
@@ -213,7 +241,7 @@
     },
     "example.weather#Forecast": {
       "kind": "map",
-      "target": "smithy.api#Document",
+      "target": "crucible.api#Document",
       "sensitive": false
     },
     "example.weather#GetCityInput": {
@@ -262,7 +290,7 @@
         {
           "name": "requestId",
           "flag": "request-id",
-          "target": "smithy.api#String",
+          "target": "crucible.api#String",
           "description": "",
           "required": false,
           "sensitive": false
@@ -290,7 +318,7 @@
         {
           "name": "caption",
           "flag": "caption",
-          "target": "smithy.api#String",
+          "target": "crucible.api#String",
           "description": "",
           "required": false,
           "sensitive": false
@@ -312,7 +340,7 @@
         {
           "name": "nextToken",
           "flag": "next-token",
-          "target": "smithy.api#String",
+          "target": "crucible.api#String",
           "description": "",
           "required": false,
           "sensitive": false
@@ -320,7 +348,7 @@
         {
           "name": "maxResults",
           "flag": "max-results",
-          "target": "smithy.api#Integer",
+          "target": "crucible.api#Integer",
           "description": "",
           "required": false,
           "sensitive": false
@@ -350,7 +378,7 @@
         {
           "name": "nextToken",
           "flag": "next-token",
-          "target": "smithy.api#String",
+          "target": "crucible.api#String",
           "description": "",
           "required": false,
           "sensitive": false
@@ -372,7 +400,7 @@
         {
           "name": "unknown",
           "flag": "unknown",
-          "target": "smithy.api#Unit",
+          "target": "crucible.api#Unit",
           "description": "",
           "required": false,
           "sensitive": false
@@ -386,7 +414,7 @@
         {
           "name": "message",
           "flag": "message",
-          "target": "smithy.api#String",
+          "target": "crucible.api#String",
           "description": "",
           "required": true,
           "sensitive": false
@@ -394,7 +422,7 @@
         {
           "name": "resourceId",
           "flag": "resource-id",
-          "target": "smithy.api#String",
+          "target": "crucible.api#String",
           "description": "",
           "required": false,
           "sensitive": false
@@ -412,7 +440,7 @@
         {
           "name": "size",
           "flag": "size",
-          "target": "smithy.api#Integer",
+          "target": "crucible.api#Integer",
           "description": "",
           "required": true,
           "sensitive": false
@@ -428,7 +456,7 @@
         {
           "name": "caption",
           "flag": "caption",
-          "target": "smithy.api#String",
+          "target": "crucible.api#String",
           "description": "",
           "required": false,
           "sensitive": false
@@ -450,7 +478,7 @@
         {
           "name": "caption",
           "flag": "caption",
-          "target": "smithy.api#String",
+          "target": "crucible.api#String",
           "description": "",
           "required": false,
           "sensitive": false
@@ -496,7 +524,7 @@
     },
     "example.weather#Tags": {
       "kind": "list",
-      "target": "smithy.api#String",
+      "target": "crucible.api#String",
       "sensitive": false
     },
     "example.weather#ThrottlingError": {
@@ -505,7 +533,7 @@
         {
           "name": "message",
           "flag": "message",
-          "target": "smithy.api#String",
+          "target": "crucible.api#String",
           "description": "",
           "required": true,
           "sensitive": false
@@ -513,7 +541,7 @@
         {
           "name": "retryAfter",
           "flag": "retry-after",
-          "target": "smithy.api#Integer",
+          "target": "crucible.api#Integer",
           "description": "",
           "required": false,
           "sensitive": false
@@ -531,7 +559,7 @@
         {
           "name": "message",
           "flag": "message",
-          "target": "smithy.api#String",
+          "target": "crucible.api#String",
           "description": "",
           "required": true,
           "sensitive": false
@@ -555,7 +583,7 @@
         {
           "name": "requestId",
           "flag": "request-id",
-          "target": "smithy.api#String",
+          "target": "crucible.api#String",
           "description": "",
           "required": false,
           "sensitive": false
@@ -569,7 +597,7 @@
         {
           "name": "path",
           "flag": "path",
-          "target": "smithy.api#String",
+          "target": "crucible.api#String",
           "description": "",
           "required": true,
           "sensitive": false
@@ -577,7 +605,7 @@
         {
           "name": "message",
           "flag": "message",
-          "target": "smithy.api#String",
+          "target": "crucible.api#String",
           "description": "",
           "required": true,
           "sensitive": false
@@ -592,34 +620,6 @@
     },
     "example.weather#ValidationReason": {
       "kind": "string",
-      "sensitive": false
-    },
-    "smithy.api#Document": {
-      "kind": "document",
-      "sensitive": false
-    },
-    "smithy.api#Double": {
-      "kind": "number",
-      "sensitive": false
-    },
-    "smithy.api#Integer": {
-      "kind": "integer",
-      "sensitive": false
-    },
-    "smithy.api#Long": {
-      "kind": "integer",
-      "sensitive": false
-    },
-    "smithy.api#String": {
-      "kind": "string",
-      "sensitive": false
-    },
-    "smithy.api#Timestamp": {
-      "kind": "timestamp",
-      "sensitive": false
-    },
-    "smithy.api#Unit": {
-      "kind": "unit",
       "sensitive": false
     }
   }

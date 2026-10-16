@@ -1298,7 +1298,44 @@ these are working choices, changed freely as implementation teaches.
     prelude shape ids (`smithy.api#String`) as member targets, `renames`,
     `client_optional`, and auth scheme ids spelled as Smithy
     trait ids. Each is still produced by the Smithy front end that Leyline
-    and Pigeon build with today.
+    and Pigeon build with today. *Closed by 62c.*
+
+62c. **The built-in vocabulary is `crucible.api`; nothing in the IR is
+    Smithy-shaped.** The built-in types are `crucible.api#String` and the
+    rest, the bearer scheme is `crucible.api#httpBearerAuth`, and the
+    standard traits the lowering records while it works (`crucible.api#http`
+    and the like) share the namespace; `project_metadata_only` strips them,
+    with `crucible.protocols`, before the IR leaves the compiler.
+    `Service::renames` and `Member::client_optional` are gone: `.cru` has no
+    rename and a member's optionality is one fact for client and server
+    (decision 20). `project_metadata_only` no longer treats `aws.*` and
+    `smithy.test` as standard, since only Smithy models used them; a
+    package in such a namespace keeps its own traits. `crucible.api` is
+    reserved, and so is `smithy.api`, which older snapshots, infrastructure
+    bindings (a provider context `target`, mapped on read) and the
+    `when_trait` shim still use. Release snapshots move to format 5:
+    reading an older one maps each `smithy.api#..` id to its `crucible.api`
+    id in memory as it deserializes the IR, so exactly the positions the
+    IR's types declare as ids move and free-form text (a version, a title,
+    a default, an example, documentation, a raw trait's value) never does,
+    and drops
+    `client_optional` (a Smithy-era release reads its client-optional
+    members with the server's optionality); the file, and so its lock
+    digest, is never rewritten, and the compatibility guard compares the
+    mapped release with the current model. OpenAPI and JSON Schema
+    extensions are `x-crucible-*`, and `describe.json` keeps
+    `clientOptional`, always `false`, for `crucible.describe/1`'s readers.
+    The server runtime's `when_trait("smithy.api#readonly")` and
+    `"smithy.api#idempotent"` (and their `crucible.api` spellings) keep
+    working for one minor, deprecated in favour of `.when(|op| op.readonly)`
+    and `.when(|op| op.idempotent)`; any other built-in id selects nothing,
+    with a warning. When the shim goes, a built-in id passed to `when_trait`
+    panics as the scope is built.
+    *Why:* `.cru` is the only modelling language since the Smithy front end
+    was removed, and its own vocabulary should not name another IDL. The
+    lowering still keeps standard facts as raw `crucible.api` traits while it
+    works; replacing that scaffolding with typed values is internal to
+    `crucible-lang` and changes no output.
 
 63. **Acceptance is IR equality on modelled fields plus generated-output
     equality.** For every model that exists in both forms (the weather

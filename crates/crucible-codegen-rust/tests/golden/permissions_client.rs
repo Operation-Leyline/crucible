@@ -1276,8 +1276,8 @@ mod errors {
         true,
         false,
         &[
-            ::crucible_client_runtime_rust::__generated::member_info("message", ::crucible_client_runtime_rust::__generated::operation::Location::Body, ::crucible_client_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_32, &[]),
-            ::crucible_client_runtime_rust::__generated::member_info("retryAfterSeconds", ::crucible_client_runtime_rust::__generated::operation::Location::Header("retry-after"), ::crucible_client_runtime_rust::__generated::operation::Scalar::Integer, &__redaction::R_31, &[]),
+            ::crucible_client_runtime_rust::__generated::member_info("message", ::crucible_client_runtime_rust::__generated::operation::Location::Body, ::crucible_client_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_2, &[]),
+            ::crucible_client_runtime_rust::__generated::member_info("retryAfterSeconds", ::crucible_client_runtime_rust::__generated::operation::Location::Header("retry-after"), ::crucible_client_runtime_rust::__generated::operation::Scalar::Integer, &__redaction::R_1, &[]),
         ],
     );
 
@@ -1364,8 +1364,8 @@ mod errors {
         false,
         false,
         &[
-            ::crucible_client_runtime_rust::__generated::member_info("message", ::crucible_client_runtime_rust::__generated::operation::Location::Body, ::crucible_client_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_32, &[]),
-            ::crucible_client_runtime_rust::__generated::member_info("resourceType", ::crucible_client_runtime_rust::__generated::operation::Location::Body, ::crucible_client_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_32, &[]),
+            ::crucible_client_runtime_rust::__generated::member_info("message", ::crucible_client_runtime_rust::__generated::operation::Location::Body, ::crucible_client_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_2, &[]),
+            ::crucible_client_runtime_rust::__generated::member_info("resourceType", ::crucible_client_runtime_rust::__generated::operation::Location::Body, ::crucible_client_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_2, &[]),
         ],
     );
 
@@ -1462,9 +1462,9 @@ mod errors {
         false,
         false,
         &[
-            ::crucible_client_runtime_rust::__generated::member_info("message", ::crucible_client_runtime_rust::__generated::operation::Location::Body, ::crucible_client_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_32, &[]),
-            ::crucible_client_runtime_rust::__generated::member_info("reason", ::crucible_client_runtime_rust::__generated::operation::Location::Body, ::crucible_client_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_5, &[]),
-            ::crucible_client_runtime_rust::__generated::member_info("fieldList", ::crucible_client_runtime_rust::__generated::operation::Location::Body, ::crucible_client_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_4, &[]),
+            ::crucible_client_runtime_rust::__generated::member_info("message", ::crucible_client_runtime_rust::__generated::operation::Location::Body, ::crucible_client_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_2, &[]),
+            ::crucible_client_runtime_rust::__generated::member_info("reason", ::crucible_client_runtime_rust::__generated::operation::Location::Body, ::crucible_client_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_9, &[]),
+            ::crucible_client_runtime_rust::__generated::member_info("fieldList", ::crucible_client_runtime_rust::__generated::operation::Location::Body, ::crucible_client_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_8, &[]),
         ],
     );
 
@@ -1503,40 +1503,40 @@ pub use model::{ArchiveGraphInput, ArchiveGraphOutput, CreateGraphInput, CreateG
 #[allow(dead_code, unused_imports)]
 mod __redaction {
     use ::crucible_client_runtime_rust::__generated::operation::Redaction;
-    pub(super) static R_0: Redaction = Redaction::Structure(&[("message", &R_32), ("retryAfterSeconds", &R_31)]);
-    pub(super) static R_1: Redaction = Redaction::Structure(&[("message", &R_32), ("resourceType", &R_32)]);
-    pub(super) static R_2: Redaction = Redaction::Structure(&[("message", &R_32), ("reason", &R_5), ("fieldList", &R_4)]);
-    pub(super) static R_3: Redaction = Redaction::Structure(&[("name", &R_32), ("message", &R_32)]);
-    pub(super) static R_4: Redaction = Redaction::List(&R_3);
-    pub(super) static R_5: Redaction = Redaction::Public;
-    pub(super) static R_6: Redaction = Redaction::Structure(&[("organizationId", &R_24), ("graphId", &R_17)]);
-    pub(super) static R_7: Redaction = Redaction::Structure(&[("archived", &R_30)]);
-    pub(super) static R_8: Redaction = Redaction::Structure(&[("organizationId", &R_24), ("name", &R_32)]);
-    pub(super) static R_9: Redaction = Redaction::Structure(&[("created", &R_17)]);
-    pub(super) static R_10: Redaction = Redaction::Structure(&[("organizationId", &R_24), ("graphId", &R_17), ("query", &R_32), ("target", &R_25)]);
-    pub(super) static R_11: Redaction = Redaction::Structure(&[("rows", &R_23)]);
-    pub(super) static R_12: Redaction = Redaction::Structure(&[("organizationId", &R_24), ("graph", &R_17)]);
-    pub(super) static R_13: Redaction = Redaction::Structure(&[("name", &R_32)]);
-    pub(super) static R_14: Redaction = Redaction::Structure(&[("organizationId", &R_24)]);
-    pub(super) static R_15: Redaction = Redaction::Structure(&[("name", &R_32)]);
-    pub(super) static R_16: Redaction = Redaction::Structure(&[("subject", &R_32)]);
-    pub(super) static R_17: Redaction = Redaction::Public;
-    pub(super) static R_18: Redaction = Redaction::Structure(&[("status", &R_32)]);
-    pub(super) static R_19: Redaction = Redaction::Public;
-    pub(super) static R_20: Redaction = Redaction::Structure(&[("historyId", &R_19)]);
-    pub(super) static R_21: Redaction = Redaction::Structure(&[("organizationId", &R_24)]);
-    pub(super) static R_22: Redaction = Redaction::Structure(&[("names", &R_23)]);
-    pub(super) static R_23: Redaction = Redaction::List(&R_32);
-    pub(super) static R_24: Redaction = Redaction::Public;
-    pub(super) static R_25: Redaction = Redaction::Structure(&[("current", &R_33), ("history", &R_20)]);
-    pub(super) static R_26: Redaction = Redaction::Structure(&[("organizationId", &R_24), ("graphId", &R_17), ("historyId", &R_19)]);
-    pub(super) static R_27: Redaction = Redaction::Structure(&[("restored", &R_30)]);
-    pub(super) static R_28: Redaction = Redaction::Structure(&[("organizationId", &R_24), ("graphId", &R_17), ("mode", &R_32)]);
-    pub(super) static R_29: Redaction = Redaction::Structure(&[("rewritten", &R_30)]);
-    pub(super) static R_30: Redaction = Redaction::Public;
-    pub(super) static R_31: Redaction = Redaction::Public;
-    pub(super) static R_32: Redaction = Redaction::Public;
-    pub(super) static R_33: Redaction = Redaction::Public;
+    pub(super) static R_0: Redaction = Redaction::Public;
+    pub(super) static R_1: Redaction = Redaction::Public;
+    pub(super) static R_2: Redaction = Redaction::Public;
+    pub(super) static R_3: Redaction = Redaction::Public;
+    pub(super) static R_4: Redaction = Redaction::Structure(&[("message", &R_2), ("retryAfterSeconds", &R_1)]);
+    pub(super) static R_5: Redaction = Redaction::Structure(&[("message", &R_2), ("resourceType", &R_2)]);
+    pub(super) static R_6: Redaction = Redaction::Structure(&[("message", &R_2), ("reason", &R_9), ("fieldList", &R_8)]);
+    pub(super) static R_7: Redaction = Redaction::Structure(&[("name", &R_2), ("message", &R_2)]);
+    pub(super) static R_8: Redaction = Redaction::List(&R_7);
+    pub(super) static R_9: Redaction = Redaction::Public;
+    pub(super) static R_10: Redaction = Redaction::Structure(&[("organizationId", &R_28), ("graphId", &R_21)]);
+    pub(super) static R_11: Redaction = Redaction::Structure(&[("archived", &R_0)]);
+    pub(super) static R_12: Redaction = Redaction::Structure(&[("organizationId", &R_28), ("name", &R_2)]);
+    pub(super) static R_13: Redaction = Redaction::Structure(&[("created", &R_21)]);
+    pub(super) static R_14: Redaction = Redaction::Structure(&[("organizationId", &R_28), ("graphId", &R_21), ("query", &R_2), ("target", &R_29)]);
+    pub(super) static R_15: Redaction = Redaction::Structure(&[("rows", &R_27)]);
+    pub(super) static R_16: Redaction = Redaction::Structure(&[("organizationId", &R_28), ("graph", &R_21)]);
+    pub(super) static R_17: Redaction = Redaction::Structure(&[("name", &R_2)]);
+    pub(super) static R_18: Redaction = Redaction::Structure(&[("organizationId", &R_28)]);
+    pub(super) static R_19: Redaction = Redaction::Structure(&[("name", &R_2)]);
+    pub(super) static R_20: Redaction = Redaction::Structure(&[("subject", &R_2)]);
+    pub(super) static R_21: Redaction = Redaction::Public;
+    pub(super) static R_22: Redaction = Redaction::Structure(&[("status", &R_2)]);
+    pub(super) static R_23: Redaction = Redaction::Public;
+    pub(super) static R_24: Redaction = Redaction::Structure(&[("historyId", &R_23)]);
+    pub(super) static R_25: Redaction = Redaction::Structure(&[("organizationId", &R_28)]);
+    pub(super) static R_26: Redaction = Redaction::Structure(&[("names", &R_27)]);
+    pub(super) static R_27: Redaction = Redaction::List(&R_2);
+    pub(super) static R_28: Redaction = Redaction::Public;
+    pub(super) static R_29: Redaction = Redaction::Structure(&[("current", &R_3), ("history", &R_24)]);
+    pub(super) static R_30: Redaction = Redaction::Structure(&[("organizationId", &R_28), ("graphId", &R_21), ("historyId", &R_23)]);
+    pub(super) static R_31: Redaction = Redaction::Structure(&[("restored", &R_0)]);
+    pub(super) static R_32: Redaction = Redaction::Structure(&[("organizationId", &R_28), ("graphId", &R_21), ("mode", &R_2)]);
+    pub(super) static R_33: Redaction = Redaction::Structure(&[("rewritten", &R_0)]);
 }
 
 
@@ -1666,11 +1666,11 @@ static ARCHIVE_GRAPH_OPERATION: ::crucible_client_runtime_rust::__generated::Ope
     &[],
     200,
     &[
-        ::crucible_client_runtime_rust::__generated::member_info("organizationId", ::crucible_client_runtime_rust::__generated::operation::Location::Label, ::crucible_client_runtime_rust::__generated::operation::Scalar::String, &__redaction::R_24, &[]),
-        ::crucible_client_runtime_rust::__generated::member_info("graphId", ::crucible_client_runtime_rust::__generated::operation::Location::Label, ::crucible_client_runtime_rust::__generated::operation::Scalar::String, &__redaction::R_17, &[]),
+        ::crucible_client_runtime_rust::__generated::member_info("organizationId", ::crucible_client_runtime_rust::__generated::operation::Location::Label, ::crucible_client_runtime_rust::__generated::operation::Scalar::String, &__redaction::R_28, &[]),
+        ::crucible_client_runtime_rust::__generated::member_info("graphId", ::crucible_client_runtime_rust::__generated::operation::Location::Label, ::crucible_client_runtime_rust::__generated::operation::Scalar::String, &__redaction::R_21, &[]),
     ],
     &[
-        ::crucible_client_runtime_rust::__generated::member_info("archived", ::crucible_client_runtime_rust::__generated::operation::Location::Body, ::crucible_client_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_30, &[]),
+        ::crucible_client_runtime_rust::__generated::member_info("archived", ::crucible_client_runtime_rust::__generated::operation::Location::Body, ::crucible_client_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_0, &[]),
     ],
     &["NotFoundException", "ValidationException", "InternalServerException"],
     false,
@@ -1752,11 +1752,11 @@ static CREATE_GRAPH_OPERATION: ::crucible_client_runtime_rust::__generated::Oper
     &[],
     200,
     &[
-        ::crucible_client_runtime_rust::__generated::member_info("organizationId", ::crucible_client_runtime_rust::__generated::operation::Location::Label, ::crucible_client_runtime_rust::__generated::operation::Scalar::String, &__redaction::R_24, &[]),
-        ::crucible_client_runtime_rust::__generated::member_info("name", ::crucible_client_runtime_rust::__generated::operation::Location::Body, ::crucible_client_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_32, &[]),
+        ::crucible_client_runtime_rust::__generated::member_info("organizationId", ::crucible_client_runtime_rust::__generated::operation::Location::Label, ::crucible_client_runtime_rust::__generated::operation::Scalar::String, &__redaction::R_28, &[]),
+        ::crucible_client_runtime_rust::__generated::member_info("name", ::crucible_client_runtime_rust::__generated::operation::Location::Body, ::crucible_client_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_2, &[]),
     ],
     &[
-        ::crucible_client_runtime_rust::__generated::member_info("created", ::crucible_client_runtime_rust::__generated::operation::Location::Body, ::crucible_client_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_17, &[]),
+        ::crucible_client_runtime_rust::__generated::member_info("created", ::crucible_client_runtime_rust::__generated::operation::Location::Body, ::crucible_client_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_21, &[]),
     ],
     &["NotFoundException", "ValidationException", "InternalServerException"],
     false,
@@ -1838,13 +1838,13 @@ static EXECUTE_QUERY_OPERATION: ::crucible_client_runtime_rust::__generated::Ope
     &[],
     200,
     &[
-        ::crucible_client_runtime_rust::__generated::member_info("organizationId", ::crucible_client_runtime_rust::__generated::operation::Location::Label, ::crucible_client_runtime_rust::__generated::operation::Scalar::String, &__redaction::R_24, &[]),
-        ::crucible_client_runtime_rust::__generated::member_info("graphId", ::crucible_client_runtime_rust::__generated::operation::Location::Label, ::crucible_client_runtime_rust::__generated::operation::Scalar::String, &__redaction::R_17, &[]),
-        ::crucible_client_runtime_rust::__generated::member_info("query", ::crucible_client_runtime_rust::__generated::operation::Location::Body, ::crucible_client_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_32, &[]),
-        ::crucible_client_runtime_rust::__generated::member_info("target", ::crucible_client_runtime_rust::__generated::operation::Location::Body, ::crucible_client_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_25, &[]),
+        ::crucible_client_runtime_rust::__generated::member_info("organizationId", ::crucible_client_runtime_rust::__generated::operation::Location::Label, ::crucible_client_runtime_rust::__generated::operation::Scalar::String, &__redaction::R_28, &[]),
+        ::crucible_client_runtime_rust::__generated::member_info("graphId", ::crucible_client_runtime_rust::__generated::operation::Location::Label, ::crucible_client_runtime_rust::__generated::operation::Scalar::String, &__redaction::R_21, &[]),
+        ::crucible_client_runtime_rust::__generated::member_info("query", ::crucible_client_runtime_rust::__generated::operation::Location::Body, ::crucible_client_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_2, &[]),
+        ::crucible_client_runtime_rust::__generated::member_info("target", ::crucible_client_runtime_rust::__generated::operation::Location::Body, ::crucible_client_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_29, &[]),
     ],
     &[
-        ::crucible_client_runtime_rust::__generated::member_info("rows", ::crucible_client_runtime_rust::__generated::operation::Location::Body, ::crucible_client_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_23, &[]),
+        ::crucible_client_runtime_rust::__generated::member_info("rows", ::crucible_client_runtime_rust::__generated::operation::Location::Body, ::crucible_client_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_27, &[]),
     ],
     &["NotFoundException", "ValidationException", "InternalServerException"],
     false,
@@ -1926,11 +1926,11 @@ static GET_GRAPH_OPERATION: ::crucible_client_runtime_rust::__generated::Operati
     &[],
     200,
     &[
-        ::crucible_client_runtime_rust::__generated::member_info("organizationId", ::crucible_client_runtime_rust::__generated::operation::Location::Label, ::crucible_client_runtime_rust::__generated::operation::Scalar::String, &__redaction::R_24, &[]),
-        ::crucible_client_runtime_rust::__generated::member_info("graph", ::crucible_client_runtime_rust::__generated::operation::Location::Label, ::crucible_client_runtime_rust::__generated::operation::Scalar::String, &__redaction::R_17, &[]),
+        ::crucible_client_runtime_rust::__generated::member_info("organizationId", ::crucible_client_runtime_rust::__generated::operation::Location::Label, ::crucible_client_runtime_rust::__generated::operation::Scalar::String, &__redaction::R_28, &[]),
+        ::crucible_client_runtime_rust::__generated::member_info("graph", ::crucible_client_runtime_rust::__generated::operation::Location::Label, ::crucible_client_runtime_rust::__generated::operation::Scalar::String, &__redaction::R_21, &[]),
     ],
     &[
-        ::crucible_client_runtime_rust::__generated::member_info("name", ::crucible_client_runtime_rust::__generated::operation::Location::Body, ::crucible_client_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_32, &[]),
+        ::crucible_client_runtime_rust::__generated::member_info("name", ::crucible_client_runtime_rust::__generated::operation::Location::Body, ::crucible_client_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_2, &[]),
     ],
     &["NotFoundException", "ValidationException", "InternalServerException"],
     true,
@@ -2012,10 +2012,10 @@ static GET_ORGANIZATION_OPERATION: ::crucible_client_runtime_rust::__generated::
     &[],
     200,
     &[
-        ::crucible_client_runtime_rust::__generated::member_info("organizationId", ::crucible_client_runtime_rust::__generated::operation::Location::Label, ::crucible_client_runtime_rust::__generated::operation::Scalar::String, &__redaction::R_24, &[]),
+        ::crucible_client_runtime_rust::__generated::member_info("organizationId", ::crucible_client_runtime_rust::__generated::operation::Location::Label, ::crucible_client_runtime_rust::__generated::operation::Scalar::String, &__redaction::R_28, &[]),
     ],
     &[
-        ::crucible_client_runtime_rust::__generated::member_info("name", ::crucible_client_runtime_rust::__generated::operation::Location::Body, ::crucible_client_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_32, &[]),
+        ::crucible_client_runtime_rust::__generated::member_info("name", ::crucible_client_runtime_rust::__generated::operation::Location::Body, ::crucible_client_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_2, &[]),
     ],
     &["NotFoundException", "ValidationException", "InternalServerException"],
     true,
@@ -2099,7 +2099,7 @@ static GET_USER_OPERATION: ::crucible_client_runtime_rust::__generated::Operatio
     200,
     &[],
     &[
-        ::crucible_client_runtime_rust::__generated::member_info("subject", ::crucible_client_runtime_rust::__generated::operation::Location::Body, ::crucible_client_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_32, &[]),
+        ::crucible_client_runtime_rust::__generated::member_info("subject", ::crucible_client_runtime_rust::__generated::operation::Location::Body, ::crucible_client_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_2, &[]),
     ],
     &["ValidationException", "InternalServerException"],
     true,
@@ -2179,7 +2179,7 @@ static HEALTH_OPERATION: ::crucible_client_runtime_rust::__generated::OperationI
     200,
     &[],
     &[
-        ::crucible_client_runtime_rust::__generated::member_info("status", ::crucible_client_runtime_rust::__generated::operation::Location::Body, ::crucible_client_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_32, &[]),
+        ::crucible_client_runtime_rust::__generated::member_info("status", ::crucible_client_runtime_rust::__generated::operation::Location::Body, ::crucible_client_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_2, &[]),
     ],
     &["ValidationException", "InternalServerException"],
     true,
@@ -2258,10 +2258,10 @@ static LIST_GRAPHS_OPERATION: ::crucible_client_runtime_rust::__generated::Opera
     &[],
     200,
     &[
-        ::crucible_client_runtime_rust::__generated::member_info("organizationId", ::crucible_client_runtime_rust::__generated::operation::Location::Label, ::crucible_client_runtime_rust::__generated::operation::Scalar::String, &__redaction::R_24, &[]),
+        ::crucible_client_runtime_rust::__generated::member_info("organizationId", ::crucible_client_runtime_rust::__generated::operation::Location::Label, ::crucible_client_runtime_rust::__generated::operation::Scalar::String, &__redaction::R_28, &[]),
     ],
     &[
-        ::crucible_client_runtime_rust::__generated::member_info("names", ::crucible_client_runtime_rust::__generated::operation::Location::Body, ::crucible_client_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_23, &[]),
+        ::crucible_client_runtime_rust::__generated::member_info("names", ::crucible_client_runtime_rust::__generated::operation::Location::Body, ::crucible_client_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_27, &[]),
     ],
     &["NotFoundException", "ValidationException", "InternalServerException"],
     true,
@@ -2343,12 +2343,12 @@ static RESTORE_BACKUP_OPERATION: ::crucible_client_runtime_rust::__generated::Op
     &[],
     200,
     &[
-        ::crucible_client_runtime_rust::__generated::member_info("organizationId", ::crucible_client_runtime_rust::__generated::operation::Location::Label, ::crucible_client_runtime_rust::__generated::operation::Scalar::String, &__redaction::R_24, &[]),
-        ::crucible_client_runtime_rust::__generated::member_info("graphId", ::crucible_client_runtime_rust::__generated::operation::Location::Label, ::crucible_client_runtime_rust::__generated::operation::Scalar::String, &__redaction::R_17, &[]),
-        ::crucible_client_runtime_rust::__generated::member_info("historyId", ::crucible_client_runtime_rust::__generated::operation::Location::Label, ::crucible_client_runtime_rust::__generated::operation::Scalar::String, &__redaction::R_19, &[]),
+        ::crucible_client_runtime_rust::__generated::member_info("organizationId", ::crucible_client_runtime_rust::__generated::operation::Location::Label, ::crucible_client_runtime_rust::__generated::operation::Scalar::String, &__redaction::R_28, &[]),
+        ::crucible_client_runtime_rust::__generated::member_info("graphId", ::crucible_client_runtime_rust::__generated::operation::Location::Label, ::crucible_client_runtime_rust::__generated::operation::Scalar::String, &__redaction::R_21, &[]),
+        ::crucible_client_runtime_rust::__generated::member_info("historyId", ::crucible_client_runtime_rust::__generated::operation::Location::Label, ::crucible_client_runtime_rust::__generated::operation::Scalar::String, &__redaction::R_23, &[]),
     ],
     &[
-        ::crucible_client_runtime_rust::__generated::member_info("restored", ::crucible_client_runtime_rust::__generated::operation::Location::Body, ::crucible_client_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_30, &[]),
+        ::crucible_client_runtime_rust::__generated::member_info("restored", ::crucible_client_runtime_rust::__generated::operation::Location::Body, ::crucible_client_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_0, &[]),
     ],
     &["ValidationException", "InternalServerException"],
     false,
@@ -2428,12 +2428,12 @@ static REWRITE_GRAPH_OPERATION: ::crucible_client_runtime_rust::__generated::Ope
     &[],
     200,
     &[
-        ::crucible_client_runtime_rust::__generated::member_info("organizationId", ::crucible_client_runtime_rust::__generated::operation::Location::Label, ::crucible_client_runtime_rust::__generated::operation::Scalar::String, &__redaction::R_24, &[]),
-        ::crucible_client_runtime_rust::__generated::member_info("graphId", ::crucible_client_runtime_rust::__generated::operation::Location::Label, ::crucible_client_runtime_rust::__generated::operation::Scalar::String, &__redaction::R_17, &[]),
-        ::crucible_client_runtime_rust::__generated::member_info("mode", ::crucible_client_runtime_rust::__generated::operation::Location::Body, ::crucible_client_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_32, &[]),
+        ::crucible_client_runtime_rust::__generated::member_info("organizationId", ::crucible_client_runtime_rust::__generated::operation::Location::Label, ::crucible_client_runtime_rust::__generated::operation::Scalar::String, &__redaction::R_28, &[]),
+        ::crucible_client_runtime_rust::__generated::member_info("graphId", ::crucible_client_runtime_rust::__generated::operation::Location::Label, ::crucible_client_runtime_rust::__generated::operation::Scalar::String, &__redaction::R_21, &[]),
+        ::crucible_client_runtime_rust::__generated::member_info("mode", ::crucible_client_runtime_rust::__generated::operation::Location::Body, ::crucible_client_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_2, &[]),
     ],
     &[
-        ::crucible_client_runtime_rust::__generated::member_info("rewritten", ::crucible_client_runtime_rust::__generated::operation::Location::Body, ::crucible_client_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_30, &[]),
+        ::crucible_client_runtime_rust::__generated::member_info("rewritten", ::crucible_client_runtime_rust::__generated::operation::Location::Body, ::crucible_client_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_0, &[]),
     ],
     &["NotFoundException", "ValidationException", "InternalServerException"],
     false,

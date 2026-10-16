@@ -1,4 +1,4 @@
-//! Smithy `blob`: bytes. Inside a JSON body a blob is base64 (the standard
+//! A `blob`: bytes. Inside a JSON body a blob is base64 (the standard
 //! alphabet, padded); as an `@httpPayload` it is the whole HTTP body, raw.
 //!
 //! [`Blob`] holds [`Bytes`], so a payload read from a request or response
@@ -15,7 +15,7 @@ use serde::de::{self, Deserializer, Visitor};
 use serde::ser::Serializer;
 use serde::{Deserialize, Serialize};
 
-/// The bytes of a Smithy `blob`.
+/// The bytes of a `blob`.
 #[derive(Clone, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Blob(Bytes);
 

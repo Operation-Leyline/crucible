@@ -174,7 +174,7 @@ impl Compiled {
 }
 
 /// Why `namespace` cannot name a package, if it cannot: it is dot-separated
-/// identifiers, and the Smithy prelude's and bundled packages' namespaces are
+/// identifiers, and the prelude's and bundled packages' namespaces are
 /// taken.
 pub(crate) fn namespace_problem(namespace: &str) -> Option<String> {
     let valid = !namespace.is_empty()
@@ -187,10 +187,19 @@ pub(crate) fn namespace_problem(namespace: &str) -> Option<String> {
             "`{namespace}` is not a namespace: use dot-separated identifiers, such as `example.service`"
         ));
     }
-    if namespace == "smithy.api" || BUNDLED.iter().any(|(bundled, _)| *bundled == namespace) {
+    // `smithy.api` was the prelude's namespace: older release snapshots
+    // and bindings still spell built-ins in it, and the server runtime's
+    // `when_trait` reads two of its ids, so no package may define it.
+    if namespace == "smithy.api" {
+        return Some(format!(
+            "the namespace `{namespace}` is reserved: it was the prelude's, which `crucible.api` now is"
+        ));
+    }
+    let prelude = namespace == crucible_ir::PRELUDE;
+    if prelude || BUNDLED.iter().any(|(bundled, _)| *bundled == namespace) {
         return Some(format!(
             "the namespace `{namespace}` is reserved for {}",
-            if namespace == "smithy.api" {
+            if prelude {
                 "the prelude"
             } else {
                 "a bundled package"

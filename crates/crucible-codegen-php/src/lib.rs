@@ -1,4 +1,4 @@
-//! Native PHP client generation from lowered Smithy semantics.
+//! Native PHP client generation from the lowered IR.
 mod client;
 mod links;
 mod models;

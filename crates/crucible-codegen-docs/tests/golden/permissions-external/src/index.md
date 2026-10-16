@@ -10,7 +10,7 @@ Wire protocol: <code>crucibleJson</code>.
 
 ## Authentication
 
-- <code>smithy.api#httpBearerAuth</code>: <code>{&quot;kind&quot;:&quot;bearer&quot;}</code>
+- <code>crucible.api#httpBearerAuth</code>: <code>{&quot;kind&quot;:&quot;bearer&quot;}</code>
 
 Operations name what the caller must hold on which resource; [Permissions](permissions.md) lists every permission.
 

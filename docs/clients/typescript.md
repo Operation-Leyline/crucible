@@ -106,9 +106,9 @@ JSON nulls where present, but generated optional properties are not a general
 three-state presence API. Missing modeled defaults are applied during decoding.
 The decoder rejects absent or null nonoptional members (except a required
 `document` may hold JSON null), fractional integers, and integers outside their
-modeled width. Client optionality comes from the lowered IR, including
-`@clientOptional` and `@input`; TypeScript input interfaces continue to require
-`@required` input properties at compile time.
+modeled width. Client optionality comes from the lowered IR and matches the
+service's; TypeScript input interfaces require required input properties at
+compile time.
 
 `long` uses native `bigint`, covering the complete signed 64-bit range.
 The client preserves numeric JSON tokens until typed decoding, so a valid

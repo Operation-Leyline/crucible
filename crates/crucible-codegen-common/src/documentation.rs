@@ -1,5 +1,5 @@
-//! Smithy `@documentation` is CommonMark. Plain-text targets get `text`; the JVM
-//! doc dialects (Javadoc, KDoc, C# XML) get the subset Smithy models actually
+//! Model documentation is CommonMark. Plain-text targets get `text`; the JVM
+//! doc dialects (Javadoc, KDoc, C# XML) get the subset models actually
 //! use (paragraphs, lists, code, emphasis, links, headings), and anything else,
 //! raw HTML included, is escaped so it can neither break the markup nor close
 //! the surrounding comment. One CommonMark parser serves all of them.
@@ -377,7 +377,7 @@ pub fn lines(text: &str) -> Vec<&str> {
     out
 }
 
-/// Escapes plain prose (not Smithy Markdown) for a Javadoc body.
+/// Escapes plain prose (not model Markdown) for a Javadoc body.
 pub fn javadoc_text(text: &str) -> String {
     html_escape(&crate::docs::comment_text(text))
 }

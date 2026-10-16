@@ -4,7 +4,7 @@
 namespace Example.Weather.Models;
 
 /// <summary>
-/// Construct it with an object initializer. Smithy shape example.weather#GetCityOutput.
+/// Construct it with an object initializer. Model shape example.weather#GetCityOutput.
 /// </summary>
 public sealed class @GetCityOutput {
     /// <summary>

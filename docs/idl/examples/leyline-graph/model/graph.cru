@@ -1,11 +1,10 @@
-// Leyline, the Graph resource and three of its operations, ported from
-// leyline/smithy/src/main/smithy (resources/Graph.smithy, operations/graphs/*).
+// Leyline, the Graph resource and three of its operations, excerpted from
+// Leyline's model.
 // Documentation is abridged. This excerpt exists to show what the weather
 // model cannot: resources, property elision, include, enum-valued metadata,
 // a public operation with a payload, and the standard error package.
 
-// ---- project metadata (shapes/throttling-traits.smithy, audit-traits.smithy,
-//      suspension-traits.smithy) --------------------------------------------
+// ---- project metadata: throttling, audit and suspension ---------------------
 
 /// The request-rate class an operation is charged to. Every operation has
 /// exactly one (rules.metadata in crucible.toml).
@@ -35,7 +34,7 @@ metadata auditExcluded on operation: string { length 1.. } conflicts auditCatego
 /// Include this validated input field in the audit request projection.
 metadata auditField on member conflicts sensitive
 
-// ---- the resource (resources/Graph.smithy) ---------------------------------
+// ---- the resource ----------------------------------------------------------
 
 /// One graph: nodes, the edges between them, and the properties on both.
 /// A graph is the unit of isolation. Leyline assigns the identifier; you
@@ -136,7 +135,7 @@ structure GraphData for Graph {
 /// One page of results: at most `MaxResults`.
 list GraphList: GraphData { length ..100 }
 
-// ---- operations (operations/graphs/*.smithy) -------------------------------
+// ---- operations ------------------------------------------------------------
 
 /// Create a graph.
 ///
@@ -337,7 +336,7 @@ public operation RecordStripeEvent {
     }
 }
 
-// ---- errors (shapes/errors.smithy) ------------------------------------------
+// ---- errors ----------------------------------------------------------------
 
 /// What went wrong, in plain language, for people to read. Never match on it
 /// in code: it may be reworded at any time.

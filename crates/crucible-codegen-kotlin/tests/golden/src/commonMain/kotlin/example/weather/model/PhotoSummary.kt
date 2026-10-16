@@ -3,7 +3,7 @@
 package example.weather.model
 
 /**
- * Build one with `PhotoSummary { ... }` or `copy { ... }`; it is immutable. Smithy shape `example.weather#PhotoSummary`.
+ * Build one with `PhotoSummary { ... }` or `copy { ... }`; it is immutable. Model shape `example.weather#PhotoSummary`.
  *
  * Unstable.
  *

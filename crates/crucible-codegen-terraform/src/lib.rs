@@ -174,7 +174,7 @@ fn descriptor(service: &Service, resource: &Resource, errors: &mut Diagnostics) 
                     _ => None,
                 });
         let mut description = json!({"Kind":kind,"Required":property.required,"Immutable":property.immutable,"Sensitive":property.sensitive,"Description":property.docs.clone().unwrap_or_default(),"Enum":enum_values,"MinLength":property.constraints.length.as_ref().and_then(|b|b.min),"MaxLength":property.constraints.length.as_ref().and_then(|b|b.max),"Min":property.constraints.range.as_ref().and_then(|b|b.min.as_ref()),"Max":property.constraints.range.as_ref().and_then(|b|b.max.as_ref())});
-        // Terraform int64 must not admit values outside the narrower Smithy type.
+        // Terraform int64 must not admit values outside the narrower model type.
         let limits = match service.shape(&property.target) {
             Some(Shape::Simple(s)) => match s.kind {
                 SimpleKind::Byte => Some((-128i64, 127i64)),

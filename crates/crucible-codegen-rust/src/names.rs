@@ -41,7 +41,7 @@ pub(crate) fn variant(name: &str) -> String {
 
 /// Diagnoses members that share a Rust spelling after case conversion
 /// (`fooBar` and `foo_bar` are both `foo_bar`), which would declare one field,
-/// builder method or variant twice. Valid Smithy; not representable in Rust.
+/// builder method or variant twice. A valid model; not representable in Rust.
 pub(crate) fn check_distinct<'a>(
     owner: &ShapeId,
     members: impl Iterator<Item = &'a str>,
@@ -62,9 +62,9 @@ pub(crate) fn check_distinct<'a>(
 }
 
 /// Diagnoses model types Rust cannot declare under their model names: a
-/// keyword (`type`, `match`) or `Self`. Valid Smithy, but a raw `r#type`
+/// keyword (`type`, `match`) or `Self`. A valid model, but a raw `r#type`
 /// would not survive the names built from it (`typeBuilder`), so the model
-/// renames the shape instead (a service `rename`).
+/// renames the shape instead.
 pub(crate) fn check_type_names(service: &Service, diagnostics: &mut Diagnostics) {
     for id in service.shapes.keys() {
         let name = service.name_of(id);
@@ -290,7 +290,7 @@ pub(crate) fn documented_text(
     doc(out, indent, Some(&text));
     if let Some(deprecated) = &notes.deprecated {
         if deprecated.since.is_some() {
-            // Smithy's since is free-form text, including dates, not a Rust
+            // `@deprecated`'s since is free-form text, including dates, not a Rust
             // package version. Preserve it without imposing Clippy's semver rule.
             out.push_str(&format!("{indent}#[allow(clippy::deprecated_semver)]\n"));
         }

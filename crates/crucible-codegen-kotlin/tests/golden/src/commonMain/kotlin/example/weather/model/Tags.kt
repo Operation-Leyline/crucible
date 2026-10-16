@@ -3,6 +3,6 @@
 package example.weather.model
 
 /**
- * A list of `smithy.api#String`.
+ * A list of `crucible.api#String`.
  */
 typealias `Tags` = kotlin.collections.List<kotlin.String>

@@ -3,7 +3,12 @@ use std::str::FromStr;
 
 use serde::{Deserialize, Deserializer};
 
-/// An absolute Smithy shape id: `namespace#Name`, or `namespace#Name$member`.
+/// The namespace of the built-in types (`crucible.api#String`), which no
+/// model file declares, and of the standard vocabulary the `.cru` lowering
+/// uses while it works (decision 62c in docs/idl/decisions.md).
+pub const PRELUDE: &str = "crucible.api";
+
+/// An absolute shape id: `namespace#Name`, or `namespace#Name$member`.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ShapeId {
     namespace: String,
@@ -48,9 +53,30 @@ impl ShapeId {
         Self::new(&self.namespace, &self.name)
     }
 
-    /// The Smithy prelude: `smithy.api`, whose shapes no model file declares.
+    /// A built-in in the [`PRELUDE`] namespace: `ShapeId::prelude("String")`
+    /// is `crucible.api#String`.
+    pub fn prelude(name: &str) -> Self {
+        Self::new(PRELUDE, name)
+    }
+
+    /// The id as Crucible spells it now: one in the `smithy.api` namespace,
+    /// which release snapshots and infrastructure bindings written before
+    /// the prelude moved still use, becomes its [`PRELUDE`] id (decision 62c
+    /// in docs/idl/decisions.md). Every other id is unchanged.
+    pub fn with_current_prelude(self) -> Self {
+        if self.namespace == "smithy.api" {
+            Self {
+                namespace: PRELUDE.to_owned(),
+                ..self
+            }
+        } else {
+            self
+        }
+    }
+
+    /// Whether the id is in the [`PRELUDE`], whose shapes no model file declares.
     pub fn is_prelude(&self) -> bool {
-        self.namespace == "smithy.api"
+        self.namespace == PRELUDE
     }
 }
 
@@ -97,8 +123,41 @@ impl fmt::Display for ShapeId {
 impl<'de> Deserialize<'de> for ShapeId {
     fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
         let text = String::deserialize(deserializer)?;
-        text.parse().map_err(serde::de::Error::custom)
+        let id: ShapeId = text.parse().map_err(serde::de::Error::custom)?;
+        Ok(READ_MAP.with(|map| match &*map.borrow() {
+            Some(map) => map(id),
+            None => id,
+        }))
     }
+}
+
+type IdMap = std::rc::Rc<dyn Fn(ShapeId) -> ShapeId>;
+
+thread_local! {
+    /// The rewrite [`mapping_ids`] applies to every id deserialized on this
+    /// thread while it runs.
+    static READ_MAP: std::cell::RefCell<Option<IdMap>> = const { std::cell::RefCell::new(None) };
+}
+
+/// Runs `read` with every [`ShapeId`] deserialized on this thread passed
+/// through `map`: each place the IR's types store an id (a field, a list
+/// item or a map key typed `ShapeId`), and nothing else, since free-form
+/// strings, values and documentation are not ids. Release snapshots map
+/// their retired prelude ids this way, so a new id field in the IR is
+/// mapped by its type alone.
+pub(crate) fn mapping_ids<T>(
+    map: impl Fn(ShapeId) -> ShapeId + 'static,
+    read: impl FnOnce() -> T,
+) -> T {
+    struct Reset(Option<IdMap>);
+    impl Drop for Reset {
+        fn drop(&mut self) {
+            READ_MAP.with(|map| *map.borrow_mut() = self.0.take());
+        }
+    }
+    let previous = READ_MAP.with(|slot| slot.borrow_mut().replace(std::rc::Rc::new(map)));
+    let _reset = Reset(previous);
+    read()
 }
 
 impl serde::Serialize for ShapeId {
@@ -113,7 +172,7 @@ mod tests {
 
     #[test]
     fn round_trips_shape_and_member_ids() {
-        for text in ["smithy.api#String", "dev.leyline#Graph$name", "a#B"] {
+        for text in ["crucible.api#String", "dev.leyline#Graph$name", "a#B"] {
             assert_eq!(text.parse::<ShapeId>().unwrap().to_string(), text);
         }
     }

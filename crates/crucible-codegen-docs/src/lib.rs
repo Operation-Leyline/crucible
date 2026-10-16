@@ -14,13 +14,19 @@ pub struct File {
     pub contents: String,
 }
 
+/// Whether `id` names a built-in type, which has no page of its own.
+pub(crate) fn builtin(id: &str) -> bool {
+    id.split_once('#')
+        .is_some_and(|(namespace, _)| namespace == crucible_ir::PRELUDE)
+}
+
 /// Generate all files before publication. The caller projects the audience first.
 pub fn generate(service: &Service) -> Result<Vec<File>, Diagnostics> {
     let description = describe::describe(service)?;
     let mut diagnostics = Diagnostics::default();
     let mut paths = std::collections::BTreeSet::new();
     for (id, item) in description.operations.iter().chain(&description.shapes) {
-        if id.starts_with("smithy.api#") {
+        if builtin(id) {
             continue;
         }
         let directory = if description.operations.contains_key(id) {

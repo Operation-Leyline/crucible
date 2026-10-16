@@ -49,20 +49,20 @@ member order follows the model.
 ## Extension metadata
 
 Standard OpenAPI fields describe the representable wire contract. Extensions
-retain semantics that OpenAPI does not express directly (the `x-smithy-` prefix
-is the extension namespace, kept for existing consumers):
+retain semantics that OpenAPI does not express directly, under the
+`x-crucible-` prefix:
 
 | Extension | Meaning |
 |---|---|
-| `x-smithy-service`, `x-smithy-shape`, `x-smithy-protocol` | Original service, operation, and protocol IDs |
-| `x-smithy-traits` | Original annotations, including custom traits |
-| `x-smithy-pagination` | Resolved pagination member paths |
-| `x-smithy-idempotency-token`, `x-smithy-idempotent`, `x-smithy-readonly` | Retry and token metadata |
-| `x-smithy-default` | Modeled default, including defaults that clients may omit |
-| `x-smithy-timestamp-format` | HTTP date or epoch-second representation |
-| `x-smithy-length` | Blob length in decoded bytes; base64 character length differs |
-| `x-smithy-decoded-schema` | Constraints before media-type header base64 encoding |
-| `x-smithy-errors`, `x-smithy-response-variants`, `x-smithy-retryable` | Modeled errors and per-response metadata |
+| `x-crucible-service`, `x-crucible-shape`, `x-crucible-protocol` | Service, operation, and protocol IDs |
+| `x-crucible-traits` | The model's own (custom) annotations |
+| `x-crucible-pagination` | Resolved pagination member paths |
+| `x-crucible-idempotency-token`, `x-crucible-idempotent`, `x-crucible-readonly` | Retry and token metadata |
+| `x-crucible-default` | Modeled default, including defaults that clients may omit |
+| `x-crucible-timestamp-format` | HTTP date or epoch-second representation |
+| `x-crucible-length` | Blob length in decoded bytes; base64 character length differs |
+| `x-crucible-decoded-schema` | Constraints before media-type header base64 encoding |
+| `x-crucible-errors`, `x-crucible-response-variants`, `x-crucible-retryable` | Modeled errors and per-response metadata |
 
 These extensions document behavior; generic OpenAPI tools need their own support
 to implement automatic tokens, pagination, and byte-length checks.
@@ -80,7 +80,8 @@ parameters and response headers for bound members, on the request and response
 bodies, and on the error response whose shape the example names. Bodies use JSON
 names and each member's timestamp format. Members whose bytes are re-encoded
 (media-type headers) and raw blob payloads have no faithful rendering and are
-omitted. The raw examples annotation is not repeated in `x-smithy-traits`.
+omitted. `x-crucible-traits` carries only the model's own annotations, never
+the examples.
 
 ## Diagnostics and limits
 

@@ -11,7 +11,7 @@ Wire protocol: <code>crucibleJson</code>.
 
 ## Authentication
 
-- <code>smithy.api#httpBearerAuth</code>: <code>{&quot;kind&quot;:&quot;bearer&quot;}</code>
+- <code>crucible.api#httpBearerAuth</code>: <code>{&quot;kind&quot;:&quot;bearer&quot;}</code>
 
 ## Service errors
 

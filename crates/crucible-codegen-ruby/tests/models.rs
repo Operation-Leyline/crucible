@@ -150,7 +150,7 @@ fn vault_files() -> Vec<crucible_codegen_ruby::File> {
 }
 
 #[test]
-fn smithy_documentation_reaches_models_and_client() {
+fn model_documentation_reaches_models_and_client() {
     let files = vault_files();
     let file = |path: &str| {
         &files

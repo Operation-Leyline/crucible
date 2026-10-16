@@ -101,7 +101,7 @@ class RuntimeTests(unittest.TestCase):
         import copy
         codec.shapes = copy.deepcopy(codec.shapes)
         codec.shapes["StringMap"] = copy.deepcopy(codec.shapes["example.weather#Forecast"])
-        codec.shapes["StringMap"]["value"]["target"] = "smithy.api#String"
+        codec.shapes["StringMap"]["value"]["target"] = "crucible.api#String"
         for decode in (False, True):
             with self.assertRaisesRegex(ValueError, "non-sparse"):
                 codec.convert("StringMap", {"key": None}, decode=decode)
@@ -150,7 +150,7 @@ class RuntimeTests(unittest.TestCase):
                     self.assertEqual(str(delta.days * 86400 + delta.seconds), instant["seconds"])
                     self.assertEqual(delta.microseconds * 1000, instant["nanoseconds"])
 
-    def test_ir_nullability_preserves_client_optional_and_document_null(self):
+    def test_ir_nullability_preserves_document_null(self):
         codec = _Codec(m._SCHEMA, m._CLASSES)
         self.assertIs(codec.convert("example.weather#ListCitiesInput", {}, decode=True).max_results, UNSET)
         self.assertEqual(codec.convert("example.weather#CreateCityInput", m.CreateCityInput(name="n", location=None)), {"name": "n", "location": None})
@@ -202,18 +202,18 @@ class RuntimeTests(unittest.TestCase):
         import math
         codec = _Codec(m._SCHEMA, m._CLASSES)
         # Extend shapes with Float and Double if they are not already there
-        if "smithy.api#Float" not in codec.shapes:
-            codec.shapes["smithy.api#Float"] = {"kind": "float"}
-        if "smithy.api#Double" not in codec.shapes:
-            codec.shapes["smithy.api#Double"] = {"kind": "double"}
+        if "crucible.api#Float" not in codec.shapes:
+            codec.shapes["crucible.api#Float"] = {"kind": "float"}
+        if "crucible.api#Double" not in codec.shapes:
+            codec.shapes["crucible.api#Double"] = {"kind": "double"}
             
         for target, value, expected in [
-            ("smithy.api#Float", float("nan"), "NaN"),
-            ("smithy.api#Double", float("inf"), "Infinity"),
-            ("smithy.api#Double", float("-inf"), "-Infinity"),
-            ("smithy.api#Double", Decimal("NaN"), "NaN"),
-            ("smithy.api#Double", Decimal("Infinity"), "Infinity"),
-            ("smithy.api#Double", Decimal("-Infinity"), "-Infinity"),
+            ("crucible.api#Float", float("nan"), "NaN"),
+            ("crucible.api#Double", float("inf"), "Infinity"),
+            ("crucible.api#Double", float("-inf"), "-Infinity"),
+            ("crucible.api#Double", Decimal("NaN"), "NaN"),
+            ("crucible.api#Double", Decimal("Infinity"), "Infinity"),
+            ("crucible.api#Double", Decimal("-Infinity"), "-Infinity"),
         ]:
             with self.subTest(target=target, value=value):
                 encoded = codec.bound({"target": target}, value)

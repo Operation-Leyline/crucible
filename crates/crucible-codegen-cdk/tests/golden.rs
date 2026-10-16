@@ -41,9 +41,9 @@ fn unsupported_targets_and_symbol_collisions_are_diagnostics() {
     let (mut service, bindings, options) = inputs();
     let mut plan = resolve(&service, &bindings).unwrap();
     plan.resources[0].properties.get_mut("Name").unwrap().target =
-        "smithy.api#Document".parse().unwrap();
+        "crucible.api#Document".parse().unwrap();
     service.shapes.insert(
-        "smithy.api#Document".parse().unwrap(),
+        "crucible.api#Document".parse().unwrap(),
         crucible_ir::ir::Shape::Unit { internal: false },
     );
     plan.resources[0].cdk.as_mut().unwrap().class_name = Some("CfnResource".into());
@@ -58,7 +58,9 @@ fn unsupported_targets_and_symbol_collisions_are_diagnostics() {
 #[test]
 fn absent_prelude_context_shapes_are_supported() {
     let (mut service, bindings, options) = inputs();
-    service.shapes.remove(&"smithy.api#String".parse().unwrap());
+    service
+        .shapes
+        .remove(&"crucible.api#String".parse().unwrap());
     let plan = resolve(&service, &bindings).unwrap();
     let files = emit(&service, &plan, &options).unwrap();
     assert!(files[0].contents.contains("readonly secretArn: string"));

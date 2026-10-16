@@ -40,7 +40,7 @@ public sealed class ActivityTelemetryHook : TelemetryHook
     public override void OnOperationStarted(OperationStarted e)
     {
         var activity = source.StartActivity(e.Service.Split('#')[^1] + "." + e.Operation, ActivityKind.Client, default(ActivityContext),
-            [new("rpc.system", "smithy"), new("rpc.service", e.Service), new("rpc.method", e.Operation)]);
+            [new("rpc.system", "crucible"), new("rpc.service", e.Service), new("rpc.method", e.Operation)]);
         if (activity is not null) activities[e.InvocationId] = activity;
     }
 

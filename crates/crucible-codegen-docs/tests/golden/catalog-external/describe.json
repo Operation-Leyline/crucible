@@ -58,12 +58,21 @@
       "input": "example.docs#ListItemsInput",
       "inputSchema": {
         "$defs": {
+          "crucible.api.Integer": {
+            "format": "int32",
+            "maximum": 2147483647,
+            "minimum": -2147483648,
+            "type": "integer"
+          },
+          "crucible.api.String": {
+            "type": "string"
+          },
           "example.docs.ListItemsInput": {
             "properties": {
               "nextToken": {
                 "anyOf": [
                   {
-                    "$ref": "#/$defs/smithy.api.String"
+                    "$ref": "#/$defs/crucible.api.String"
                   },
                   {
                     "type": "null"
@@ -76,26 +85,17 @@
                 "maximum": 100,
                 "minimum": 1,
                 "type": "integer",
-                "x-smithy-default": 10
+                "x-crucible-default": 10
               }
             },
             "type": "object"
-          },
-          "smithy.api.Integer": {
-            "format": "int32",
-            "maximum": 2147483647,
-            "minimum": -2147483648,
-            "type": "integer"
-          },
-          "smithy.api.String": {
-            "type": "string"
           }
         },
         "properties": {
           "nextToken": {
             "anyOf": [
               {
-                "$ref": "#/$defs/smithy.api.String"
+                "$ref": "#/$defs/crucible.api.String"
               },
               {
                 "type": "null"
@@ -108,7 +108,7 @@
             "maximum": 100,
             "minimum": 1,
             "type": "integer",
-            "x-smithy-default": 10
+            "x-crucible-default": 10
           }
         },
         "type": "object"
@@ -130,6 +130,12 @@
       "output": "example.docs#ListItemsOutput",
       "outputSchema": {
         "$defs": {
+          "crucible.api.BigInteger": {
+            "type": "integer"
+          },
+          "crucible.api.String": {
+            "type": "string"
+          },
           "example.docs.Content": {
             "deprecated": true,
             "externalDocs": {
@@ -150,12 +156,12 @@
                     "maxLength": 100,
                     "minLength": 1,
                     "type": "string",
-                    "x-smithy-deprecation": {
+                    "x-crucible-deprecation": {
                       "message": "Use the next revision.",
                       "since": "2026-09"
                     },
-                    "x-smithy-since": "2026-01",
-                    "x-smithy-unstable": true
+                    "x-crucible-since": "2026-01",
+                    "x-crucible-unstable": true
                   }
                 },
                 "required": [
@@ -167,7 +173,7 @@
                 "additionalProperties": false,
                 "properties": {
                   "amount": {
-                    "$ref": "#/$defs/smithy.api.BigInteger"
+                    "$ref": "#/$defs/crucible.api.BigInteger"
                   }
                 },
                 "required": [
@@ -176,12 +182,12 @@
                 "type": "object"
               }
             ],
-            "x-smithy-deprecation": {
+            "x-crucible-deprecation": {
               "message": "Use the next revision.",
               "since": "2026-09"
             },
-            "x-smithy-since": "2026-01",
-            "x-smithy-unstable": true
+            "x-crucible-since": "2026-01",
+            "x-crucible-unstable": true
           },
           "example.docs.Items": {
             "items": {
@@ -205,7 +211,7 @@
               "nextToken": {
                 "anyOf": [
                   {
-                    "$ref": "#/$defs/smithy.api.String"
+                    "$ref": "#/$defs/crucible.api.String"
                   },
                   {
                     "type": "null"
@@ -214,12 +220,6 @@
               }
             },
             "type": "object"
-          },
-          "smithy.api.BigInteger": {
-            "type": "integer"
-          },
-          "smithy.api.String": {
-            "type": "string"
           }
         },
         "properties": {
@@ -236,7 +236,7 @@
           "nextToken": {
             "anyOf": [
               {
-                "$ref": "#/$defs/smithy.api.String"
+                "$ref": "#/$defs/crucible.api.String"
               },
               {
                 "type": "null"
@@ -435,6 +435,12 @@
       "input": "example.docs#WriteItemInput",
       "inputSchema": {
         "$defs": {
+          "crucible.api.BigInteger": {
+            "type": "integer"
+          },
+          "crucible.api.String": {
+            "type": "string"
+          },
           "example.docs.Content": {
             "deprecated": true,
             "externalDocs": {
@@ -455,12 +461,12 @@
                     "maxLength": 100,
                     "minLength": 1,
                     "type": "string",
-                    "x-smithy-deprecation": {
+                    "x-crucible-deprecation": {
                       "message": "Use the next revision.",
                       "since": "2026-09"
                     },
-                    "x-smithy-since": "2026-01",
-                    "x-smithy-unstable": true
+                    "x-crucible-since": "2026-01",
+                    "x-crucible-unstable": true
                   }
                 },
                 "required": [
@@ -472,7 +478,7 @@
                 "additionalProperties": false,
                 "properties": {
                   "amount": {
-                    "$ref": "#/$defs/smithy.api.BigInteger"
+                    "$ref": "#/$defs/crucible.api.BigInteger"
                   }
                 },
                 "required": [
@@ -481,19 +487,19 @@
                 "type": "object"
               }
             ],
-            "x-smithy-deprecation": {
+            "x-crucible-deprecation": {
               "message": "Use the next revision.",
               "since": "2026-09"
             },
-            "x-smithy-since": "2026-01",
-            "x-smithy-unstable": true
+            "x-crucible-since": "2026-01",
+            "x-crucible-unstable": true
           },
           "example.docs.WriteItemInput": {
             "properties": {
               "clientToken": {
                 "anyOf": [
                   {
-                    "$ref": "#/$defs/smithy.api.String"
+                    "$ref": "#/$defs/crucible.api.String"
                   },
                   {
                     "type": "null"
@@ -505,7 +511,7 @@
                 "$ref": "#/$defs/example.docs.Content"
               },
               "itemId": {
-                "$ref": "#/$defs/smithy.api.String"
+                "$ref": "#/$defs/crucible.api.String"
               }
             },
             "required": [
@@ -513,19 +519,13 @@
               "item"
             ],
             "type": "object"
-          },
-          "smithy.api.BigInteger": {
-            "type": "integer"
-          },
-          "smithy.api.String": {
-            "type": "string"
           }
         },
         "properties": {
           "clientToken": {
             "anyOf": [
               {
-                "$ref": "#/$defs/smithy.api.String"
+                "$ref": "#/$defs/crucible.api.String"
               },
               {
                 "type": "null"
@@ -537,7 +537,7 @@
             "$ref": "#/$defs/example.docs.Content"
           },
           "itemId": {
-            "$ref": "#/$defs/smithy.api.String"
+            "$ref": "#/$defs/crucible.api.String"
           }
         },
         "required": [
@@ -558,6 +558,13 @@
       "output": "example.docs#WriteItemOutput",
       "outputSchema": {
         "$defs": {
+          "crucible.api.BigInteger": {
+            "type": "integer"
+          },
+          "crucible.api.Timestamp": {
+            "format": "date-time",
+            "type": "string"
+          },
           "example.docs.State": {
             "enum": [
               "READY"
@@ -588,19 +595,12 @@
                 ]
               },
               "total": {
-                "$ref": "#/$defs/smithy.api.BigInteger",
+                "$ref": "#/$defs/crucible.api.BigInteger",
                 "default": 1234567890123456789,
-                "x-smithy-default": 1234567890123456789
+                "x-crucible-default": 1234567890123456789
               }
             },
             "type": "object"
-          },
-          "smithy.api.BigInteger": {
-            "type": "integer"
-          },
-          "smithy.api.Timestamp": {
-            "format": "date-time",
-            "type": "string"
           }
         },
         "properties": {
@@ -626,9 +626,9 @@
             ]
           },
           "total": {
-            "$ref": "#/$defs/smithy.api.BigInteger",
+            "$ref": "#/$defs/crucible.api.BigInteger",
             "default": 1234567890123456789,
-            "x-smithy-default": 1234567890123456789
+            "x-crucible-default": 1234567890123456789
           }
         },
         "type": "object"
@@ -734,7 +734,7 @@
       },
       "id": "example.docs#Item",
       "identifiers": {
-        "itemId": "smithy.api#String"
+        "itemId": "crucible.api#String"
       },
       "internal": false,
       "lifecycle": {
@@ -798,6 +798,106 @@
     "version": "2026-10"
   },
   "shapes": {
+    "crucible.api#BigInteger": {
+      "constraints": {
+        "length": null,
+        "pattern": null,
+        "range": null,
+        "uniqueItems": false
+      },
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "id": "crucible.api#BigInteger",
+      "internal": false,
+      "kind": "bigInteger",
+      "members": [],
+      "name": "BigInteger",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false
+    },
+    "crucible.api#Integer": {
+      "constraints": {
+        "length": null,
+        "pattern": null,
+        "range": null,
+        "uniqueItems": false
+      },
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "id": "crucible.api#Integer",
+      "internal": false,
+      "kind": "integer",
+      "members": [],
+      "name": "Integer",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false
+    },
+    "crucible.api#String": {
+      "constraints": {
+        "length": null,
+        "pattern": null,
+        "range": null,
+        "uniqueItems": false
+      },
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "id": "crucible.api#String",
+      "internal": false,
+      "kind": "string",
+      "members": [],
+      "name": "String",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false
+    },
+    "crucible.api#Timestamp": {
+      "constraints": {
+        "length": null,
+        "pattern": null,
+        "range": null,
+        "uniqueItems": false
+      },
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "id": "crucible.api#Timestamp",
+      "internal": false,
+      "kind": "timestamp",
+      "members": [],
+      "name": "Timestamp",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false
+    },
     "example.docs#Content": {
       "documentation": {
         "html": "",
@@ -842,7 +942,7 @@
           "nullable": true,
           "required": false,
           "sensitive": false,
-          "target": "smithy.api#String",
+          "target": "crucible.api#String",
           "targetName": "String",
           "targetType": "string",
           "timestampFormat": "date-time",
@@ -874,7 +974,7 @@
           "nullable": true,
           "required": false,
           "sensitive": false,
-          "target": "smithy.api#BigInteger",
+          "target": "crucible.api#BigInteger",
           "targetName": "BigInteger",
           "targetType": "bigInteger",
           "timestampFormat": "date-time",
@@ -992,7 +1092,7 @@
           "nullable": true,
           "required": false,
           "sensitive": false,
-          "target": "smithy.api#String",
+          "target": "crucible.api#String",
           "targetName": "String",
           "targetType": "string",
           "timestampFormat": "date-time",
@@ -1027,7 +1127,7 @@
           "nullable": false,
           "required": false,
           "sensitive": false,
-          "target": "smithy.api#Integer",
+          "target": "crucible.api#Integer",
           "targetName": "Integer",
           "targetType": "integer",
           "timestampFormat": "date-time",
@@ -1112,7 +1212,7 @@
           "nullable": true,
           "required": false,
           "sensitive": false,
-          "target": "smithy.api#String",
+          "target": "crucible.api#String",
           "targetName": "String",
           "targetType": "string",
           "timestampFormat": "date-time",
@@ -1248,7 +1348,7 @@
           "nullable": true,
           "required": false,
           "sensitive": false,
-          "target": "smithy.api#String",
+          "target": "crucible.api#String",
           "targetName": "String",
           "targetType": "string",
           "timestampFormat": "date-time",
@@ -1301,7 +1401,7 @@
           "nullable": false,
           "required": true,
           "sensitive": false,
-          "target": "smithy.api#String",
+          "target": "crucible.api#String",
           "targetName": "String",
           "targetType": "string",
           "timestampFormat": "date-time",
@@ -1365,7 +1465,7 @@
           "nullable": true,
           "required": false,
           "sensitive": false,
-          "target": "smithy.api#String",
+          "target": "crucible.api#String",
           "targetName": "String",
           "targetType": "string",
           "timestampFormat": "date-time",
@@ -1450,7 +1550,7 @@
           "nullable": true,
           "required": false,
           "sensitive": false,
-          "target": "smithy.api#Timestamp",
+          "target": "crucible.api#Timestamp",
           "targetName": "Timestamp",
           "targetType": "timestamp",
           "timestampFormat": "date-time",
@@ -1482,7 +1582,7 @@
           "nullable": false,
           "required": false,
           "sensitive": false,
-          "target": "smithy.api#BigInteger",
+          "target": "crucible.api#BigInteger",
           "targetName": "BigInteger",
           "targetType": "bigInteger",
           "timestampFormat": "date-time",
@@ -1491,106 +1591,6 @@
         }
       ],
       "name": "WriteItemOutput",
-      "notes": {
-        "deprecated": null,
-        "externalDocs": {},
-        "since": null,
-        "unstable": false
-      },
-      "sensitive": false
-    },
-    "smithy.api#BigInteger": {
-      "constraints": {
-        "length": null,
-        "pattern": null,
-        "range": null,
-        "uniqueItems": false
-      },
-      "documentation": {
-        "html": "",
-        "markdown": "",
-        "text": ""
-      },
-      "id": "smithy.api#BigInteger",
-      "internal": false,
-      "kind": "bigInteger",
-      "members": [],
-      "name": "BigInteger",
-      "notes": {
-        "deprecated": null,
-        "externalDocs": {},
-        "since": null,
-        "unstable": false
-      },
-      "sensitive": false
-    },
-    "smithy.api#Integer": {
-      "constraints": {
-        "length": null,
-        "pattern": null,
-        "range": null,
-        "uniqueItems": false
-      },
-      "documentation": {
-        "html": "",
-        "markdown": "",
-        "text": ""
-      },
-      "id": "smithy.api#Integer",
-      "internal": false,
-      "kind": "integer",
-      "members": [],
-      "name": "Integer",
-      "notes": {
-        "deprecated": null,
-        "externalDocs": {},
-        "since": null,
-        "unstable": false
-      },
-      "sensitive": false
-    },
-    "smithy.api#String": {
-      "constraints": {
-        "length": null,
-        "pattern": null,
-        "range": null,
-        "uniqueItems": false
-      },
-      "documentation": {
-        "html": "",
-        "markdown": "",
-        "text": ""
-      },
-      "id": "smithy.api#String",
-      "internal": false,
-      "kind": "string",
-      "members": [],
-      "name": "String",
-      "notes": {
-        "deprecated": null,
-        "externalDocs": {},
-        "since": null,
-        "unstable": false
-      },
-      "sensitive": false
-    },
-    "smithy.api#Timestamp": {
-      "constraints": {
-        "length": null,
-        "pattern": null,
-        "range": null,
-        "uniqueItems": false
-      },
-      "documentation": {
-        "html": "",
-        "markdown": "",
-        "text": ""
-      },
-      "id": "smithy.api#Timestamp",
-      "internal": false,
-      "kind": "timestamp",
-      "members": [],
-      "name": "Timestamp",
       "notes": {
         "deprecated": null,
         "externalDocs": {},

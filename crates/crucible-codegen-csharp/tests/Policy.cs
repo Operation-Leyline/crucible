@@ -399,7 +399,7 @@ static class Program
             Check(await Outcome(client.ListRecordsAsync()) == "Denied", "adapter call outcome");
         var span = activities.Single();
         Check(span.DisplayName == "Records.ListRecords" && span.Kind == ActivityKind.Client, "span name and kind");
-        Check((string?)span.GetTagItem("rpc.system") == "smithy" && (string?)span.GetTagItem("rpc.service") == "example.policy#Records"
+        Check((string?)span.GetTagItem("rpc.system") == "crucible" && (string?)span.GetTagItem("rpc.service") == "example.policy#Records"
             && (string?)span.GetTagItem("rpc.method") == "ListRecords", "rpc tags");
         Check((string?)span.GetTagItem("error.type") == "Denied" && span.Status == ActivityStatusCode.Error, "error status");
         Check(Equals(span.GetTagItem("http.request.resend_count"), 1) && Equals(span.GetTagItem("crucible.attempts"), 2)

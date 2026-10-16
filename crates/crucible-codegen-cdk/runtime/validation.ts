@@ -76,7 +76,7 @@ export function validate(value: unknown, schema: any, shapes: any, path: string,
   }
 }
 
-// Smithy patterns are ECMA-262 regular expressions, which are valid without the
+// Model patterns are ECMA-262 regular expressions, which are valid without the
 // 'u' flag even when unicode mode rejects them (identity escapes, `[\w-.]`).
 // Prefer unicode mode where legal so non-BMP characters match as one code point.
 function compile(pattern: string): RegExp {

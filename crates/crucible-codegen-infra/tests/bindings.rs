@@ -36,7 +36,7 @@ fn bindings() -> Value {
         "name": "City",
         "properties": {"name": {"source": {"shape": "example.weather#CreateCityInput", "path": ["name"]}, "required": true}},
         "attributes": {"id": {"source": {"shape": "example.weather#CreateCityOutput", "path": ["city", "id"]}}},
-        "cdk": {"resource_type": "Custom::WeatherCity", "context": {"secretArn": {"target": "smithy.api#String", "required": true}}}
+        "cdk": {"resource_type": "Custom::WeatherCity", "context": {"secretArn": {"target": "crucible.api#String", "required": true}}}
     }}})
 }
 
@@ -63,6 +63,18 @@ fn resolves_nested_outputs_and_effective_member_constraints() {
     assert!(city.cdk.as_ref().unwrap().context["secretArn"].required);
 }
 
+/// Bindings written before the prelude moved name a built-in context type
+/// `smithy.api#String`; they read as the `crucible.api` one (decision 62c).
+#[test]
+fn a_retired_prelude_context_target_reads_as_the_current_one() {
+    let mut value = bindings();
+    value["resources"]["example.weather#City"]["cdk"]["context"]["secretArn"]["target"] =
+        json!("smithy.api#String");
+    let plan = resolve(&weather(), &serde_json::from_value(value).unwrap()).unwrap();
+    let context = &plan.resources[0].cdk.as_ref().unwrap().context["secretArn"];
+    assert_eq!(context.target.to_string(), "crucible.api#String");
+}
+
 #[test]
 fn bad_paths_and_unbound_resources_are_collected() {
     let service = weather();
@@ -87,7 +99,7 @@ fn cannot_override_model_types_or_expose_sensitive_parent() {
     );
     let mut value = bindings();
     value["resources"]["example.weather#City"]["properties"]["name"] =
-        json!({"target": "smithy.api#String"});
+        json!({"target": "crucible.api#String"});
     let errors = resolve(&service, &serde_json::from_value(value).unwrap()).unwrap_err();
     assert_eq!(errors.len(), 2);
     assert!(errors.to_string().contains("sensitive"));
@@ -112,7 +124,7 @@ fn provider_context_cannot_shadow_contract_and_unknown_policy_is_refused() {
     let service = weather();
     let mut value = bindings();
     value["resources"]["example.weather#City"]["cdk"]["context"]["name"] =
-        json!({"target": "smithy.api#String"});
+        json!({"target": "crucible.api#String"});
     let errors = resolve(&service, &serde_json::from_value(value.clone()).unwrap()).unwrap_err();
     assert!(errors.to_string().contains("shadows"));
     value["resources"]["example.weather#City"]["properties"]["name"]["requried"] = json!(true);
@@ -181,9 +193,9 @@ fn write_only_members_cannot_be_returned_as_attributes() {
 #[test]
 fn numeric_context_refinements_do_not_require_prelude_reachability() {
     let mut service = weather();
-    service.shapes.remove(&"smithy.api#Long".parse().unwrap());
+    service.shapes.remove(&"crucible.api#Long".parse().unwrap());
     let mut value = bindings();
     value["resources"]["example.weather#City"]["cdk"]["context"]["revision"] =
-        json!({"target":"smithy.api#Long","integer":true});
+        json!({"target":"crucible.api#Long","integer":true});
     assert!(resolve(&service, &serde_json::from_value(value).unwrap()).is_ok());
 }

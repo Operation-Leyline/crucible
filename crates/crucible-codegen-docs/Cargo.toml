@@ -1,6 +1,6 @@
 [package]
 name = "crucible-codegen-docs"
-description = "Service API reference documentation from the lowered Smithy IR"
+description = "Service API reference documentation from the lowered Crucible IR"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true

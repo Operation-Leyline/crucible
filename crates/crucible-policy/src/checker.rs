@@ -572,13 +572,6 @@ impl Checker<'_> {
             if std::mem::discriminant(old) != std::mem::discriminant(new) {
                 self.push("compatibility.sdk", id, "public type kind changed");
             }
-            if self.old.name_of(id) != self.new.name_of(id) {
-                self.push(
-                    "compatibility.sdk",
-                    id,
-                    "service-local public type name changed",
-                );
-            }
             match (old, new) {
                 (Shape::Structure(a), Shape::Structure(b)) | (Shape::Union(a), Shape::Union(b)) => {
                     for member in &a.members {

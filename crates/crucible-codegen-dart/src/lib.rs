@@ -1,4 +1,4 @@
-//! Native Dart client generation from lowered Smithy semantics.
+//! Native Dart client generation from the lowered IR.
 //!
 //! Exact value codecs are shared by the native and JavaScript Dart backends.
 

@@ -202,7 +202,7 @@ mod errors {
         false,
         false,
         &[
-            ::crucible_client_runtime_rust::__generated::member_info("message", ::crucible_client_runtime_rust::__generated::operation::Location::Body, ::crucible_client_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_4, &[]),
+            ::crucible_client_runtime_rust::__generated::member_info("message", ::crucible_client_runtime_rust::__generated::operation::Location::Body, ::crucible_client_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_0, &[]),
         ],
     );
 
@@ -241,11 +241,11 @@ pub use model::{Choice, PublicInput, PublicOutput};
 #[allow(dead_code, unused_imports)]
 mod __redaction {
     use ::crucible_client_runtime_rust::__generated::operation::Redaction;
-    pub(super) static R_0: Redaction = Redaction::Structure(&[("public", &R_4)]);
-    pub(super) static R_1: Redaction = Redaction::Structure(&[("message", &R_4)]);
-    pub(super) static R_2: Redaction = Redaction::Structure(&[("value", &R_4)]);
-    pub(super) static R_3: Redaction = Redaction::Structure(&[("value", &R_4), ("choice", &R_0)]);
-    pub(super) static R_4: Redaction = Redaction::Public;
+    pub(super) static R_0: Redaction = Redaction::Public;
+    pub(super) static R_1: Redaction = Redaction::Structure(&[("public", &R_0)]);
+    pub(super) static R_2: Redaction = Redaction::Structure(&[("message", &R_0)]);
+    pub(super) static R_3: Redaction = Redaction::Structure(&[("value", &R_0)]);
+    pub(super) static R_4: Redaction = Redaction::Structure(&[("value", &R_0), ("choice", &R_1)]);
 }
 
 
@@ -283,11 +283,11 @@ static PUBLIC_OPERATION: ::crucible_client_runtime_rust::__generated::OperationI
     &[],
     200,
     &[
-        ::crucible_client_runtime_rust::__generated::member_info("value", ::crucible_client_runtime_rust::__generated::operation::Location::Body, ::crucible_client_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_4, &[]),
+        ::crucible_client_runtime_rust::__generated::member_info("value", ::crucible_client_runtime_rust::__generated::operation::Location::Body, ::crucible_client_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_0, &[]),
     ],
     &[
-        ::crucible_client_runtime_rust::__generated::member_info("value", ::crucible_client_runtime_rust::__generated::operation::Location::Body, ::crucible_client_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_4, &[]),
-        ::crucible_client_runtime_rust::__generated::member_info("choice", ::crucible_client_runtime_rust::__generated::operation::Location::Body, ::crucible_client_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_0, &[]),
+        ::crucible_client_runtime_rust::__generated::member_info("value", ::crucible_client_runtime_rust::__generated::operation::Location::Body, ::crucible_client_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_0, &[]),
+        ::crucible_client_runtime_rust::__generated::member_info("choice", ::crucible_client_runtime_rust::__generated::operation::Location::Body, ::crucible_client_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_1, &[]),
     ],
     &["PublicFault"],
     false,

@@ -11,7 +11,7 @@ class SdkReleaseTests(unittest.TestCase):
         self.temporary = tempfile.TemporaryDirectory()
         self.addCleanup(self.temporary.cleanup)
         self.root = Path(self.temporary.name)
-        (self.root / "model.json").write_text('{"smithy":"2.0","shapes":{}}')
+        (self.root / "model.json").write_text("{}")
         self.config = self.root / "sdk.json"
         self.output = self.root / "out"
         self.value = {"schemaVersion": 1, "service": "example#Service", "model": "model.json",

@@ -1,4 +1,4 @@
-//! The Rust server runtime for Crucible Smithy-modelled APIs.
+//! The Rust server runtime for APIs modelled in Crucible (`.cru`).
 //!
 //! A service depends on a model package; `crucible-build` generates an
 //! interface per operation from it, and the service implements them. This
@@ -139,7 +139,7 @@ pub mod __generated {
 }
 
 /// Includes the Rust server bindings generated for this crate's model.
-/// Call at crate root; a Smithy `Weather` service declares `pub mod weather`
+/// Call at crate root; a `Weather` service declares `pub mod weather`
 /// exposing its models, exceptions and operation traits directly.
 #[macro_export]
 macro_rules! include_service {
@@ -148,5 +148,5 @@ macro_rules! include_service {
     };
 }
 
-/// Exact numbers for Smithy arbitrary-precision numeric shapes.
+/// Exact numbers for `bigInteger` and `bigDecimal` members.
 pub use crucible_wire::number::{BigDecimal, BigInteger};

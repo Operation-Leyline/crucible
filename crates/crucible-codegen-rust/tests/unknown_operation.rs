@@ -32,14 +32,6 @@ fn the_shared_exception_overrides_the_validation_reason_even_without_operations(
 }
 
 #[test]
-fn a_renamed_shared_exception_is_selected_by_shape_id() {
-    let mut service = standard();
-    common::rename(&mut service, &[(UNKNOWN, "NoSuchRouteException")]);
-    let code = generate(&service, &Options::default()).unwrap();
-    assert!(code.contains("Box::new(errors::NoSuchRouteException"));
-}
-
-#[test]
 fn a_custom_404_requires_explicit_selection_and_can_include_request_id() {
     let custom = "example.empty#ResourceNotFoundException";
     let service = common::load_with("standard-service-errors", |package| {

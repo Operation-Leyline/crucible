@@ -18,7 +18,7 @@
                   "type": "object",
                   "properties": {
                     "archived": {
-                      "$ref": "#/components/schemas/smithy.api.Boolean"
+                      "$ref": "#/components/schemas/crucible.api.Boolean"
                     }
                   },
                   "required": [
@@ -36,7 +36,7 @@
                   "type": "object",
                   "properties": {
                     "message": {
-                      "$ref": "#/components/schemas/smithy.api.String"
+                      "$ref": "#/components/schemas/crucible.api.String"
                     },
                     "reason": {
                       "$ref": "#/components/schemas/crucible.errors.ValidationExceptionReason"
@@ -72,7 +72,7 @@
                 }
               }
             },
-            "x-smithy-errors": [
+            "x-crucible-errors": [
               "crucible.errors#ValidationException"
             ]
           },
@@ -84,10 +84,10 @@
                   "type": "object",
                   "properties": {
                     "message": {
-                      "$ref": "#/components/schemas/smithy.api.String"
+                      "$ref": "#/components/schemas/crucible.api.String"
                     },
                     "resourceType": {
-                      "$ref": "#/components/schemas/smithy.api.String"
+                      "$ref": "#/components/schemas/crucible.api.String"
                     },
                     "__type": {
                       "type": "string",
@@ -110,7 +110,7 @@
                 }
               }
             },
-            "x-smithy-errors": [
+            "x-crucible-errors": [
               "crucible.errors#NotFoundException"
             ]
           },
@@ -122,7 +122,7 @@
                   "type": "object",
                   "properties": {
                     "message": {
-                      "$ref": "#/components/schemas/smithy.api.String"
+                      "$ref": "#/components/schemas/crucible.api.String"
                     },
                     "__type": {
                       "type": "string",
@@ -139,7 +139,7 @@
             "headers": {
               "Retry-After": {
                 "schema": {
-                  "$ref": "#/components/schemas/smithy.api.Integer"
+                  "$ref": "#/components/schemas/crucible.api.Integer"
                 },
                 "style": "simple",
                 "explode": false
@@ -151,21 +151,21 @@
                 }
               }
             },
-            "x-smithy-errors": [
+            "x-crucible-errors": [
               "crucible.errors#InternalServerException"
             ],
-            "x-smithy-retryable": {
+            "x-crucible-retryable": {
               "throttling": false
             }
           }
         },
         "security": [
           {
-            "smithy.api.httpBearerAuth": []
+            "crucible.api.httpBearerAuth": []
           }
         ],
-        "x-smithy-shape": "example.leyline#ArchiveGraph",
-        "x-smithy-traits": {},
+        "x-crucible-shape": "example.leyline#ArchiveGraph",
+        "x-crucible-traits": {},
         "description": "A mixed list: clients see the public clause and that more are internal,\nnever the internal clause or the internal member its `when` reads.\n\nRequires `graph:write` on the graph; and further permissions internal to the service.",
         "x-crucible-requires": {
           "kind": "list",
@@ -249,7 +249,7 @@
                   "type": "object",
                   "properties": {
                     "message": {
-                      "$ref": "#/components/schemas/smithy.api.String"
+                      "$ref": "#/components/schemas/crucible.api.String"
                     },
                     "reason": {
                       "$ref": "#/components/schemas/crucible.errors.ValidationExceptionReason"
@@ -285,7 +285,7 @@
                 }
               }
             },
-            "x-smithy-errors": [
+            "x-crucible-errors": [
               "crucible.errors#ValidationException"
             ]
           },
@@ -297,10 +297,10 @@
                   "type": "object",
                   "properties": {
                     "message": {
-                      "$ref": "#/components/schemas/smithy.api.String"
+                      "$ref": "#/components/schemas/crucible.api.String"
                     },
                     "resourceType": {
-                      "$ref": "#/components/schemas/smithy.api.String"
+                      "$ref": "#/components/schemas/crucible.api.String"
                     },
                     "__type": {
                       "type": "string",
@@ -323,7 +323,7 @@
                 }
               }
             },
-            "x-smithy-errors": [
+            "x-crucible-errors": [
               "crucible.errors#NotFoundException"
             ]
           },
@@ -335,7 +335,7 @@
                   "type": "object",
                   "properties": {
                     "message": {
-                      "$ref": "#/components/schemas/smithy.api.String"
+                      "$ref": "#/components/schemas/crucible.api.String"
                     },
                     "__type": {
                       "type": "string",
@@ -352,7 +352,7 @@
             "headers": {
               "Retry-After": {
                 "schema": {
-                  "$ref": "#/components/schemas/smithy.api.Integer"
+                  "$ref": "#/components/schemas/crucible.api.Integer"
                 },
                 "style": "simple",
                 "explode": false
@@ -364,21 +364,21 @@
                 }
               }
             },
-            "x-smithy-errors": [
+            "x-crucible-errors": [
               "crucible.errors#InternalServerException"
             ],
-            "x-smithy-retryable": {
+            "x-crucible-retryable": {
               "throttling": false
             }
           }
         },
         "security": [
           {
-            "smithy.api.httpBearerAuth": []
+            "crucible.api.httpBearerAuth": []
           }
         ],
-        "x-smithy-shape": "example.leyline#CreateGraph",
-        "x-smithy-traits": {},
+        "x-crucible-shape": "example.leyline#CreateGraph",
+        "x-crucible-traits": {},
         "description": "Requires `graph:write` on every graph in the organization.",
         "x-crucible-requires": {
           "kind": "list",
@@ -411,7 +411,7 @@
                 "type": "object",
                 "properties": {
                   "name": {
-                    "$ref": "#/components/schemas/smithy.api.String"
+                    "$ref": "#/components/schemas/crucible.api.String"
                   }
                 },
                 "required": [
@@ -465,7 +465,7 @@
                   "type": "object",
                   "properties": {
                     "message": {
-                      "$ref": "#/components/schemas/smithy.api.String"
+                      "$ref": "#/components/schemas/crucible.api.String"
                     },
                     "reason": {
                       "$ref": "#/components/schemas/crucible.errors.ValidationExceptionReason"
@@ -501,7 +501,7 @@
                 }
               }
             },
-            "x-smithy-errors": [
+            "x-crucible-errors": [
               "crucible.errors#ValidationException"
             ]
           },
@@ -513,10 +513,10 @@
                   "type": "object",
                   "properties": {
                     "message": {
-                      "$ref": "#/components/schemas/smithy.api.String"
+                      "$ref": "#/components/schemas/crucible.api.String"
                     },
                     "resourceType": {
-                      "$ref": "#/components/schemas/smithy.api.String"
+                      "$ref": "#/components/schemas/crucible.api.String"
                     },
                     "__type": {
                       "type": "string",
@@ -539,7 +539,7 @@
                 }
               }
             },
-            "x-smithy-errors": [
+            "x-crucible-errors": [
               "crucible.errors#NotFoundException"
             ]
           },
@@ -551,7 +551,7 @@
                   "type": "object",
                   "properties": {
                     "message": {
-                      "$ref": "#/components/schemas/smithy.api.String"
+                      "$ref": "#/components/schemas/crucible.api.String"
                     },
                     "__type": {
                       "type": "string",
@@ -568,7 +568,7 @@
             "headers": {
               "Retry-After": {
                 "schema": {
-                  "$ref": "#/components/schemas/smithy.api.Integer"
+                  "$ref": "#/components/schemas/crucible.api.Integer"
                 },
                 "style": "simple",
                 "explode": false
@@ -580,21 +580,21 @@
                 }
               }
             },
-            "x-smithy-errors": [
+            "x-crucible-errors": [
               "crucible.errors#InternalServerException"
             ],
-            "x-smithy-retryable": {
+            "x-crucible-retryable": {
               "throttling": false
             }
           }
         },
         "security": [
           {
-            "smithy.api.httpBearerAuth": []
+            "crucible.api.httpBearerAuth": []
           }
         ],
-        "x-smithy-shape": "example.leyline#ListGraphs",
-        "x-smithy-traits": {},
+        "x-crucible-shape": "example.leyline#ListGraphs",
+        "x-crucible-traits": {},
         "description": "Returns only the graphs the caller may read.\n\nReturns only the graphs the caller holds `graph:read` on in the organization.",
         "x-crucible-requires": {
           "kind": "list",
@@ -620,7 +620,7 @@
         "tags": [
           "Graph"
         ],
-        "x-smithy-readonly": true,
+        "x-crucible-readonly": true,
         "parameters": [
           {
             "name": "organizationId",
@@ -666,7 +666,7 @@
                   "type": "object",
                   "properties": {
                     "message": {
-                      "$ref": "#/components/schemas/smithy.api.String"
+                      "$ref": "#/components/schemas/crucible.api.String"
                     },
                     "reason": {
                       "$ref": "#/components/schemas/crucible.errors.ValidationExceptionReason"
@@ -702,7 +702,7 @@
                 }
               }
             },
-            "x-smithy-errors": [
+            "x-crucible-errors": [
               "crucible.errors#ValidationException"
             ]
           },
@@ -714,10 +714,10 @@
                   "type": "object",
                   "properties": {
                     "message": {
-                      "$ref": "#/components/schemas/smithy.api.String"
+                      "$ref": "#/components/schemas/crucible.api.String"
                     },
                     "resourceType": {
-                      "$ref": "#/components/schemas/smithy.api.String"
+                      "$ref": "#/components/schemas/crucible.api.String"
                     },
                     "__type": {
                       "type": "string",
@@ -740,7 +740,7 @@
                 }
               }
             },
-            "x-smithy-errors": [
+            "x-crucible-errors": [
               "crucible.errors#NotFoundException"
             ]
           },
@@ -752,7 +752,7 @@
                   "type": "object",
                   "properties": {
                     "message": {
-                      "$ref": "#/components/schemas/smithy.api.String"
+                      "$ref": "#/components/schemas/crucible.api.String"
                     },
                     "__type": {
                       "type": "string",
@@ -769,7 +769,7 @@
             "headers": {
               "Retry-After": {
                 "schema": {
-                  "$ref": "#/components/schemas/smithy.api.Integer"
+                  "$ref": "#/components/schemas/crucible.api.Integer"
                 },
                 "style": "simple",
                 "explode": false
@@ -781,21 +781,21 @@
                 }
               }
             },
-            "x-smithy-errors": [
+            "x-crucible-errors": [
               "crucible.errors#InternalServerException"
             ],
-            "x-smithy-retryable": {
+            "x-crucible-retryable": {
               "throttling": false
             }
           }
         },
         "security": [
           {
-            "smithy.api.httpBearerAuth": []
+            "crucible.api.httpBearerAuth": []
           }
         ],
-        "x-smithy-shape": "example.leyline#ExecuteQuery",
-        "x-smithy-traits": {},
+        "x-crucible-shape": "example.leyline#ExecuteQuery",
+        "x-crucible-traits": {},
         "description": "Requires `graph:read` on the graph; `graph:write` on the graph, checked by the service (only when the parsed query writes); `history:read` on the history, when `has target.history`.",
         "x-crucible-requires": {
           "kind": "list",
@@ -856,7 +856,7 @@
                 "type": "object",
                 "properties": {
                   "query": {
-                    "$ref": "#/components/schemas/smithy.api.String"
+                    "$ref": "#/components/schemas/crucible.api.String"
                   },
                   "target": {
                     "anyOf": [
@@ -915,7 +915,7 @@
                   "type": "object",
                   "properties": {
                     "name": {
-                      "$ref": "#/components/schemas/smithy.api.String"
+                      "$ref": "#/components/schemas/crucible.api.String"
                     }
                   },
                   "required": [
@@ -933,7 +933,7 @@
                   "type": "object",
                   "properties": {
                     "message": {
-                      "$ref": "#/components/schemas/smithy.api.String"
+                      "$ref": "#/components/schemas/crucible.api.String"
                     },
                     "reason": {
                       "$ref": "#/components/schemas/crucible.errors.ValidationExceptionReason"
@@ -969,7 +969,7 @@
                 }
               }
             },
-            "x-smithy-errors": [
+            "x-crucible-errors": [
               "crucible.errors#ValidationException"
             ]
           },
@@ -981,10 +981,10 @@
                   "type": "object",
                   "properties": {
                     "message": {
-                      "$ref": "#/components/schemas/smithy.api.String"
+                      "$ref": "#/components/schemas/crucible.api.String"
                     },
                     "resourceType": {
-                      "$ref": "#/components/schemas/smithy.api.String"
+                      "$ref": "#/components/schemas/crucible.api.String"
                     },
                     "__type": {
                       "type": "string",
@@ -1007,7 +1007,7 @@
                 }
               }
             },
-            "x-smithy-errors": [
+            "x-crucible-errors": [
               "crucible.errors#NotFoundException"
             ]
           },
@@ -1019,7 +1019,7 @@
                   "type": "object",
                   "properties": {
                     "message": {
-                      "$ref": "#/components/schemas/smithy.api.String"
+                      "$ref": "#/components/schemas/crucible.api.String"
                     },
                     "__type": {
                       "type": "string",
@@ -1036,7 +1036,7 @@
             "headers": {
               "Retry-After": {
                 "schema": {
-                  "$ref": "#/components/schemas/smithy.api.Integer"
+                  "$ref": "#/components/schemas/crucible.api.Integer"
                 },
                 "style": "simple",
                 "explode": false
@@ -1048,21 +1048,21 @@
                 }
               }
             },
-            "x-smithy-errors": [
+            "x-crucible-errors": [
               "crucible.errors#InternalServerException"
             ],
-            "x-smithy-retryable": {
+            "x-crucible-retryable": {
               "throttling": false
             }
           }
         },
         "security": [
           {
-            "smithy.api.httpBearerAuth": []
+            "crucible.api.httpBearerAuth": []
           }
         ],
-        "x-smithy-shape": "example.leyline#GetGraph",
-        "x-smithy-traits": {},
+        "x-crucible-shape": "example.leyline#GetGraph",
+        "x-crucible-traits": {},
         "description": "Requires `graph:read` on the graph.",
         "x-crucible-requires": {
           "kind": "list",
@@ -1088,7 +1088,7 @@
         "tags": [
           "Graph"
         ],
-        "x-smithy-readonly": true,
+        "x-crucible-readonly": true,
         "parameters": [
           {
             "name": "organizationId",
@@ -1127,7 +1127,7 @@
                   "type": "object",
                   "properties": {
                     "name": {
-                      "$ref": "#/components/schemas/smithy.api.String"
+                      "$ref": "#/components/schemas/crucible.api.String"
                     }
                   },
                   "required": [
@@ -1145,7 +1145,7 @@
                   "type": "object",
                   "properties": {
                     "message": {
-                      "$ref": "#/components/schemas/smithy.api.String"
+                      "$ref": "#/components/schemas/crucible.api.String"
                     },
                     "reason": {
                       "$ref": "#/components/schemas/crucible.errors.ValidationExceptionReason"
@@ -1181,7 +1181,7 @@
                 }
               }
             },
-            "x-smithy-errors": [
+            "x-crucible-errors": [
               "crucible.errors#ValidationException"
             ]
           },
@@ -1193,10 +1193,10 @@
                   "type": "object",
                   "properties": {
                     "message": {
-                      "$ref": "#/components/schemas/smithy.api.String"
+                      "$ref": "#/components/schemas/crucible.api.String"
                     },
                     "resourceType": {
-                      "$ref": "#/components/schemas/smithy.api.String"
+                      "$ref": "#/components/schemas/crucible.api.String"
                     },
                     "__type": {
                       "type": "string",
@@ -1219,7 +1219,7 @@
                 }
               }
             },
-            "x-smithy-errors": [
+            "x-crucible-errors": [
               "crucible.errors#NotFoundException"
             ]
           },
@@ -1231,7 +1231,7 @@
                   "type": "object",
                   "properties": {
                     "message": {
-                      "$ref": "#/components/schemas/smithy.api.String"
+                      "$ref": "#/components/schemas/crucible.api.String"
                     },
                     "__type": {
                       "type": "string",
@@ -1248,7 +1248,7 @@
             "headers": {
               "Retry-After": {
                 "schema": {
-                  "$ref": "#/components/schemas/smithy.api.Integer"
+                  "$ref": "#/components/schemas/crucible.api.Integer"
                 },
                 "style": "simple",
                 "explode": false
@@ -1260,21 +1260,21 @@
                 }
               }
             },
-            "x-smithy-errors": [
+            "x-crucible-errors": [
               "crucible.errors#InternalServerException"
             ],
-            "x-smithy-retryable": {
+            "x-crucible-retryable": {
               "throttling": false
             }
           }
         },
         "security": [
           {
-            "smithy.api.httpBearerAuth": []
+            "crucible.api.httpBearerAuth": []
           }
         ],
-        "x-smithy-shape": "example.leyline#GetOrganization",
-        "x-smithy-traits": {},
+        "x-crucible-shape": "example.leyline#GetOrganization",
+        "x-crucible-traits": {},
         "description": "Requires permissions internal to the service.",
         "x-crucible-requires": {
           "kind": "internal"
@@ -1282,7 +1282,7 @@
         "tags": [
           "Organization"
         ],
-        "x-smithy-readonly": true,
+        "x-crucible-readonly": true,
         "parameters": [
           {
             "name": "organizationId",
@@ -1310,7 +1310,7 @@
                   "type": "object",
                   "properties": {
                     "subject": {
-                      "$ref": "#/components/schemas/smithy.api.String"
+                      "$ref": "#/components/schemas/crucible.api.String"
                     }
                   },
                   "required": [
@@ -1328,7 +1328,7 @@
                   "type": "object",
                   "properties": {
                     "message": {
-                      "$ref": "#/components/schemas/smithy.api.String"
+                      "$ref": "#/components/schemas/crucible.api.String"
                     },
                     "reason": {
                       "$ref": "#/components/schemas/crucible.errors.ValidationExceptionReason"
@@ -1364,7 +1364,7 @@
                 }
               }
             },
-            "x-smithy-errors": [
+            "x-crucible-errors": [
               "crucible.errors#ValidationException"
             ]
           },
@@ -1376,7 +1376,7 @@
                   "type": "object",
                   "properties": {
                     "message": {
-                      "$ref": "#/components/schemas/smithy.api.String"
+                      "$ref": "#/components/schemas/crucible.api.String"
                     },
                     "__type": {
                       "type": "string",
@@ -1393,7 +1393,7 @@
             "headers": {
               "Retry-After": {
                 "schema": {
-                  "$ref": "#/components/schemas/smithy.api.Integer"
+                  "$ref": "#/components/schemas/crucible.api.Integer"
                 },
                 "style": "simple",
                 "explode": false
@@ -1405,26 +1405,26 @@
                 }
               }
             },
-            "x-smithy-errors": [
+            "x-crucible-errors": [
               "crucible.errors#InternalServerException"
             ],
-            "x-smithy-retryable": {
+            "x-crucible-retryable": {
               "throttling": false
             }
           }
         },
         "security": [
           {
-            "smithy.api.httpBearerAuth": []
+            "crucible.api.httpBearerAuth": []
           }
         ],
-        "x-smithy-shape": "example.leyline#GetUser",
-        "x-smithy-traits": {},
+        "x-crucible-shape": "example.leyline#GetUser",
+        "x-crucible-traits": {},
         "description": "Answers about the caller's own credential.\n\nRequires no permission.",
         "x-crucible-requires": {
           "kind": "none"
         },
-        "x-smithy-readonly": true
+        "x-crucible-readonly": true
       }
     },
     "/health": {
@@ -1439,7 +1439,7 @@
                   "type": "object",
                   "properties": {
                     "status": {
-                      "$ref": "#/components/schemas/smithy.api.String"
+                      "$ref": "#/components/schemas/crucible.api.String"
                     }
                   },
                   "required": [
@@ -1457,7 +1457,7 @@
                   "type": "object",
                   "properties": {
                     "message": {
-                      "$ref": "#/components/schemas/smithy.api.String"
+                      "$ref": "#/components/schemas/crucible.api.String"
                     },
                     "reason": {
                       "$ref": "#/components/schemas/crucible.errors.ValidationExceptionReason"
@@ -1493,7 +1493,7 @@
                 }
               }
             },
-            "x-smithy-errors": [
+            "x-crucible-errors": [
               "crucible.errors#ValidationException"
             ]
           },
@@ -1505,7 +1505,7 @@
                   "type": "object",
                   "properties": {
                     "message": {
-                      "$ref": "#/components/schemas/smithy.api.String"
+                      "$ref": "#/components/schemas/crucible.api.String"
                     },
                     "__type": {
                       "type": "string",
@@ -1522,7 +1522,7 @@
             "headers": {
               "Retry-After": {
                 "schema": {
-                  "$ref": "#/components/schemas/smithy.api.Integer"
+                  "$ref": "#/components/schemas/crucible.api.Integer"
                 },
                 "style": "simple",
                 "explode": false
@@ -1534,19 +1534,19 @@
                 }
               }
             },
-            "x-smithy-errors": [
+            "x-crucible-errors": [
               "crucible.errors#InternalServerException"
             ],
-            "x-smithy-retryable": {
+            "x-crucible-retryable": {
               "throttling": false
             }
           }
         },
         "security": [],
-        "x-smithy-shape": "example.leyline#Health",
-        "x-smithy-traits": {},
+        "x-crucible-shape": "example.leyline#Health",
+        "x-crucible-traits": {},
         "description": "No authentication: nothing to authorize.",
-        "x-smithy-readonly": true
+        "x-crucible-readonly": true
       }
     },
     "/orgs/{organizationId}/graphs/{graphId}/histories/{historyId}/restore": {
@@ -1561,7 +1561,7 @@
                   "type": "object",
                   "properties": {
                     "restored": {
-                      "$ref": "#/components/schemas/smithy.api.Boolean"
+                      "$ref": "#/components/schemas/crucible.api.Boolean"
                     }
                   },
                   "required": [
@@ -1579,7 +1579,7 @@
                   "type": "object",
                   "properties": {
                     "message": {
-                      "$ref": "#/components/schemas/smithy.api.String"
+                      "$ref": "#/components/schemas/crucible.api.String"
                     },
                     "reason": {
                       "$ref": "#/components/schemas/crucible.errors.ValidationExceptionReason"
@@ -1615,7 +1615,7 @@
                 }
               }
             },
-            "x-smithy-errors": [
+            "x-crucible-errors": [
               "crucible.errors#ValidationException"
             ]
           },
@@ -1627,7 +1627,7 @@
                   "type": "object",
                   "properties": {
                     "message": {
-                      "$ref": "#/components/schemas/smithy.api.String"
+                      "$ref": "#/components/schemas/crucible.api.String"
                     },
                     "__type": {
                       "type": "string",
@@ -1644,7 +1644,7 @@
             "headers": {
               "Retry-After": {
                 "schema": {
-                  "$ref": "#/components/schemas/smithy.api.Integer"
+                  "$ref": "#/components/schemas/crucible.api.Integer"
                 },
                 "style": "simple",
                 "explode": false
@@ -1656,21 +1656,21 @@
                 }
               }
             },
-            "x-smithy-errors": [
+            "x-crucible-errors": [
               "crucible.errors#InternalServerException"
             ],
-            "x-smithy-retryable": {
+            "x-crucible-retryable": {
               "throttling": false
             }
           }
         },
         "security": [
           {
-            "smithy.api.httpBearerAuth": []
+            "crucible.api.httpBearerAuth": []
           }
         ],
-        "x-smithy-shape": "example.leyline#RestoreBackup",
-        "x-smithy-traits": {},
+        "x-crucible-shape": "example.leyline#RestoreBackup",
+        "x-crucible-traits": {},
         "tags": [
           "History"
         ],
@@ -1723,7 +1723,7 @@
                   "type": "object",
                   "properties": {
                     "rewritten": {
-                      "$ref": "#/components/schemas/smithy.api.Boolean"
+                      "$ref": "#/components/schemas/crucible.api.Boolean"
                     }
                   },
                   "required": [
@@ -1741,7 +1741,7 @@
                   "type": "object",
                   "properties": {
                     "message": {
-                      "$ref": "#/components/schemas/smithy.api.String"
+                      "$ref": "#/components/schemas/crucible.api.String"
                     },
                     "reason": {
                       "$ref": "#/components/schemas/crucible.errors.ValidationExceptionReason"
@@ -1777,7 +1777,7 @@
                 }
               }
             },
-            "x-smithy-errors": [
+            "x-crucible-errors": [
               "crucible.errors#ValidationException"
             ]
           },
@@ -1789,10 +1789,10 @@
                   "type": "object",
                   "properties": {
                     "message": {
-                      "$ref": "#/components/schemas/smithy.api.String"
+                      "$ref": "#/components/schemas/crucible.api.String"
                     },
                     "resourceType": {
-                      "$ref": "#/components/schemas/smithy.api.String"
+                      "$ref": "#/components/schemas/crucible.api.String"
                     },
                     "__type": {
                       "type": "string",
@@ -1815,7 +1815,7 @@
                 }
               }
             },
-            "x-smithy-errors": [
+            "x-crucible-errors": [
               "crucible.errors#NotFoundException"
             ]
           },
@@ -1827,7 +1827,7 @@
                   "type": "object",
                   "properties": {
                     "message": {
-                      "$ref": "#/components/schemas/smithy.api.String"
+                      "$ref": "#/components/schemas/crucible.api.String"
                     },
                     "__type": {
                       "type": "string",
@@ -1844,7 +1844,7 @@
             "headers": {
               "Retry-After": {
                 "schema": {
-                  "$ref": "#/components/schemas/smithy.api.Integer"
+                  "$ref": "#/components/schemas/crucible.api.Integer"
                 },
                 "style": "simple",
                 "explode": false
@@ -1856,21 +1856,21 @@
                 }
               }
             },
-            "x-smithy-errors": [
+            "x-crucible-errors": [
               "crucible.errors#InternalServerException"
             ],
-            "x-smithy-retryable": {
+            "x-crucible-retryable": {
               "throttling": false
             }
           }
         },
         "security": [
           {
-            "smithy.api.httpBearerAuth": []
+            "crucible.api.httpBearerAuth": []
           }
         ],
-        "x-smithy-shape": "example.leyline#RewriteGraph",
-        "x-smithy-traits": {},
+        "x-crucible-shape": "example.leyline#RewriteGraph",
+        "x-crucible-traits": {},
         "description": "Hostile documentation: a backtick in a `when` literal, and handler\nclause documentation that must keep its case, its paragraphs and its\ncode spans.\n\nRequires `graph:read` on the graph, when ``mode == \"a`b\"``; `graph:write` on the graph, checked by the service (HTTP rewrites only, when `mode` is ``a`b``, and \\[ops] approve); `history:read` on the history, checked by the service (see below).\n\n`history:read` on the history, checked by the service:\n\nGraphQL plans are checked twice:\n\n- once when parsed, against */ text;\n- once when run, see \\[bare] and [the guide](https://example.com/guide).\n\n\\@see the runbook; @param is no tag either.",
         "x-crucible-requires": {
           "kind": "list",
@@ -1920,7 +1920,7 @@
                   "mode": {
                     "anyOf": [
                       {
-                        "$ref": "#/components/schemas/smithy.api.String"
+                        "$ref": "#/components/schemas/crucible.api.String"
                       },
                       {
                         "type": "null"
@@ -1962,16 +1962,32 @@
   },
   "components": {
     "schemas": {
+      "crucible.api.Boolean": {
+        "type": "boolean"
+      },
+      "crucible.api.Integer": {
+        "type": "integer",
+        "format": "int32",
+        "minimum": -2147483648,
+        "maximum": 2147483647
+      },
+      "crucible.api.String": {
+        "type": "string"
+      },
+      "crucible.api.Unit": {
+        "type": "object",
+        "maxProperties": 0
+      },
       "crucible.errors.InternalServerException": {
         "type": "object",
         "properties": {
           "message": {
-            "$ref": "#/components/schemas/smithy.api.String"
+            "$ref": "#/components/schemas/crucible.api.String"
           },
           "retryAfterSeconds": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/smithy.api.Integer"
+                "$ref": "#/components/schemas/crucible.api.Integer"
               },
               {
                 "type": "null"
@@ -1988,10 +2004,10 @@
         "type": "object",
         "properties": {
           "message": {
-            "$ref": "#/components/schemas/smithy.api.String"
+            "$ref": "#/components/schemas/crucible.api.String"
           },
           "resourceType": {
-            "$ref": "#/components/schemas/smithy.api.String"
+            "$ref": "#/components/schemas/crucible.api.String"
           }
         },
         "required": [
@@ -2004,7 +2020,7 @@
         "type": "object",
         "properties": {
           "message": {
-            "$ref": "#/components/schemas/smithy.api.String"
+            "$ref": "#/components/schemas/crucible.api.String"
           },
           "reason": {
             "$ref": "#/components/schemas/crucible.errors.ValidationExceptionReason"
@@ -2030,10 +2046,10 @@
         "type": "object",
         "properties": {
           "name": {
-            "$ref": "#/components/schemas/smithy.api.String"
+            "$ref": "#/components/schemas/crucible.api.String"
           },
           "message": {
-            "$ref": "#/components/schemas/smithy.api.String"
+            "$ref": "#/components/schemas/crucible.api.String"
           }
         },
         "required": [
@@ -2080,7 +2096,7 @@
         "type": "object",
         "properties": {
           "archived": {
-            "$ref": "#/components/schemas/smithy.api.Boolean"
+            "$ref": "#/components/schemas/crucible.api.Boolean"
           }
         },
         "required": [
@@ -2095,7 +2111,7 @@
             "pattern": "^org_[a-z0-9]+$"
           },
           "name": {
-            "$ref": "#/components/schemas/smithy.api.String"
+            "$ref": "#/components/schemas/crucible.api.String"
           }
         },
         "required": [
@@ -2127,7 +2143,7 @@
             "pattern": "^g_[a-z0-9]+$"
           },
           "query": {
-            "$ref": "#/components/schemas/smithy.api.String"
+            "$ref": "#/components/schemas/crucible.api.String"
           },
           "target": {
             "anyOf": [
@@ -2178,7 +2194,7 @@
         "type": "object",
         "properties": {
           "name": {
-            "$ref": "#/components/schemas/smithy.api.String"
+            "$ref": "#/components/schemas/crucible.api.String"
           }
         },
         "required": [
@@ -2201,7 +2217,7 @@
         "type": "object",
         "properties": {
           "name": {
-            "$ref": "#/components/schemas/smithy.api.String"
+            "$ref": "#/components/schemas/crucible.api.String"
           }
         },
         "required": [
@@ -2212,7 +2228,7 @@
         "type": "object",
         "properties": {
           "subject": {
-            "$ref": "#/components/schemas/smithy.api.String"
+            "$ref": "#/components/schemas/crucible.api.String"
           }
         },
         "required": [
@@ -2227,7 +2243,7 @@
         "type": "object",
         "properties": {
           "status": {
-            "$ref": "#/components/schemas/smithy.api.String"
+            "$ref": "#/components/schemas/crucible.api.String"
           }
         },
         "required": [
@@ -2276,7 +2292,7 @@
       "example.leyline.Names": {
         "type": "array",
         "items": {
-          "$ref": "#/components/schemas/smithy.api.String"
+          "$ref": "#/components/schemas/crucible.api.String"
         },
         "uniqueItems": false
       },
@@ -2290,7 +2306,7 @@
             "type": "object",
             "properties": {
               "current": {
-                "$ref": "#/components/schemas/smithy.api.Unit"
+                "$ref": "#/components/schemas/crucible.api.Unit"
               }
             },
             "required": [
@@ -2339,7 +2355,7 @@
         "type": "object",
         "properties": {
           "restored": {
-            "$ref": "#/components/schemas/smithy.api.Boolean"
+            "$ref": "#/components/schemas/crucible.api.Boolean"
           }
         },
         "required": [
@@ -2360,7 +2376,7 @@
           "mode": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/smithy.api.String"
+                "$ref": "#/components/schemas/crucible.api.String"
               },
               {
                 "type": "null"
@@ -2377,40 +2393,24 @@
         "type": "object",
         "properties": {
           "rewritten": {
-            "$ref": "#/components/schemas/smithy.api.Boolean"
+            "$ref": "#/components/schemas/crucible.api.Boolean"
           }
         },
         "required": [
           "rewritten"
         ]
-      },
-      "smithy.api.Boolean": {
-        "type": "boolean"
-      },
-      "smithy.api.Integer": {
-        "type": "integer",
-        "format": "int32",
-        "minimum": -2147483648,
-        "maximum": 2147483647
-      },
-      "smithy.api.String": {
-        "type": "string"
-      },
-      "smithy.api.Unit": {
-        "type": "object",
-        "maxProperties": 0
       }
     },
     "securitySchemes": {
-      "smithy.api.httpBearerAuth": {
+      "crucible.api.httpBearerAuth": {
         "type": "http",
         "scheme": "bearer"
       }
     }
   },
-  "x-smithy-service": "example.leyline#Leyline",
-  "x-smithy-protocol": "crucible.protocols#json",
-  "x-smithy-traits": {},
+  "x-crucible-service": "example.leyline#Leyline",
+  "x-crucible-protocol": "crucible.protocols#json",
+  "x-crucible-traits": {},
   "x-crucible-permissions": [
     {
       "resourceType": "graph",

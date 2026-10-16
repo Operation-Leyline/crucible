@@ -608,8 +608,8 @@ async fn query_rejections_are_capped_and_name_no_client_key() {
 }
 
 // serde's derived struct visitor also takes a sequence, so `[59.9, 10.7]`
-// once read as `Coordinates` (#292). Smithy encodes a structure as a JSON
-// object: Crucible JSON refuses an array in its place, at any depth.
+// once read as `Coordinates` (#292). Crucible JSON encodes a structure as a
+// JSON object, and refuses an array in its place, at any depth.
 #[tokio::test]
 async fn crucible_json_refuses_an_array_where_a_structure_is_modelled() {
     let service = Crucible::builder(weather::operations(Arc::new(

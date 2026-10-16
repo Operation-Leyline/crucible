@@ -3,7 +3,7 @@
 package example.weather.model
 
 /**
- * Build one with `Coordinates { ... }` or `copy { ... }`; it is immutable. Smithy shape `example.weather#Coordinates`.
+ * Build one with `Coordinates { ... }` or `copy { ... }`; it is immutable. Model shape `example.weather#Coordinates`.
  */
 class `Coordinates` internal constructor(
     /**

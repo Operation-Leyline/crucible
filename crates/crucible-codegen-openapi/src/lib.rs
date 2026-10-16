@@ -1,5 +1,5 @@
 //! OpenAPI 3.1 export of the lowered Crucible JSON wire contract.
-//! Smithy remains authoritative; this document is a downstream projection.
+//! The `.cru` model remains authoritative; this document is a downstream projection.
 
 mod examples;
 mod operations;
@@ -80,10 +80,7 @@ pub fn generate(service: &Service, options: &Options) -> Result<String, Diagnost
             diagnostics.push(&op.id, format!("OpenAPI cannot represent multiple operations on {} {path}, including routes distinguished by literal queries", op.method));
         }
         if !names.insert(service.name_of(&op.id)) {
-            diagnostics.push(
-                &op.id,
-                "duplicate OpenAPI operationId after service renames",
-            );
+            diagnostics.push(&op.id, "duplicate OpenAPI operationId");
         }
         let mut parameters = BTreeSet::new();
         for (name, _) in &op.uri.query {
@@ -141,9 +138,9 @@ pub fn generate(service: &Service, options: &Options) -> Result<String, Diagnost
         "info": info,
         "paths": paths,
         "components": {"schemas": schemas, "securitySchemes": security},
-        "x-smithy-service": service.id.to_string(),
-        "x-smithy-protocol": service.protocol.trait_id().to_string(),
-        "x-smithy-traits": traits(&service.traits),
+        "x-crucible-service": service.id.to_string(),
+        "x-crucible-protocol": service.protocol.trait_id().to_string(),
+        "x-crucible-traits": traits(&service.traits),
     });
     annotate(&mut document, &service.notes, Slot::Root);
     // The permission registry with tiers and aliases; internal entries only

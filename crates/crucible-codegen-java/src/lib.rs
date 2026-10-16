@@ -133,7 +133,7 @@ pub(crate) fn unset_field(member: &crucible_ir::ir::Member, union: bool) -> bool
 /// or its field starts at the modeled default. Only a member without
 /// either is "Required." when the request is sent.
 pub(crate) fn omittable(member: &crucible_ir::ir::Member, union: bool) -> bool {
-    unset_field(member, union) || member.client_default().is_some()
+    unset_field(member, union) || member.default.is_some()
 }
 
 pub(crate) fn member_field(text: &str, package: &str) -> String {
@@ -597,7 +597,7 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
             let mut accessors = BTreeSet::new();
             for m in &s.members {
                 if !m.optional_on_client()
-                    && let Some(value) = m.client_default()
+                    && let Some(value) = m.default.as_ref()
                     && default_expression(service, &m.target, value, &options.package_name)
                         .is_none()
                 {
@@ -819,7 +819,7 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
                 } else if is_union {
                     notes.push("A union: exactly one variant is set. A variant this client does not know is kept in {@code unknownVariant}.".to_string());
                 } else {
-                    notes.push(format!("Build one with {{@link #builder()}}; the public fields are also writable. Smithy shape {}.", code(&id.to_string())));
+                    notes.push(format!("Build one with {{@link #builder()}}; the public fields are also writable. Model shape {}.", code(&id.to_string())));
                 }
                 models.push_str(&javadoc_linked(
                     links,
@@ -855,7 +855,7 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
                         format!(
                             "Unset members are omitted from requests; see {{@link {package}.OptionalValue}}."
                         )
-                    } else if m.client_default().is_some() {
+                    } else if m.default.is_some() {
                         "Has a default value.".to_string()
                     } else {
                         "Required.".to_string()
@@ -874,7 +874,8 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
                         models.push_str(&format!("        public {package}.OptionalValue<{t}> {f} = {package}.OptionalValue.unset();\n"));
                     } else {
                         let initial = m
-                            .client_default()
+                            .default
+                            .as_ref()
                             .map(|value| {
                                 format!(
                                     " = {}",
@@ -930,9 +931,9 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
                     let t = ty(service, &m.target, package);
                     let f = member_field(&m.name, package);
                     let optional = unset_field(m, is_union);
-                    // '$' cannot occur in a lowered Smithy member name, keeping
+                    // '$' cannot occur in a lowered member name, keeping
                     // these private flags independent of modeled identifiers.
-                    let set_default = if !optional && m.client_default().is_some() {
+                    let set_default = if !optional && m.default.is_some() {
                         builder.push_str(&format!(
                             "            private boolean $defaultSet{index};\n"
                         ));
@@ -1006,12 +1007,11 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
                 builder.push_str(&format!("            public {name} build() {{\n                {name} result = new {name}();\n"));
                 for (index, m) in s.members.iter().enumerate() {
                     let f = member_field(&m.name, package);
-                    let assigned =
-                        if !m.optional_on_client() && m.client_default().is_some() && !is_union {
-                            format!("if ($defaultSet{index}) ")
-                        } else {
-                            String::new()
-                        };
+                    let assigned = if !m.optional_on_client() && m.default.is_some() && !is_union {
+                        format!("if ($defaultSet{index}) ")
+                    } else {
+                        String::new()
+                    };
                     builder.push_str(&format!(
                         "                {assigned}result.{f} = value.{f};\n"
                     ));

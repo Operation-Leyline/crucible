@@ -245,9 +245,7 @@ fn nul_in_an_enum_value_is_kept_or_refused() {
 #[test]
 fn rust_keyword_type_names_are_diagnosed() {
     let mut service = service();
-    service
-        .renames
-        .insert("example.hostile#Text".parse().unwrap(), "type".to_owned());
+    service.rename_shape(&"example.hostile#Text".parse().unwrap(), "type");
     let client = clients()
         .remove(0)
         .1

@@ -50,7 +50,7 @@
                   "type": "object",
                   "properties": {
                     "message": {
-                      "$ref": "#/components/schemas/smithy.api.String"
+                      "$ref": "#/components/schemas/crucible.api.String"
                     },
                     "reason": {
                       "$ref": "#/components/schemas/example.weather.ValidationReason"
@@ -68,7 +68,7 @@
                     "requestId": {
                       "anyOf": [
                         {
-                          "$ref": "#/components/schemas/smithy.api.String"
+                          "$ref": "#/components/schemas/crucible.api.String"
                         },
                         {
                           "type": "null"
@@ -96,7 +96,7 @@
                 }
               }
             },
-            "x-smithy-errors": [
+            "x-crucible-errors": [
               "example.weather#ValidationError"
             ]
           },
@@ -108,7 +108,7 @@
                   "type": "object",
                   "properties": {
                     "message": {
-                      "$ref": "#/components/schemas/smithy.api.String"
+                      "$ref": "#/components/schemas/crucible.api.String"
                     },
                     "__type": {
                       "type": "string",
@@ -139,7 +139,7 @@
                 }
               }
             },
-            "x-smithy-errors": [
+            "x-crucible-errors": [
               "example.weather#ConflictError"
             ]
           },
@@ -151,7 +151,7 @@
                   "type": "object",
                   "properties": {
                     "message": {
-                      "$ref": "#/components/schemas/smithy.api.String"
+                      "$ref": "#/components/schemas/crucible.api.String"
                     },
                     "__type": {
                       "type": "string",
@@ -168,7 +168,7 @@
             "headers": {
               "Retry-After": {
                 "schema": {
-                  "$ref": "#/components/schemas/smithy.api.Integer"
+                  "$ref": "#/components/schemas/crucible.api.Integer"
                 },
                 "style": "simple",
                 "explode": false
@@ -180,28 +180,28 @@
                 }
               }
             },
-            "x-smithy-errors": [
+            "x-crucible-errors": [
               "example.weather#ThrottlingError"
             ],
-            "x-smithy-retryable": {
+            "x-crucible-retryable": {
               "throttling": true
             }
           }
         },
         "security": [
           {
-            "smithy.api.httpBearerAuth": []
+            "crucible.api.httpBearerAuth": []
           }
         ],
-        "x-smithy-shape": "example.weather#CreateCity",
-        "x-smithy-traits": {
+        "x-crucible-shape": "example.weather#CreateCity",
+        "x-crucible-traits": {
           "example.weather#tier": "write"
         },
         "tags": [
           "City"
         ],
-        "x-smithy-idempotent": true,
-        "x-smithy-idempotency-token": "clientToken",
+        "x-crucible-idempotent": true,
+        "x-crucible-idempotency-token": "clientToken",
         "requestBody": {
           "content": {
             "application/json": {
@@ -211,7 +211,7 @@
                   "name": {
                     "type": "string",
                     "maxLength": 40,
-                    "x-smithy-traits": {
+                    "x-crucible-traits": {
                       "example.weather#audited": {}
                     }
                   },
@@ -228,7 +228,7 @@
                   "clientToken": {
                     "anyOf": [
                       {
-                        "$ref": "#/components/schemas/smithy.api.String"
+                        "$ref": "#/components/schemas/crucible.api.String"
                       },
                       {
                         "type": "null"
@@ -273,7 +273,7 @@
             "in": "header",
             "required": false,
             "schema": {
-              "$ref": "#/components/schemas/smithy.api.Long"
+              "$ref": "#/components/schemas/crucible.api.Long"
             },
             "style": "simple",
             "explode": false,
@@ -303,7 +303,7 @@
                     "nextToken": {
                       "anyOf": [
                         {
-                          "$ref": "#/components/schemas/smithy.api.String"
+                          "$ref": "#/components/schemas/crucible.api.String"
                         },
                         {
                           "type": "null"
@@ -340,7 +340,7 @@
                   "type": "object",
                   "properties": {
                     "message": {
-                      "$ref": "#/components/schemas/smithy.api.String"
+                      "$ref": "#/components/schemas/crucible.api.String"
                     },
                     "reason": {
                       "$ref": "#/components/schemas/example.weather.ValidationReason"
@@ -358,7 +358,7 @@
                     "requestId": {
                       "anyOf": [
                         {
-                          "$ref": "#/components/schemas/smithy.api.String"
+                          "$ref": "#/components/schemas/crucible.api.String"
                         },
                         {
                           "type": "null"
@@ -386,7 +386,7 @@
                 }
               }
             },
-            "x-smithy-errors": [
+            "x-crucible-errors": [
               "example.weather#ValidationError"
             ]
           },
@@ -398,7 +398,7 @@
                   "type": "object",
                   "properties": {
                     "message": {
-                      "$ref": "#/components/schemas/smithy.api.String"
+                      "$ref": "#/components/schemas/crucible.api.String"
                     },
                     "__type": {
                       "type": "string",
@@ -415,7 +415,7 @@
             "headers": {
               "Retry-After": {
                 "schema": {
-                  "$ref": "#/components/schemas/smithy.api.Integer"
+                  "$ref": "#/components/schemas/crucible.api.Integer"
                 },
                 "style": "simple",
                 "explode": false
@@ -427,26 +427,26 @@
                 }
               }
             },
-            "x-smithy-errors": [
+            "x-crucible-errors": [
               "example.weather#ThrottlingError"
             ],
-            "x-smithy-retryable": {
+            "x-crucible-retryable": {
               "throttling": true
             }
           }
         },
         "security": [
           {
-            "smithy.api.httpBearerAuth": []
+            "crucible.api.httpBearerAuth": []
           }
         ],
-        "x-smithy-shape": "example.weather#ListCities",
-        "x-smithy-traits": {},
+        "x-crucible-shape": "example.weather#ListCities",
+        "x-crucible-traits": {},
         "tags": [
           "City"
         ],
-        "x-smithy-readonly": true,
-        "x-smithy-pagination": {
+        "x-crucible-readonly": true,
+        "x-crucible-pagination": {
           "inputToken": "nextToken",
           "outputToken": "nextToken",
           "items": "cities",
@@ -458,7 +458,7 @@
             "in": "query",
             "required": false,
             "schema": {
-              "$ref": "#/components/schemas/smithy.api.String"
+              "$ref": "#/components/schemas/crucible.api.String"
             },
             "style": "form",
             "explode": true
@@ -489,7 +489,7 @@
             "schema": {
               "type": "array",
               "items": {
-                "$ref": "#/components/schemas/smithy.api.String"
+                "$ref": "#/components/schemas/crucible.api.String"
               },
               "uniqueItems": false,
               "maxItems": 5
@@ -559,7 +559,7 @@
             "headers": {
               "X-Request-Id": {
                 "schema": {
-                  "$ref": "#/components/schemas/smithy.api.String"
+                  "$ref": "#/components/schemas/crucible.api.String"
                 },
                 "style": "simple",
                 "explode": false,
@@ -580,7 +580,7 @@
                   "type": "object",
                   "properties": {
                     "message": {
-                      "$ref": "#/components/schemas/smithy.api.String"
+                      "$ref": "#/components/schemas/crucible.api.String"
                     },
                     "reason": {
                       "$ref": "#/components/schemas/example.weather.ValidationReason"
@@ -598,7 +598,7 @@
                     "requestId": {
                       "anyOf": [
                         {
-                          "$ref": "#/components/schemas/smithy.api.String"
+                          "$ref": "#/components/schemas/crucible.api.String"
                         },
                         {
                           "type": "null"
@@ -626,7 +626,7 @@
                 }
               }
             },
-            "x-smithy-errors": [
+            "x-crucible-errors": [
               "example.weather#ValidationError"
             ]
           },
@@ -638,12 +638,12 @@
                   "type": "object",
                   "properties": {
                     "message": {
-                      "$ref": "#/components/schemas/smithy.api.String"
+                      "$ref": "#/components/schemas/crucible.api.String"
                     },
                     "resourceId": {
                       "anyOf": [
                         {
-                          "$ref": "#/components/schemas/smithy.api.String"
+                          "$ref": "#/components/schemas/crucible.api.String"
                         },
                         {
                           "type": "null"
@@ -680,7 +680,7 @@
                 }
               }
             },
-            "x-smithy-errors": [
+            "x-crucible-errors": [
               "example.weather#NotFoundError"
             ]
           },
@@ -692,7 +692,7 @@
                   "type": "object",
                   "properties": {
                     "message": {
-                      "$ref": "#/components/schemas/smithy.api.String"
+                      "$ref": "#/components/schemas/crucible.api.String"
                     },
                     "__type": {
                       "type": "string",
@@ -709,7 +709,7 @@
             "headers": {
               "Retry-After": {
                 "schema": {
-                  "$ref": "#/components/schemas/smithy.api.Integer"
+                  "$ref": "#/components/schemas/crucible.api.Integer"
                 },
                 "style": "simple",
                 "explode": false
@@ -721,25 +721,25 @@
                 }
               }
             },
-            "x-smithy-errors": [
+            "x-crucible-errors": [
               "example.weather#ThrottlingError"
             ],
-            "x-smithy-retryable": {
+            "x-crucible-retryable": {
               "throttling": true
             }
           }
         },
         "security": [
           {
-            "smithy.api.httpBearerAuth": []
+            "crucible.api.httpBearerAuth": []
           }
         ],
-        "x-smithy-shape": "example.weather#GetCity",
-        "x-smithy-traits": {},
+        "x-crucible-shape": "example.weather#GetCity",
+        "x-crucible-traits": {},
         "tags": [
           "City"
         ],
-        "x-smithy-readonly": true,
+        "x-crucible-readonly": true,
         "parameters": [
           {
             "name": "cityId",
@@ -793,7 +793,7 @@
                 "schema": {
                   "type": "string",
                   "format": "binary",
-                  "x-smithy-length": {
+                  "x-crucible-length": {
                     "unit": "bytes",
                     "min": 1,
                     "max": 4096
@@ -804,7 +804,7 @@
             "headers": {
               "X-Photo-Caption": {
                 "schema": {
-                  "$ref": "#/components/schemas/smithy.api.String"
+                  "$ref": "#/components/schemas/crucible.api.String"
                 },
                 "style": "simple",
                 "explode": false
@@ -819,7 +819,7 @@
                   "type": "object",
                   "properties": {
                     "message": {
-                      "$ref": "#/components/schemas/smithy.api.String"
+                      "$ref": "#/components/schemas/crucible.api.String"
                     },
                     "reason": {
                       "$ref": "#/components/schemas/example.weather.ValidationReason"
@@ -837,7 +837,7 @@
                     "requestId": {
                       "anyOf": [
                         {
-                          "$ref": "#/components/schemas/smithy.api.String"
+                          "$ref": "#/components/schemas/crucible.api.String"
                         },
                         {
                           "type": "null"
@@ -865,7 +865,7 @@
                 }
               }
             },
-            "x-smithy-errors": [
+            "x-crucible-errors": [
               "example.weather#ValidationError"
             ]
           },
@@ -877,12 +877,12 @@
                   "type": "object",
                   "properties": {
                     "message": {
-                      "$ref": "#/components/schemas/smithy.api.String"
+                      "$ref": "#/components/schemas/crucible.api.String"
                     },
                     "resourceId": {
                       "anyOf": [
                         {
-                          "$ref": "#/components/schemas/smithy.api.String"
+                          "$ref": "#/components/schemas/crucible.api.String"
                         },
                         {
                           "type": "null"
@@ -909,7 +909,7 @@
                 }
               }
             },
-            "x-smithy-errors": [
+            "x-crucible-errors": [
               "example.weather#NotFoundError"
             ]
           },
@@ -921,7 +921,7 @@
                   "type": "object",
                   "properties": {
                     "message": {
-                      "$ref": "#/components/schemas/smithy.api.String"
+                      "$ref": "#/components/schemas/crucible.api.String"
                     },
                     "__type": {
                       "type": "string",
@@ -938,7 +938,7 @@
             "headers": {
               "Retry-After": {
                 "schema": {
-                  "$ref": "#/components/schemas/smithy.api.Integer"
+                  "$ref": "#/components/schemas/crucible.api.Integer"
                 },
                 "style": "simple",
                 "explode": false
@@ -950,25 +950,25 @@
                 }
               }
             },
-            "x-smithy-errors": [
+            "x-crucible-errors": [
               "example.weather#ThrottlingError"
             ],
-            "x-smithy-retryable": {
+            "x-crucible-retryable": {
               "throttling": true
             }
           }
         },
         "security": [
           {
-            "smithy.api.httpBearerAuth": []
+            "crucible.api.httpBearerAuth": []
           }
         ],
-        "x-smithy-shape": "example.weather#GetCityPhoto",
-        "x-smithy-traits": {},
+        "x-crucible-shape": "example.weather#GetCityPhoto",
+        "x-crucible-traits": {},
         "tags": [
           "City"
         ],
-        "x-smithy-readonly": true,
+        "x-crucible-readonly": true,
         "parameters": [
           {
             "name": "cityId",
@@ -1012,7 +1012,7 @@
                   "type": "object",
                   "properties": {
                     "message": {
-                      "$ref": "#/components/schemas/smithy.api.String"
+                      "$ref": "#/components/schemas/crucible.api.String"
                     },
                     "reason": {
                       "$ref": "#/components/schemas/example.weather.ValidationReason"
@@ -1030,7 +1030,7 @@
                     "requestId": {
                       "anyOf": [
                         {
-                          "$ref": "#/components/schemas/smithy.api.String"
+                          "$ref": "#/components/schemas/crucible.api.String"
                         },
                         {
                           "type": "null"
@@ -1058,7 +1058,7 @@
                 }
               }
             },
-            "x-smithy-errors": [
+            "x-crucible-errors": [
               "example.weather#ValidationError"
             ]
           },
@@ -1070,12 +1070,12 @@
                   "type": "object",
                   "properties": {
                     "message": {
-                      "$ref": "#/components/schemas/smithy.api.String"
+                      "$ref": "#/components/schemas/crucible.api.String"
                     },
                     "resourceId": {
                       "anyOf": [
                         {
-                          "$ref": "#/components/schemas/smithy.api.String"
+                          "$ref": "#/components/schemas/crucible.api.String"
                         },
                         {
                           "type": "null"
@@ -1102,7 +1102,7 @@
                 }
               }
             },
-            "x-smithy-errors": [
+            "x-crucible-errors": [
               "example.weather#NotFoundError"
             ]
           },
@@ -1114,7 +1114,7 @@
                   "type": "object",
                   "properties": {
                     "message": {
-                      "$ref": "#/components/schemas/smithy.api.String"
+                      "$ref": "#/components/schemas/crucible.api.String"
                     },
                     "__type": {
                       "type": "string",
@@ -1131,7 +1131,7 @@
             "headers": {
               "Retry-After": {
                 "schema": {
-                  "$ref": "#/components/schemas/smithy.api.Integer"
+                  "$ref": "#/components/schemas/crucible.api.Integer"
                 },
                 "style": "simple",
                 "explode": false
@@ -1143,33 +1143,33 @@
                 }
               }
             },
-            "x-smithy-errors": [
+            "x-crucible-errors": [
               "example.weather#ThrottlingError"
             ],
-            "x-smithy-retryable": {
+            "x-crucible-retryable": {
               "throttling": true
             }
           }
         },
         "security": [
           {
-            "smithy.api.httpBearerAuth": []
+            "crucible.api.httpBearerAuth": []
           }
         ],
-        "x-smithy-shape": "example.weather#PutCityPhoto",
-        "x-smithy-traits": {},
+        "x-crucible-shape": "example.weather#PutCityPhoto",
+        "x-crucible-traits": {},
         "description": "Stores a city's photo exactly as sent.",
         "tags": [
           "City"
         ],
-        "x-smithy-idempotent": true,
+        "x-crucible-idempotent": true,
         "requestBody": {
           "content": {
             "image/jpeg": {
               "schema": {
                 "type": "string",
                 "format": "binary",
-                "x-smithy-length": {
+                "x-crucible-length": {
                   "unit": "bytes",
                   "min": 1,
                   "max": 4096
@@ -1196,7 +1196,7 @@
             "in": "header",
             "required": false,
             "schema": {
-              "$ref": "#/components/schemas/smithy.api.String"
+              "$ref": "#/components/schemas/crucible.api.String"
             },
             "style": "simple",
             "explode": false
@@ -1219,7 +1219,7 @@
                   "type": "object",
                   "properties": {
                     "message": {
-                      "$ref": "#/components/schemas/smithy.api.String"
+                      "$ref": "#/components/schemas/crucible.api.String"
                     },
                     "reason": {
                       "$ref": "#/components/schemas/example.weather.ValidationReason"
@@ -1237,7 +1237,7 @@
                     "requestId": {
                       "anyOf": [
                         {
-                          "$ref": "#/components/schemas/smithy.api.String"
+                          "$ref": "#/components/schemas/crucible.api.String"
                         },
                         {
                           "type": "null"
@@ -1265,7 +1265,7 @@
                 }
               }
             },
-            "x-smithy-errors": [
+            "x-crucible-errors": [
               "example.weather#ValidationError"
             ]
           },
@@ -1277,7 +1277,7 @@
                   "type": "object",
                   "properties": {
                     "message": {
-                      "$ref": "#/components/schemas/smithy.api.String"
+                      "$ref": "#/components/schemas/crucible.api.String"
                     },
                     "__type": {
                       "type": "string",
@@ -1294,7 +1294,7 @@
             "headers": {
               "Retry-After": {
                 "schema": {
-                  "$ref": "#/components/schemas/smithy.api.Integer"
+                  "$ref": "#/components/schemas/crucible.api.Integer"
                 },
                 "style": "simple",
                 "explode": false
@@ -1306,27 +1306,27 @@
                 }
               }
             },
-            "x-smithy-errors": [
+            "x-crucible-errors": [
               "example.weather#ThrottlingError"
             ],
-            "x-smithy-retryable": {
+            "x-crucible-retryable": {
               "throttling": true
             }
           }
         },
         "security": [
           {
-            "smithy.api.httpBearerAuth": []
+            "crucible.api.httpBearerAuth": []
           }
         ],
-        "x-smithy-shape": "example.weather#Ping",
-        "x-smithy-traits": {},
+        "x-crucible-shape": "example.weather#Ping",
+        "x-crucible-traits": {},
         "deprecated": true,
-        "x-smithy-deprecation": {
+        "x-crucible-deprecation": {
           "message": "Use Status instead.",
           "since": "2026-09"
         },
-        "x-smithy-readonly": true
+        "x-crucible-readonly": true
       }
     },
     "/status": {
@@ -1352,7 +1352,7 @@
                   "type": "object",
                   "properties": {
                     "message": {
-                      "$ref": "#/components/schemas/smithy.api.String"
+                      "$ref": "#/components/schemas/crucible.api.String"
                     },
                     "reason": {
                       "$ref": "#/components/schemas/example.weather.ValidationReason"
@@ -1370,7 +1370,7 @@
                     "requestId": {
                       "anyOf": [
                         {
-                          "$ref": "#/components/schemas/smithy.api.String"
+                          "$ref": "#/components/schemas/crucible.api.String"
                         },
                         {
                           "type": "null"
@@ -1398,7 +1398,7 @@
                 }
               }
             },
-            "x-smithy-errors": [
+            "x-crucible-errors": [
               "example.weather#ValidationError"
             ]
           },
@@ -1410,7 +1410,7 @@
                   "type": "object",
                   "properties": {
                     "message": {
-                      "$ref": "#/components/schemas/smithy.api.String"
+                      "$ref": "#/components/schemas/crucible.api.String"
                     },
                     "__type": {
                       "type": "string",
@@ -1427,7 +1427,7 @@
             "headers": {
               "Retry-After": {
                 "schema": {
-                  "$ref": "#/components/schemas/smithy.api.Integer"
+                  "$ref": "#/components/schemas/crucible.api.Integer"
                 },
                 "style": "simple",
                 "explode": false
@@ -1439,27 +1439,55 @@
                 }
               }
             },
-            "x-smithy-errors": [
+            "x-crucible-errors": [
               "example.weather#ThrottlingError"
             ],
-            "x-smithy-retryable": {
+            "x-crucible-retryable": {
               "throttling": true
             }
           }
         },
         "security": [
           {
-            "smithy.api.httpBearerAuth": []
+            "crucible.api.httpBearerAuth": []
           }
         ],
-        "x-smithy-shape": "example.weather#Status",
-        "x-smithy-traits": {},
-        "x-smithy-readonly": true
+        "x-crucible-shape": "example.weather#Status",
+        "x-crucible-traits": {},
+        "x-crucible-readonly": true
       }
     }
   },
   "components": {
     "schemas": {
+      "crucible.api.Document": {},
+      "crucible.api.Double": {
+        "type": "number",
+        "format": "double"
+      },
+      "crucible.api.Integer": {
+        "type": "integer",
+        "format": "int32",
+        "minimum": -2147483648,
+        "maximum": 2147483647
+      },
+      "crucible.api.Long": {
+        "type": "integer",
+        "format": "int64",
+        "minimum": -9223372036854775808,
+        "maximum": 9223372036854775807
+      },
+      "crucible.api.String": {
+        "type": "string"
+      },
+      "crucible.api.Timestamp": {
+        "type": "string",
+        "format": "date-time"
+      },
+      "crucible.api.Unit": {
+        "type": "object",
+        "maxProperties": 0
+      },
       "example.weather.CityId": {
         "type": "string",
         "pattern": "^c-[a-z0-9]{8}$"
@@ -1489,9 +1517,9 @@
             "maxLength": 100
           },
           "population": {
-            "$ref": "#/components/schemas/smithy.api.Long",
+            "$ref": "#/components/schemas/crucible.api.Long",
             "default": 0,
-            "x-smithy-default": 0
+            "x-crucible-default": 0
           },
           "updatedAt": {
             "anyOf": [
@@ -1508,14 +1536,14 @@
             "anyOf": [
               {
                 "type": "number",
-                "x-smithy-timestamp-format": "epoch-seconds"
+                "x-crucible-timestamp-format": "epoch-seconds"
               },
               {
                 "type": "null"
               }
             ],
             "deprecated": true,
-            "x-smithy-deprecation": {
+            "x-crucible-deprecation": {
               "message": "Use updatedAt.",
               "since": "2026-08"
             }
@@ -1530,7 +1558,7 @@
         "type": "object",
         "properties": {
           "message": {
-            "$ref": "#/components/schemas/smithy.api.String"
+            "$ref": "#/components/schemas/crucible.api.String"
           }
         },
         "required": [
@@ -1541,10 +1569,10 @@
         "type": "object",
         "properties": {
           "latitude": {
-            "$ref": "#/components/schemas/smithy.api.Double"
+            "$ref": "#/components/schemas/crucible.api.Double"
           },
           "longitude": {
-            "$ref": "#/components/schemas/smithy.api.Double"
+            "$ref": "#/components/schemas/crucible.api.Double"
           }
         },
         "required": [
@@ -1558,7 +1586,7 @@
           "name": {
             "type": "string",
             "maxLength": 40,
-            "x-smithy-traits": {
+            "x-crucible-traits": {
               "example.weather#audited": {}
             }
           },
@@ -1575,7 +1603,7 @@
           "clientToken": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/smithy.api.String"
+                "$ref": "#/components/schemas/crucible.api.String"
               },
               {
                 "type": "null"
@@ -1586,7 +1614,7 @@
           "expectedRevision": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/smithy.api.Long"
+                "$ref": "#/components/schemas/crucible.api.Long"
               },
               {
                 "type": "null"
@@ -1620,7 +1648,7 @@
           "$ref": "#/components/schemas/example.weather.Sky"
         },
         "additionalProperties": {
-          "$ref": "#/components/schemas/smithy.api.Document"
+          "$ref": "#/components/schemas/crucible.api.Document"
         }
       },
       "example.weather.GetCityInput": {
@@ -1665,7 +1693,7 @@
           "requestId": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/smithy.api.String"
+                "$ref": "#/components/schemas/crucible.api.String"
               },
               {
                 "type": "null"
@@ -1695,7 +1723,7 @@
           "caption": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/smithy.api.String"
+                "$ref": "#/components/schemas/crucible.api.String"
               },
               {
                 "type": "null"
@@ -1708,7 +1736,7 @@
                 "type": "string",
                 "contentEncoding": "base64",
                 "description": "A photo, carried unparsed.",
-                "x-smithy-length": {
+                "x-crucible-length": {
                   "unit": "bytes",
                   "min": 1,
                   "max": 4096
@@ -1727,7 +1755,7 @@
           "nextToken": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/smithy.api.String"
+                "$ref": "#/components/schemas/crucible.api.String"
               },
               {
                 "type": "null"
@@ -1752,7 +1780,7 @@
               {
                 "type": "array",
                 "items": {
-                  "$ref": "#/components/schemas/smithy.api.String"
+                  "$ref": "#/components/schemas/crucible.api.String"
                 },
                 "uniqueItems": false,
                 "maxItems": 5
@@ -1773,7 +1801,7 @@
           "nextToken": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/smithy.api.String"
+                "$ref": "#/components/schemas/crucible.api.String"
               },
               {
                 "type": "null"
@@ -1803,7 +1831,7 @@
             "type": "object",
             "properties": {
               "unknown": {
-                "$ref": "#/components/schemas/smithy.api.Unit"
+                "$ref": "#/components/schemas/crucible.api.Unit"
               }
             },
             "required": [
@@ -1817,12 +1845,12 @@
         "type": "object",
         "properties": {
           "message": {
-            "$ref": "#/components/schemas/smithy.api.String"
+            "$ref": "#/components/schemas/crucible.api.String"
           },
           "resourceId": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/smithy.api.String"
+                "$ref": "#/components/schemas/crucible.api.String"
               },
               {
                 "type": "null"
@@ -1838,7 +1866,7 @@
         "type": "string",
         "contentEncoding": "base64",
         "description": "A photo, carried unparsed.",
-        "x-smithy-length": {
+        "x-crucible-length": {
           "unit": "bytes",
           "min": 1,
           "max": 4096
@@ -1848,13 +1876,13 @@
         "type": "object",
         "properties": {
           "size": {
-            "$ref": "#/components/schemas/smithy.api.Integer"
+            "$ref": "#/components/schemas/crucible.api.Integer"
           },
           "thumbnail": {
             "type": "string",
             "contentEncoding": "base64",
             "description": "The photo's first bytes: base64 in JSON.",
-            "x-smithy-length": {
+            "x-crucible-length": {
               "unit": "bytes",
               "min": null,
               "max": 8
@@ -1863,7 +1891,7 @@
           "caption": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/smithy.api.String"
+                "$ref": "#/components/schemas/crucible.api.String"
               },
               {
                 "type": "null"
@@ -1875,13 +1903,13 @@
           "size",
           "thumbnail"
         ],
-        "x-smithy-since": "2026-10",
-        "x-smithy-unstable": true,
+        "x-crucible-since": "2026-10",
+        "x-crucible-unstable": true,
         "externalDocs": {
           "url": "https://weather.example/docs/photos",
           "description": "Photo guide"
         },
-        "x-smithy-external-docs": {
+        "x-crucible-external-docs": {
           "Reference": "https://weather.example/docs/photos/reference"
         }
       },
@@ -1895,7 +1923,7 @@
           "caption": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/smithy.api.String"
+                "$ref": "#/components/schemas/crucible.api.String"
               },
               {
                 "type": "null"
@@ -1906,7 +1934,7 @@
             "type": "string",
             "contentEncoding": "base64",
             "description": "A photo, carried unparsed.",
-            "x-smithy-length": {
+            "x-crucible-length": {
               "unit": "bytes",
               "min": 1,
               "max": 4096
@@ -1947,7 +1975,7 @@
       "example.weather.Tags": {
         "type": "array",
         "items": {
-          "$ref": "#/components/schemas/smithy.api.String"
+          "$ref": "#/components/schemas/crucible.api.String"
         },
         "uniqueItems": false,
         "maxItems": 5
@@ -1956,12 +1984,12 @@
         "type": "object",
         "properties": {
           "message": {
-            "$ref": "#/components/schemas/smithy.api.String"
+            "$ref": "#/components/schemas/crucible.api.String"
           },
           "retryAfter": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/smithy.api.Integer"
+                "$ref": "#/components/schemas/crucible.api.Integer"
               },
               {
                 "type": "null"
@@ -1977,7 +2005,7 @@
         "type": "string",
         "contentEncoding": "base64",
         "description": "The photo's first bytes: base64 in JSON.",
-        "x-smithy-length": {
+        "x-crucible-length": {
           "unit": "bytes",
           "min": null,
           "max": 8
@@ -1987,7 +2015,7 @@
         "type": "object",
         "properties": {
           "message": {
-            "$ref": "#/components/schemas/smithy.api.String"
+            "$ref": "#/components/schemas/crucible.api.String"
           },
           "reason": {
             "$ref": "#/components/schemas/example.weather.ValidationReason"
@@ -2005,7 +2033,7 @@
           "requestId": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/smithy.api.String"
+                "$ref": "#/components/schemas/crucible.api.String"
               },
               {
                 "type": "null"
@@ -2022,10 +2050,10 @@
         "type": "object",
         "properties": {
           "path": {
-            "$ref": "#/components/schemas/smithy.api.String"
+            "$ref": "#/components/schemas/crucible.api.String"
           },
           "message": {
-            "$ref": "#/components/schemas/smithy.api.String"
+            "$ref": "#/components/schemas/crucible.api.String"
           }
         },
         "required": [
@@ -2048,46 +2076,18 @@
           "fieldValidationFailed",
           "other"
         ]
-      },
-      "smithy.api.Document": {},
-      "smithy.api.Double": {
-        "type": "number",
-        "format": "double"
-      },
-      "smithy.api.Integer": {
-        "type": "integer",
-        "format": "int32",
-        "minimum": -2147483648,
-        "maximum": 2147483647
-      },
-      "smithy.api.Long": {
-        "type": "integer",
-        "format": "int64",
-        "minimum": -9223372036854775808,
-        "maximum": 9223372036854775807
-      },
-      "smithy.api.String": {
-        "type": "string"
-      },
-      "smithy.api.Timestamp": {
-        "type": "string",
-        "format": "date-time"
-      },
-      "smithy.api.Unit": {
-        "type": "object",
-        "maxProperties": 0
       }
     },
     "securitySchemes": {
-      "smithy.api.httpBearerAuth": {
+      "crucible.api.httpBearerAuth": {
         "type": "http",
         "scheme": "bearer"
       }
     }
   },
-  "x-smithy-service": "example.weather#Weather",
-  "x-smithy-protocol": "crucible.protocols#json",
-  "x-smithy-traits": {},
+  "x-crucible-service": "example.weather#Weather",
+  "x-crucible-protocol": "crucible.protocols#json",
+  "x-crucible-traits": {},
   "externalDocs": {
     "url": "https://weather.example/docs",
     "description": "Home"

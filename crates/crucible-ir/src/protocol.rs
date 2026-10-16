@@ -68,12 +68,12 @@ impl Protocol {
         output: bool,
     ) -> TimestampFormat {
         if input || output {
-            if traits.contains_key(&ShapeId::new("smithy.api", "httpHeader")) {
+            if traits.contains_key(&ShapeId::prelude("httpHeader")) {
                 return self.timestamp_format(true);
             }
             if input
-                && (traits.contains_key(&ShapeId::new("smithy.api", "httpQuery"))
-                    || traits.contains_key(&ShapeId::new("smithy.api", "httpLabel")))
+                && (traits.contains_key(&ShapeId::prelude("httpQuery"))
+                    || traits.contains_key(&ShapeId::prelude("httpLabel")))
             {
                 return TimestampFormat::DateTime;
             }

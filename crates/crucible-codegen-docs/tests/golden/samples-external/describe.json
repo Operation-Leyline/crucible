@@ -19,7 +19,7 @@
           "example.samples.Archive": {
             "contentEncoding": "base64",
             "type": "string",
-            "x-smithy-length": {
+            "x-crucible-length": {
               "max": null,
               "min": 2000,
               "unit": "bytes"
@@ -53,7 +53,7 @@
                   {
                     "contentEncoding": "base64",
                     "type": "string",
-                    "x-smithy-length": {
+                    "x-crucible-length": {
                       "max": null,
                       "min": 2000,
                       "unit": "bytes"
@@ -269,7 +269,7 @@
               {
                 "contentEncoding": "base64",
                 "type": "string",
-                "x-smithy-length": {
+                "x-crucible-length": {
                   "max": null,
                   "min": 2000,
                   "unit": "bytes"
@@ -973,7 +973,7 @@
                   {
                     "contentEncoding": "base64",
                     "type": "string",
-                    "x-smithy-length": {
+                    "x-crucible-length": {
                       "max": 16,
                       "min": 4,
                       "unit": "bytes"
@@ -990,7 +990,7 @@
           "example.samples.Thumbnail": {
             "contentEncoding": "base64",
             "type": "string",
-            "x-smithy-length": {
+            "x-crucible-length": {
               "max": 16,
               "min": 4,
               "unit": "bytes"
@@ -1003,7 +1003,7 @@
               {
                 "contentEncoding": "base64",
                 "type": "string",
-                "x-smithy-length": {
+                "x-crucible-length": {
                   "max": 16,
                   "min": 4,
                   "unit": "bytes"
@@ -1110,9 +1110,30 @@
       "input": "example.samples#PutGraphInput",
       "inputSchema": {
         "$defs": {
+          "crucible.api.Boolean": {
+            "type": "boolean"
+          },
+          "crucible.api.Document": {},
+          "crucible.api.Long": {
+            "format": "int64",
+            "maximum": 9223372036854775807,
+            "minimum": -9223372036854775808,
+            "type": "integer"
+          },
+          "crucible.api.String": {
+            "type": "string"
+          },
+          "crucible.api.Timestamp": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "crucible.api.Unit": {
+            "maxProperties": 0,
+            "type": "object"
+          },
           "example.samples.EpochTime": {
             "type": "number",
-            "x-smithy-timestamp-format": "epoch-seconds"
+            "x-crucible-timestamp-format": "epoch-seconds"
           },
           "example.samples.GraphId": {
             "description": "A graph id: a type prefix and 26 Crockford base-32 characters.",
@@ -1181,7 +1202,7 @@
               "clientToken": {
                 "anyOf": [
                   {
-                    "$ref": "#/$defs/smithy.api.String"
+                    "$ref": "#/$defs/crucible.api.String"
                   },
                   {
                     "type": "null"
@@ -1190,15 +1211,15 @@
                 "description": "SDKs send this automatically. When calling the API directly, send a unique value for each intended operation, and the same value when retrying it; a service may refuse a request without one."
               },
               "count": {
-                "$ref": "#/$defs/smithy.api.Long",
+                "$ref": "#/$defs/crucible.api.Long",
                 "default": 42,
-                "x-smithy-default": 42
+                "x-crucible-default": 42
               },
               "created": {
                 "anyOf": [
                   {
                     "type": "number",
-                    "x-smithy-timestamp-format": "epoch-seconds"
+                    "x-crucible-timestamp-format": "epoch-seconds"
                   },
                   {
                     "type": "null"
@@ -1219,7 +1240,7 @@
               "enabled": {
                 "anyOf": [
                   {
-                    "$ref": "#/$defs/smithy.api.Boolean"
+                    "$ref": "#/$defs/crucible.api.Boolean"
                   },
                   {
                     "type": "null"
@@ -1357,7 +1378,7 @@
               "settings": {
                 "anyOf": [
                   {
-                    "$ref": "#/$defs/smithy.api.Document"
+                    "$ref": "#/$defs/crucible.api.Document"
                   },
                   {
                     "type": "null"
@@ -1401,7 +1422,7 @@
                   {
                     "contentEncoding": "base64",
                     "type": "string",
-                    "x-smithy-length": {
+                    "x-crucible-length": {
                       "max": 16,
                       "min": 4,
                       "unit": "bytes"
@@ -1415,7 +1436,7 @@
               "tier": {
                 "$ref": "#/$defs/example.samples.Tier",
                 "default": "small",
-                "x-smithy-default": "small"
+                "x-crucible-default": "small"
               },
               "updated": {
                 "anyOf": [
@@ -1477,7 +1498,7 @@
                 "additionalProperties": false,
                 "properties": {
                   "empty": {
-                    "$ref": "#/$defs/smithy.api.Unit"
+                    "$ref": "#/$defs/crucible.api.Unit"
                   }
                 },
                 "required": [
@@ -1501,7 +1522,7 @@
           "example.samples.Thumbnail": {
             "contentEncoding": "base64",
             "type": "string",
-            "x-smithy-length": {
+            "x-crucible-length": {
               "max": 16,
               "min": 4,
               "unit": "bytes"
@@ -1513,34 +1534,13 @@
               "large"
             ],
             "type": "string"
-          },
-          "smithy.api.Boolean": {
-            "type": "boolean"
-          },
-          "smithy.api.Document": {},
-          "smithy.api.Long": {
-            "format": "int64",
-            "maximum": 9223372036854775807,
-            "minimum": -9223372036854775808,
-            "type": "integer"
-          },
-          "smithy.api.String": {
-            "type": "string"
-          },
-          "smithy.api.Timestamp": {
-            "format": "date-time",
-            "type": "string"
-          },
-          "smithy.api.Unit": {
-            "maxProperties": 0,
-            "type": "object"
           }
         },
         "properties": {
           "clientToken": {
             "anyOf": [
               {
-                "$ref": "#/$defs/smithy.api.String"
+                "$ref": "#/$defs/crucible.api.String"
               },
               {
                 "type": "null"
@@ -1549,15 +1549,15 @@
             "description": "SDKs send this automatically. When calling the API directly, send a unique value for each intended operation, and the same value when retrying it; a service may refuse a request without one."
           },
           "count": {
-            "$ref": "#/$defs/smithy.api.Long",
+            "$ref": "#/$defs/crucible.api.Long",
             "default": 42,
-            "x-smithy-default": 42
+            "x-crucible-default": 42
           },
           "created": {
             "anyOf": [
               {
                 "type": "number",
-                "x-smithy-timestamp-format": "epoch-seconds"
+                "x-crucible-timestamp-format": "epoch-seconds"
               },
               {
                 "type": "null"
@@ -1578,7 +1578,7 @@
           "enabled": {
             "anyOf": [
               {
-                "$ref": "#/$defs/smithy.api.Boolean"
+                "$ref": "#/$defs/crucible.api.Boolean"
               },
               {
                 "type": "null"
@@ -1716,7 +1716,7 @@
           "settings": {
             "anyOf": [
               {
-                "$ref": "#/$defs/smithy.api.Document"
+                "$ref": "#/$defs/crucible.api.Document"
               },
               {
                 "type": "null"
@@ -1760,7 +1760,7 @@
               {
                 "contentEncoding": "base64",
                 "type": "string",
-                "x-smithy-length": {
+                "x-crucible-length": {
                   "max": 16,
                   "min": 4,
                   "unit": "bytes"
@@ -1774,7 +1774,7 @@
           "tier": {
             "$ref": "#/$defs/example.samples.Tier",
             "default": "small",
-            "x-smithy-default": "small"
+            "x-crucible-default": "small"
           },
           "updated": {
             "anyOf": [
@@ -1807,6 +1807,10 @@
       "output": "example.samples#PutGraphOutput",
       "outputSchema": {
         "$defs": {
+          "crucible.api.Timestamp": {
+            "format": "date-time",
+            "type": "string"
+          },
           "example.samples.GraphId": {
             "description": "A graph id: a type prefix and 26 Crockford base-32 characters.",
             "pattern": "^g_[0-9a-hjkmnp-tv-z]{26}(_[a-z]{3})?$",
@@ -1850,10 +1854,6 @@
               "name"
             ],
             "type": "object"
-          },
-          "smithy.api.Timestamp": {
-            "format": "date-time",
-            "type": "string"
           }
         },
         "properties": {
@@ -2063,6 +2063,12 @@
       "input": "example.samples#WalkInput",
       "inputSchema": {
         "$defs": {
+          "crucible.api.Integer": {
+            "format": "int32",
+            "maximum": 2147483647,
+            "minimum": -2147483648,
+            "type": "integer"
+          },
           "example.samples.Expression": {
             "description": "Recursion through a union whose first arm leads back.",
             "oneOf": [
@@ -2082,7 +2088,7 @@
                 "additionalProperties": false,
                 "properties": {
                   "value": {
-                    "$ref": "#/$defs/smithy.api.Integer"
+                    "$ref": "#/$defs/crucible.api.Integer"
                   }
                 },
                 "required": [
@@ -2148,12 +2154,6 @@
               "root"
             ],
             "type": "object"
-          },
-          "smithy.api.Integer": {
-            "format": "int32",
-            "maximum": 2147483647,
-            "minimum": -2147483648,
-            "type": "integer"
           }
         },
         "properties": {
@@ -2368,6 +2368,175 @@
     "version": "1"
   },
   "shapes": {
+    "crucible.api#Boolean": {
+      "constraints": {
+        "length": null,
+        "pattern": null,
+        "range": null,
+        "uniqueItems": false
+      },
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "id": "crucible.api#Boolean",
+      "internal": false,
+      "kind": "boolean",
+      "members": [],
+      "name": "Boolean",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false
+    },
+    "crucible.api#Document": {
+      "constraints": {
+        "length": null,
+        "pattern": null,
+        "range": null,
+        "uniqueItems": false
+      },
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "id": "crucible.api#Document",
+      "internal": false,
+      "kind": "document",
+      "members": [],
+      "name": "Document",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false
+    },
+    "crucible.api#Integer": {
+      "constraints": {
+        "length": null,
+        "pattern": null,
+        "range": null,
+        "uniqueItems": false
+      },
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "id": "crucible.api#Integer",
+      "internal": false,
+      "kind": "integer",
+      "members": [],
+      "name": "Integer",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false
+    },
+    "crucible.api#Long": {
+      "constraints": {
+        "length": null,
+        "pattern": null,
+        "range": null,
+        "uniqueItems": false
+      },
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "id": "crucible.api#Long",
+      "internal": false,
+      "kind": "long",
+      "members": [],
+      "name": "Long",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false
+    },
+    "crucible.api#String": {
+      "constraints": {
+        "length": null,
+        "pattern": null,
+        "range": null,
+        "uniqueItems": false
+      },
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "id": "crucible.api#String",
+      "internal": false,
+      "kind": "string",
+      "members": [],
+      "name": "String",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false
+    },
+    "crucible.api#Timestamp": {
+      "constraints": {
+        "length": null,
+        "pattern": null,
+        "range": null,
+        "uniqueItems": false
+      },
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "id": "crucible.api#Timestamp",
+      "internal": false,
+      "kind": "timestamp",
+      "members": [],
+      "name": "Timestamp",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false
+    },
+    "crucible.api#Unit": {
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "id": "crucible.api#Unit",
+      "internal": false,
+      "kind": "unit",
+      "members": [],
+      "name": "Unit",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false
+    },
     "example.samples#Archive": {
       "constraints": {
         "length": {
@@ -2979,7 +3148,7 @@
           "nullable": false,
           "required": true,
           "sensitive": false,
-          "target": "smithy.api#String",
+          "target": "crucible.api#String",
           "targetName": "String",
           "targetType": "string",
           "timestampFormat": "date-time",
@@ -3011,7 +3180,7 @@
           "nullable": true,
           "required": false,
           "sensitive": false,
-          "target": "smithy.api#Integer",
+          "target": "crucible.api#Integer",
           "targetName": "Integer",
           "targetType": "integer",
           "timestampFormat": "date-time",
@@ -3202,7 +3371,7 @@
           "nullable": true,
           "required": false,
           "sensitive": false,
-          "target": "smithy.api#Integer",
+          "target": "crucible.api#Integer",
           "targetName": "Integer",
           "targetType": "integer",
           "timestampFormat": "date-time",
@@ -3458,7 +3627,7 @@
           "nullable": false,
           "required": true,
           "sensitive": false,
-          "target": "smithy.api#String",
+          "target": "crucible.api#String",
           "targetName": "String",
           "targetType": "string",
           "timestampFormat": "date-time",
@@ -4207,7 +4376,7 @@
           "nullable": true,
           "required": false,
           "sensitive": false,
-          "target": "smithy.api#String",
+          "target": "crucible.api#String",
           "targetName": "String",
           "targetType": "string",
           "timestampFormat": "date-time",
@@ -4271,7 +4440,7 @@
           "nullable": true,
           "required": false,
           "sensitive": false,
-          "target": "smithy.api#Timestamp",
+          "target": "crucible.api#Timestamp",
           "targetName": "Timestamp",
           "targetType": "timestamp",
           "timestampFormat": "date-time",
@@ -4303,7 +4472,7 @@
           "nullable": true,
           "required": false,
           "sensitive": false,
-          "target": "smithy.api#Timestamp",
+          "target": "crucible.api#Timestamp",
           "targetName": "Timestamp",
           "targetType": "timestamp",
           "timestampFormat": "date-time",
@@ -4574,7 +4743,7 @@
           "nullable": true,
           "required": false,
           "sensitive": false,
-          "target": "smithy.api#Boolean",
+          "target": "crucible.api#Boolean",
           "targetName": "Boolean",
           "targetType": "boolean",
           "timestampFormat": "date-time",
@@ -4638,7 +4807,7 @@
           "nullable": true,
           "required": false,
           "sensitive": false,
-          "target": "smithy.api#Timestamp",
+          "target": "crucible.api#Timestamp",
           "targetName": "Timestamp",
           "targetType": "timestamp",
           "timestampFormat": "date-time",
@@ -4705,7 +4874,7 @@
           "nullable": true,
           "required": false,
           "sensitive": false,
-          "target": "smithy.api#Document",
+          "target": "crucible.api#Document",
           "targetName": "Document",
           "targetType": "document",
           "timestampFormat": "date-time",
@@ -4903,7 +5072,7 @@
           "nullable": false,
           "required": false,
           "sensitive": false,
-          "target": "smithy.api#Long",
+          "target": "crucible.api#Long",
           "targetName": "Long",
           "targetType": "long",
           "timestampFormat": "date-time",
@@ -5023,7 +5192,7 @@
           "nullable": true,
           "required": false,
           "sensitive": false,
-          "target": "smithy.api#Timestamp",
+          "target": "crucible.api#Timestamp",
           "targetName": "Timestamp",
           "targetType": "timestamp",
           "timestampFormat": "date-time",
@@ -5246,7 +5415,7 @@
           "nullable": true,
           "required": false,
           "sensitive": false,
-          "target": "smithy.api#Unit",
+          "target": "crucible.api#Unit",
           "targetName": "Unit",
           "targetType": "unit",
           "timestampFormat": "date-time",
@@ -5568,175 +5737,6 @@
         }
       ],
       "name": "WalkOutput",
-      "notes": {
-        "deprecated": null,
-        "externalDocs": {},
-        "since": null,
-        "unstable": false
-      },
-      "sensitive": false
-    },
-    "smithy.api#Boolean": {
-      "constraints": {
-        "length": null,
-        "pattern": null,
-        "range": null,
-        "uniqueItems": false
-      },
-      "documentation": {
-        "html": "",
-        "markdown": "",
-        "text": ""
-      },
-      "id": "smithy.api#Boolean",
-      "internal": false,
-      "kind": "boolean",
-      "members": [],
-      "name": "Boolean",
-      "notes": {
-        "deprecated": null,
-        "externalDocs": {},
-        "since": null,
-        "unstable": false
-      },
-      "sensitive": false
-    },
-    "smithy.api#Document": {
-      "constraints": {
-        "length": null,
-        "pattern": null,
-        "range": null,
-        "uniqueItems": false
-      },
-      "documentation": {
-        "html": "",
-        "markdown": "",
-        "text": ""
-      },
-      "id": "smithy.api#Document",
-      "internal": false,
-      "kind": "document",
-      "members": [],
-      "name": "Document",
-      "notes": {
-        "deprecated": null,
-        "externalDocs": {},
-        "since": null,
-        "unstable": false
-      },
-      "sensitive": false
-    },
-    "smithy.api#Integer": {
-      "constraints": {
-        "length": null,
-        "pattern": null,
-        "range": null,
-        "uniqueItems": false
-      },
-      "documentation": {
-        "html": "",
-        "markdown": "",
-        "text": ""
-      },
-      "id": "smithy.api#Integer",
-      "internal": false,
-      "kind": "integer",
-      "members": [],
-      "name": "Integer",
-      "notes": {
-        "deprecated": null,
-        "externalDocs": {},
-        "since": null,
-        "unstable": false
-      },
-      "sensitive": false
-    },
-    "smithy.api#Long": {
-      "constraints": {
-        "length": null,
-        "pattern": null,
-        "range": null,
-        "uniqueItems": false
-      },
-      "documentation": {
-        "html": "",
-        "markdown": "",
-        "text": ""
-      },
-      "id": "smithy.api#Long",
-      "internal": false,
-      "kind": "long",
-      "members": [],
-      "name": "Long",
-      "notes": {
-        "deprecated": null,
-        "externalDocs": {},
-        "since": null,
-        "unstable": false
-      },
-      "sensitive": false
-    },
-    "smithy.api#String": {
-      "constraints": {
-        "length": null,
-        "pattern": null,
-        "range": null,
-        "uniqueItems": false
-      },
-      "documentation": {
-        "html": "",
-        "markdown": "",
-        "text": ""
-      },
-      "id": "smithy.api#String",
-      "internal": false,
-      "kind": "string",
-      "members": [],
-      "name": "String",
-      "notes": {
-        "deprecated": null,
-        "externalDocs": {},
-        "since": null,
-        "unstable": false
-      },
-      "sensitive": false
-    },
-    "smithy.api#Timestamp": {
-      "constraints": {
-        "length": null,
-        "pattern": null,
-        "range": null,
-        "uniqueItems": false
-      },
-      "documentation": {
-        "html": "",
-        "markdown": "",
-        "text": ""
-      },
-      "id": "smithy.api#Timestamp",
-      "internal": false,
-      "kind": "timestamp",
-      "members": [],
-      "name": "Timestamp",
-      "notes": {
-        "deprecated": null,
-        "externalDocs": {},
-        "since": null,
-        "unstable": false
-      },
-      "sensitive": false
-    },
-    "smithy.api#Unit": {
-      "documentation": {
-        "html": "",
-        "markdown": "",
-        "text": ""
-      },
-      "id": "smithy.api#Unit",
-      "internal": false,
-      "kind": "unit",
-      "members": [],
-      "name": "Unit",
       "notes": {
         "deprecated": null,
         "externalDocs": {},

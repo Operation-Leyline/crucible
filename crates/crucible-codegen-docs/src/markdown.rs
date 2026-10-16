@@ -212,7 +212,7 @@ pub(super) fn render(service: &Service, d: &Description) -> Vec<File> {
         });
     }
     for (id, shape) in &d.shapes {
-        if id.starts_with("smithy.api#") {
+        if crate::builtin(id) {
             continue;
         }
         summary.push_str(&format!(
@@ -324,7 +324,7 @@ fn page(d: &Description, id: &str, operation: Option<&str>) -> Option<String> {
     }
     d.shapes
         .get(shape)
-        .filter(|_| !shape.starts_with("smithy.api#"))
+        .filter(|_| !crate::builtin(shape))
         .map(shape_path)
 }
 
@@ -392,7 +392,7 @@ fn cell_docs(item: &Value) -> String {
 }
 fn target(d: &Description, m: &Value) -> String {
     if let Some(shape) = d.shapes.get(string(&m["target"]))
-        && !string(&m["target"]).starts_with("smithy.api#")
+        && !crate::builtin(string(&m["target"]))
     {
         link(
             string(&m["targetName"]),

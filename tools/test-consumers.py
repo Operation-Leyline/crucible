@@ -88,8 +88,8 @@ def starter(env, work, target):
 
 
 def weather(env):
-    # The service's tests include the generated smithy.test conformance suite,
-    # and the client's drive the service over real HTTP.
+    # The service's tests cover the framework end to end, and the client's
+    # drive the service over real HTTP.
     run(["cargo", "test", "-q", "--locked", "--manifest-path", "e2e/Cargo.toml",
          "-p", "weather-model", "-p", "weather-service", "-p", "weather-client"], env=env)
     print("e2e: weather model, service, client and conformance passed", flush=True)

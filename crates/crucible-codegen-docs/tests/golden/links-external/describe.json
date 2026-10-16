@@ -3,7 +3,7 @@
   "operations": {
     "example.links#CreateWidget": {
       "auth": [
-        "smithy.api#httpBearerAuth"
+        "crucible.api#httpBearerAuth"
       ],
       "documentation": {
         "html": "<p>Makes a <a data-crucible-ref=\"example.links#Widget\">Widget</a>; read it with <a data-crucible-ref=\"example.links#GetWidget\">GetWidget</a>.</p>\n",
@@ -20,6 +20,9 @@
       "input": "example.links#CreateWidgetInput",
       "inputSchema": {
         "$defs": {
+          "crucible.api.String": {
+            "type": "string"
+          },
           "example.links.Choice": {
             "description": "One of two things.",
             "oneOf": [
@@ -39,7 +42,7 @@
                 "additionalProperties": false,
                 "properties": {
                   "label": {
-                    "$ref": "#/$defs/smithy.api.String"
+                    "$ref": "#/$defs/crucible.api.String"
                   }
                 },
                 "required": [
@@ -126,13 +129,13 @@
                 "description": "A Label, plain text where a language has no type for it."
               },
               "name": {
-                "$ref": "#/$defs/smithy.api.String",
+                "$ref": "#/$defs/crucible.api.String",
                 "description": "What Widget.name becomes."
               },
               "note": {
                 "anyOf": [
                   {
-                    "$ref": "#/$defs/smithy.api.String"
+                    "$ref": "#/$defs/crucible.api.String"
                   },
                   {
                     "type": "null"
@@ -178,13 +181,13 @@
                 "description": "One of Color; Color.BLUE by default."
               },
               "name": {
-                "$ref": "#/$defs/smithy.api.String",
+                "$ref": "#/$defs/crucible.api.String",
                 "description": "The name CreateWidget.name chose."
               },
               "object": {
                 "anyOf": [
                   {
-                    "$ref": "#/$defs/smithy.api.String"
+                    "$ref": "#/$defs/crucible.api.String"
                   },
                   {
                     "type": "null"
@@ -212,12 +215,9 @@
             },
             "description": "Widgets by name.",
             "propertyNames": {
-              "$ref": "#/$defs/smithy.api.String"
+              "$ref": "#/$defs/crucible.api.String"
             },
             "type": "object"
-          },
-          "smithy.api.String": {
-            "type": "string"
           }
         },
         "properties": {
@@ -279,13 +279,13 @@
             "description": "A Label, plain text where a language has no type for it."
           },
           "name": {
-            "$ref": "#/$defs/smithy.api.String",
+            "$ref": "#/$defs/crucible.api.String",
             "description": "What Widget.name becomes."
           },
           "note": {
             "anyOf": [
               {
-                "$ref": "#/$defs/smithy.api.String"
+                "$ref": "#/$defs/crucible.api.String"
               },
               {
                 "type": "null"
@@ -322,6 +322,9 @@
       "output": "example.links#CreateWidgetOutput",
       "outputSchema": {
         "$defs": {
+          "crucible.api.String": {
+            "type": "string"
+          },
           "example.links.Color": {
             "description": "A colour. Color.RED is the first.",
             "enum": [
@@ -356,13 +359,13 @@
                 "description": "One of Color; Color.BLUE by default."
               },
               "name": {
-                "$ref": "#/$defs/smithy.api.String",
+                "$ref": "#/$defs/crucible.api.String",
                 "description": "The name CreateWidget.name chose."
               },
               "object": {
                 "anyOf": [
                   {
-                    "$ref": "#/$defs/smithy.api.String"
+                    "$ref": "#/$defs/crucible.api.String"
                   },
                   {
                     "type": "null"
@@ -375,9 +378,6 @@
               "name"
             ],
             "type": "object"
-          },
-          "smithy.api.String": {
-            "type": "string"
           }
         },
         "properties": {
@@ -504,7 +504,7 @@
     },
     "example.links#GetGadget": {
       "auth": [
-        "smithy.api#httpBearerAuth"
+        "crucible.api#httpBearerAuth"
       ],
       "documentation": {
         "html": "<p>Reads a <a data-crucible-ref=\"example.links#Gadget\">Gadget</a>.</p>\n",
@@ -521,24 +521,24 @@
       "input": "example.links#GetGadgetInput",
       "inputSchema": {
         "$defs": {
+          "crucible.api.String": {
+            "type": "string"
+          },
           "example.links.GetGadgetInput": {
             "properties": {
               "gadgetId": {
-                "$ref": "#/$defs/smithy.api.String"
+                "$ref": "#/$defs/crucible.api.String"
               }
             },
             "required": [
               "gadgetId"
             ],
             "type": "object"
-          },
-          "smithy.api.String": {
-            "type": "string"
           }
         },
         "properties": {
           "gadgetId": {
-            "$ref": "#/$defs/smithy.api.String"
+            "$ref": "#/$defs/crucible.api.String"
           }
         },
         "required": [
@@ -558,24 +558,24 @@
       "output": "example.links#GetGadgetOutput",
       "outputSchema": {
         "$defs": {
+          "crucible.api.String": {
+            "type": "string"
+          },
           "example.links.GetGadgetOutput": {
             "properties": {
               "label": {
-                "$ref": "#/$defs/smithy.api.String"
+                "$ref": "#/$defs/crucible.api.String"
               }
             },
             "required": [
               "label"
             ],
             "type": "object"
-          },
-          "smithy.api.String": {
-            "type": "string"
           }
         },
         "properties": {
           "label": {
-            "$ref": "#/$defs/smithy.api.String"
+            "$ref": "#/$defs/crucible.api.String"
           }
         },
         "required": [
@@ -657,7 +657,7 @@
     },
     "example.links#GetWidget": {
       "auth": [
-        "smithy.api#httpBearerAuth"
+        "crucible.api#httpBearerAuth"
       ],
       "documentation": {
         "html": "<p>Reads the <a data-crucible-ref=\"example.links#Widget\">Widget</a> that <a data-crucible-ref=\"example.links#CreateWidget\">CreateWidget</a> made, by <a data-crucible-ref=\"example.links#GetWidgetInput$widgetId\" data-crucible-operation=\"example.links#GetWidget\">GetWidget.widgetId</a>,\nand returns it as <a data-crucible-ref=\"example.links#GetWidgetOutput$widget\" data-crucible-operation=\"example.links#GetWidget\">GetWidget.widget</a>. Fails with <a data-crucible-ref=\"example.links#WidgetError\">WidgetError</a>.</p>\n",
@@ -674,24 +674,24 @@
       "input": "example.links#GetWidgetInput",
       "inputSchema": {
         "$defs": {
+          "crucible.api.String": {
+            "type": "string"
+          },
           "example.links.GetWidgetInput": {
             "properties": {
               "widgetId": {
-                "$ref": "#/$defs/smithy.api.String"
+                "$ref": "#/$defs/crucible.api.String"
               }
             },
             "required": [
               "widgetId"
             ],
             "type": "object"
-          },
-          "smithy.api.String": {
-            "type": "string"
           }
         },
         "properties": {
           "widgetId": {
-            "$ref": "#/$defs/smithy.api.String"
+            "$ref": "#/$defs/crucible.api.String"
           }
         },
         "required": [
@@ -711,6 +711,9 @@
       "output": "example.links#GetWidgetOutput",
       "outputSchema": {
         "$defs": {
+          "crucible.api.String": {
+            "type": "string"
+          },
           "example.links.Color": {
             "description": "A colour. Color.RED is the first.",
             "enum": [
@@ -745,13 +748,13 @@
                 "description": "One of Color; Color.BLUE by default."
               },
               "name": {
-                "$ref": "#/$defs/smithy.api.String",
+                "$ref": "#/$defs/crucible.api.String",
                 "description": "The name CreateWidget.name chose."
               },
               "object": {
                 "anyOf": [
                   {
-                    "$ref": "#/$defs/smithy.api.String"
+                    "$ref": "#/$defs/crucible.api.String"
                   },
                   {
                     "type": "null"
@@ -764,9 +767,6 @@
               "name"
             ],
             "type": "object"
-          },
-          "smithy.api.String": {
-            "type": "string"
           }
         },
         "properties": {
@@ -863,7 +863,7 @@
       },
       "id": "example.links#Gadget",
       "identifiers": {
-        "gadgetId": "smithy.api#String"
+        "gadgetId": "crucible.api#String"
       },
       "internal": false,
       "lifecycle": {
@@ -885,17 +885,17 @@
         "example.links#GetGadget"
       ],
       "properties": {
-        "label": "smithy.api#String"
+        "label": "crucible.api#String"
       },
       "resources": []
     }
   },
   "service": {
     "auth": [
-      "smithy.api#httpBearerAuth"
+      "crucible.api#httpBearerAuth"
     ],
     "authSchemes": {
-      "smithy.api#httpBearerAuth": {
+      "crucible.api#httpBearerAuth": {
         "kind": "bearer"
       }
     },
@@ -924,6 +924,31 @@
     "version": "1"
   },
   "shapes": {
+    "crucible.api#String": {
+      "constraints": {
+        "length": null,
+        "pattern": null,
+        "range": null,
+        "uniqueItems": false
+      },
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "id": "crucible.api#String",
+      "internal": false,
+      "kind": "string",
+      "members": [],
+      "name": "String",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false
+    },
     "example.links#Choice": {
       "documentation": {
         "html": "<p>One of two things.</p>\n",
@@ -992,7 +1017,7 @@
           "nullable": true,
           "required": false,
           "sensitive": false,
-          "target": "smithy.api#String",
+          "target": "crucible.api#String",
           "targetName": "String",
           "targetType": "string",
           "timestampFormat": "date-time",
@@ -1151,7 +1176,7 @@
           "nullable": false,
           "required": true,
           "sensitive": false,
-          "target": "smithy.api#String",
+          "target": "crucible.api#String",
           "targetName": "String",
           "targetType": "string",
           "timestampFormat": "date-time",
@@ -1378,7 +1403,7 @@
           "nullable": true,
           "required": false,
           "sensitive": false,
-          "target": "smithy.api#String",
+          "target": "crucible.api#String",
           "targetName": "String",
           "targetType": "string",
           "timestampFormat": "date-time",
@@ -1484,7 +1509,7 @@
           "nullable": false,
           "required": true,
           "sensitive": false,
-          "target": "smithy.api#String",
+          "target": "crucible.api#String",
           "targetName": "String",
           "targetType": "string",
           "timestampFormat": "date-time",
@@ -1537,7 +1562,7 @@
           "nullable": false,
           "required": true,
           "sensitive": false,
-          "target": "smithy.api#String",
+          "target": "crucible.api#String",
           "targetName": "String",
           "targetType": "string",
           "timestampFormat": "date-time",
@@ -1590,7 +1615,7 @@
           "nullable": false,
           "required": true,
           "sensitive": false,
-          "target": "smithy.api#String",
+          "target": "crucible.api#String",
           "targetName": "String",
           "targetType": "string",
           "timestampFormat": "date-time",
@@ -1724,7 +1749,7 @@
           "nullable": false,
           "required": true,
           "sensitive": false,
-          "target": "smithy.api#String",
+          "target": "crucible.api#String",
           "targetName": "String",
           "targetType": "string",
           "timestampFormat": "date-time",
@@ -1788,7 +1813,7 @@
           "nullable": true,
           "required": false,
           "sensitive": false,
-          "target": "smithy.api#String",
+          "target": "crucible.api#String",
           "targetName": "String",
           "targetType": "string",
           "timestampFormat": "date-time",
@@ -1880,7 +1905,7 @@
           "nullable": false,
           "required": true,
           "sensitive": false,
-          "target": "smithy.api#String",
+          "target": "crucible.api#String",
           "targetName": "String",
           "targetType": "string",
           "timestampFormat": "date-time",
@@ -1998,7 +2023,7 @@
           "nullable": true,
           "required": false,
           "sensitive": false,
-          "target": "smithy.api#String",
+          "target": "crucible.api#String",
           "targetName": "String",
           "targetType": "string",
           "timestampFormat": "date-time",
@@ -2047,31 +2072,6 @@
       },
       "sensitive": false,
       "sparse": false
-    },
-    "smithy.api#String": {
-      "constraints": {
-        "length": null,
-        "pattern": null,
-        "range": null,
-        "uniqueItems": false
-      },
-      "documentation": {
-        "html": "",
-        "markdown": "",
-        "text": ""
-      },
-      "id": "smithy.api#String",
-      "internal": false,
-      "kind": "string",
-      "members": [],
-      "name": "String",
-      "notes": {
-        "deprecated": null,
-        "externalDocs": {},
-        "since": null,
-        "unstable": false
-      },
-      "sensitive": false
     }
   }
 }

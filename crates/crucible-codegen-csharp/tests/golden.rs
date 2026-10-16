@@ -76,19 +76,16 @@ fn model_name_diagnostics_are_collected() {
             "location?: Location\n        message?: string\n        messageValue?: string",
         )
     });
-    service.renames.insert(
-        ShapeId::new("example.weather", "CitySummary"),
-        "CON".to_owned(),
-    );
+    service.rename_shape(&ShapeId::new("example.weather", "CitySummary"), "CON");
     assert_eq!(emit(&service, &options()).err().unwrap().len(), 2);
 }
 
 #[test]
 fn service_client_name_is_reserved() {
     let mut service = weather();
-    service.renames.insert(
-        ShapeId::new("example.weather", "CitySummary"),
-        "WeatherClient".to_owned(),
+    service.rename_shape(
+        &ShapeId::new("example.weather", "CitySummary"),
+        "WeatherClient",
     );
     assert!(emit(&service, &options()).is_err());
 }

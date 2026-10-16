@@ -202,7 +202,7 @@ never changes a call's result, its retries or its timing.
 
 No runtime depends on OpenTelemetry. A runtime may ship an adapter that maps
 events onto any tracer with the OpenTelemetry shape: one span per operation
-named `<Service>.<Operation>` with `rpc.system=smithy`, `rpc.service`,
+named `<Service>.<Operation>` with `rpc.system=crucible`, `rpc.service`,
 `rpc.method`; per attempt `server.address`, `http.request.method`,
 `http.request.resend_count` (from the second attempt) and a
 `crucible.attempt` span event carrying `http.response.status_code`,

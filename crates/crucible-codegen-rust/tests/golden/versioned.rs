@@ -246,8 +246,8 @@ pub mod shop {
             true,
             false,
             &[
-                ::crucible_server_runtime_rust::__generated::member_info("message", ::crucible_server_runtime_rust::__generated::operation::Location::Body, ::crucible_server_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_18, &[]),
-                ::crucible_server_runtime_rust::__generated::member_info("retryAfterSeconds", ::crucible_server_runtime_rust::__generated::operation::Location::Header("retry-after"), ::crucible_server_runtime_rust::__generated::operation::Scalar::Integer, &__redaction::R_17, &[]),
+                ::crucible_server_runtime_rust::__generated::member_info("message", ::crucible_server_runtime_rust::__generated::operation::Location::Body, ::crucible_server_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_1, &[]),
+                ::crucible_server_runtime_rust::__generated::member_info("retryAfterSeconds", ::crucible_server_runtime_rust::__generated::operation::Location::Header("retry-after"), ::crucible_server_runtime_rust::__generated::operation::Scalar::Integer, &__redaction::R_0, &[]),
             ],
         );
 
@@ -296,7 +296,7 @@ pub mod shop {
             false,
             false,
             &[
-                ::crucible_server_runtime_rust::__generated::member_info("message", ::crucible_server_runtime_rust::__generated::operation::Location::Body, ::crucible_server_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_18, &[]),
+                ::crucible_server_runtime_rust::__generated::member_info("message", ::crucible_server_runtime_rust::__generated::operation::Location::Body, ::crucible_server_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_1, &[]),
             ],
         );
 
@@ -345,7 +345,7 @@ pub mod shop {
             false,
             false,
             &[
-                ::crucible_server_runtime_rust::__generated::member_info("message", ::crucible_server_runtime_rust::__generated::operation::Location::Body, ::crucible_server_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_18, &[]),
+                ::crucible_server_runtime_rust::__generated::member_info("message", ::crucible_server_runtime_rust::__generated::operation::Location::Body, ::crucible_server_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_1, &[]),
             ],
         );
 
@@ -401,9 +401,9 @@ pub mod shop {
             false,
             false,
             &[
-                ::crucible_server_runtime_rust::__generated::member_info("message", ::crucible_server_runtime_rust::__generated::operation::Location::Body, ::crucible_server_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_18, &[]),
-                ::crucible_server_runtime_rust::__generated::member_info("reason", ::crucible_server_runtime_rust::__generated::operation::Location::Body, ::crucible_server_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_4, &[]),
-                ::crucible_server_runtime_rust::__generated::member_info("fieldList", ::crucible_server_runtime_rust::__generated::operation::Location::Body, ::crucible_server_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_3, &[]),
+                ::crucible_server_runtime_rust::__generated::member_info("message", ::crucible_server_runtime_rust::__generated::operation::Location::Body, ::crucible_server_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_1, &[]),
+                ::crucible_server_runtime_rust::__generated::member_info("reason", ::crucible_server_runtime_rust::__generated::operation::Location::Body, ::crucible_server_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_6, &[]),
+                ::crucible_server_runtime_rust::__generated::member_info("fieldList", ::crucible_server_runtime_rust::__generated::operation::Location::Body, ::crucible_server_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_5, &[]),
             ],
         );
 
@@ -442,25 +442,25 @@ pub mod shop {
     #[allow(dead_code, unused_imports)]
     mod __redaction {
         use ::crucible_server_runtime_rust::__generated::operation::Redaction;
-        pub(super) static R_0: Redaction = Redaction::Structure(&[("message", &R_18), ("retryAfterSeconds", &R_17)]);
-        pub(super) static R_1: Redaction = Redaction::Structure(&[("message", &R_18), ("reason", &R_4), ("fieldList", &R_3)]);
-        pub(super) static R_2: Redaction = Redaction::Structure(&[("name", &R_18), ("message", &R_18)]);
-        pub(super) static R_3: Redaction = Redaction::List(&R_2);
-        pub(super) static R_4: Redaction = Redaction::Public;
-        pub(super) static R_5: Redaction = Redaction::Structure(&[("id", &R_18), ("force", &R_18)]);
-        pub(super) static R_6: Redaction = Redaction::Structure(&[("deleted", &R_18)]);
-        pub(super) static R_7: Redaction = Redaction::Structure(&[("id", &R_18)]);
-        pub(super) static R_8: Redaction = Redaction::Structure(&[("label", &R_13), ("kind", &R_11)]);
-        pub(super) static R_9: Redaction = Redaction::Structure(&[("message", &R_18)]);
-        pub(super) static R_10: Redaction = Redaction::Structure(&[("message", &R_18)]);
-        pub(super) static R_11: Redaction = Redaction::Public;
-        pub(super) static R_12: Redaction = Redaction::List(&R_11);
-        pub(super) static R_13: Redaction = Redaction::Structure(&[("title", &R_18), ("size", &R_17)]);
-        pub(super) static R_14: Redaction = Redaction::Structure(&[("limit", &R_17), ("sort", &R_18)]);
-        pub(super) static R_15: Redaction = Redaction::Structure(&[("names", &R_16), ("kinds", &R_12)]);
-        pub(super) static R_16: Redaction = Redaction::List(&R_18);
-        pub(super) static R_17: Redaction = Redaction::Public;
-        pub(super) static R_18: Redaction = Redaction::Public;
+        pub(super) static R_0: Redaction = Redaction::Public;
+        pub(super) static R_1: Redaction = Redaction::Public;
+        pub(super) static R_2: Redaction = Redaction::Structure(&[("message", &R_1), ("retryAfterSeconds", &R_0)]);
+        pub(super) static R_3: Redaction = Redaction::Structure(&[("message", &R_1), ("reason", &R_6), ("fieldList", &R_5)]);
+        pub(super) static R_4: Redaction = Redaction::Structure(&[("name", &R_1), ("message", &R_1)]);
+        pub(super) static R_5: Redaction = Redaction::List(&R_4);
+        pub(super) static R_6: Redaction = Redaction::Public;
+        pub(super) static R_7: Redaction = Redaction::Structure(&[("id", &R_1), ("force", &R_1)]);
+        pub(super) static R_8: Redaction = Redaction::Structure(&[("deleted", &R_1)]);
+        pub(super) static R_9: Redaction = Redaction::Structure(&[("id", &R_1)]);
+        pub(super) static R_10: Redaction = Redaction::Structure(&[("label", &R_15), ("kind", &R_13)]);
+        pub(super) static R_11: Redaction = Redaction::Structure(&[("message", &R_1)]);
+        pub(super) static R_12: Redaction = Redaction::Structure(&[("message", &R_1)]);
+        pub(super) static R_13: Redaction = Redaction::Public;
+        pub(super) static R_14: Redaction = Redaction::List(&R_13);
+        pub(super) static R_15: Redaction = Redaction::Structure(&[("title", &R_1), ("size", &R_0)]);
+        pub(super) static R_16: Redaction = Redaction::Structure(&[("limit", &R_0), ("sort", &R_1)]);
+        pub(super) static R_17: Redaction = Redaction::Structure(&[("names", &R_18), ("kinds", &R_14)]);
+        pub(super) static R_18: Redaction = Redaction::List(&R_1);
     }
 
 
@@ -475,11 +475,11 @@ pub mod shop {
         &[],
         200,
         &[
-            ::crucible_server_runtime_rust::__generated::member_info("id", ::crucible_server_runtime_rust::__generated::operation::Location::Label, ::crucible_server_runtime_rust::__generated::operation::Scalar::String, &__redaction::R_18, &[]),
-            ::crucible_server_runtime_rust::__generated::member_info("force", ::crucible_server_runtime_rust::__generated::operation::Location::Query("force"), ::crucible_server_runtime_rust::__generated::operation::Scalar::String, &__redaction::R_18, &[]),
+            ::crucible_server_runtime_rust::__generated::member_info("id", ::crucible_server_runtime_rust::__generated::operation::Location::Label, ::crucible_server_runtime_rust::__generated::operation::Scalar::String, &__redaction::R_1, &[]),
+            ::crucible_server_runtime_rust::__generated::member_info("force", ::crucible_server_runtime_rust::__generated::operation::Location::Query("force"), ::crucible_server_runtime_rust::__generated::operation::Scalar::String, &__redaction::R_1, &[]),
         ],
         &[
-            ::crucible_server_runtime_rust::__generated::member_info("deleted", ::crucible_server_runtime_rust::__generated::operation::Location::Body, ::crucible_server_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_18, &[]),
+            ::crucible_server_runtime_rust::__generated::member_info("deleted", ::crucible_server_runtime_rust::__generated::operation::Location::Body, ::crucible_server_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_1, &[]),
         ],
         &["ValidationException", "InternalServerException"],
         false,
@@ -513,11 +513,11 @@ pub mod shop {
         &[],
         200,
         &[
-            ::crucible_server_runtime_rust::__generated::member_info("id", ::crucible_server_runtime_rust::__generated::operation::Location::Label, ::crucible_server_runtime_rust::__generated::operation::Scalar::String, &__redaction::R_18, &[]),
+            ::crucible_server_runtime_rust::__generated::member_info("id", ::crucible_server_runtime_rust::__generated::operation::Location::Label, ::crucible_server_runtime_rust::__generated::operation::Scalar::String, &__redaction::R_1, &[]),
         ],
         &[
-            ::crucible_server_runtime_rust::__generated::member_info("label", ::crucible_server_runtime_rust::__generated::operation::Location::Body, ::crucible_server_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_13, &[]),
-            ::crucible_server_runtime_rust::__generated::member_info("kind", ::crucible_server_runtime_rust::__generated::operation::Location::Body, ::crucible_server_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_11, &[]),
+            ::crucible_server_runtime_rust::__generated::member_info("label", ::crucible_server_runtime_rust::__generated::operation::Location::Body, ::crucible_server_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_15, &[]),
+            ::crucible_server_runtime_rust::__generated::member_info("kind", ::crucible_server_runtime_rust::__generated::operation::Location::Body, ::crucible_server_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_13, &[]),
         ],
         &["ItemNotFoundException", "ItemGoneException", "ValidationException", "InternalServerException"],
         true,
@@ -551,12 +551,12 @@ pub mod shop {
         &[],
         200,
         &[
-            ::crucible_server_runtime_rust::__generated::member_info("limit", ::crucible_server_runtime_rust::__generated::operation::Location::Query("limit"), ::crucible_server_runtime_rust::__generated::operation::Scalar::Integer, &__redaction::R_17, &[]),
-            ::crucible_server_runtime_rust::__generated::member_info("sort", ::crucible_server_runtime_rust::__generated::operation::Location::Query("sort"), ::crucible_server_runtime_rust::__generated::operation::Scalar::String, &__redaction::R_18, &[]),
+            ::crucible_server_runtime_rust::__generated::member_info("limit", ::crucible_server_runtime_rust::__generated::operation::Location::Query("limit"), ::crucible_server_runtime_rust::__generated::operation::Scalar::Integer, &__redaction::R_0, &[]),
+            ::crucible_server_runtime_rust::__generated::member_info("sort", ::crucible_server_runtime_rust::__generated::operation::Location::Query("sort"), ::crucible_server_runtime_rust::__generated::operation::Scalar::String, &__redaction::R_1, &[]),
         ],
         &[
-            ::crucible_server_runtime_rust::__generated::member_info("names", ::crucible_server_runtime_rust::__generated::operation::Location::Body, ::crucible_server_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_16, &[]),
-            ::crucible_server_runtime_rust::__generated::member_info("kinds", ::crucible_server_runtime_rust::__generated::operation::Location::Body, ::crucible_server_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_12, &[]),
+            ::crucible_server_runtime_rust::__generated::member_info("names", ::crucible_server_runtime_rust::__generated::operation::Location::Body, ::crucible_server_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_18, &[]),
+            ::crucible_server_runtime_rust::__generated::member_info("kinds", ::crucible_server_runtime_rust::__generated::operation::Location::Body, ::crucible_server_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_14, &[]),
         ],
         &["ValidationException", "InternalServerException"],
         true,
@@ -944,7 +944,7 @@ pub mod shop {
                     false,
                     false,
                     &[
-                        ::crucible_server_runtime_rust::__generated::member_info("message", ::crucible_server_runtime_rust::__generated::operation::Location::Body, ::crucible_server_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_20, &[]),
+                        ::crucible_server_runtime_rust::__generated::member_info("message", ::crucible_server_runtime_rust::__generated::operation::Location::Body, ::crucible_server_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_2, &[]),
                     ],
                 );
 
@@ -997,8 +997,8 @@ pub mod shop {
                     true,
                     false,
                     &[
-                        ::crucible_server_runtime_rust::__generated::member_info("message", ::crucible_server_runtime_rust::__generated::operation::Location::Body, ::crucible_server_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_20, &[]),
-                        ::crucible_server_runtime_rust::__generated::member_info("retryAfterSeconds", ::crucible_server_runtime_rust::__generated::operation::Location::Header("retry-after"), ::crucible_server_runtime_rust::__generated::operation::Scalar::Integer, &__redaction::R_19, &[]),
+                        ::crucible_server_runtime_rust::__generated::member_info("message", ::crucible_server_runtime_rust::__generated::operation::Location::Body, ::crucible_server_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_2, &[]),
+                        ::crucible_server_runtime_rust::__generated::member_info("retryAfterSeconds", ::crucible_server_runtime_rust::__generated::operation::Location::Header("retry-after"), ::crucible_server_runtime_rust::__generated::operation::Scalar::Integer, &__redaction::R_1, &[]),
                     ],
                 );
 
@@ -1047,7 +1047,7 @@ pub mod shop {
                     false,
                     false,
                     &[
-                        ::crucible_server_runtime_rust::__generated::member_info("message", ::crucible_server_runtime_rust::__generated::operation::Location::Body, ::crucible_server_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_20, &[]),
+                        ::crucible_server_runtime_rust::__generated::member_info("message", ::crucible_server_runtime_rust::__generated::operation::Location::Body, ::crucible_server_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_2, &[]),
                     ],
                 );
 
@@ -1103,9 +1103,9 @@ pub mod shop {
                     false,
                     false,
                     &[
-                        ::crucible_server_runtime_rust::__generated::member_info("message", ::crucible_server_runtime_rust::__generated::operation::Location::Body, ::crucible_server_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_20, &[]),
-                        ::crucible_server_runtime_rust::__generated::member_info("reason", ::crucible_server_runtime_rust::__generated::operation::Location::Body, ::crucible_server_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_4, &[]),
-                        ::crucible_server_runtime_rust::__generated::member_info("fieldList", ::crucible_server_runtime_rust::__generated::operation::Location::Body, ::crucible_server_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_3, &[]),
+                        ::crucible_server_runtime_rust::__generated::member_info("message", ::crucible_server_runtime_rust::__generated::operation::Location::Body, ::crucible_server_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_2, &[]),
+                        ::crucible_server_runtime_rust::__generated::member_info("reason", ::crucible_server_runtime_rust::__generated::operation::Location::Body, ::crucible_server_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_7, &[]),
+                        ::crucible_server_runtime_rust::__generated::member_info("fieldList", ::crucible_server_runtime_rust::__generated::operation::Location::Body, ::crucible_server_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_6, &[]),
                     ],
                 );
 
@@ -1144,27 +1144,27 @@ pub mod shop {
             #[allow(dead_code, unused_imports)]
             mod __redaction {
                 use ::crucible_server_runtime_rust::__generated::operation::Redaction;
-                pub(super) static R_0: Redaction = Redaction::Structure(&[("message", &R_20), ("retryAfterSeconds", &R_19)]);
-                pub(super) static R_1: Redaction = Redaction::Structure(&[("message", &R_20), ("reason", &R_4), ("fieldList", &R_3)]);
-                pub(super) static R_2: Redaction = Redaction::Structure(&[("name", &R_20), ("message", &R_20)]);
-                pub(super) static R_3: Redaction = Redaction::List(&R_2);
-                pub(super) static R_4: Redaction = Redaction::Public;
-                pub(super) static R_5: Redaction = Redaction::Structure(&[("shelf", &R_20)]);
-                pub(super) static R_6: Redaction = Redaction::Structure(&[("count", &R_19)]);
-                pub(super) static R_7: Redaction = Redaction::Structure(&[("message", &R_20)]);
-                pub(super) static R_8: Redaction = Redaction::Structure(&[("id", &R_20), ("force", &R_18)]);
-                pub(super) static R_9: Redaction = Redaction::Structure(&[("deleted", &R_18)]);
-                pub(super) static R_10: Redaction = Redaction::Structure(&[("id", &R_20)]);
-                pub(super) static R_11: Redaction = Redaction::Structure(&[("name", &R_20), ("size", &R_19), ("kind", &R_13)]);
-                pub(super) static R_12: Redaction = Redaction::Structure(&[("message", &R_20)]);
-                pub(super) static R_13: Redaction = Redaction::Public;
-                pub(super) static R_14: Redaction = Redaction::List(&R_13);
-                pub(super) static R_15: Redaction = Redaction::Structure(&[("max", &R_19), ("sort", &R_20)]);
-                pub(super) static R_16: Redaction = Redaction::Structure(&[("names", &R_17), ("kinds", &R_14)]);
-                pub(super) static R_17: Redaction = Redaction::List(&R_20);
-                pub(super) static R_18: Redaction = Redaction::Public;
-                pub(super) static R_19: Redaction = Redaction::Public;
-                pub(super) static R_20: Redaction = Redaction::Public;
+                pub(super) static R_0: Redaction = Redaction::Public;
+                pub(super) static R_1: Redaction = Redaction::Public;
+                pub(super) static R_2: Redaction = Redaction::Public;
+                pub(super) static R_3: Redaction = Redaction::Structure(&[("message", &R_2), ("retryAfterSeconds", &R_1)]);
+                pub(super) static R_4: Redaction = Redaction::Structure(&[("message", &R_2), ("reason", &R_7), ("fieldList", &R_6)]);
+                pub(super) static R_5: Redaction = Redaction::Structure(&[("name", &R_2), ("message", &R_2)]);
+                pub(super) static R_6: Redaction = Redaction::List(&R_5);
+                pub(super) static R_7: Redaction = Redaction::Public;
+                pub(super) static R_8: Redaction = Redaction::Structure(&[("shelf", &R_2)]);
+                pub(super) static R_9: Redaction = Redaction::Structure(&[("count", &R_1)]);
+                pub(super) static R_10: Redaction = Redaction::Structure(&[("message", &R_2)]);
+                pub(super) static R_11: Redaction = Redaction::Structure(&[("id", &R_2), ("force", &R_0)]);
+                pub(super) static R_12: Redaction = Redaction::Structure(&[("deleted", &R_0)]);
+                pub(super) static R_13: Redaction = Redaction::Structure(&[("id", &R_2)]);
+                pub(super) static R_14: Redaction = Redaction::Structure(&[("name", &R_2), ("size", &R_1), ("kind", &R_16)]);
+                pub(super) static R_15: Redaction = Redaction::Structure(&[("message", &R_2)]);
+                pub(super) static R_16: Redaction = Redaction::Public;
+                pub(super) static R_17: Redaction = Redaction::List(&R_16);
+                pub(super) static R_18: Redaction = Redaction::Structure(&[("max", &R_1), ("sort", &R_2)]);
+                pub(super) static R_19: Redaction = Redaction::Structure(&[("names", &R_20), ("kinds", &R_17)]);
+                pub(super) static R_20: Redaction = Redaction::List(&R_2);
             }
 
 
@@ -1179,10 +1179,10 @@ pub mod shop {
                 &[],
                 200,
                 &[
-                    ::crucible_server_runtime_rust::__generated::member_info("shelf", ::crucible_server_runtime_rust::__generated::operation::Location::Query("shelf"), ::crucible_server_runtime_rust::__generated::operation::Scalar::String, &__redaction::R_20, &[]),
+                    ::crucible_server_runtime_rust::__generated::member_info("shelf", ::crucible_server_runtime_rust::__generated::operation::Location::Query("shelf"), ::crucible_server_runtime_rust::__generated::operation::Scalar::String, &__redaction::R_2, &[]),
                 ],
                 &[
-                    ::crucible_server_runtime_rust::__generated::member_info("count", ::crucible_server_runtime_rust::__generated::operation::Location::Body, ::crucible_server_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_19, &[]),
+                    ::crucible_server_runtime_rust::__generated::member_info("count", ::crucible_server_runtime_rust::__generated::operation::Location::Body, ::crucible_server_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_1, &[]),
                 ],
                 &["CountUnavailableException", "ValidationException", "InternalServerException"],
                 true,
@@ -1215,11 +1215,11 @@ pub mod shop {
                 &[],
                 200,
                 &[
-                    ::crucible_server_runtime_rust::__generated::member_info("id", ::crucible_server_runtime_rust::__generated::operation::Location::Label, ::crucible_server_runtime_rust::__generated::operation::Scalar::String, &__redaction::R_20, &[]),
-                    ::crucible_server_runtime_rust::__generated::member_info("force", ::crucible_server_runtime_rust::__generated::operation::Location::Query("force"), ::crucible_server_runtime_rust::__generated::operation::Scalar::Boolean, &__redaction::R_18, &[]),
+                    ::crucible_server_runtime_rust::__generated::member_info("id", ::crucible_server_runtime_rust::__generated::operation::Location::Label, ::crucible_server_runtime_rust::__generated::operation::Scalar::String, &__redaction::R_2, &[]),
+                    ::crucible_server_runtime_rust::__generated::member_info("force", ::crucible_server_runtime_rust::__generated::operation::Location::Query("force"), ::crucible_server_runtime_rust::__generated::operation::Scalar::Boolean, &__redaction::R_0, &[]),
                 ],
                 &[
-                    ::crucible_server_runtime_rust::__generated::member_info("deleted", ::crucible_server_runtime_rust::__generated::operation::Location::Body, ::crucible_server_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_18, &[]),
+                    ::crucible_server_runtime_rust::__generated::member_info("deleted", ::crucible_server_runtime_rust::__generated::operation::Location::Body, ::crucible_server_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_0, &[]),
                 ],
                 &["ValidationException", "InternalServerException"],
                 false,
@@ -1252,12 +1252,12 @@ pub mod shop {
                 &[],
                 200,
                 &[
-                    ::crucible_server_runtime_rust::__generated::member_info("id", ::crucible_server_runtime_rust::__generated::operation::Location::Label, ::crucible_server_runtime_rust::__generated::operation::Scalar::String, &__redaction::R_20, &[]),
+                    ::crucible_server_runtime_rust::__generated::member_info("id", ::crucible_server_runtime_rust::__generated::operation::Location::Label, ::crucible_server_runtime_rust::__generated::operation::Scalar::String, &__redaction::R_2, &[]),
                 ],
                 &[
-                    ::crucible_server_runtime_rust::__generated::member_info("name", ::crucible_server_runtime_rust::__generated::operation::Location::Body, ::crucible_server_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_20, &[]),
-                    ::crucible_server_runtime_rust::__generated::member_info("size", ::crucible_server_runtime_rust::__generated::operation::Location::Body, ::crucible_server_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_19, &[]),
-                    ::crucible_server_runtime_rust::__generated::member_info("kind", ::crucible_server_runtime_rust::__generated::operation::Location::Body, ::crucible_server_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_13, &[]),
+                    ::crucible_server_runtime_rust::__generated::member_info("name", ::crucible_server_runtime_rust::__generated::operation::Location::Body, ::crucible_server_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_2, &[]),
+                    ::crucible_server_runtime_rust::__generated::member_info("size", ::crucible_server_runtime_rust::__generated::operation::Location::Body, ::crucible_server_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_1, &[]),
+                    ::crucible_server_runtime_rust::__generated::member_info("kind", ::crucible_server_runtime_rust::__generated::operation::Location::Body, ::crucible_server_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_16, &[]),
                 ],
                 &["ItemNotFoundException", "ValidationException", "InternalServerException"],
                 true,
@@ -1290,12 +1290,12 @@ pub mod shop {
                 &[],
                 200,
                 &[
-                    ::crucible_server_runtime_rust::__generated::member_info("max", ::crucible_server_runtime_rust::__generated::operation::Location::Query("max"), ::crucible_server_runtime_rust::__generated::operation::Scalar::Integer, &__redaction::R_19, &[]),
-                    ::crucible_server_runtime_rust::__generated::member_info("sort", ::crucible_server_runtime_rust::__generated::operation::Location::Query("sort"), ::crucible_server_runtime_rust::__generated::operation::Scalar::String, &__redaction::R_20, &[]),
+                    ::crucible_server_runtime_rust::__generated::member_info("max", ::crucible_server_runtime_rust::__generated::operation::Location::Query("max"), ::crucible_server_runtime_rust::__generated::operation::Scalar::Integer, &__redaction::R_1, &[]),
+                    ::crucible_server_runtime_rust::__generated::member_info("sort", ::crucible_server_runtime_rust::__generated::operation::Location::Query("sort"), ::crucible_server_runtime_rust::__generated::operation::Scalar::String, &__redaction::R_2, &[]),
                 ],
                 &[
-                    ::crucible_server_runtime_rust::__generated::member_info("names", ::crucible_server_runtime_rust::__generated::operation::Location::Body, ::crucible_server_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_17, &[]),
-                    ::crucible_server_runtime_rust::__generated::member_info("kinds", ::crucible_server_runtime_rust::__generated::operation::Location::Body, ::crucible_server_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_14, &[]),
+                    ::crucible_server_runtime_rust::__generated::member_info("names", ::crucible_server_runtime_rust::__generated::operation::Location::Body, ::crucible_server_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_20, &[]),
+                    ::crucible_server_runtime_rust::__generated::member_info("kinds", ::crucible_server_runtime_rust::__generated::operation::Location::Body, ::crucible_server_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_17, &[]),
                 ],
                 &["ValidationException", "InternalServerException"],
                 true,
@@ -1688,7 +1688,7 @@ pub mod shop {
                     false,
                     false,
                     &[
-                        ::crucible_server_runtime_rust::__generated::member_info("message", ::crucible_server_runtime_rust::__generated::operation::Location::Body, ::crucible_server_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_20, &[]),
+                        ::crucible_server_runtime_rust::__generated::member_info("message", ::crucible_server_runtime_rust::__generated::operation::Location::Body, ::crucible_server_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_2, &[]),
                     ],
                 );
 
@@ -1741,8 +1741,8 @@ pub mod shop {
                     true,
                     false,
                     &[
-                        ::crucible_server_runtime_rust::__generated::member_info("message", ::crucible_server_runtime_rust::__generated::operation::Location::Body, ::crucible_server_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_20, &[]),
-                        ::crucible_server_runtime_rust::__generated::member_info("retryAfterSeconds", ::crucible_server_runtime_rust::__generated::operation::Location::Header("retry-after"), ::crucible_server_runtime_rust::__generated::operation::Scalar::Integer, &__redaction::R_19, &[]),
+                        ::crucible_server_runtime_rust::__generated::member_info("message", ::crucible_server_runtime_rust::__generated::operation::Location::Body, ::crucible_server_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_2, &[]),
+                        ::crucible_server_runtime_rust::__generated::member_info("retryAfterSeconds", ::crucible_server_runtime_rust::__generated::operation::Location::Header("retry-after"), ::crucible_server_runtime_rust::__generated::operation::Scalar::Integer, &__redaction::R_1, &[]),
                     ],
                 );
 
@@ -1791,7 +1791,7 @@ pub mod shop {
                     false,
                     false,
                     &[
-                        ::crucible_server_runtime_rust::__generated::member_info("message", ::crucible_server_runtime_rust::__generated::operation::Location::Body, ::crucible_server_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_20, &[]),
+                        ::crucible_server_runtime_rust::__generated::member_info("message", ::crucible_server_runtime_rust::__generated::operation::Location::Body, ::crucible_server_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_2, &[]),
                     ],
                 );
 
@@ -1847,9 +1847,9 @@ pub mod shop {
                     false,
                     false,
                     &[
-                        ::crucible_server_runtime_rust::__generated::member_info("message", ::crucible_server_runtime_rust::__generated::operation::Location::Body, ::crucible_server_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_20, &[]),
-                        ::crucible_server_runtime_rust::__generated::member_info("reason", ::crucible_server_runtime_rust::__generated::operation::Location::Body, ::crucible_server_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_4, &[]),
-                        ::crucible_server_runtime_rust::__generated::member_info("fieldList", ::crucible_server_runtime_rust::__generated::operation::Location::Body, ::crucible_server_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_3, &[]),
+                        ::crucible_server_runtime_rust::__generated::member_info("message", ::crucible_server_runtime_rust::__generated::operation::Location::Body, ::crucible_server_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_2, &[]),
+                        ::crucible_server_runtime_rust::__generated::member_info("reason", ::crucible_server_runtime_rust::__generated::operation::Location::Body, ::crucible_server_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_7, &[]),
+                        ::crucible_server_runtime_rust::__generated::member_info("fieldList", ::crucible_server_runtime_rust::__generated::operation::Location::Body, ::crucible_server_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_6, &[]),
                     ],
                 );
 
@@ -1888,27 +1888,27 @@ pub mod shop {
             #[allow(dead_code, unused_imports)]
             mod __redaction {
                 use ::crucible_server_runtime_rust::__generated::operation::Redaction;
-                pub(super) static R_0: Redaction = Redaction::Structure(&[("message", &R_20), ("retryAfterSeconds", &R_19)]);
-                pub(super) static R_1: Redaction = Redaction::Structure(&[("message", &R_20), ("reason", &R_4), ("fieldList", &R_3)]);
-                pub(super) static R_2: Redaction = Redaction::Structure(&[("name", &R_20), ("message", &R_20)]);
-                pub(super) static R_3: Redaction = Redaction::List(&R_2);
-                pub(super) static R_4: Redaction = Redaction::Public;
-                pub(super) static R_5: Redaction = Redaction::Structure(&[("shelf", &R_20)]);
-                pub(super) static R_6: Redaction = Redaction::Structure(&[("count", &R_19)]);
-                pub(super) static R_7: Redaction = Redaction::Structure(&[("message", &R_20)]);
-                pub(super) static R_8: Redaction = Redaction::Structure(&[("id", &R_20), ("force", &R_18)]);
-                pub(super) static R_9: Redaction = Redaction::Structure(&[("deleted", &R_18)]);
-                pub(super) static R_10: Redaction = Redaction::Structure(&[("id", &R_20)]);
-                pub(super) static R_11: Redaction = Redaction::Structure(&[("title", &R_20), ("size", &R_19), ("kind", &R_13)]);
-                pub(super) static R_12: Redaction = Redaction::Structure(&[("message", &R_20)]);
-                pub(super) static R_13: Redaction = Redaction::Public;
-                pub(super) static R_14: Redaction = Redaction::List(&R_13);
-                pub(super) static R_15: Redaction = Redaction::Structure(&[("limit", &R_19), ("sort", &R_20)]);
-                pub(super) static R_16: Redaction = Redaction::Structure(&[("names", &R_17), ("kinds", &R_14)]);
-                pub(super) static R_17: Redaction = Redaction::List(&R_20);
-                pub(super) static R_18: Redaction = Redaction::Public;
-                pub(super) static R_19: Redaction = Redaction::Public;
-                pub(super) static R_20: Redaction = Redaction::Public;
+                pub(super) static R_0: Redaction = Redaction::Public;
+                pub(super) static R_1: Redaction = Redaction::Public;
+                pub(super) static R_2: Redaction = Redaction::Public;
+                pub(super) static R_3: Redaction = Redaction::Structure(&[("message", &R_2), ("retryAfterSeconds", &R_1)]);
+                pub(super) static R_4: Redaction = Redaction::Structure(&[("message", &R_2), ("reason", &R_7), ("fieldList", &R_6)]);
+                pub(super) static R_5: Redaction = Redaction::Structure(&[("name", &R_2), ("message", &R_2)]);
+                pub(super) static R_6: Redaction = Redaction::List(&R_5);
+                pub(super) static R_7: Redaction = Redaction::Public;
+                pub(super) static R_8: Redaction = Redaction::Structure(&[("shelf", &R_2)]);
+                pub(super) static R_9: Redaction = Redaction::Structure(&[("count", &R_1)]);
+                pub(super) static R_10: Redaction = Redaction::Structure(&[("message", &R_2)]);
+                pub(super) static R_11: Redaction = Redaction::Structure(&[("id", &R_2), ("force", &R_0)]);
+                pub(super) static R_12: Redaction = Redaction::Structure(&[("deleted", &R_0)]);
+                pub(super) static R_13: Redaction = Redaction::Structure(&[("id", &R_2)]);
+                pub(super) static R_14: Redaction = Redaction::Structure(&[("title", &R_2), ("size", &R_1), ("kind", &R_16)]);
+                pub(super) static R_15: Redaction = Redaction::Structure(&[("message", &R_2)]);
+                pub(super) static R_16: Redaction = Redaction::Public;
+                pub(super) static R_17: Redaction = Redaction::List(&R_16);
+                pub(super) static R_18: Redaction = Redaction::Structure(&[("limit", &R_1), ("sort", &R_2)]);
+                pub(super) static R_19: Redaction = Redaction::Structure(&[("names", &R_20), ("kinds", &R_17)]);
+                pub(super) static R_20: Redaction = Redaction::List(&R_2);
             }
 
 
@@ -1923,10 +1923,10 @@ pub mod shop {
                 &[],
                 200,
                 &[
-                    ::crucible_server_runtime_rust::__generated::member_info("shelf", ::crucible_server_runtime_rust::__generated::operation::Location::Query("shelf"), ::crucible_server_runtime_rust::__generated::operation::Scalar::String, &__redaction::R_20, &[]),
+                    ::crucible_server_runtime_rust::__generated::member_info("shelf", ::crucible_server_runtime_rust::__generated::operation::Location::Query("shelf"), ::crucible_server_runtime_rust::__generated::operation::Scalar::String, &__redaction::R_2, &[]),
                 ],
                 &[
-                    ::crucible_server_runtime_rust::__generated::member_info("count", ::crucible_server_runtime_rust::__generated::operation::Location::Body, ::crucible_server_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_19, &[]),
+                    ::crucible_server_runtime_rust::__generated::member_info("count", ::crucible_server_runtime_rust::__generated::operation::Location::Body, ::crucible_server_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_1, &[]),
                 ],
                 &["CountUnavailableException", "ValidationException", "InternalServerException"],
                 true,
@@ -1959,11 +1959,11 @@ pub mod shop {
                 &[],
                 200,
                 &[
-                    ::crucible_server_runtime_rust::__generated::member_info("id", ::crucible_server_runtime_rust::__generated::operation::Location::Label, ::crucible_server_runtime_rust::__generated::operation::Scalar::String, &__redaction::R_20, &[]),
-                    ::crucible_server_runtime_rust::__generated::member_info("force", ::crucible_server_runtime_rust::__generated::operation::Location::Query("force"), ::crucible_server_runtime_rust::__generated::operation::Scalar::Boolean, &__redaction::R_18, &[]),
+                    ::crucible_server_runtime_rust::__generated::member_info("id", ::crucible_server_runtime_rust::__generated::operation::Location::Label, ::crucible_server_runtime_rust::__generated::operation::Scalar::String, &__redaction::R_2, &[]),
+                    ::crucible_server_runtime_rust::__generated::member_info("force", ::crucible_server_runtime_rust::__generated::operation::Location::Query("force"), ::crucible_server_runtime_rust::__generated::operation::Scalar::Boolean, &__redaction::R_0, &[]),
                 ],
                 &[
-                    ::crucible_server_runtime_rust::__generated::member_info("deleted", ::crucible_server_runtime_rust::__generated::operation::Location::Body, ::crucible_server_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_18, &[]),
+                    ::crucible_server_runtime_rust::__generated::member_info("deleted", ::crucible_server_runtime_rust::__generated::operation::Location::Body, ::crucible_server_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_0, &[]),
                 ],
                 &["ValidationException", "InternalServerException"],
                 false,
@@ -1996,12 +1996,12 @@ pub mod shop {
                 &[],
                 200,
                 &[
-                    ::crucible_server_runtime_rust::__generated::member_info("id", ::crucible_server_runtime_rust::__generated::operation::Location::Label, ::crucible_server_runtime_rust::__generated::operation::Scalar::String, &__redaction::R_20, &[]),
+                    ::crucible_server_runtime_rust::__generated::member_info("id", ::crucible_server_runtime_rust::__generated::operation::Location::Label, ::crucible_server_runtime_rust::__generated::operation::Scalar::String, &__redaction::R_2, &[]),
                 ],
                 &[
-                    ::crucible_server_runtime_rust::__generated::member_info("title", ::crucible_server_runtime_rust::__generated::operation::Location::Body, ::crucible_server_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_20, &[]),
-                    ::crucible_server_runtime_rust::__generated::member_info("size", ::crucible_server_runtime_rust::__generated::operation::Location::Body, ::crucible_server_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_19, &[]),
-                    ::crucible_server_runtime_rust::__generated::member_info("kind", ::crucible_server_runtime_rust::__generated::operation::Location::Body, ::crucible_server_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_13, &[]),
+                    ::crucible_server_runtime_rust::__generated::member_info("title", ::crucible_server_runtime_rust::__generated::operation::Location::Body, ::crucible_server_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_2, &[]),
+                    ::crucible_server_runtime_rust::__generated::member_info("size", ::crucible_server_runtime_rust::__generated::operation::Location::Body, ::crucible_server_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_1, &[]),
+                    ::crucible_server_runtime_rust::__generated::member_info("kind", ::crucible_server_runtime_rust::__generated::operation::Location::Body, ::crucible_server_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_16, &[]),
                 ],
                 &["ItemNotFoundException", "ValidationException", "InternalServerException"],
                 true,
@@ -2034,12 +2034,12 @@ pub mod shop {
                 &[],
                 200,
                 &[
-                    ::crucible_server_runtime_rust::__generated::member_info("limit", ::crucible_server_runtime_rust::__generated::operation::Location::Query("limit"), ::crucible_server_runtime_rust::__generated::operation::Scalar::Integer, &__redaction::R_19, &[]),
-                    ::crucible_server_runtime_rust::__generated::member_info("sort", ::crucible_server_runtime_rust::__generated::operation::Location::Query("sort"), ::crucible_server_runtime_rust::__generated::operation::Scalar::String, &__redaction::R_20, &[]),
+                    ::crucible_server_runtime_rust::__generated::member_info("limit", ::crucible_server_runtime_rust::__generated::operation::Location::Query("limit"), ::crucible_server_runtime_rust::__generated::operation::Scalar::Integer, &__redaction::R_1, &[]),
+                    ::crucible_server_runtime_rust::__generated::member_info("sort", ::crucible_server_runtime_rust::__generated::operation::Location::Query("sort"), ::crucible_server_runtime_rust::__generated::operation::Scalar::String, &__redaction::R_2, &[]),
                 ],
                 &[
-                    ::crucible_server_runtime_rust::__generated::member_info("names", ::crucible_server_runtime_rust::__generated::operation::Location::Body, ::crucible_server_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_17, &[]),
-                    ::crucible_server_runtime_rust::__generated::member_info("kinds", ::crucible_server_runtime_rust::__generated::operation::Location::Body, ::crucible_server_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_14, &[]),
+                    ::crucible_server_runtime_rust::__generated::member_info("names", ::crucible_server_runtime_rust::__generated::operation::Location::Body, ::crucible_server_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_20, &[]),
+                    ::crucible_server_runtime_rust::__generated::member_info("kinds", ::crucible_server_runtime_rust::__generated::operation::Location::Body, ::crucible_server_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_17, &[]),
                 ],
                 &["ValidationException", "InternalServerException"],
                 true,

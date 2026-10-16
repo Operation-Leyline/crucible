@@ -3,7 +3,7 @@
 package example.weather.model
 
 /**
- * Build one with `ListCitiesOutput { ... }` or `copy { ... }`; it is immutable. Smithy shape `example.weather#ListCitiesOutput`.
+ * Build one with `ListCitiesOutput { ... }` or `copy { ... }`; it is immutable. Model shape `example.weather#ListCitiesOutput`.
  */
 class `ListCitiesOutput` internal constructor(
     /**

@@ -29,9 +29,7 @@ fn weather_with(edit: impl Fn(&str) -> String, extra: &str) -> Service {
 /// The weather service with its shape `shape` spelled `name`.
 fn weather_renamed(shape: &str, name: &str) -> Service {
     let mut service = weather();
-    service
-        .renames
-        .insert(ShapeId::new("example.weather", shape), name.to_owned());
+    service.rename_shape(&ShapeId::new("example.weather", shape), name);
     service
 }
 

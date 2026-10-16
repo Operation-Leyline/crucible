@@ -2,13 +2,13 @@
   "schemaVersion": 2,
   "generator": "crucible",
   "generatorVersion": "0.7.0",
-  "generatorChanges": 0,
+  "generatorChanges": 1,
   "language": "ts",
   "package": "@example/weather",
   "packageVersion": "0.0.0-dev",
   "audience": "external",
   "service": "example.weather#Weather",
   "serviceVersion": "2026-10-01",
-  "schemaSha256": "022f5ab62a506566db876ae49423615f1d67d49afa50c533c967e80e0d82b966",
-  "contentDigest": "crucible-content-1:sha256:290c3fa5c3d5bb6ba593670aa6288674002bc63093a5384bbcde06541e37f2e4"
+  "schemaSha256": "6d506a25de4e9c3af9b17009affa51c3276c279f661dab02af48cd85ed34f4fb",
+  "contentDigest": "crucible-content-1:sha256:5686ac227eddd7bba994bd5d852044cb2f1e2c59f343d6ee2a4c7d652a3c4e74"
 }

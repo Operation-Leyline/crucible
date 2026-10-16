@@ -314,7 +314,7 @@ fn audience_filters_values_and_badges_are_visible_at_every_level() {
         "1234567890123456789"
     );
     assert!(
-        describe["operations"]["example.docs#WriteItem"]["inputSchema"]["$defs"]["smithy.api.BigInteger"]
+        describe["operations"]["example.docs#WriteItem"]["inputSchema"]["$defs"]["crucible.api.BigInteger"]
             ["type"]
             == "integer"
     );

@@ -157,12 +157,12 @@ fn permissions_match_reviewed_golden_per_audience() {
         // exactly the operations whose projected requirements say something
         // carry it (the pending one only for the internal audience, whose
         // projection keeps its reason), and no requirement leaks into
-        // `x-smithy-traits`, which carries the model's own traits.
+        // `x-crucible-traits`, which carries the model's own traits.
         let document: Value = serde_json::from_str(&generated).unwrap();
         let mut documented = std::collections::BTreeMap::new();
         for item in document["paths"].as_object().unwrap().values() {
             for operation in item.as_object().unwrap().values() {
-                let traits = operation["x-smithy-traits"].as_object().unwrap();
+                let traits = operation["x-crucible-traits"].as_object().unwrap();
                 assert!(
                     traits.keys().all(|key| !key.starts_with("crucible.auth#")),
                     "{file}: {traits:?}"
@@ -248,7 +248,7 @@ fn http_members_are_projected_into_their_wire_locations() {
     assert_eq!(create["parameters"][0]["name"], "X-Expected-Revision");
     assert_eq!(
         create["parameters"][0]["schema"]["$ref"],
-        "#/components/schemas/smithy.api.Long"
+        "#/components/schemas/crucible.api.Long"
     );
     let body = &create["requestBody"]["content"]["application/json"]["schema"];
     assert_eq!(body["required"], json!(["name"]));
@@ -257,8 +257,8 @@ fn http_members_are_projected_into_their_wire_locations() {
     assert!(body["properties"]["name"].get("minLength").is_none());
     assert!(body["properties"].get("expectedRevision").is_none());
     assert_eq!(create["requestBody"]["required"], true);
-    assert_eq!(create["x-smithy-idempotency-token"], "clientToken");
-    assert_eq!(create["x-smithy-traits"]["example.weather#tier"], "write");
+    assert_eq!(create["x-crucible-idempotency-token"], "clientToken");
+    assert_eq!(create["x-crucible-traits"]["example.weather#tier"], "write");
     let get = &doc["paths"]["/cities/{cityId}"]["get"];
     assert_eq!(get["parameters"][0]["in"], "path");
     assert_eq!(get["parameters"][0]["required"], true);
@@ -277,7 +277,7 @@ fn http_members_are_projected_into_their_wire_locations() {
         .unwrap();
     assert_eq!(tags["style"], "form");
     assert_eq!(tags["explode"], true);
-    assert_eq!(list["x-smithy-pagination"]["items"], "cities");
+    assert_eq!(list["x-crucible-pagination"]["items"], "cities");
     assert!(
         doc["paths"]["/ping"]["get"]["responses"]["200"]
             .get("content")
@@ -301,7 +301,7 @@ fn binary_payloads_and_json_blobs_have_different_representations() {
     );
     let blob = &doc["components"]["schemas"]["example.weather.Thumbnail"];
     assert_eq!(blob["contentEncoding"], "base64");
-    assert_eq!(blob["x-smithy-length"]["max"], 8);
+    assert_eq!(blob["x-crucible-length"]["max"], 8);
     assert!(blob.get("maxLength").is_none());
 }
 
@@ -340,7 +340,7 @@ fn timestamp_formats_follow_document_and_http_binding_ir() {
     assert_eq!(city["createdAt"]["anyOf"][0]["type"], "number");
     assert_eq!(
         doc["paths"]["/cities/{cityId}"]["get"]["responses"]["200"]["headers"]["Last-Modified"]["schema"]
-            ["x-smithy-timestamp-format"],
+            ["x-crucible-timestamp-format"],
         "http-date"
     );
     let parameters = doc["paths"]["/cities"]["get"]["parameters"]
@@ -359,7 +359,7 @@ fn errors_sharing_a_status_keep_bodies_headers_and_discriminators() {
         "error ConflictError {\n    status 429",
     )]));
     let response = &doc["paths"]["/cities"]["post"]["responses"]["429"];
-    assert_eq!(response["x-smithy-errors"].as_array().unwrap().len(), 2);
+    assert_eq!(response["x-crucible-errors"].as_array().unwrap().len(), 2);
     let schemas = response["content"]["application/json"]["schema"]["anyOf"]
         .as_array()
         .unwrap();
@@ -433,7 +433,11 @@ fn examples_land_on_the_request_response_and_error_that_carry_them() {
         "req-1"
     );
     // The raw trait is not repeated beside the native examples.
-    assert!(get["x-smithy-traits"].get("smithy.api#examples").is_none());
+    assert!(
+        get["x-crucible-traits"]
+            .get("crucible.api#examples")
+            .is_none()
+    );
 }
 
 #[test]
@@ -492,13 +496,13 @@ fn auth_overrides_are_resolved_per_operation() {
         "public readonly operation Ping",
     )]));
     assert_eq!(
-        doc["components"]["securitySchemes"]["smithy.api.httpBearerAuth"]["scheme"],
+        doc["components"]["securitySchemes"]["crucible.api.httpBearerAuth"]["scheme"],
         "bearer"
     );
     assert_eq!(doc["paths"]["/ping"]["get"]["security"], json!([]));
     assert_eq!(
         doc["paths"]["/status"]["get"]["security"],
-        json!([{"smithy.api.httpBearerAuth": []}])
+        json!([{"crucible.api.httpBearerAuth": []}])
     );
 }
 
@@ -520,8 +524,8 @@ fn sparse_collections_unique_lists_and_large_numbers_are_preserved() {
         shapes["example.types.SparseMap"]["additionalProperties"]["anyOf"][1]["type"],
         "null"
     );
-    assert_eq!(shapes["smithy.api.BigInteger"]["type"], "integer");
-    assert_eq!(shapes["smithy.api.BigDecimal"]["type"], "number");
+    assert_eq!(shapes["crucible.api.BigInteger"]["type"], "integer");
+    assert_eq!(shapes["crucible.api.BigDecimal"]["type"], "number");
 }
 
 #[test]

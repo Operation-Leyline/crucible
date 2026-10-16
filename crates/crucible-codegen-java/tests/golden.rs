@@ -158,7 +158,7 @@ fn docs_files() -> Vec<crucible_codegen_java::File> {
 }
 
 #[test]
-fn smithy_documentation_cannot_break_out_of_javadoc() {
+fn model_documentation_cannot_break_out_of_javadoc() {
     for file in docs_files().iter().filter(|f| f.path.ends_with(".java")) {
         assert_eq!(
             file.contents.matches("/**").count(),

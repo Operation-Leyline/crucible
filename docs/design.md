@@ -66,10 +66,10 @@ imports and templates, and lowers to the IR. Generators never read source.
 `ir::Service` holds the operations (sorted by name) and every shape they
 reach, keyed by shape id. Lowering settles, once:
 
-- **Nullability**: a member is non-null on the server when it is
-  `@required` or has a non-null `@default`. A client may also omit
-  `@clientOptional` members and every member of an `@input` structure.
-  Client defaults on those members are ignored; server defaults remain intact.
+- **Nullability**: a member is non-null when it is required or has a
+  non-null default. A member's optionality is one fact for client and
+  server (decision 20 in [idl/decisions.md](idl/decisions.md)), so clients
+  apply the same defaults the server does.
 - **Authentication**: effective schemes inherit from the service, with operation
   `@auth` overrides resolved here. An empty override disables bearer credentials.
 - **Constraints**: the target's `@length`/`@range`/`@pattern`/`@uniqueItems`
@@ -79,16 +79,16 @@ reach, keyed by shape id. Lowering settles, once:
   flags and validates removed references once. Shared output selection invokes
   projection before target capability checks; servers keep the full IR.
 - **Documentation notes**: `@deprecated` (message, since), `@since`, `@unstable`
-  and `@externalDocumentation` (sorted name to URL) become one typed `notes`
+  and `@externalDocs` (sorted name to URL) become one typed `notes`
   (`DocNotes`) on the service, resources, operations, shapes, members and enum
   values. A malformed trait is a diagnostic against its shape. Every native
   generator renders `@deprecated` in the target's own form (Rust `#[deprecated]`,
   TypeScript/Java `@deprecated`, Kotlin `@Deprecated`, C# `[Obsolete]`, Swift
   `@available`, Dart `@Deprecated`, Go `Deprecated:`, YARD/PHPDoc/Doxygen tags,
   OpenAPI `deprecated`), falling back to a doc paragraph; `@since`, `@unstable`
-  and `@externalDocumentation` are documentation and appear where a target
-  already emits doc notes (OpenAPI: `externalDocs`, `x-smithy-since`,
-  `x-smithy-unstable`, extension names kept for compatibility). Generated code that uses a deprecated item itself opts
+  and `@externalDocs` are documentation and appear where a target
+  already emits doc notes (OpenAPI: `externalDocs`, `x-crucible-since`,
+  `x-crucible-unstable`). Generated code that uses a deprecated item itself opts
   out of the warning.
 - **Doc links**: each `[Name]` or `[Name.member]` in documentation resolves to
   the id it names in `Service::doc_links`, and one that names nothing is an
@@ -153,9 +153,8 @@ consumer's tests, then replaces it.
    by `X-Crucible-Error` or the body's `__type`/`code`, else by status when
    one of the operation's errors has it), retries from `@readonly`/
    `@idempotent`/token/`@retryable`, and middleware (the body digest is
-   built in, opt-in per package). Inputs type `@required` members as required,
-   so a missing one fails at compile time. Client nullability would
-   make every `@input` member optional. Leyline's integ suite is the oracle
+   built in, opt-in per package). Inputs type required members as required,
+   so a missing one fails at compile time. Leyline's integ suite is the oracle
    once it moves to the new client.
 2. **Rust client.** reqwest-based, with the same features. The oracle is
    `sdk/rust/tests/wire.rs`.

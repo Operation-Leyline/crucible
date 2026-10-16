@@ -221,7 +221,10 @@ fn plans_builds_verifies_and_publishes_a_git_channel_release() {
     assert_eq!(record["sdks"]["rust-dev"]["channel"], false);
     let head = service.git_in(&repo, &["rev-parse", "HEAD"]);
     assert_eq!(plan["sdks"]["rust"]["sourceCommit"], head.as_str());
-    assert_eq!(plan["generator"]["changes"], 0);
+    assert_eq!(
+        plan["generator"]["changes"],
+        crucible_codegen::provenance::generator_changes()
+    );
     // The package carries its provenance, with the source commit.
     let provenance = json(&fs::read_to_string(release.join("rust/package/crucible.json")).unwrap());
     assert_eq!(provenance["packageVersion"], "0.2.0");

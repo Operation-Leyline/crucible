@@ -751,7 +751,7 @@ public final class ClientTest {
       catch (IllegalArgumentException expected) { }
       try { runtime.encode("example.weather#Forecast", java.util.Map.of("key",com.google.gson.JsonNull.INSTANCE), null); throw new AssertionError("Dense document null encoded"); }
       catch (IllegalArgumentException expected) { }
-      schema.getAsJsonObject("shapes").getAsJsonObject("example.weather#Forecast").getAsJsonObject("value").addProperty("target", "smithy.api#String");
+      schema.getAsJsonObject("shapes").getAsJsonObject("example.weather#Forecast").getAsJsonObject("value").addProperty("target", "crucible.api#String");
       try { runtime.decode("example.weather#Forecast", document, null); throw new AssertionError("Dense map null accepted"); }
       catch (IllegalArgumentException expected) { }
       var nullMap = new java.util.HashMap<String, String>(); nullMap.put("key", null);

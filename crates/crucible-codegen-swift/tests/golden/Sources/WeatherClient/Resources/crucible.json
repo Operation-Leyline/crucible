@@ -3,5 +3,5 @@
   "service": "example.weather#Weather",
   "serviceVersion": "2026-10-01",
   "packageVersion": "0.0.0-dev",
-  "schemaSha256": "022f5ab62a506566db876ae49423615f1d67d49afa50c533c967e80e0d82b966"
+  "schemaSha256": "6d506a25de4e9c3af9b17009affa51c3276c279f661dab02af48cd85ed34f4fb"
 }

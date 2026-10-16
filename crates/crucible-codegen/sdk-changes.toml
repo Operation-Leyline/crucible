@@ -15,3 +15,9 @@ id = 0
 languages = ["rust", "ts", "python", "go", "java", "kotlin", "csharp", "swift", "dart", "php", "ruby", "cpp", "c", "r"]
 kind = "patch"
 summary = "The log begins. Changes before it are not recorded; packages generated before it carry no generatorChanges."
+
+[[change]]
+id = 1
+languages = ["rust", "ts", "python", "go", "java", "kotlin", "csharp", "swift", "dart", "php", "ruby", "cpp", "c", "r"]
+kind = "patch"
+summary = "Built-in shape ids in bundled schemas are crucible.api, not smithy.api; generated docs and headers name the .cru model; Python and C# spans set rpc.system to crucible."

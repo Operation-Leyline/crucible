@@ -41,7 +41,7 @@ public final class TypesTest {
       check(precise.integers().size()==2 && precise.decimals().size()==2,"unique list lost numeric precision");
       var runtime = new ClientRuntime(config, "", ModelRegistry.classes());
       // Header text is not JSON; these kinds must be parsed into numbers, not left as strings.
-      for (String[] header : new String[][]{{"example.types#Mode","2"},{"smithy.api#BigInteger",integer},{"smithy.api#BigDecimal","1.5"}}) {
+      for (String[] header : new String[][]{{"example.types#Mode","2"},{"crucible.api#BigInteger",integer},{"crucible.api#BigDecimal","1.5"}}) {
         var member = JsonParser.parseString("{\"target\":\""+header[0]+"\"}").getAsJsonObject();
         check(runtime.header(member, header[1]).getAsBigDecimal().compareTo(new java.math.BigDecimal(header[1])) == 0, "header "+header[0]);
       }

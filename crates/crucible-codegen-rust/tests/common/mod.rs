@@ -58,12 +58,10 @@ pub fn load_replacing(name: &str, old: &str, new: &str) -> Service {
     })
 }
 
-/// Service-local renames of shapes, by id.
+/// Shapes, by id, given other names: ones a `.cru` model cannot spell.
 pub fn rename(service: &mut Service, renames: &[(&str, &str)]) {
     for (id, name) in renames {
-        service
-            .renames
-            .insert(id.parse().unwrap(), (*name).to_owned());
+        service.rename_shape(&id.parse().unwrap(), name);
     }
 }
 

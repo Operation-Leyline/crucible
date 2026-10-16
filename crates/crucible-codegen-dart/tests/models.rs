@@ -32,9 +32,7 @@ fn weather_with(edit: impl Fn(&str) -> String) -> Service {
 /// The weather service with its shape `shape` spelled `name`.
 fn weather_renamed(shape: &str, name: &str) -> Service {
     let mut service = weather();
-    service
-        .renames
-        .insert(ShapeId::new("example.weather", shape), name.to_owned());
+    service.rename_shape(&ShapeId::new("example.weather", shape), name);
     service
 }
 fn options() -> Options {
@@ -161,10 +159,7 @@ fn model_member_union_and_operation_collisions_are_collected() {
         )
         .replace("    unknown\n", "    unknown\n    unknownVariant: string\n")
     });
-    service.renames.insert(
-        ShapeId::new("example.weather", "CitySummary"),
-        "Client".to_owned(),
-    );
+    service.rename_shape(&ShapeId::new("example.weather", "CitySummary"), "Client");
     let diagnostics = emit(&service, &options()).err().unwrap();
     assert_eq!(diagnostics.len(), 3, "{diagnostics}");
     assert!(
@@ -262,7 +257,7 @@ fn void_and_empty_clients_do_not_require_a_unit_schema() {
         !service
             .shapes
             .keys()
-            .any(|id| id.to_string() == "smithy.api#Unit")
+            .any(|id| id.to_string() == "crucible.api#Unit")
     );
     let files = emit(&service, &options()).unwrap();
     assert!(

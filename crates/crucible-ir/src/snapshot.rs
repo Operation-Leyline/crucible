@@ -18,7 +18,7 @@ use crate::ir::Service;
 /// settings that were never set for Crucible JSON); [`read`] drops them from
 /// a format 1 snapshot of a Crucible JSON service.
 ///
-/// Format 3 dropped what only Smithy models could reach: streaming payloads
+/// Format 3 dropped what only the retired Smithy front end could reach: streaming payloads
 /// and event streams, waiters, endpoint rules, host prefixes and discovery,
 /// HTTP checksums, non-bearer auth schemes, CORS, prefix headers, query-params
 /// and response-code bindings, sets, and the JSON name
@@ -27,7 +27,21 @@ use crate::ir::Service;
 ///
 /// Format 4 dropped the OAuth `scopes` of the service and its operations.
 /// [`read`] drops an empty list and refuses a snapshot that declared any.
-pub const FORMAT: u32 = 4;
+///
+/// Format 5 moved the built-in types and the standard vocabulary from the
+/// `smithy.api` namespace to [`crate::PRELUDE`], `crucible.api` (decision
+/// 62c in docs/idl/decisions.md), and dropped the service's `renames` and
+/// each member's `client_optional`, which a `.cru` model never sets.
+/// [`read`] maps every `smithy.api#..` id of an older snapshot to its
+/// `crucible.api` id as it deserializes (each value the IR types as a
+/// [`crate::ShapeId`], so free-form text is never touched), drops `client_optional` and an empty `renames`, and
+/// refuses a snapshot that renamed a shape. A `.cru` release never set
+/// `client_optional`; one frozen from a Smithy model (`@input`,
+/// `@clientOptional`) reads with the server's optionality, so a comparison
+/// with it sees those members as the `.cru` model does. The file
+/// itself is never rewritten: a release's lock digest is over its text as
+/// written.
+pub const FORMAT: u32 = 5;
 
 #[derive(Serialize, Deserialize)]
 struct Snapshot {
@@ -180,12 +194,28 @@ pub fn read(text: &str) -> Result<Service, String> {
         migrate_format_2(&mut value)?;
     }
     drop_scopes(&mut value)?;
+    if format <= 4 {
+        migrate_format_4(&mut value)?;
+    }
     value["format"] = serde_json::Value::from(FORMAT);
-    let snapshot: Snapshot = serde_json::from_value(value.clone())
-        .map_err(|error| format!("release snapshot format {format}: {error}"))?;
+    let parse = || serde_json::from_value::<Snapshot>(value.clone());
+    let snapshot = if format <= 4 {
+        // Every id the IR's types hold, and nothing else, moves to the
+        // current prelude (format 5).
+        crate::shape_id::mapping_ids(crate::ShapeId::with_current_prelude, parse)
+    } else {
+        parse()
+    }
+    .map_err(|error| format!("release snapshot format {format}: {error}"))?;
     // Whatever this compiler does not know would be dropped silently: a
     // newer compiler wrote it, and only a newer one reads it right.
     let read = serde_json::to_value(&snapshot).expect("the IR serializes");
+    if let Some(id) = merged(&value, &read) {
+        return Err(format!(
+            "the release snapshot names `{id}` in both the `{OLD_PRELUDE}` and the `{}` spelling in one map",
+            crate::PRELUDE
+        ));
+    }
     if let Some(path) = unknown(&value, &read, String::new()) {
         return Err(format!(
             "the release snapshot has `{path}`, which this compiler does not know; a newer Crucible wrote it: update Crucible"
@@ -343,22 +373,7 @@ fn migrate_format_2(value: &mut serde_json::Value) -> Result<(), String> {
             }
             _ => {}
         }
-        let members: Vec<&mut Value> = match kind.as_str() {
-            "Structure" | "Union" => body
-                .get_mut("members")
-                .and_then(Value::as_array_mut)
-                .into_iter()
-                .flatten()
-                .collect(),
-            "List" => body.get_mut("member").into_iter().collect(),
-            "Map" => body
-                .iter_mut()
-                .filter(|(field, _)| *field == "key" || *field == "value")
-                .map(|(_, member)| member)
-                .collect(),
-            _ => Vec::new(),
-        };
-        for member in members.into_iter().filter_map(Value::as_object_mut) {
+        for member in members_mut(shape) {
             drop_unused(member, &["event_binding"], id)?;
             let name = member.get("name").cloned();
             match member.get("wire_name") {
@@ -414,6 +429,88 @@ fn drop_scopes_of(
     Ok(())
 }
 
+/// The namespace formats 1 to 4 spelled the built-in types and the standard
+/// vocabulary in.
+const OLD_PRELUDE: &str = "smithy.api";
+
+/// Readies a format 4 (or older, already migrated) snapshot for format 5:
+/// drops the fields a `.cru` model never set. [`read`] then maps every id in the old prelude
+/// namespace to its [`crate::PRELUDE`] id as it deserializes the IR, so
+/// exactly the positions the IR's types declare as ids move (a member's
+/// target, an auth scheme, a shape map's key) and free-form text (a
+/// version, a title, a default, documentation) never does, and refuses a
+/// map keyed by id that held one id in both spellings.
+fn migrate_format_4(value: &mut serde_json::Value) -> Result<(), String> {
+    use serde_json::Value;
+    let Some(service) = value.get_mut("service") else {
+        return Ok(());
+    };
+    let Some(service) = service.as_object_mut() else {
+        return Ok(());
+    };
+    if service.get("renames").is_some_and(|value| !is_zero(value)) {
+        return Err(unsupported("shape renames"));
+    }
+    service.remove("renames");
+    for shape in service
+        .get_mut("shapes")
+        .and_then(Value::as_object_mut)
+        .into_iter()
+        .flat_map(|shapes| shapes.values_mut())
+    {
+        // A client-optional member only relaxed what a client required,
+        // which a `.cru` release never does: read as the server's
+        // optionality, an older release compares with its `.cru` successor
+        // as the guard compares two `.cru` releases.
+        for member in members_mut(shape) {
+            member.remove("client_optional");
+        }
+    }
+    Ok(())
+}
+
+/// The current spelling of `key` when it is an id in the old prelude.
+fn current_spelling(key: &str) -> Option<String> {
+    let id: crate::ShapeId = key.parse().ok()?;
+    (id.namespace() == OLD_PRELUDE).then(|| id.with_current_prelude().to_string())
+}
+
+/// The members of a serialized shape: a structure's or union's, a list's
+/// one, a map's key and value.
+fn members_mut(
+    shape: &mut serde_json::Value,
+) -> Vec<&mut serde_json::Map<String, serde_json::Value>> {
+    use serde_json::Value;
+    let Some((kind, body)) = shape
+        .as_object_mut()
+        .and_then(|shape| shape.iter_mut().next())
+    else {
+        return Vec::new();
+    };
+    let Some(body) = body.as_object_mut() else {
+        return Vec::new();
+    };
+    let members: Vec<&mut Value> = match kind.as_str() {
+        "Structure" | "Union" => body
+            .get_mut("members")
+            .and_then(Value::as_array_mut)
+            .into_iter()
+            .flatten()
+            .collect(),
+        "List" => body.get_mut("member").into_iter().collect(),
+        "Map" => body
+            .iter_mut()
+            .filter(|(field, _)| *field == "key" || *field == "value")
+            .map(|(_, member)| member)
+            .collect(),
+        _ => Vec::new(),
+    };
+    members
+        .into_iter()
+        .filter_map(Value::as_object_mut)
+        .collect()
+}
+
 /// Removes the `fields` of `object` that hold their zero value; one that
 /// holds anything else was used.
 fn drop_unused(
@@ -442,8 +539,38 @@ fn drop_payload(
 
 fn unsupported(what: &str) -> String {
     format!(
-        "the release snapshot uses {what}, which Crucible no longer supports (see the Migration entry for removing Smithy-only features in the changelog)"
+        "the release snapshot uses {what}, which Crucible no longer supports (see the Migration entries in the changelog)"
     )
+}
+
+/// An id whose two spellings were keys of one map that the IR types as
+/// keyed by id, so that reading merged them: `read` (the snapshot as read
+/// and written back) has neither the old key, which became its current
+/// spelling, nor a second entry. A map the IR does not type by id, such as a
+/// raw trait's value, keeps both keys as written and is not one.
+fn merged(original: &serde_json::Value, read: &serde_json::Value) -> Option<String> {
+    use serde_json::Value;
+    match (original, read) {
+        (Value::Object(original), Value::Object(read)) => {
+            original
+                .iter()
+                .find_map(|(key, value)| match read.get(key) {
+                    Some(known) => merged(value, known),
+                    None => {
+                        let current = current_spelling(key)?;
+                        if original.contains_key(&current) {
+                            return Some(current);
+                        }
+                        merged(value, read.get(&current)?)
+                    }
+                })
+        }
+        (Value::Array(original), Value::Array(read)) => original
+            .iter()
+            .zip(read)
+            .find_map(|(value, known)| merged(value, known)),
+        _ => None,
+    }
 }
 
 /// The first field `original` has that `read`, the same snapshot read and
@@ -458,7 +585,11 @@ fn unknown(original: &serde_json::Value, read: &serde_json::Value, at: String) -
                 } else {
                     format!("{at}.{key}")
                 };
-                match read.get(key) {
+                // An old prelude id read as its current spelling.
+                let known = read
+                    .get(key)
+                    .or_else(|| current_spelling(key).and_then(|key| read.get(&key)));
+                match known {
                     Some(known) => unknown(value, known, path),
                     // A field at its zero value, which this compiler may skip
                     // writing: reading it as absent changes nothing.

@@ -75,7 +75,7 @@ pub fn emit(
             ));
         }
         let mut input = json_schema::standalone(service, op.input.as_ref());
-        // Runtime strict_inputs is a producer option, beyond the Smithy contract.
+        // Runtime strict_inputs is a producer option, beyond the model contract.
         // Reflect it in tool inputs so projection cannot discard unknown fields
         // before the normal strict decoder has a chance to reject them.
         if op.input.as_ref().is_some_and(|id| strict.contains(id)) {

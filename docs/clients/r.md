@@ -56,9 +56,9 @@ arguments such as `CreateCityInput(name = "Oslo", location = NULL)` and read
 values with `$name`. Response collections remain native lists: access a city
 with `page$cities[[1L]]$name` or process them with `lapply(page$cities, ...)`. Constructor arguments use
 snake case; wire names remain the model's original names. A nonoptional client
-member is a required constructor argument. Input members and `@clientOptional`
-members can be omitted under the IR's client nullability rules. Missing HTTP
-labels fail before transport; other omitted input members remain server-validated.
+member is a required constructor argument; a member is optional for the
+client exactly when it is for the service. Missing HTTP labels fail before
+transport; other input members remain server-validated.
 
 `UNSET` omits an optional member. `NULL` sends JSON null. Lists represent JSON
 arrays; named lists or `json_object()` represent objects. Use `json_object()`

@@ -1,4 +1,4 @@
-//! `crucible.protocols#json` (smithy/crucible.smithy): members bound to the
+//! `crucible.protocols#json`: members bound to the
 //! URI path, query string and headers, the rest in a JSON object body, or a
 //! blob payload as the whole body, raw; errors carry `"__type"`.
 

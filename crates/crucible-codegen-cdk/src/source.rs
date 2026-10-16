@@ -364,7 +364,7 @@ fn type_of(service: &Service, id: &ShapeId, chain: &mut BTreeSet<ShapeId>) -> St
 fn constraints(value: &Constraints) -> Value {
     json!({"minLength":value.length.as_ref().and_then(|b| b.min), "maxLength":value.length.as_ref().and_then(|b| b.max), "min":value.range.as_ref().and_then(|b| b.min.as_ref()), "max":value.range.as_ref().and_then(|b| b.max.as_ref()), "pattern":value.pattern, "unique":value.unique_items})
 }
-/// Bounds of the fixed-width Smithy integer types. Long is bounded by the
+/// Bounds of the fixed-width integer types. Long is bounded by the
 /// safe-integer check alone, since a JavaScript number cannot hold its range.
 fn integer_range(service: &Service, id: &ShapeId) -> Option<[i64; 2]> {
     let kind = match service.shape(id) {

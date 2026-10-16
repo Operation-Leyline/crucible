@@ -484,7 +484,7 @@ version's section when it is prepared.
   reaches itself through its members, directly or through lists and maps.
   They lower into the same IR as Smithy's, `recursive_groups` included,
   computed by the algorithm the Smithy front end uses. Smithy's limits on
-  recursion are checked on the IR in `crucible_smithy::validate`, for both
+  recursion are checked on the IR in `crucible_ir::validate`, for both
   front ends, decided as Smithy's own `ShapeRecursionValidator` decides
   them: a cycle of lists and maps alone is refused (as before, now in one
   place), and so are a structure that reaches itself through required
@@ -511,7 +511,7 @@ version's section when it is prepared.
   `ir::Operation::requirements` (all `#[serde(default)]`, and not written
   when empty, so existing release snapshots read and write unchanged), with
   `Service::all_permissions()` for the registry, and are checked by
-  `crucible_smithy::validate::permissions`: once a service declares any
+  `crucible_ir::validate::permissions`: once a service declares any
   permission, an authenticated operation that says nothing about
   authorization is the error `permissions.undeclared`. `.cru` lowering adds the new
   `crucible.errors#NotFoundException` (404, `message` and `resourceType`;
@@ -529,7 +529,7 @@ version's section when it is prepared.
   covers the generators reading the rest.
 
 - `crucible-build` and `crucible` print a `.cru` package's advice beside
-  its warnings. `crucible_smithy::validate::permissions_from_ir` runs the
+  its warnings. `crucible_ir::validate::permissions_from_ir` runs the
   permission checks that need nothing but the IR.
 
 - Release guard and `crucible diff`: `compatibility.permissions` reports a
@@ -544,7 +544,7 @@ version's section when it is prepared.
 - `crucible_lang::Severity::Advice` and `Diagnostic::advice`: a question
   for the author, never a failure; the language server shows it as
   information, and builds print it beside warnings. `Severity` is now
-  `#[non_exhaustive]`, as is `crucible_smithy::validate::FindingSeverity`:
+  `#[non_exhaustive]`, as is `crucible_ir::validate::FindingSeverity`:
   a `match` on either needs a wildcard arm.
 
 - `Prepare::served_operations()` and `ServedOperation`: every entry a
@@ -625,6 +625,41 @@ version's section when it is prepared.
   checked: an imported package's describe its own releases. Release snapshots are unchanged:
   `snapshot::write` leaves out `Service::versions`.
 
+- **The built-in types and the bearer auth scheme are in the `crucible.api`
+  namespace**, not `smithy.api`: `crucible.api#String`, `crucible.api#Unit`,
+  `crucible.api#httpBearerAuth` (decision 62c in
+  [docs/idl/decisions.md](docs/idl/decisions.md)). `.cru` source is
+  unchanged. Every generated output that names a built-in spells it so:
+  `describe.json` targets and `$defs` (`crucible.api.Long`), OpenAPI
+  component and security scheme names, MCP tool schemas, the CLI schema and
+  the runtime schemas native SDKs bundle (whose `schemaSha256` and content
+  digests change with them). Release snapshots are format 5: an older one
+  still reads, its `smithy.api#..` ids read as `crucible.api#..` in memory,
+  so committed releases and their `crucible.lock` digests stay valid and the
+  compatibility guard compares a `.cru`-frozen release with the current
+  model as before (Leyline's and Pigeon's report the same findings). A
+  release frozen from a Smithy model loses the client-only optionality of
+  its `@input` and `@clientOptional` members, which read as the server
+  sees them: against such a baseline the guard no longer reports the
+  `compatibility.sdk` client-side break for a required member that was
+  client-optional there (an SDK field that was `Option`/`Field` becomes
+  required), and it may report `compatibility.nullability` for a
+  `@clientOptional` output member that is optional now. The
+  prelude namespace reserved for packages is `crucible.api`; `smithy.api`,
+  which older snapshots and bindings and the `when_trait` shim still read,
+  stays reserved. Infrastructure bindings that name a provider context
+  type `smithy.api#String` read it as `crucible.api#String`. See [migrating](docs/migrating.md#the-built-in-vocabulary-is-crucibleapi).
+
+- **Generated output says Crucible, not Smithy.** OpenAPI and JSON Schema
+  extensions are `x-crucible-*` (`x-crucible-traits`, `x-crucible-errors`,
+  `x-crucible-pagination`, `x-crucible-length`, `x-crucible-deprecation`,
+  ...; formerly `x-smithy-*`) in OpenAPI documents, `describe.json`, MCP
+  tool schemas and the CLI schema. The Python and C# clients' spans set
+  `rpc.system` to `crucible`. Java, C# and Kotlin model docs say "Model
+  shape", and the Python, R and TypeScript file headers and the R help
+  title name the `.cru` model. The recursion diagnostic calls a
+  collection-only cycle invalid, not "invalid Smithy".
+
 - `.cru`: a `[Name]` doc link that names nothing is a compile error, reported
   at its label (decision 80); it was a warning (decision 41). So is
   `[Name.member]` naming a member, value or operation input or output member
@@ -701,7 +736,32 @@ version's section when it is prepared.
   and `generate docs`, `cdk` and `terraform` refuse a `.cru` package for now.
   Their goldens are kept.
 
+### Deprecated
+
+- `{OperationMiddlewareExt, InterceptorExt, ProtocolExt}::when_trait` with
+  `"smithy.api#readonly"` or `"smithy.api#idempotent"`: those ids name no
+  trait now that the prelude is `crucible.api`. They, and their
+  `crucible.api` spellings, still select the readonly or idempotent
+  operations, logging a deprecation warning when the scope is built, until
+  the next minor release. Use `.when(|op| op.readonly)` and
+  `.when(|op| op.idempotent)`. Any other built-in id selects no operation,
+  with a warning; `when_trait` with a model's own trait id is unchanged.
+  When the shim is removed, `when_trait` with any id in the `smithy.api` or
+  `crucible.api` namespace panics when the scope is built, rather than
+  scoping an extension (a cache, a retry policy) to no operation.
+
 ### Removed
+
+- `crucible_ir::ir::Service::renames`, `Member::client_optional` and
+  `Member::{client_default, client_wire_default}`: a `.cru` model never set
+  them (decision 62c). `Service::name_of` is the name in the id, and
+  `optional_on_client` equals `optional_on_server`. Release snapshots drop
+  `client_optional` and an empty `renames` when read, and refuse one that
+  renamed a shape. `describe.json` keeps `clientOptional`, now always
+  `false`. The unreferenced Smithy JSON AST fixtures
+  (`tests/conformance/native-docs.json`,
+  `e2e/weather-service/tests/fixtures/auth-chain.json`,
+  `crates/crucible-codegen-common/tests/fixtures/recursion.json`) are gone.
 
 - **The Smithy front end.** Crucible reads `.cru` packages only; Leyline and
   Pigeon are on `.cru`. Gone: the Smithy JSON AST front end and
@@ -817,6 +877,14 @@ version's section when it is prepared.
   feature is refused with a message naming it.
 
 ### Fixed
+
+- A project's own traits in an `aws.*` or `smithy.test` namespace are kept:
+  `Service::project_metadata_only`, `crucible check`'s custom trait count and
+  the traits the Rust generator records for `when_trait` treated them as
+  standard, as only a Smithy model needed. An external audience view keeps a
+  project's trait in any namespace but the prelude and `crucible.protocols`
+  (it dropped one in a `crucible.*`, `aws.*` or `smithy.*` namespace) unless
+  its definition is `@internal`.
 
 - `crucible check` without `--target` accepts every capability some generator
   supports. It checked against an empty set, so a model using a gated feature
@@ -1338,6 +1406,26 @@ version's section when it is prepared.
   ```
 
   The exception stays while a release that had the operation is supported.
+
+- **The built-in vocabulary is `crucible.api`.** A tool that reads
+  generated output and recognised a built-in by the `smithy.api#` prefix
+  (in `describe.json`, OpenAPI, MCP schemas or an SDK's bundled schema)
+  matches `crucible.api#`, and one that read an `x-smithy-*` OpenAPI or JSON
+  Schema extension reads `x-crucible-*`. Both appear as keys as well as
+  values: shape maps and `$defs`/`components.schemas` are keyed by the
+  built-in's id (`crucible.api#Long`, `crucible.api.Long`), and the
+  extensions are object keys inside the embedded schemas. Client telemetry dashboards that
+  filter on `rpc.system = smithy` filter on `crucible`. A Rust service
+  replaces `when_trait("smithy.api#readonly")` and
+  `when_trait("smithy.api#idempotent")` with `.when(|op| op.readonly)` and
+  `.when(|op| op.idempotent)` before the next minor release; until then the
+  old ids work with a warning. Infrastructure bindings files may keep
+  `smithy.api#String` as a provider context `target`; it reads as
+  `crucible.api#String`. A package in the namespace `crucible.api`, now reserved for the prelude,
+  moves to another. `describe.json` stays format 1: only the spelling of
+  built-in ids and extension names in its values changed. Committed release
+  snapshots need nothing: they read as before. See
+  [migrating](docs/migrating.md#the-built-in-vocabulary-is-crucibleapi).
 
 - **A `null` document payload reads as the member's null.** In 0.7.0 a
   document `@httpPayload` sent as the body `null` read as a document value:

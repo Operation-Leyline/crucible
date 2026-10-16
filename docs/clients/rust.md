@@ -231,9 +231,8 @@ set those states explicitly. Builder setters use the modeled snake_case name;
 reserved method names receive a `member_` prefix and a numeric suffix if needed.
 Builder type names also receive a suffix when a model uses the same name.
 
-Members that clients may omit use `weather_client::Field<T>`.
-This includes every member of an `@input` structure and members marked
-`@clientOptional`, even when the server requires them. `Field::Absent` omits the
+Members that clients may omit (neither required nor defaulted, the same
+rule the server applies) use `weather_client::Field<T>`. `Field::Absent` omits the
 member, `Field::Null` writes JSON null, and `Field::Value(value)` writes a value.
 Defaults apply only when decoding an absent member; explicit null stays null
 for an optional member. Query and header bindings omit absent and null values.
@@ -385,7 +384,6 @@ Consumers must update struct literals and matches:
 |---|---|
 | Optional field `None` | `Field::Absent` |
 | Optional field `Some(value)` | `Field::Value(value)` or `value.into()` |
-| Required field in an `@input` structure | `Field::Value(value)` |
 | No explicit null representation | `Field::Null` |
 | Read `Option<T>` | Use `value()` / `into_value()`, or match all three states |
 | Exhaustive enum or union match | Handle the generated unknown variant |

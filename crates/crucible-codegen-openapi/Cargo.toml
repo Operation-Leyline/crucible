@@ -1,6 +1,6 @@
 [package]
 name = "crucible-codegen-openapi"
-description = "OpenAPI 3.1 documents from Crucible's lowered Smithy IR"
+description = "OpenAPI 3.1 documents from Crucible's lowered IR"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true

@@ -34,7 +34,7 @@ fn flattened_names_diagnose_collisions_before_emitting_code() {
         common::rename(&mut service, &[("example.weather#GetCityInput", name)]);
         let diagnostics = generate_client(&service).unwrap_err().to_string();
         assert!(
-            diagnostics.contains("example.weather#GetCityInput"),
+            diagnostics.contains(&format!("example.weather#{name}")),
             "{diagnostics}"
         );
         assert!(diagnostics.contains("collides"), "{diagnostics}");
@@ -51,7 +51,7 @@ fn modeled_errors_colliding_with_operation_errors_are_diagnosed() {
     );
     let diagnostics = generate_client(&service).unwrap_err().to_string();
     assert!(
-        diagnostics.contains("example.weather#NotFoundError"),
+        diagnostics.contains("example.weather#GetCityError"),
         "{diagnostics}"
     );
     assert!(diagnostics.contains("collides"), "{diagnostics}");

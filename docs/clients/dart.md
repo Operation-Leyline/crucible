@@ -77,7 +77,7 @@ an empty request payload sends no body or content type.
 ## API documentation and string representations
 
 Every generated type, member, enum value, operation and the client carry
-dartdoc comments built from the model's `@documentation` plus Crucible's own
+dartdoc comments built from the model's doc comments plus Crucible's own
 text for the client, `ClientConfig`, transports, credentials, errors and
 paginators; `dart doc` renders them without warnings. Bare `[name]` references
 in model text are escaped so dartdoc does not try to resolve them.

@@ -1173,7 +1173,7 @@ impl<'a> Context<'a> {
                     }
                     _ => None,
                 };
-                // A built-in is written `string` and lowered to `smithy.api#String`.
+                // A built-in is written `string` and lowered to `crucible.api#String`.
                 let named = |id: &ShapeId| {
                     id.name() == to.name
                         || (id.is_prelude() && id.name().eq_ignore_ascii_case(&to.name))

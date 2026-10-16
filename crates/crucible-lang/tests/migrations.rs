@@ -180,8 +180,7 @@ fn requirement_defaults_must_fit_the_destination_and_effective_constraints() {
             "\"SPECIAL\"",
             "not a value",
         ),
-        // An optional document may be null; a required one may not, as in
-        // Smithy.
+        // An optional document may be null; a required one may not.
         (
             "null-required-document",
             "Nested",

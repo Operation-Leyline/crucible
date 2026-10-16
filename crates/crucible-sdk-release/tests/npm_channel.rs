@@ -283,7 +283,7 @@ fn release(version: &str, digest: &str) -> Vec<u8> {
         }),
         &[
             ("crucible.json", provenance.as_bytes()),
-            ("crucible-model.json", b"{\"smithy\":\"2.0\"}"),
+            ("crucible-model.json", b"{\"format\":5}"),
             ("dist/index.js", b"export {};\n"),
         ],
     )
@@ -344,7 +344,7 @@ fn reads_the_last_release_from_inside_its_tarball() {
     assert_eq!(last.version, Version::new(0, 10, 0));
     assert_eq!(last.content_digest(), Some("crucible-content-1:sha256:10"));
     assert_eq!(last.service_version(), Some("2026-10-01"));
-    assert_eq!(last.model.as_deref(), Some("{\"smithy\":\"2.0\"}"));
+    assert_eq!(last.model.as_deref(), Some("{\"format\":5}"));
     assert!(last.artifact.starts_with("sha512-"));
     assert_eq!(last.legacy, None);
     // The token went to the registry, never to the CDN the tarball

@@ -174,8 +174,8 @@ A public operation does not invoke the configured bearer-token provider.
 Regenerate clients when upgrading the generator and runtime together; older
 generated metadata does not carry these operation-level authentication decisions.
 
-Clients ignore defaults on `@clientOptional` members and members of `@input`
-structures. Other modeled defaults apply when decoding an absent member.
+A member's optionality is the same for clients as for the server: modeled
+defaults apply when decoding an absent member.
 An explicit null remains distinct from an absent value. Dense collections reject
 null elements, except that a `document` element may itself contain JSON null.
 
@@ -238,8 +238,8 @@ package consumers as well as the shared serialization fixtures.
 ### API documentation and string representations (Java, Kotlin, C#)
 
 Generated Java, Kotlin and C# clients document every public type in the language's
-doc format (Javadoc, KDoc, C# XML documentation). `@documentation` is
-converted from CommonMark once, in `crucible-codegen-common`: paragraphs, lists,
+doc format (Javadoc, KDoc, C# XML documentation). The model's doc comments
+are converted from CommonMark once, in `crucible-codegen-common`: paragraphs, lists,
 code, emphasis, links and headings carry over, and everything else, raw HTML
 included, is escaped so it cannot close the comment or break the markup.
 Crucible's own types (client, configuration, errors, credentials, the

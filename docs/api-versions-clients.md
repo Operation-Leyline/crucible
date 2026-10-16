@@ -34,8 +34,8 @@ as today.
 ## 5a. Clients send their release
 
 Today no generated client can send an arbitrary header. Each runtime
-builds its fixed headers (`Content-Type`, `X-Amz-Target`,
-`Smithy-Protocol`) from the service's protocol. The shared client
+builds its fixed headers (such as `Content-Type`) from the service's
+protocol. The shared client
 description (`crucible_codegen_common::schema`), the TypeScript operation
 specs and the Rust client's `OperationInfo` carry no other request header.
 So the release travels as a **service-level value**, not as an
