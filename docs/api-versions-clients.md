@@ -162,8 +162,15 @@ references to the code as of this design.
   of a `reshape` or a `remove operation` is the frozen definition, which a
   later addition has no place in: a member added to `S` after `reshape S`
   is not in `S` at releases before the reshape, whose hook converts the
-  whole value. This is the one exception to "additive changes reach every
-  release" (decision 51), and the reference says so (decision 74).
+  whole value. Nor does one reach a release's payload-bound message: where
+  the release sent a member of an operation's input or output, or of an
+  error, as the payload and its projection does again (a `retype` restores
+  the binding), a member added since that would travel in the body is not
+  in that release, which has no body to carry it; one bound to a label,
+  query parameter or header still reaches it. This is the one exception to
+  "additive changes reach every release" (decision 51), and the reference
+  says so (decision 74; `history.missing` does not date the payload case
+  yet, PR 8).
 - **Everything else is the current model's:** operations, members and enum
   values added since reach the older release. `version` and `api_version`
   are the older release's name.
@@ -741,8 +748,11 @@ is built, and so are PRs 1 to 4.
    frozen example left out, a default on a removed value);
    `version-projection-conditions` (a `when` condition through a renamed
    member); `version-projection-payload` (a payload retyped between a blob
-   and a string, bound with the release's kind and media type); the e2e `versioned_permissions` fixture (a restored
-   operation's requirements); whole-IR equality with the frozen release,
+   and a string, bound with the release's kind and media type, a body
+   member retyped into a payload, and a payload retyped into a body member
+   beside a member added since, which does not reach the release); the
+   e2e `versioned_permissions` fixture (a restored operation's
+   requirements); whole-IR equality with the frozen release,
    documentation aside, where nothing added since reaches it; for every
    step, that undoing its migration without it leaves a finding; and
    edited IR for what the compiler will refuse.

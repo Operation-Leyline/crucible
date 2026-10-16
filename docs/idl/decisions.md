@@ -1555,13 +1555,20 @@ references are to the code as of the design.
     release's entry already authenticates with its own schemes
     (`authenticator_chain.rs:45-72`).
 
-74. **Additions do not reach inside a reshape or a removal.** The older
-    side of `reshape` and `remove operation` is the frozen definition; a
-    member added since to that structure, or to a removed operation's own
-    shapes, is not in releases before the step. The one exception to 51,
-    stated in the reference (`history.missing`). *Why:* the hook converts
-    the whole value, and the older definition has no place for what came
-    later.
+74. **Additions do not reach inside a reshape or a removal, or into a
+    payload's message.** The older side of `reshape` and `remove
+    operation` is the frozen definition; a member added since to that
+    structure, or to a removed operation's own shapes, is not in releases
+    before the step. Likewise, where a release sent a member of an
+    operation's input or output (or an error) as the payload and its
+    projection does again, a member added since that would travel in the
+    body is not in that release: the message has no body to carry it. One
+    bound to a label, query parameter or header still reaches it. The one
+    exception to 51, stated in the reference (`history.missing`; the
+    payload case is not dated there yet). *Why:* the hook converts the
+    whole value, and the older definition has no place for what came later;
+    a payload-bound message has no body, its older clients never sent the
+    member, and the release's request must stay valid.
 
 75. **The server generator serves projections, and their types grow.**
     Version modules, hook types and legacy handlers' types are projected.

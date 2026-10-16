@@ -1083,3 +1083,32 @@ fn a_member_retyped_into_a_payload_is_the_releases_body_member() {
     let frozen = operation(&service.versions[0].service, "PutReport");
     assert_eq!(json(&report.request), json(&frozen.request));
 }
+
+/// Decision 74: a member the release sent as the payload, which the newer
+/// model sends in the JSON body beside a member added since, is the payload
+/// again, and the added member does not reach the release: a request whose
+/// body is the payload has nowhere to carry it. The projection is the
+/// frozen release and passes the IR's checks.
+#[test]
+fn additions_do_not_reach_a_payload_bound_message() {
+    let (service, _) = load("tests/models/version-projection-payload");
+    let projections = projected(&service);
+    let v1 = at(&projections, "v1");
+    let note = operation(v1, "PutNote");
+    assert_eq!(
+        note.request.payload.as_ref().map(|p| p.member.as_str()),
+        Some("body")
+    );
+    assert!(note.request.body.is_empty());
+    let input = id("example.payload", "PutNoteInput");
+    assert_eq!(members(v1, &input), ["id: String", "body: Image"]);
+    assert_eq!(
+        members(&service, &input),
+        ["id: String", "body: String", "title?: String"]
+    );
+    let frozen = operation(&service.versions[0].service, "PutNote");
+    assert_eq!(json(&note.request), json(&frozen.request));
+    let mut problems = Diagnostics::default();
+    crucible_ir::validate::service(v1, &mut problems);
+    assert!(problems.is_empty(), "{problems}");
+}

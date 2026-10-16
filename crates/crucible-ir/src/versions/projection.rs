@@ -983,6 +983,7 @@ impl Undo<'_> {
                 };
             }
         }
+        self.payload_bound();
         // The protocol's fixed headers follow from the bindings, which undo
         // may have restored: a body the release had, or did not.
         let protocol = self.out.protocol;
@@ -1045,6 +1046,137 @@ impl Undo<'_> {
         self.out.version = self.release.to_owned();
         self.out.api_version = newer.api_version.as_ref().map(|_| self.release.to_owned());
         self.out
+    }
+
+    /// Decision 74, for a payload: where the release sent a message's
+    /// payload and the projection sends that payload again, the message has
+    /// no body, so a member added since that would travel in it does not
+    /// reach the release. Its older clients never sent it, and the release's
+    /// message stays valid. Members bound to a label, query parameter or
+    /// header still reach it, as any addition does; so does a member the
+    /// release had.
+    fn payload_bound(&mut self) {
+        let frozen = self.frozen;
+        // (message structure, the release's definition of it) per payload.
+        let mut messages: Vec<(ShapeId, ShapeId)> = Vec::new();
+        for operation in &mut self.out.operations {
+            if self.operations.contains(&operation.id) {
+                continue;
+            }
+            let Some(older) = self.frozen_operations.get(&operation.id).copied() else {
+                continue;
+            };
+            for (shape, now, then, older_shape) in [
+                (
+                    &operation.input,
+                    &mut operation.request,
+                    &older.request,
+                    &older.input,
+                ),
+                (
+                    &operation.output,
+                    &mut operation.response,
+                    &older.response,
+                    &older.output,
+                ),
+            ] {
+                let (Some(shape), Some(older_shape)) = (shape, older_shape) else {
+                    continue;
+                };
+                if now.payload.is_none() || then.payload.is_none() || now.body.is_empty() {
+                    continue;
+                }
+                let Some(Shape::Structure(release)) = frozen.shapes.get(older_shape) else {
+                    continue;
+                };
+                let dropped: Vec<String> = now
+                    .body
+                    .iter()
+                    .filter(|member| release.member(member).is_none())
+                    .cloned()
+                    .collect();
+                now.body.retain(|member| !dropped.contains(member));
+                now.timestamp_formats
+                    .retain(|member, _| !dropped.contains(member));
+                now.header_encodings
+                    .retain(|member, _| !dropped.contains(member));
+                messages.push((shape.clone(), older_shape.clone()));
+            }
+        }
+        // An error's body is every member it binds to no header.
+        for (id, shape) in &mut self.out.shapes {
+            let Shape::Structure(s) = shape else {
+                continue;
+            };
+            let (Some(error), Some(Shape::Structure(release))) = (&s.error, frozen.shapes.get(id))
+            else {
+                continue;
+            };
+            let sent = release
+                .error
+                .as_ref()
+                .is_some_and(|then| then.payload.is_some());
+            if !sent || error.payload.is_none() {
+                continue;
+            }
+            let headers: BTreeSet<&str> = error.headers.iter().map(|b| b.member.as_str()).collect();
+            let payload = error.payload.as_ref().map(|p| p.member.clone());
+            let before = s.members.len();
+            s.members.retain(|m| {
+                release.member(&m.name).is_some()
+                    || headers.contains(m.name.as_str())
+                    || payload.as_deref() == Some(m.name.as_str())
+            });
+            if s.members.len() != before {
+                let kept: BTreeSet<String> = s.members.iter().map(|m| m.name.clone()).collect();
+                if let Some(error) = &mut s.error {
+                    error
+                        .timestamp_formats
+                        .retain(|member, _| kept.contains(member));
+                    error
+                        .header_encodings
+                        .retain(|member, _| kept.contains(member));
+                }
+                self.changed.insert(id.clone());
+            }
+        }
+        for (shape, older_shape) in messages {
+            let operation_bindings: Vec<&Bindings> = self
+                .out
+                .operations
+                .iter()
+                .flat_map(|op| {
+                    [
+                        (op.input.as_ref() == Some(&shape)).then_some(&op.request),
+                        (op.output.as_ref() == Some(&shape)).then_some(&op.response),
+                    ]
+                })
+                .flatten()
+                .collect();
+            let bound: BTreeSet<String> = operation_bindings
+                .iter()
+                .flat_map(|b| {
+                    b.labels
+                        .iter()
+                        .chain(&b.body)
+                        .chain(b.query.iter().map(|q| &q.member))
+                        .chain(b.headers.iter().map(|h| &h.member))
+                        .chain(b.payload.as_ref().map(|p| &p.member))
+                })
+                .cloned()
+                .collect();
+            let Some(Shape::Structure(release)) = frozen.shapes.get(&older_shape) else {
+                continue;
+            };
+            if let Some(Shape::Structure(s)) = self.out.shapes.get_mut(&shape) {
+                let before = s.members.len();
+                s.members
+                    .retain(|m| release.member(&m.name).is_some() || bound.contains(&m.name));
+                if s.members.len() != before {
+                    self.changed.insert(shape.clone());
+                }
+            }
+        }
     }
 
     /// An operation the release has authenticates as the release declared

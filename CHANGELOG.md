@@ -140,8 +140,8 @@ version's section when it is prepared.
   projection, newest first, by `undo`ing each migration on the projection
   of the release after it and taking from the frozen release only what a
   step says it had. Additions reach every release, except inside a
-  structure a later `reshape` restores or a removed operation's own input
-  and output; steps compose regardless of declaration order; restored
+  structure a later `reshape` restores, a removed operation's own input
+  and output, or the body beside a payload the release sent; steps compose regardless of declaration order; restored
   definitions keep the projection's targets, and their bindings,
   pagination and examples are the release's; an operation the release had
   keeps its authentication, one added since takes the current model's, and

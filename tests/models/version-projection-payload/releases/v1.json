@@ -165,6 +165,74 @@
       },
       {
         "protocol_headers": {
+          "Content-Type": "image/png"
+        },
+        "response_protocol_headers": {
+          "Content-Type": "application/json"
+        },
+        "internal": false,
+        "id": "example.payload#PutNote",
+        "auth": [],
+        "resource": null,
+        "docs": "Stores a note's bytes, sent raw.",
+        "notes": {
+          "deprecated": null,
+          "since": null,
+          "unstable": false,
+          "external_docs": {}
+        },
+        "method": "PUT",
+        "uri": {
+          "segments": [
+            {
+              "Literal": "notes"
+            },
+            {
+              "Label": "id"
+            }
+          ],
+          "query": [],
+          "greedy_labels": []
+        },
+        "status": 200,
+        "input": "example.payload#PutNoteInput",
+        "output": "example.payload#PutNoteOutput",
+        "errors": [],
+        "readonly": false,
+        "idempotent": true,
+        "idempotency_token": null,
+        "paginated": null,
+        "examples": [],
+        "request": {
+          "timestamp_formats": {},
+          "header_encodings": {},
+          "labels": [
+            "id"
+          ],
+          "query": [],
+          "headers": [],
+          "body": [],
+          "payload": {
+            "kind": "blob",
+            "member": "body",
+            "media_type": "image/png"
+          }
+        },
+        "response": {
+          "timestamp_formats": {},
+          "header_encodings": {},
+          "labels": [],
+          "query": [],
+          "headers": [],
+          "body": [
+            "ok"
+          ],
+          "payload": null
+        },
+        "traits": {}
+      },
+      {
+        "protocol_headers": {
           "Content-Type": "application/json"
         },
         "response_protocol_headers": {
@@ -488,6 +556,125 @@
         }
       },
       "example.payload#PutFileOutput": {
+        "Structure": {
+          "internal": false,
+          "sensitive": false,
+          "strict": false,
+          "input": false,
+          "members": [
+            {
+              "internal": false,
+              "sensitive": false,
+              "name": "ok",
+              "target": "crucible.api#Boolean",
+              "required": true,
+              "default": null,
+              "wire_default": null,
+              "idempotency_token": false,
+              "mutability": null,
+              "constraints": {
+                "length": null,
+                "range": null,
+                "pattern": null,
+                "unique_items": false
+              },
+              "timestamp_format": null,
+              "wire_timestamp_format": "date-time",
+              "docs": null,
+              "notes": {
+                "deprecated": null,
+                "since": null,
+                "unstable": false,
+                "external_docs": {}
+              },
+              "traits": {}
+            }
+          ],
+          "error": null,
+          "docs": null,
+          "notes": {
+            "deprecated": null,
+            "since": null,
+            "unstable": false,
+            "external_docs": {}
+          },
+          "traits": {}
+        }
+      },
+      "example.payload#PutNoteInput": {
+        "Structure": {
+          "internal": false,
+          "sensitive": false,
+          "strict": false,
+          "input": true,
+          "members": [
+            {
+              "internal": false,
+              "sensitive": false,
+              "name": "id",
+              "target": "crucible.api#String",
+              "required": true,
+              "default": null,
+              "wire_default": null,
+              "idempotency_token": false,
+              "mutability": null,
+              "constraints": {
+                "length": null,
+                "range": null,
+                "pattern": null,
+                "unique_items": false
+              },
+              "timestamp_format": null,
+              "wire_timestamp_format": "date-time",
+              "docs": null,
+              "notes": {
+                "deprecated": null,
+                "since": null,
+                "unstable": false,
+                "external_docs": {}
+              },
+              "traits": {}
+            },
+            {
+              "internal": false,
+              "sensitive": false,
+              "name": "body",
+              "target": "example.payload#Image",
+              "required": true,
+              "default": null,
+              "wire_default": null,
+              "idempotency_token": false,
+              "mutability": null,
+              "constraints": {
+                "length": null,
+                "range": null,
+                "pattern": null,
+                "unique_items": false
+              },
+              "timestamp_format": null,
+              "wire_timestamp_format": "date-time",
+              "docs": null,
+              "notes": {
+                "deprecated": null,
+                "since": null,
+                "unstable": false,
+                "external_docs": {}
+              },
+              "traits": {}
+            }
+          ],
+          "error": null,
+          "docs": null,
+          "notes": {
+            "deprecated": null,
+            "since": null,
+            "unstable": false,
+            "external_docs": {}
+          },
+          "traits": {}
+        }
+      },
+      "example.payload#PutNoteOutput": {
         "Structure": {
           "internal": false,
           "sensitive": false,
