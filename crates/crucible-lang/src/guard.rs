@@ -6,7 +6,7 @@
 
 use std::path::Path;
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 
 use crucible_ir::ShapeId;
 use crucible_ir::ir::{
@@ -126,6 +126,8 @@ pub fn guard(
         }
     }
     let mut covers = Vec::new();
+    // Each enum value change no step declares, by enum, for its finding.
+    let mut unexplained = BTreeMap::new();
     // An operation a migration drops without `remove operation` is refused
     // at the migration, or not served at older releases when an exception
     // accepts the drop, in every migration of the chain: the diff below
@@ -161,6 +163,7 @@ pub fn guard(
         }
         let context = Context::new(&compiled.namespace, &old, service, migration);
         renames = context.renames.clone();
+        unexplained = context.unexplained.clone();
         for step in &migration.steps {
             match context.checked_step(&step.kind) {
                 Ok(mut cover) => covers.append(&mut cover),
@@ -216,6 +219,20 @@ pub fn guard(
         if covered {
             declared += 1;
         } else {
+            let mut finding = finding;
+            if finding.rule == "compatibility.enum"
+                && let Some(values) = finding
+                    .shape
+                    .parse::<ShapeId>()
+                    .ok()
+                    .and_then(|id| unexplained.get(&id))
+            {
+                finding.message = format!(
+                    "{}; no step declares: {}",
+                    finding.message,
+                    values.join(", ")
+                );
+            }
             undeclared.push(finding);
         }
     }
@@ -315,6 +332,23 @@ struct Context<'a> {
     renames: Renames,
     /// The members the migration retypes, as the current model names them.
     retyped: BTreeSet<(ShapeId, String)>,
+    /// What the migration's renames and additions of enum values leave
+    /// ambiguous, at the step that does it ([`Context::enum_changes`]).
+    enum_problems: Vec<(crate::span::Span, String)>,
+    /// For each enum those steps change, the values whose removal or
+    /// addition no step declares: its `compatibility.enum` finding stands,
+    /// naming them. An enum missing here is wholly explained.
+    unexplained: BTreeMap<ShapeId, Vec<String>>,
+}
+
+/// One enum's value changes a migration declares: its renamed values
+/// (older name, newer name) and its added ones (value, downgrade), each at
+/// its step.
+#[derive(Default)]
+struct EnumChanges {
+    old: Option<ShapeId>,
+    renames: Vec<(String, String, crate::span::Span)>,
+    adds: Vec<(String, String, crate::span::Span)>,
 }
 
 /// Where a dotted path points: a shape, or a member of one.
@@ -339,6 +373,8 @@ impl<'a> Context<'a> {
             new,
             renames: Renames::new(),
             retyped: BTreeSet::new(),
+            enum_problems: Vec::new(),
+            unexplained: BTreeMap::new(),
         };
         for step in &migration.steps {
             if let StepKind::Retype { path, .. } = &step.kind
@@ -360,7 +396,191 @@ impl<'a> Context<'a> {
                     .insert((old.shape, from), (new.shape, to.name.clone()));
             }
         }
+        context.enum_changes(migration);
         context
+    }
+
+    /// The wire value of each value of enum `shape` in `service`, by name.
+    fn wires(service: &Service, shape: &ShapeId) -> Option<BTreeMap<String, String>> {
+        Some(match service.shapes.get(shape)? {
+            Shape::Enum(e) => e
+                .values
+                .iter()
+                .map(|value| (value.name.clone(), value.value.clone()))
+                .collect(),
+            Shape::IntEnum(e) => e
+                .values
+                .iter()
+                .map(|value| (value.name.clone(), value.value.to_string()))
+                .collect(),
+            _ => return None,
+        })
+    }
+
+    /// Composes, for each enum, the value renames and additions the
+    /// migration declares, as the server applies them: one lookup per value
+    /// each way. Refuses, at a step taking part, a composition that sends
+    /// one newer value to two older ones, or two older values to one newer
+    /// one (an older client's two values would read the same). Records the
+    /// values whose removal or addition no step declares, so the enum's
+    /// `compatibility.enum` finding is covered only when the steps explain
+    /// the whole change.
+    fn enum_changes(&mut self, migration: &Migration) {
+        let mut changes: BTreeMap<ShapeId, EnumChanges> = BTreeMap::new();
+        for step in &migration.steps {
+            match &step.kind {
+                StepKind::Rename { path, to } => {
+                    if let Ok((old, new)) = self.both(path)
+                        && let Some(from) = old.member
+                        && Self::wires(self.old, &old.shape).is_some()
+                        && Self::wires(self.new, &new.shape).is_some()
+                    {
+                        let entry = changes.entry(new.shape).or_default();
+                        entry.old = Some(old.shape);
+                        entry.renames.push((from, to.name.clone(), path.span));
+                    }
+                }
+                StepKind::Add {
+                    path,
+                    name: None,
+                    downgrade,
+                    ..
+                } => {
+                    if let Ok((old, new)) = self.both(path)
+                        && let Some(value) = new.member
+                        && Self::wires(self.old, &old.shape).is_some()
+                        && Self::wires(self.new, &new.shape).is_some()
+                    {
+                        let entry = changes.entry(new.shape).or_default();
+                        entry.old = Some(old.shape);
+                        entry.adds.push((value, downgrade.name.clone(), path.span));
+                    }
+                }
+                _ => {}
+            }
+        }
+        for (shape, change) in changes {
+            let (Some(older), Some(newer)) = (
+                change
+                    .old
+                    .as_ref()
+                    .and_then(|old| Self::wires(self.old, old)),
+                Self::wires(self.new, &shape),
+            ) else {
+                continue;
+            };
+            let enum_name = shape.name();
+            // Upgrade: what each older value becomes. Two reaching one
+            // newer value could not be told apart again.
+            let mut reached: BTreeMap<&str, Vec<(&str, Option<crate::span::Span>)>> =
+                BTreeMap::new();
+            for (name, wire) in &older {
+                let target = match change.renames.iter().find(|(from, ..)| from == name) {
+                    Some((_, to, span)) => newer.get(to).map(|wire| (wire.as_str(), Some(*span))),
+                    None => newer
+                        .values()
+                        .find(|value| *value == wire)
+                        .map(|wire| (wire.as_str(), None)),
+                };
+                if let Some((target, span)) = target {
+                    reached.entry(target).or_default().push((name, span));
+                }
+            }
+            for (target, sources) in &reached {
+                if let [first, second, ..] = sources.as_slice()
+                    && let Some(span) = sources.iter().find_map(|(_, span)| *span)
+                {
+                    self.enum_problems.push((
+                        span,
+                        format!(
+                            "older clients' {enum_name}.{} and {enum_name}.{} would both be read as `{target}`; rename to a value the release did not have",
+                            first.0, second.0
+                        ),
+                    ));
+                }
+            }
+            // Downgrade: what older clients see of each newer value. Two
+            // steps sending it two ways is ambiguous.
+            for (name, wire) in &newer {
+                let mut seen: Vec<(&str, Option<crate::span::Span>)> = change
+                    .renames
+                    .iter()
+                    .filter(|(_, to, _)| to == name)
+                    .map(|(from, _, span)| (from.as_str(), Some(*span)))
+                    .chain(
+                        change
+                            .adds
+                            .iter()
+                            .filter(|(value, ..)| value == name)
+                            .map(|(_, downgrade, span)| (downgrade.as_str(), Some(*span))),
+                    )
+                    .collect();
+                if seen.is_empty() {
+                    continue;
+                }
+                // A value the release already had stays itself, unless a
+                // rename took it away.
+                if let Some((kept, _)) = older.iter().find(|(old, value)| {
+                    *value == wire && !change.renames.iter().any(|(from, ..)| from == *old)
+                }) {
+                    seen.push((kept, None));
+                }
+                let names: BTreeSet<&str> = seen.iter().map(|(name, _)| *name).collect();
+                let names: Vec<&str> = names.into_iter().collect();
+                if let [first, second, ..] = names.as_slice()
+                    && let Some(span) = seen.iter().find_map(|(_, span)| *span)
+                {
+                    self.enum_problems.push((
+                        span,
+                        format!(
+                            "{enum_name}.{name} would reach older clients as both {enum_name}.{first} and {enum_name}.{second}; declare one step for it"
+                        ),
+                    ));
+                }
+            }
+            // What changed on the wire that no step declares.
+            let explained_old: BTreeSet<&str> = change
+                .renames
+                .iter()
+                .filter_map(|(from, ..)| older.get(from).map(String::as_str))
+                .collect();
+            let explained_new: BTreeSet<&str> = change
+                .renames
+                .iter()
+                .map(|(_, to, _)| to)
+                .chain(change.adds.iter().map(|(value, ..)| value))
+                .filter_map(|name| newer.get(name).map(String::as_str))
+                .collect();
+            let older_wires: BTreeSet<&str> = older.values().map(String::as_str).collect();
+            let newer_wires: BTreeSet<&str> = newer.values().map(String::as_str).collect();
+            let mut missing: Vec<String> = older
+                .iter()
+                .filter(|(_, wire)| {
+                    !newer_wires.contains(wire.as_str()) && !explained_old.contains(wire.as_str())
+                })
+                .map(|(name, _)| format!("{name} removed"))
+                .collect();
+            missing.extend(
+                newer
+                    .iter()
+                    .filter(|(_, wire)| {
+                        !older_wires.contains(wire.as_str())
+                            && !explained_new.contains(wire.as_str())
+                    })
+                    .map(|(name, _)| format!("{name} added")),
+            );
+            if !missing.is_empty() {
+                self.unexplained.insert(shape, missing);
+            }
+        }
+    }
+
+    /// What `enum_changes` found wrong with the step at `span`.
+    fn enum_problem(&self, span: crate::span::Span) -> Option<Diagnostic> {
+        self.enum_problems
+            .iter()
+            .find(|(at, _)| *at == span)
+            .map(|(at, message)| error(*at, message.clone()))
     }
 
     /// The baseline's name for `member` of `shape`: the one a rename in
@@ -588,8 +808,15 @@ impl<'a> Context<'a> {
                     )
                 };
                 if is_enum(self.old, &old.shape) && is_enum(self.new, &new.shape) {
-                    covers.push(Cover::exact(old.shape.clone(), ENUM_VALUE));
-                    covers.push(Cover::exact(new.shape.clone(), ENUM_VALUE));
+                    if let Some(problem) = self.enum_problem(path.span) {
+                        return Err(problem);
+                    }
+                    // The enum's own finding is this migration's when its
+                    // steps explain every value that changed on the wire.
+                    if !self.unexplained.contains_key(&new.shape) {
+                        covers.push(Cover::exact(old.shape.clone(), ENUM_VALUE));
+                        covers.push(Cover::exact(new.shape.clone(), ENUM_VALUE));
+                    }
                 }
                 Ok(covers)
             }
@@ -779,10 +1006,16 @@ impl<'a> Context<'a> {
                             ),
                         ));
                     }
-                    Ok(vec![
-                        Cover::exact(old.shape.clone(), ENUM_VALUE),
-                        Cover::exact(new.shape.with_member(value), ENUM_VALUE),
-                    ])
+                    if let Some(problem) = self.enum_problem(path.span) {
+                        return Err(problem);
+                    }
+                    let mut covers = vec![Cover::exact(new.shape.with_member(value), ENUM_VALUE)];
+                    // As for a rename: the enum's own finding only when the
+                    // steps explain its whole change.
+                    if !self.unexplained.contains_key(&new.shape) {
+                        covers.push(Cover::exact(old.shape.clone(), ENUM_VALUE));
+                    }
+                    Ok(covers)
                 }
             },
             StepKind::Move {

@@ -591,9 +591,9 @@ fn a_renamed_enum_value_is_mapped_both_ways() {
     .unwrap();
     for expected in [
         // A request's value, as the next version reads it.
-        r#"upgrade: &[Transform::Map { at: &[Seg::Field("like")], from: "small", to: "tiny" }]"#,
+        r#"upgrade: &[Transform::Map { at: &[Seg::Field("like")], values: &[("small", "tiny")] }]"#,
         // A response's value, as older clients read it.
-        r#"downgrade: &[Transform::Map { at: &[Seg::Field("kind")], from: "tiny", to: "small" }]"#,
+        r#"downgrade: &[Transform::Map { at: &[Seg::Field("kind")], values: &[("tiny", "small")] }]"#,
     ] {
         assert!(code.contains(expected), "{expected}\n{code}");
     }
@@ -881,4 +881,48 @@ fn a_conversion_refused_still_collects_every_problem() {
             .any(|line| line.contains("`retype DeleteItemOutput.gone by hook`")),
         "{reported:#?}"
     );
+}
+
+#[test]
+fn an_enums_value_changes_map_in_one_lookup() {
+    // TINY takes SMALL's place and HUGE takes SMALL's wire value: one map,
+    // so a TINY sent down as `small` is not then read as HUGE's `large`.
+    let v1 = r#"service Shop {
+    version "v1"
+    protocol json
+    operations [GetItem]
+    errors [ValidationException, InternalServerException]
+}
+
+readonly operation GetItem {
+    http GET "/items/{id}"
+    input { id: string }
+    output { kind: Kind }
+}
+
+enum Kind { SMALL = "small", LARGE = "large" }
+"#;
+    let dir = Path::new(env!("CARGO_TARGET_TMPDIR")).join("versions-enum-composed");
+    let _ = fs::remove_dir_all(&dir);
+    fs::create_dir_all(&dir).unwrap();
+    freeze(&dir, v1);
+    fs::write(
+        dir.join("crucible.toml"),
+        format!("{MANIFEST}\n[model.baseline]\npath = \"releases/v1.json\"\n"),
+    )
+    .unwrap();
+    let current = v1.replace("version \"v1\"", "version \"v2\"").replace(
+        "enum Kind { SMALL = \"small\", LARGE = \"large\" }",
+        "enum Kind { TINY = \"tiny\", LARGE = \"large\", HUGE = \"small\" }",
+    );
+    fs::write(
+        dir.join("shop.cru"),
+        format!(
+            "{current}\nmigration \"v2\" from \"v1\" {{\n    rename Kind.SMALL -> TINY\n    add Kind.HUGE downgrade LARGE\n}}\n"
+        ),
+    )
+    .unwrap();
+    let code = generate(&lower(&dir), &Options::default()).unwrap();
+    let expected = r#"downgrade: &[Transform::Map { at: &[Seg::Field("kind")], values: &[("small", "large"), ("tiny", "small")] }]"#;
+    assert!(code.contains(expected), "{expected}\n{code}");
 }

@@ -1838,3 +1838,102 @@ fn a_renamed_int_enum_value_keeps_its_number() {
         problems(&kept)
     );
 }
+
+/// The shop with `Kind` declared as `kinds` at the baseline and `current`
+/// now, migrated by `steps`.
+fn enum_guard(name: &str, kinds: &str, current: &str, steps: &str) -> Guard {
+    let baseline = V1.replace("enum Kind { SMALL, LARGE }", kinds);
+    let dir = package_from(
+        name,
+        &baseline,
+        &baseline.replace(kinds, current),
+        &format!("migration \"v2\" from \"v1\" {{\n{steps}}}\n"),
+    );
+    let loaded = load_package(&dir).unwrap();
+    let compiled = compile(&loaded, None);
+    assert!(compiled.service.is_some(), "{name}: {}", compiled.render());
+    guard(&loaded, &compiled, loaded.files.len(), &Config::default())
+        .unwrap()
+        .unwrap()
+}
+
+#[test]
+fn an_enums_renames_and_additions_compose_into_one_mapping() {
+    // The added HUGE takes the wire value SMALL had, which TINY took over:
+    // older clients see TINY as SMALL and HUGE as LARGE, in one lookup.
+    let composed = enum_guard(
+        "enum-composed",
+        "enum Kind { SMALL = \"small\", LARGE = \"large\" }",
+        "enum Kind { TINY = \"tiny\", LARGE = \"large\", HUGE = \"small\" }",
+        "    rename Kind.SMALL -> TINY\n    add Kind.HUGE downgrade LARGE\n",
+    );
+    assert!(
+        !composed.has_errors(),
+        "{:?} {:?}",
+        rules(&composed),
+        problems(&composed)
+    );
+
+    // A newer value two steps send two ways.
+    let twice = enum_guard(
+        "enum-downgraded-twice",
+        "enum Kind { SMALL, LARGE }",
+        "enum Kind { TINY, LARGE }",
+        "    rename Kind.SMALL -> TINY\n    add Kind.TINY downgrade LARGE\n",
+    );
+    assert!(
+        problems(&twice).contains(
+            &"Kind.TINY would reach older clients as both Kind.LARGE and Kind.SMALL; declare one step for it".to_owned()
+        ),
+        "{:?}",
+        problems(&twice)
+    );
+
+    // Two older values one newer one: older clients could not tell them
+    // apart again.
+    let merged = enum_guard(
+        "enum-merged",
+        "enum Kind { SMALL, LARGE }",
+        "enum Kind { LARGE }",
+        "    rename Kind.SMALL -> LARGE\n",
+    );
+    assert!(
+        problems(&merged).iter().any(|problem| problem
+            == "older clients' Kind.LARGE and Kind.SMALL would both be read as `LARGE`; rename to a value the release did not have"),
+        "{:?}",
+        problems(&merged)
+    );
+}
+
+#[test]
+fn an_enum_change_no_step_explains_keeps_its_finding() {
+    // SMALL is renamed, but MEDIUM is dropped with no step: the enum's
+    // finding stands, naming it, as it does beside an added value.
+    for (name, current, steps) in [
+        (
+            "enum-unexplained-rename",
+            "enum Kind { TINY, LARGE }",
+            "    rename Kind.SMALL -> TINY\n",
+        ),
+        (
+            "enum-unexplained-add",
+            "enum Kind { SMALL, LARGE, HUGE }",
+            "    add Kind.HUGE downgrade LARGE\n",
+        ),
+    ] {
+        let checked = enum_guard(name, "enum Kind { SMALL, LARGE, MEDIUM }", current, steps);
+        let finding = checked
+            .undeclared
+            .iter()
+            .find(|finding| finding.rule == "compatibility.enum")
+            .unwrap_or_else(|| panic!("{name}: {:?}", rules(&checked)));
+        assert_eq!(finding.shape, "example.shop#Kind", "{name}");
+        assert!(
+            finding
+                .message
+                .ends_with("; no step declares: MEDIUM removed"),
+            "{name}: {}",
+            finding.message
+        );
+    }
+}

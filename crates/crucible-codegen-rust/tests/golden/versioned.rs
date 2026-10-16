@@ -2195,7 +2195,7 @@ pub mod shop {
                 pub(in super::super) static GET_ITEM_0: Conversion = Conversion { upgrade: &[], downgrade: &[Transform::Rename { at: &[], from: "title", to: "name" }], errors: &[], refused: None };
                 pub(in super::super) static GET_ITEM_1: Conversion = Conversion { upgrade: &[], downgrade: &[Transform::Hook { at: &[], hook: "versions::v2::Migration::downgrade_get_item_output" }], errors: &[ErrorDowngrade { from: "example.shop#ItemGoneException", to: downgrade_to::<super::super::super::ItemNotFoundException>, members: &[("message", "message")] }], refused: None };
                 pub(in super::super) static LIST_ITEMS_0: Conversion = Conversion { upgrade: &[Transform::Fill { at: &[], member: "sort", hook: "versions::v1::Migration::require_list_items_input_sort" }, Transform::Rename { at: &[], from: "max", to: "limit" }], downgrade: &[], errors: &[], refused: None };
-                pub(in super::super) static LIST_ITEMS_1: Conversion = Conversion { upgrade: &[Transform::Default { at: &[], member: "limit", value: "20" }], downgrade: &[Transform::Map { at: &[Seg::Field("kinds"), Seg::Items], from: "HUGE", to: "LARGE" }], errors: &[], refused: None };
+                pub(in super::super) static LIST_ITEMS_1: Conversion = Conversion { upgrade: &[Transform::Default { at: &[], member: "limit", value: "20" }], downgrade: &[Transform::Map { at: &[Seg::Field("kinds"), Seg::Items], values: &[("HUGE", "LARGE")] }], errors: &[], refused: None };
             }
             pub(super) mod chains {
                 use ::crucible_server_runtime_rust::__generated::versioning::Conversion;

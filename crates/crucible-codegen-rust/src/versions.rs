@@ -702,6 +702,10 @@ fn conversion(
             }
         }
     };
+    // Every value the migration's steps change in one enum, by direction
+    // (`true` upgrades) and enum: one map each, so a value is looked up once
+    // and one step never rewrites what another wrote.
+    let mut maps: BTreeMap<(bool, &ShapeId), Vec<(String, String)>> = BTreeMap::new();
     for (at, item) in steps.iter().enumerate() {
         match item {
             VersionStep::Rename {
@@ -751,46 +755,12 @@ fn conversion(
                         }
                     }
                     inside_error(new_shape, "a renamed enum value", diagnostics);
-                    for at in places(
-                        old,
-                        old_op.input.as_ref(),
-                        old_shape,
-                        operation,
-                        diagnostics,
-                    ) {
-                        let text = format!(
-                            "Transform::Map {{ at: {}, from: {}, to: {} }}",
-                            segs(&at),
-                            literal(&before),
-                            literal(&after)
-                        );
-                        upgrade.push(Item {
-                            at,
-                            text,
-                            hook: false,
-                            fill: false,
-                        });
-                    }
-                    for at in places(
-                        new,
-                        new_op.output.as_ref(),
-                        new_shape,
-                        operation,
-                        diagnostics,
-                    ) {
-                        let text = format!(
-                            "Transform::Map {{ at: {}, from: {}, to: {} }}",
-                            segs(&at),
-                            literal(&after),
-                            literal(&before)
-                        );
-                        downgrade.push(Item {
-                            at,
-                            text,
-                            hook: false,
-                            fill: false,
-                        });
-                    }
+                    maps.entry((true, old_shape))
+                        .or_default()
+                        .push((before.clone(), after.clone()));
+                    maps.entry((false, new_shape))
+                        .or_default()
+                        .push((after, before));
                     continue;
                 }
                 let (Some(from_wire), Some(to_wire)) =
@@ -973,26 +943,7 @@ fn conversion(
                     );
                 }
                 inside_error(new_shape, "an added enum value", diagnostics);
-                for at in places(
-                    new,
-                    new_op.output.as_ref(),
-                    new_shape,
-                    operation,
-                    diagnostics,
-                ) {
-                    let text = format!(
-                        "Transform::Map {{ at: {}, from: {}, to: {} }}",
-                        segs(&at),
-                        literal(&from),
-                        literal(&to)
-                    );
-                    downgrade.push(Item {
-                        at,
-                        text,
-                        hook: false,
-                        fill: false,
-                    });
-                }
+                maps.entry((false, new_shape)).or_default().push((from, to));
             }
             VersionStep::AddError {
                 operation: target,
@@ -1424,6 +1375,49 @@ fn conversion(
                 Hook::RemoveOperation { .. } => {}
             },
             _ => {}
+        }
+    }
+    for ((up, shape), mut values) in maps {
+        values.sort();
+        values.dedup();
+        // The compiler refuses steps that send one value two ways; only an
+        // edited IR gets here.
+        if let Some(pair) = values.windows(2).find(|pair| pair[0].0 == pair[1].0) {
+            diagnostics.push(
+                shape,
+                format!(
+                    "the migration from API version {version} maps {} value `{}` of {} both to `{}` and to `{}`; {} is not converted across it",
+                    if up { "the older" } else { "the newer" },
+                    pair[0].0,
+                    shape.name(),
+                    pair[0].1,
+                    pair[1].1,
+                    operation.name()
+                ),
+            );
+            continue;
+        }
+        let table: Vec<String> = values
+            .iter()
+            .map(|(from, to)| format!("({}, {})", literal(from), literal(to)))
+            .collect();
+        let (service, root, items) = if up {
+            (old, old_op.input.as_ref(), &mut upgrade)
+        } else {
+            (new, new_op.output.as_ref(), &mut downgrade)
+        };
+        for at in places(service, root, shape, operation, diagnostics) {
+            let text = format!(
+                "Transform::Map {{ at: {}, values: &[{}] }}",
+                segs(&at),
+                table.join(", ")
+            );
+            items.push(Item {
+                at,
+                text,
+                hook: false,
+                fill: false,
+            });
         }
     }
     if let Some(reason) = refusal {

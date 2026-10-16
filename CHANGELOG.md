@@ -568,12 +568,20 @@ version's section when it is prepared.
   and `ApiVersion::retired` records it. A setting that turns the finding
   off does not accept it (decision 68). See *Migration*.
 
-- `.cru`: `rename Enum.A -> B` declares the enum's change: the guard no
-  longer reports `compatibility.sdk` (and, when the wire value changes,
-  `compatibility.enum`) on the enum. The Rust server maps a changed wire
-  value both ways, in requests and responses, except where the enum keys a
-  map or sits in an error, which are reported as for `add .. downgrade`.
-  Renaming an integer enum's value must keep its number, which older
+- `.cru`: `rename Enum.A -> B` declares the enum's change, and the Rust
+  server maps a changed wire value both ways, in requests and responses,
+  except where the enum keys a map or sits in an error, which are reported
+  as for `add .. downgrade`. The guard covers the enum's own
+  `compatibility.sdk` and `compatibility.enum` findings, for a rename and
+  for `add .. downgrade` alike, only when the migration's steps explain
+  every value that changed on the wire; otherwise the finding stands and
+  names the values no step declares (an `add` beside an undeclared
+  removal used to pass). One enum's renames and additions compose into
+  one mapping each way, which the server applies in a single lookup per
+  value (`Transform::Map` holds the table), so one step never rewrites
+  what another wrote; a composition that sends a newer value to two older
+  ones, or reads two older values as one newer one, is refused at the
+  step. Renaming an integer enum's value must keep its number, which older
   clients send; the compiler refuses one that changes it, at the step.
 
 - The Rust server generator reports what it used to skip silently when it

@@ -254,8 +254,11 @@ Paths resolve by name, as now.
   releases before it do not serve the operation, with a warning, and
   `ApiVersion::retired` records it (decision 70). A `rename` of an enum
   value declares the enum's change, and the server maps a changed wire
-  value both ways; an integer enum's value keeps its number. The
-  generator's checks of both stay as backstops for an edited IR.
+  value both ways; an integer enum's value keeps its number. One enum's
+  renames and additions in a migration compose into one mapping each way,
+  looked up once per value, and the enum's finding is covered only when
+  they explain its whole change on the wire. The generator's checks stay
+  as backstops for an edited IR.
 
 ### Collisions
 
