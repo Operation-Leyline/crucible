@@ -26,8 +26,6 @@ The package is `weather-sdk`, version `1.2.3`; code refers to it as `weather_sdk
 ```rust
 use weather_sdk::*;
 
-use weather_sdk::*;
-
 let client = WeatherClient::new(
     runtime::Config::new(std::env::var("WEATHER_ENDPOINT")?)
         .token(runtime::Token::fixed(std::env::var("WEATHER_TOKEN")?)),

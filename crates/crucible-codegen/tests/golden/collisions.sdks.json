@@ -255,7 +255,7 @@
           "output": null,
           "paginatedSnippet": null,
           "paginators": null,
-          "snippet": "import { SurfaceClient } from \"@example/surface\";\n\n// The client sends Crucible-Version: 1 and x-amz-content-sha256 (content-sha256) on every request.\nconst client = new SurfaceClient();\n\nawait client.constructor_2();\n"
+          "snippet": "import { SurfaceClient } from \"@example/surface\";\n\n// The client sends Crucible-Version: 1 on every request, and x-amz-content-sha256 (content-sha256) on every POST, PUT and PATCH (the empty body's digest when there is none) and any other request with a body.\nconst client = new SurfaceClient();\n\nawait client.constructor_2();\n"
         },
         "example.surface#ListThings": {
           "asyncMethod": null,
@@ -305,11 +305,11 @@
             "style": "properties",
             "type": "models.ListThingsOutput"
           },
-          "paginatedSnippet": "import { SurfaceClient } from \"@example/surface\";\nimport type * as models from \"@example/surface\";\n\n// The client sends Crucible-Version: 1 and x-amz-content-sha256 (content-sha256) on every request.\nconst client = new SurfaceClient();\n\n// Sample values generated from the model's types and constraints.\nconst input: models.ListThingsInput = {\n  build: \"build\",\n};\n\n// Each page is one response; the paginator sends `nextToken` for the next.\nfor await (const page of client.paginateListThings_2(input)) {\n  console.log(page);\n}\n",
+          "paginatedSnippet": "import { SurfaceClient } from \"@example/surface\";\nimport type * as models from \"@example/surface\";\n\n// The client sends Crucible-Version: 1 on every request, and x-amz-content-sha256 (content-sha256) on every POST, PUT and PATCH (the empty body's digest when there is none) and any other request with a body.\nconst client = new SurfaceClient();\n\n// Sample values generated from the model's types and constraints.\nconst input: models.ListThingsInput = {\n  build: \"build\",\n};\n\n// Each page is one response; the paginator sends `nextToken` for the next.\nfor await (const page of client.paginateListThings_2(input)) {\n  console.log(page);\n}\n",
           "paginators": [
             "paginateListThings_2"
           ],
-          "snippet": "import { SurfaceClient } from \"@example/surface\";\nimport type * as models from \"@example/surface\";\n\n// The client sends Crucible-Version: 1 and x-amz-content-sha256 (content-sha256) on every request.\nconst client = new SurfaceClient();\n\n// Sample values generated from the model's types and constraints.\nconst input: models.ListThingsInput = {\n  build: \"build\",\n};\n\nconst output = await client.listThings(input);\nconsole.log(output.nextToken);\nconsole.log(output.info);\nconsole.log(output.count);\n"
+          "snippet": "import { SurfaceClient } from \"@example/surface\";\nimport type * as models from \"@example/surface\";\n\n// The client sends Crucible-Version: 1 on every request, and x-amz-content-sha256 (content-sha256) on every POST, PUT and PATCH (the empty body's digest when there is none) and any other request with a body.\nconst client = new SurfaceClient();\n\n// Sample values generated from the model's types and constraints.\nconst input: models.ListThingsInput = {\n  build: \"build\",\n};\n\nconst output = await client.listThings(input);\nconsole.log(output.nextToken);\nconsole.log(output.info);\nconsole.log(output.count);\n"
         },
         "example.surface#ListThingsPages": {
           "asyncMethod": null,
@@ -319,7 +319,7 @@
           "output": null,
           "paginatedSnippet": null,
           "paginators": null,
-          "snippet": "import { SurfaceClient } from \"@example/surface\";\n\n// The client sends Crucible-Version: 1 and x-amz-content-sha256 (content-sha256) on every request.\nconst client = new SurfaceClient();\n\nawait client.listThingsPages();\n"
+          "snippet": "import { SurfaceClient } from \"@example/surface\";\n\n// The client sends Crucible-Version: 1 on every request, and x-amz-content-sha256 (content-sha256) on every POST, PUT and PATCH (the empty body's digest when there is none) and any other request with a body.\nconst client = new SurfaceClient();\n\nawait client.listThingsPages();\n"
         },
         "example.surface#ListThingsPaginator": {
           "asyncMethod": null,
@@ -329,7 +329,7 @@
           "output": null,
           "paginatedSnippet": null,
           "paginators": null,
-          "snippet": "import { SurfaceClient } from \"@example/surface\";\n\n// The client sends Crucible-Version: 1 and x-amz-content-sha256 (content-sha256) on every request.\nconst client = new SurfaceClient();\n\nawait client.listThingsPaginator();\n"
+          "snippet": "import { SurfaceClient } from \"@example/surface\";\n\n// The client sends Crucible-Version: 1 on every request, and x-amz-content-sha256 (content-sha256) on every POST, PUT and PATCH (the empty body's digest when there is none) and any other request with a body.\nconst client = new SurfaceClient();\n\nawait client.listThingsPaginator();\n"
         },
         "example.surface#ListThingsWithOptions": {
           "asyncMethod": null,
@@ -339,7 +339,7 @@
           "output": null,
           "paginatedSnippet": null,
           "paginators": null,
-          "snippet": "import { SurfaceClient } from \"@example/surface\";\n\n// The client sends Crucible-Version: 1 and x-amz-content-sha256 (content-sha256) on every request.\nconst client = new SurfaceClient();\n\nawait client.listThingsWithOptions();\n"
+          "snippet": "import { SurfaceClient } from \"@example/surface\";\n\n// The client sends Crucible-Version: 1 on every request, and x-amz-content-sha256 (content-sha256) on every POST, PUT and PATCH (the empty body's digest when there is none) and any other request with a body.\nconst client = new SurfaceClient();\n\nawait client.listThingsWithOptions();\n"
         },
         "example.surface#PaginateListThings": {
           "asyncMethod": null,
@@ -349,7 +349,7 @@
           "output": null,
           "paginatedSnippet": null,
           "paginators": null,
-          "snippet": "import { SurfaceClient } from \"@example/surface\";\n\n// The client sends Crucible-Version: 1 and x-amz-content-sha256 (content-sha256) on every request.\nconst client = new SurfaceClient();\n\nawait client.paginateListThings();\n"
+          "snippet": "import { SurfaceClient } from \"@example/surface\";\n\n// The client sends Crucible-Version: 1 on every request, and x-amz-content-sha256 (content-sha256) on every POST, PUT and PATCH (the empty body's digest when there is none) and any other request with a body.\nconst client = new SurfaceClient();\n\nawait client.paginateListThings();\n"
         }
       },
       "package": {

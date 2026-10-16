@@ -62,6 +62,26 @@ impl Model {
         self
     }
 
+    /// Whether this build shows the model's warnings: compiler warnings and
+    /// advice, compatibility findings and policy findings (warnings and
+    /// excepted ones), each a `cargo::warning` printed once per build. On
+    /// by default. Pass false in a build that compiles a model another
+    /// build in the same Cargo invocation already reports, such as a
+    /// service whose model crate's `publish()` applies the model's policy,
+    /// so each finding is printed once. Errors still fail the build either
+    /// way.
+    ///
+    /// Leave it on where nothing else reports the model: a model crate's
+    /// `publish()` compiles, and so reports, only when the model has a
+    /// policy to apply, and Cargo hides a build script's warnings for a
+    /// package that is not local (a registry or Git dependency). Turned off
+    /// there, no build shows the model's warnings at all.
+    pub fn report_warnings(mut self, report: bool) -> Self {
+        self.package.take();
+        self.builder.report = report;
+        self
+    }
+
     fn path(&self) -> &Path {
         &self.builder.source
     }
@@ -93,6 +113,7 @@ impl Model {
         let mut output = crate::ServerOutput::new(self.path());
         output.service = self.builder.service.clone();
         output.policy = self.builder.policy.clone();
+        output.report = self.builder.report;
         output.options.require_rejection = true;
         output
     }
@@ -249,9 +270,10 @@ impl Model {
     }
 
     fn package(&self) -> &ModelPackage {
-        // Named outputs share the compiled package and artifact registry,
-        // including when the same handle has already generated server or
-        // client bindings.
+        // Named outputs share the compiled package and artifact registry.
+        // Server and client bindings from this handle lower the model on
+        // their own, so a build using both lowers it twice; `crate::warn`
+        // prints each of its warnings once all the same.
         self.package.get_or_init(|| self.builder.clone().compile())
     }
 }

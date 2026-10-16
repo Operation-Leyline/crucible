@@ -11,6 +11,8 @@ pub struct ModelConfig {
     pub(crate) source: PathBuf,
     pub(crate) service: Option<ShapeId>,
     pub(crate) policy: Option<PathBuf>,
+    /// Show the model's warnings and policy findings as Cargo warnings.
+    pub(crate) report: bool,
 }
 
 impl ModelConfig {
@@ -25,6 +27,7 @@ impl ModelConfig {
             source,
             service: None,
             policy,
+            report: true,
         }
     }
 
@@ -54,11 +57,11 @@ impl ModelConfig {
         println!("cargo::rerun-if-changed={}", self.source.display());
         // Lower shared semantics once. Each selected emitter still checks its
         // own supported capabilities before producing output.
-        let service = crate::cru::lower(&self.source, self.service.as_ref())?;
+        let service = crate::cru::lower(&self.source, self.service.as_ref(), self.report)?;
         if let Some(policy) = &self.policy {
             println!("cargo::rerun-if-changed={}", policy.display());
-            crate::check_policy(&service, policy)?;
+            crate::check_policy(&service, policy, self.report)?;
         }
-        ModelPackage::new(self.source, service, output, self.policy)
+        ModelPackage::new(self.source, service, output, self.policy, self.report)
     }
 }

@@ -11,8 +11,6 @@ This is the generated Rust client for the Weather API (`example.weather#Weather`
 ```rust
 use weather_sdk::*;
 
-use weather_sdk::*;
-
 let client = WeatherClient::new(
     runtime::Config::new(std::env::var("WEATHER_ENDPOINT")?)
         .token(runtime::Token::fixed(std::env::var("WEATHER_TOKEN")?)),

@@ -53,6 +53,11 @@ impl Surface {
 pub struct Middleware {
     pub name: String,
     pub headers: Vec<String>,
+    /// The requests it adds its headers to, completing "sent on ...", where
+    /// that is not every request: what the package's README and `AGENTS.md`
+    /// and the snippets' header comment say. Not part of `crucible.sdks/1`.
+    #[serde(skip)]
+    pub sent_on: Option<String>,
 }
 
 impl Middleware {
@@ -60,6 +65,23 @@ impl Middleware {
         Self {
             name: name.to_owned(),
             headers: headers.iter().map(|header| (*header).to_owned()).collect(),
+            sent_on: None,
+        }
+    }
+
+    /// `content-sha256`, as the Rust and TypeScript runtimes (the only
+    /// clients that offer it) implement it: the body's SHA-256 in
+    /// `x-amz-content-sha256` on every POST, PUT and PATCH (the empty
+    /// body's digest when there is none) and on any other request with a
+    /// body, never on a bodiless GET or DELETE.
+    pub fn content_sha256() -> Self {
+        Self {
+            sent_on: Some(
+                "every POST, PUT and PATCH (the empty body's digest when there is none) \
+                 and any other request with a body"
+                    .to_owned(),
+            ),
+            ..Self::new("content-sha256", &["x-amz-content-sha256"])
         }
     }
 }

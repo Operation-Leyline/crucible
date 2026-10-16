@@ -11,9 +11,11 @@ pub struct ClientOptions {
     pub runtime: RuntimeDependency,
     /// Description, URLs, license, authors, README, keywords and `private`.
     pub metadata: PackageMetadata,
-    /// The client sends `x-amz-content-sha256`, the SHA-256 of each body,
-    /// whatever `Config` it is given (`middleware = ["content-sha256"]`):
-    /// a service whose front door signs requests needs it on every write.
+    /// The client sends `x-amz-content-sha256`, the body's SHA-256, on every
+    /// POST, PUT and PATCH (the empty body's digest when there is none) and
+    /// any other request with a body, whatever `Config` it is given
+    /// (`middleware = ["content-sha256"]`): a service whose front door signs
+    /// requests needs it on every write.
     pub content_sha256: bool,
 }
 

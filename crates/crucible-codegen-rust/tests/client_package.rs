@@ -102,6 +102,26 @@ fn native_package_manifest_and_public_api_match_explicit_source_goldens() {
     );
 }
 
+/// With `content-sha256`, the README.md and AGENTS.md (prose and the
+/// snippets' header comment) say which requests carry the digest.
+#[test]
+fn content_sha256_guides_say_which_requests_carry_the_digest() {
+    let options = ClientOptions {
+        content_sha256: true,
+        ..explicit()
+    };
+    let files = emit_client_package(&service(), &options).unwrap();
+    let file = |path: &str| {
+        &files
+            .iter()
+            .find(|file| file.path == path)
+            .unwrap()
+            .contents
+    };
+    golden("content-sha256/README.md", file("README.md"));
+    golden("content-sha256/AGENTS.md", file("AGENTS.md"));
+}
+
 #[test]
 fn automatic_runtime_pins_the_embedded_crucible_commit_without_local_paths() {
     let files = emit_client_package(&service(), &ClientOptions::default()).unwrap();

@@ -386,11 +386,8 @@ pub(crate) fn guide(service: &Service, options: &ClientOptions) -> Guide {
         )
     });
     guide.version = version;
-    guide.construct = format!(
-        "use {}::*;\n\n{}",
-        package.replace('-', "_"),
-        construct(service, "")
-    );
+    // The guide puts the surface's `use` line above these statements.
+    guide.construct = construct(service, "");
     guide.auth = if service.auth.iter().any(|s| service.is_bearer(s)) {
         "`runtime::Token::fixed` sends one bearer token; `runtime::Token::provider` takes an \
          async function called for every attempt, so a refreshed token is used."
