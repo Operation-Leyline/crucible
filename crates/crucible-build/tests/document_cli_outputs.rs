@@ -102,11 +102,15 @@ fn document_cli_probe() {
     // The generator canonicalizes the runtime path, so the expectation must
     // too: on Windows TEMP is `C:\WINDOWS\TEMP`, whose canonical spelling is
     // `C:\Windows\Temp`. The manifest spells it as Cargo does, with `/` and
-    // without the verbatim `\\?\` prefix.
+    // without the verbatim `\\?\` prefix, so `\\?\UNC\host\share` is
+    // `//host/share`.
     let runtime = root.join("runtime").canonicalize().unwrap();
     let runtime = runtime.to_string_lossy().replace('\\', "/");
-    let runtime = runtime.strip_prefix("//?/").unwrap_or(&runtime);
-    assert!(relative_manifest.contains(runtime), "{relative_manifest}");
+    let runtime = match runtime.strip_prefix("//?/UNC/") {
+        Some(unc) => format!("//{unc}"),
+        None => runtime.strip_prefix("//?/").unwrap_or(&runtime).to_owned(),
+    };
+    assert!(relative_manifest.contains(&runtime), "{relative_manifest}");
     let advanced_relative = model
         .cli("advanced-relative")
         .options(CliOptions {
