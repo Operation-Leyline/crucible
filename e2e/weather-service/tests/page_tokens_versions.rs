@@ -1,8 +1,9 @@
 //! Sealed page tokens across API versions: `versioned_pages/` is release
 //! v2, with v1 frozen under `releases/`. v2 renamed ListThings' token from
-//! `nextToken` to `pageToken`, and pages ListTags, which v1 did not. A v1
-//! request reaches the operation as v2's input, so `PageTokens` reads the
-//! token where v2 puts it.
+//! `nextToken` to `pageToken`, and pages ListTags, which v1 did not; the
+//! token reaches v1, served as the current model sees it. A v1 request
+//! reaches the operation as v2's input, so `PageTokens` reads the token
+//! where v2 puts it.
 
 use std::sync::Arc;
 
@@ -116,11 +117,13 @@ async fn a_renamed_token_resumes_an_older_versions_listing() {
 }
 
 #[tokio::test]
-async fn an_operation_paged_since_a_later_version_serves_the_older_one() {
+async fn an_operation_paged_since_a_later_version_pages_the_older_one() {
     let service = service();
-    // v1's ListTags has no token: its callers get the first page.
+    // The token v2 added to ListTags reaches v1 too (decision 51): v1 is
+    // served as the current model sees it, so its callers page as v2's do.
     let first = get(&service, "v1", "/tags").await;
     assert_eq!(first["tags"], serde_json::json!(["ash", "birch"]));
-    assert!(first.get("token").is_none(), "{first}");
+    assert!(first["token"].is_string(), "{first}");
+    assert_eq!(all(&service, "v1", "/tags", "token", "tags").await, NAMES);
     assert_eq!(all(&service, "v2", "/tags", "token", "tags").await, NAMES);
 }
