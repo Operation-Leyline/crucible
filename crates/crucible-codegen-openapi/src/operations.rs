@@ -117,6 +117,19 @@ pub(crate) fn operation(service: &Service, op: &Operation) -> Value {
         }
         parameters.push(parameter);
     }
+    // The release this document describes, which every generated client
+    // sends (docs/api-versions-clients.md, 5a): a third-party generator
+    // reaches it only as a parameter. A third party's signed request names
+    // no release of this API (decision 81).
+    if let (Some(release), None) = (&service.api_version, &op.sender) {
+        parameters.push(json!({
+            "name": crucible_ir::versions::VERSION_HEADER,
+            "in": "header",
+            "required": true,
+            "description": format!("The release this request is written for: {release}, the release this document describes."),
+            "schema": {"type": "string", "const": release},
+        }));
+    }
     if !parameters.is_empty() {
         value["parameters"] = json!(parameters);
     }

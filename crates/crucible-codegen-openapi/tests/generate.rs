@@ -70,6 +70,60 @@ fn weather_matches_reviewed_golden() {
     );
 }
 
+/// The release header (docs/api-versions-clients.md, 5a and 5c) is a
+/// required parameter fixed to the release the document describes: the
+/// current one, or a line's own. Checked in for the e2e versioned shop,
+/// its current release (v4) and its v1 line.
+#[test]
+fn every_request_names_the_documents_release() {
+    let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../e2e/weather-service/versioned");
+    let current = crucible_lang::load_versioned_service(&dir).unwrap_or_else(|e| panic!("{e}"));
+    for (release, file) in [
+        ("v4", "versioned.openapi.json"),
+        ("v1", "versioned-v1.openapi.json"),
+    ] {
+        let line = crucible_ir::versions::line(&current, release).unwrap();
+        let service = crucible_ir::project(&line, crucible_ir::Audience::External).unwrap();
+        let output = generate(&service, &Options::default()).unwrap();
+        let path = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("tests/golden")
+            .join(file);
+        if std::env::var_os("CRUCIBLE_BLESS").is_some() {
+            fs::write(&path, &output).unwrap();
+        }
+        assert_eq!(
+            fs::read_to_string(&path)
+                .expect("golden exists; bless with CRUCIBLE_BLESS=1")
+                .replace("\r\n", "\n"),
+            output,
+            "{file}"
+        );
+        let document: Value = serde_json::from_str(&output).unwrap();
+        assert_eq!(document["info"]["version"], release);
+        for (path, methods) in document["paths"].as_object().unwrap() {
+            for (method, operation) in methods.as_object().unwrap() {
+                let header = operation["parameters"]
+                    .as_array()
+                    .into_iter()
+                    .flatten()
+                    .find(|parameter| parameter["name"] == "Crucible-Version");
+                if operation.get("x-crucible-sender").is_some() {
+                    // A third party's request names no release.
+                    assert!(header.is_none(), "{method} {path}");
+                    continue;
+                }
+                let header = header.unwrap_or_else(|| panic!("{method} {path}"));
+                assert_eq!(header["in"], "header");
+                assert_eq!(header["required"], true);
+                assert_eq!(
+                    header["schema"],
+                    json!({"type": "string", "const": release})
+                );
+            }
+        }
+    }
+}
+
 /// Sender-signed operations (decision 81) carry `x-crucible-sender` and no
 /// security requirement; the operation clients call has neither.
 #[test]

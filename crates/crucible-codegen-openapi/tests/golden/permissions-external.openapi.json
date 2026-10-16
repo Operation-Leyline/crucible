@@ -214,6 +214,16 @@
             },
             "style": "simple",
             "explode": false
+          },
+          {
+            "name": "Crucible-Version",
+            "in": "header",
+            "required": true,
+            "description": "The release this request is written for: 2026-10-01, the release this document describes.",
+            "schema": {
+              "type": "string",
+              "const": "2026-10-01"
+            }
           }
         ]
       }
@@ -433,6 +443,16 @@
             },
             "style": "simple",
             "explode": false
+          },
+          {
+            "name": "Crucible-Version",
+            "in": "header",
+            "required": true,
+            "description": "The release this request is written for: 2026-10-01, the release this document describes.",
+            "schema": {
+              "type": "string",
+              "const": "2026-10-01"
+            }
           }
         ]
       },
@@ -632,6 +652,16 @@
             },
             "style": "simple",
             "explode": false
+          },
+          {
+            "name": "Crucible-Version",
+            "in": "header",
+            "required": true,
+            "description": "The release this request is written for: 2026-10-01, the release this document describes.",
+            "schema": {
+              "type": "string",
+              "const": "2026-10-01"
+            }
           }
         ]
       }
@@ -899,6 +929,16 @@
             },
             "style": "simple",
             "explode": false
+          },
+          {
+            "name": "Crucible-Version",
+            "in": "header",
+            "required": true,
+            "description": "The release this request is written for: 2026-10-01, the release this document describes.",
+            "schema": {
+              "type": "string",
+              "const": "2026-10-01"
+            }
           }
         ]
       }
@@ -1111,6 +1151,16 @@
             },
             "style": "simple",
             "explode": false
+          },
+          {
+            "name": "Crucible-Version",
+            "in": "header",
+            "required": true,
+            "description": "The release this request is written for: 2026-10-01, the release this document describes.",
+            "schema": {
+              "type": "string",
+              "const": "2026-10-01"
+            }
           }
         ]
       }
@@ -1294,6 +1344,16 @@
             },
             "style": "simple",
             "explode": false
+          },
+          {
+            "name": "Crucible-Version",
+            "in": "header",
+            "required": true,
+            "description": "The release this request is written for: 2026-10-01, the release this document describes.",
+            "schema": {
+              "type": "string",
+              "const": "2026-10-01"
+            }
           }
         ]
       }
@@ -1424,7 +1484,19 @@
         "x-crucible-requires": {
           "kind": "none"
         },
-        "x-crucible-readonly": true
+        "x-crucible-readonly": true,
+        "parameters": [
+          {
+            "name": "Crucible-Version",
+            "in": "header",
+            "required": true,
+            "description": "The release this request is written for: 2026-10-01, the release this document describes.",
+            "schema": {
+              "type": "string",
+              "const": "2026-10-01"
+            }
+          }
+        ]
       }
     },
     "/health": {
@@ -1546,7 +1618,19 @@
         "x-crucible-shape": "example.leyline#Health",
         "x-crucible-traits": {},
         "description": "No authentication: nothing to authorize.",
-        "x-crucible-readonly": true
+        "x-crucible-readonly": true,
+        "parameters": [
+          {
+            "name": "Crucible-Version",
+            "in": "header",
+            "required": true,
+            "description": "The release this request is written for: 2026-10-01, the release this document describes.",
+            "schema": {
+              "type": "string",
+              "const": "2026-10-01"
+            }
+          }
+        ]
       }
     },
     "/orgs/{organizationId}/graphs/{graphId}/histories/{historyId}/restore": {
@@ -1707,6 +1791,16 @@
             },
             "style": "simple",
             "explode": false
+          },
+          {
+            "name": "Crucible-Version",
+            "in": "header",
+            "required": true,
+            "description": "The release this request is written for: 2026-10-01, the release this document describes.",
+            "schema": {
+              "type": "string",
+              "const": "2026-10-01"
+            }
           }
         ]
       }
@@ -1955,6 +2049,16 @@
             },
             "style": "simple",
             "explode": false
+          },
+          {
+            "name": "Crucible-Version",
+            "in": "header",
+            "required": true,
+            "description": "The release this request is written for: 2026-10-01, the release this document describes.",
+            "schema": {
+              "type": "string",
+              "const": "2026-10-01"
+            }
           }
         ]
       }

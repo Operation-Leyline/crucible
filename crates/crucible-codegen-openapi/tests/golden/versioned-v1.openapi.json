@@ -1,0 +1,1668 @@
+{
+  "openapi": "3.1.1",
+  "info": {
+    "title": "Shop",
+    "version": "v1"
+  },
+  "paths": {
+    "/count": {
+      "get": {
+        "operationId": "CountItems",
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "count": {
+                      "$ref": "#/components/schemas/crucible.api.Integer"
+                    }
+                  },
+                  "required": [
+                    "count"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "ValidationException",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "$ref": "#/components/schemas/crucible.api.String"
+                    },
+                    "reason": {
+                      "$ref": "#/components/schemas/crucible.errors.ValidationExceptionReason"
+                    },
+                    "fieldList": {
+                      "anyOf": [
+                        {
+                          "$ref": "#/components/schemas/crucible.errors.ValidationExceptionFieldList"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "__type": {
+                      "type": "string",
+                      "const": "ValidationException"
+                    }
+                  },
+                  "required": [
+                    "message",
+                    "reason",
+                    "__type"
+                  ]
+                }
+              }
+            },
+            "headers": {
+              "X-Crucible-Error": {
+                "schema": {
+                  "type": "string",
+                  "const": "ValidationException"
+                }
+              }
+            },
+            "x-crucible-errors": [
+              "crucible.errors#ValidationException"
+            ]
+          },
+          "500": {
+            "description": "InternalServerException",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "$ref": "#/components/schemas/crucible.api.String"
+                    },
+                    "__type": {
+                      "type": "string",
+                      "const": "InternalServerException"
+                    }
+                  },
+                  "required": [
+                    "message",
+                    "__type"
+                  ]
+                }
+              }
+            },
+            "headers": {
+              "Retry-After": {
+                "schema": {
+                  "$ref": "#/components/schemas/crucible.api.Integer"
+                },
+                "style": "simple",
+                "explode": false
+              },
+              "X-Crucible-Error": {
+                "schema": {
+                  "type": "string",
+                  "const": "InternalServerException"
+                }
+              }
+            },
+            "x-crucible-errors": [
+              "crucible.errors#InternalServerException"
+            ],
+            "x-crucible-retryable": {
+              "throttling": false
+            }
+          },
+          "503": {
+            "description": "CountUnavailableException",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "$ref": "#/components/schemas/crucible.api.String"
+                    },
+                    "__type": {
+                      "type": "string",
+                      "const": "CountUnavailableException"
+                    }
+                  },
+                  "required": [
+                    "message",
+                    "__type"
+                  ]
+                }
+              }
+            },
+            "headers": {
+              "X-Crucible-Error": {
+                "schema": {
+                  "type": "string",
+                  "const": "CountUnavailableException"
+                }
+              }
+            },
+            "x-crucible-errors": [
+              "example.shop#CountUnavailableException"
+            ]
+          }
+        },
+        "security": [],
+        "x-crucible-shape": "example.shop#CountItems",
+        "x-crucible-traits": {},
+        "x-crucible-readonly": true,
+        "parameters": [
+          {
+            "name": "shelf",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/crucible.api.String"
+            },
+            "style": "form",
+            "explode": true
+          },
+          {
+            "name": "Crucible-Version",
+            "in": "header",
+            "required": true,
+            "description": "The release this request is written for: v1, the release this document describes.",
+            "schema": {
+              "type": "string",
+              "const": "v1"
+            }
+          }
+        ]
+      }
+    },
+    "/items/{id}": {
+      "delete": {
+        "operationId": "DeleteItem",
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "deleted": {
+                      "$ref": "#/components/schemas/crucible.api.Boolean"
+                    }
+                  },
+                  "required": [
+                    "deleted"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "ValidationException",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "$ref": "#/components/schemas/crucible.api.String"
+                    },
+                    "reason": {
+                      "$ref": "#/components/schemas/crucible.errors.ValidationExceptionReason"
+                    },
+                    "fieldList": {
+                      "anyOf": [
+                        {
+                          "$ref": "#/components/schemas/crucible.errors.ValidationExceptionFieldList"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "__type": {
+                      "type": "string",
+                      "const": "ValidationException"
+                    }
+                  },
+                  "required": [
+                    "message",
+                    "reason",
+                    "__type"
+                  ]
+                }
+              }
+            },
+            "headers": {
+              "X-Crucible-Error": {
+                "schema": {
+                  "type": "string",
+                  "const": "ValidationException"
+                }
+              }
+            },
+            "x-crucible-errors": [
+              "crucible.errors#ValidationException"
+            ]
+          },
+          "500": {
+            "description": "InternalServerException",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "$ref": "#/components/schemas/crucible.api.String"
+                    },
+                    "__type": {
+                      "type": "string",
+                      "const": "InternalServerException"
+                    }
+                  },
+                  "required": [
+                    "message",
+                    "__type"
+                  ]
+                }
+              }
+            },
+            "headers": {
+              "Retry-After": {
+                "schema": {
+                  "$ref": "#/components/schemas/crucible.api.Integer"
+                },
+                "style": "simple",
+                "explode": false
+              },
+              "X-Crucible-Error": {
+                "schema": {
+                  "type": "string",
+                  "const": "InternalServerException"
+                }
+              }
+            },
+            "x-crucible-errors": [
+              "crucible.errors#InternalServerException"
+            ],
+            "x-crucible-retryable": {
+              "throttling": false
+            }
+          }
+        },
+        "security": [],
+        "x-crucible-shape": "example.shop#DeleteItem",
+        "x-crucible-traits": {},
+        "x-crucible-idempotent": true,
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/crucible.api.String"
+            },
+            "style": "simple",
+            "explode": false
+          },
+          {
+            "name": "force",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/crucible.api.Boolean"
+            },
+            "style": "form",
+            "explode": true
+          },
+          {
+            "name": "Crucible-Version",
+            "in": "header",
+            "required": true,
+            "description": "The release this request is written for: v1, the release this document describes.",
+            "schema": {
+              "type": "string",
+              "const": "v1"
+            }
+          }
+        ]
+      },
+      "get": {
+        "operationId": "GetItem",
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "name": {
+                      "$ref": "#/components/schemas/crucible.api.String"
+                    },
+                    "size": {
+                      "anyOf": [
+                        {
+                          "$ref": "#/components/schemas/crucible.api.Integer"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "kind": {
+                      "$ref": "#/components/schemas/example.shop.Kind"
+                    }
+                  },
+                  "required": [
+                    "name",
+                    "kind"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "ValidationException",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "$ref": "#/components/schemas/crucible.api.String"
+                    },
+                    "reason": {
+                      "$ref": "#/components/schemas/crucible.errors.ValidationExceptionReason"
+                    },
+                    "fieldList": {
+                      "anyOf": [
+                        {
+                          "$ref": "#/components/schemas/crucible.errors.ValidationExceptionFieldList"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "__type": {
+                      "type": "string",
+                      "const": "ValidationException"
+                    }
+                  },
+                  "required": [
+                    "message",
+                    "reason",
+                    "__type"
+                  ]
+                }
+              }
+            },
+            "headers": {
+              "X-Crucible-Error": {
+                "schema": {
+                  "type": "string",
+                  "const": "ValidationException"
+                }
+              }
+            },
+            "x-crucible-errors": [
+              "crucible.errors#ValidationException"
+            ]
+          },
+          "404": {
+            "description": "ItemNotFoundException",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "$ref": "#/components/schemas/crucible.api.String"
+                    },
+                    "__type": {
+                      "type": "string",
+                      "const": "ItemNotFoundException"
+                    }
+                  },
+                  "required": [
+                    "message",
+                    "__type"
+                  ]
+                }
+              }
+            },
+            "headers": {
+              "X-Crucible-Error": {
+                "schema": {
+                  "type": "string",
+                  "const": "ItemNotFoundException"
+                }
+              }
+            },
+            "x-crucible-errors": [
+              "example.shop#ItemNotFoundException"
+            ]
+          },
+          "500": {
+            "description": "InternalServerException",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "$ref": "#/components/schemas/crucible.api.String"
+                    },
+                    "__type": {
+                      "type": "string",
+                      "const": "InternalServerException"
+                    }
+                  },
+                  "required": [
+                    "message",
+                    "__type"
+                  ]
+                }
+              }
+            },
+            "headers": {
+              "Retry-After": {
+                "schema": {
+                  "$ref": "#/components/schemas/crucible.api.Integer"
+                },
+                "style": "simple",
+                "explode": false
+              },
+              "X-Crucible-Error": {
+                "schema": {
+                  "type": "string",
+                  "const": "InternalServerException"
+                }
+              }
+            },
+            "x-crucible-errors": [
+              "crucible.errors#InternalServerException"
+            ],
+            "x-crucible-retryable": {
+              "throttling": false
+            }
+          }
+        },
+        "security": [],
+        "x-crucible-shape": "example.shop#GetItem",
+        "x-crucible-traits": {},
+        "x-crucible-readonly": true,
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/crucible.api.String"
+            },
+            "style": "simple",
+            "explode": false
+          },
+          {
+            "name": "Crucible-Version",
+            "in": "header",
+            "required": true,
+            "description": "The release this request is written for: v1, the release this document describes.",
+            "schema": {
+              "type": "string",
+              "const": "v1"
+            }
+          }
+        ]
+      }
+    },
+    "/labels/{id}": {
+      "get": {
+        "operationId": "GetLabel",
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "label": {
+                      "$ref": "#/components/schemas/example.shop.Label"
+                    }
+                  },
+                  "required": [
+                    "label"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "ValidationException",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "$ref": "#/components/schemas/crucible.api.String"
+                    },
+                    "reason": {
+                      "$ref": "#/components/schemas/crucible.errors.ValidationExceptionReason"
+                    },
+                    "fieldList": {
+                      "anyOf": [
+                        {
+                          "$ref": "#/components/schemas/crucible.errors.ValidationExceptionFieldList"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "__type": {
+                      "type": "string",
+                      "const": "ValidationException"
+                    }
+                  },
+                  "required": [
+                    "message",
+                    "reason",
+                    "__type"
+                  ]
+                }
+              }
+            },
+            "headers": {
+              "X-Crucible-Error": {
+                "schema": {
+                  "type": "string",
+                  "const": "ValidationException"
+                }
+              }
+            },
+            "x-crucible-errors": [
+              "crucible.errors#ValidationException"
+            ]
+          },
+          "500": {
+            "description": "InternalServerException",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "$ref": "#/components/schemas/crucible.api.String"
+                    },
+                    "__type": {
+                      "type": "string",
+                      "const": "InternalServerException"
+                    }
+                  },
+                  "required": [
+                    "message",
+                    "__type"
+                  ]
+                }
+              }
+            },
+            "headers": {
+              "Retry-After": {
+                "schema": {
+                  "$ref": "#/components/schemas/crucible.api.Integer"
+                },
+                "style": "simple",
+                "explode": false
+              },
+              "X-Crucible-Error": {
+                "schema": {
+                  "type": "string",
+                  "const": "InternalServerException"
+                }
+              }
+            },
+            "x-crucible-errors": [
+              "crucible.errors#InternalServerException"
+            ],
+            "x-crucible-retryable": {
+              "throttling": false
+            }
+          }
+        },
+        "security": [],
+        "x-crucible-shape": "example.shop#GetLabel",
+        "x-crucible-traits": {},
+        "description": "One label. Added in v4, and served at every release.",
+        "x-crucible-readonly": true,
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/crucible.api.String"
+            },
+            "style": "simple",
+            "explode": false
+          },
+          {
+            "name": "Crucible-Version",
+            "in": "header",
+            "required": true,
+            "description": "The release this request is written for: v1, the release this document describes.",
+            "schema": {
+              "type": "string",
+              "const": "v1"
+            }
+          }
+        ]
+      },
+      "put": {
+        "operationId": "PutLabel",
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "label": {
+                      "$ref": "#/components/schemas/example.shop.Label"
+                    }
+                  },
+                  "required": [
+                    "label"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "ValidationException",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "$ref": "#/components/schemas/crucible.api.String"
+                    },
+                    "reason": {
+                      "$ref": "#/components/schemas/crucible.errors.ValidationExceptionReason"
+                    },
+                    "fieldList": {
+                      "anyOf": [
+                        {
+                          "$ref": "#/components/schemas/crucible.errors.ValidationExceptionFieldList"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "__type": {
+                      "type": "string",
+                      "const": "ValidationException"
+                    }
+                  },
+                  "required": [
+                    "message",
+                    "reason",
+                    "__type"
+                  ]
+                }
+              }
+            },
+            "headers": {
+              "X-Crucible-Error": {
+                "schema": {
+                  "type": "string",
+                  "const": "ValidationException"
+                }
+              }
+            },
+            "x-crucible-errors": [
+              "crucible.errors#ValidationException"
+            ]
+          },
+          "500": {
+            "description": "InternalServerException",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "$ref": "#/components/schemas/crucible.api.String"
+                    },
+                    "__type": {
+                      "type": "string",
+                      "const": "InternalServerException"
+                    }
+                  },
+                  "required": [
+                    "message",
+                    "__type"
+                  ]
+                }
+              }
+            },
+            "headers": {
+              "Retry-After": {
+                "schema": {
+                  "$ref": "#/components/schemas/crucible.api.Integer"
+                },
+                "style": "simple",
+                "explode": false
+              },
+              "X-Crucible-Error": {
+                "schema": {
+                  "type": "string",
+                  "const": "InternalServerException"
+                }
+              }
+            },
+            "x-crucible-errors": [
+              "crucible.errors#InternalServerException"
+            ],
+            "x-crucible-retryable": {
+              "throttling": false
+            }
+          }
+        },
+        "security": [],
+        "x-crucible-shape": "example.shop#PutLabel",
+        "x-crucible-traits": {},
+        "description": "Replaces a label. Added in v4: its input reaches `Label`, so the\nmigration to v4 converts a size older clients send, as well as one\nthey receive.",
+        "x-crucible-idempotent": true,
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "label": {
+                    "$ref": "#/components/schemas/example.shop.Label"
+                  }
+                },
+                "required": [
+                  "label"
+                ]
+              }
+            }
+          },
+          "required": true
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/crucible.api.String"
+            },
+            "style": "simple",
+            "explode": false
+          },
+          {
+            "name": "Crucible-Version",
+            "in": "header",
+            "required": true,
+            "description": "The release this request is written for: v1, the release this document describes.",
+            "schema": {
+              "type": "string",
+              "const": "v1"
+            }
+          }
+        ]
+      }
+    },
+    "/items": {
+      "get": {
+        "operationId": "ListItems",
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "names": {
+                      "$ref": "#/components/schemas/example.shop.Names"
+                    },
+                    "kinds": {
+                      "$ref": "#/components/schemas/example.shop.Kinds"
+                    }
+                  },
+                  "required": [
+                    "names",
+                    "kinds"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "ValidationException",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "$ref": "#/components/schemas/crucible.api.String"
+                    },
+                    "reason": {
+                      "$ref": "#/components/schemas/crucible.errors.ValidationExceptionReason"
+                    },
+                    "fieldList": {
+                      "anyOf": [
+                        {
+                          "$ref": "#/components/schemas/crucible.errors.ValidationExceptionFieldList"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "__type": {
+                      "type": "string",
+                      "const": "ValidationException"
+                    }
+                  },
+                  "required": [
+                    "message",
+                    "reason",
+                    "__type"
+                  ]
+                }
+              }
+            },
+            "headers": {
+              "X-Crucible-Error": {
+                "schema": {
+                  "type": "string",
+                  "const": "ValidationException"
+                }
+              }
+            },
+            "x-crucible-errors": [
+              "crucible.errors#ValidationException"
+            ]
+          },
+          "500": {
+            "description": "InternalServerException",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "$ref": "#/components/schemas/crucible.api.String"
+                    },
+                    "__type": {
+                      "type": "string",
+                      "const": "InternalServerException"
+                    }
+                  },
+                  "required": [
+                    "message",
+                    "__type"
+                  ]
+                }
+              }
+            },
+            "headers": {
+              "Retry-After": {
+                "schema": {
+                  "$ref": "#/components/schemas/crucible.api.Integer"
+                },
+                "style": "simple",
+                "explode": false
+              },
+              "X-Crucible-Error": {
+                "schema": {
+                  "type": "string",
+                  "const": "InternalServerException"
+                }
+              }
+            },
+            "x-crucible-errors": [
+              "crucible.errors#InternalServerException"
+            ],
+            "x-crucible-retryable": {
+              "throttling": false
+            }
+          }
+        },
+        "security": [],
+        "x-crucible-shape": "example.shop#ListItems",
+        "x-crucible-traits": {},
+        "x-crucible-readonly": true,
+        "parameters": [
+          {
+            "name": "max",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/crucible.api.Integer"
+            },
+            "style": "form",
+            "explode": true
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/crucible.api.String"
+            },
+            "style": "form",
+            "explode": true
+          },
+          {
+            "name": "Crucible-Version",
+            "in": "header",
+            "required": true,
+            "description": "The release this request is written for: v1, the release this document describes.",
+            "schema": {
+              "type": "string",
+              "const": "v1"
+            }
+          }
+        ]
+      }
+    },
+    "/labels": {
+      "get": {
+        "operationId": "ListLabels",
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "labels": {
+                      "$ref": "#/components/schemas/example.shop.Labels"
+                    },
+                    "kinds": {
+                      "$ref": "#/components/schemas/example.shop.Kinds"
+                    }
+                  },
+                  "required": [
+                    "labels",
+                    "kinds"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "ValidationException",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "$ref": "#/components/schemas/crucible.api.String"
+                    },
+                    "reason": {
+                      "$ref": "#/components/schemas/crucible.errors.ValidationExceptionReason"
+                    },
+                    "fieldList": {
+                      "anyOf": [
+                        {
+                          "$ref": "#/components/schemas/crucible.errors.ValidationExceptionFieldList"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "__type": {
+                      "type": "string",
+                      "const": "ValidationException"
+                    }
+                  },
+                  "required": [
+                    "message",
+                    "reason",
+                    "__type"
+                  ]
+                }
+              }
+            },
+            "headers": {
+              "X-Crucible-Error": {
+                "schema": {
+                  "type": "string",
+                  "const": "ValidationException"
+                }
+              }
+            },
+            "x-crucible-errors": [
+              "crucible.errors#ValidationException"
+            ]
+          },
+          "500": {
+            "description": "InternalServerException",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "$ref": "#/components/schemas/crucible.api.String"
+                    },
+                    "__type": {
+                      "type": "string",
+                      "const": "InternalServerException"
+                    }
+                  },
+                  "required": [
+                    "message",
+                    "__type"
+                  ]
+                }
+              }
+            },
+            "headers": {
+              "Retry-After": {
+                "schema": {
+                  "$ref": "#/components/schemas/crucible.api.Integer"
+                },
+                "style": "simple",
+                "explode": false
+              },
+              "X-Crucible-Error": {
+                "schema": {
+                  "type": "string",
+                  "const": "InternalServerException"
+                }
+              }
+            },
+            "x-crucible-errors": [
+              "crucible.errors#InternalServerException"
+            ],
+            "x-crucible-retryable": {
+              "throttling": false
+            }
+          }
+        },
+        "security": [],
+        "x-crucible-shape": "example.shop#ListLabels",
+        "x-crucible-traits": {},
+        "description": "Every label on the shelf, and the kinds of item they mark. Added in v3,\nit reaches v1 and v2 clients too (decision 51), its kinds as they know\nthem.",
+        "x-crucible-readonly": true,
+        "parameters": [
+          {
+            "name": "Crucible-Version",
+            "in": "header",
+            "required": true,
+            "description": "The release this request is written for: v1, the release this document describes.",
+            "schema": {
+              "type": "string",
+              "const": "v1"
+            }
+          }
+        ]
+      }
+    },
+    "/payments": {
+      "post": {
+        "operationId": "RecordPayment",
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "release": {
+                      "$ref": "#/components/schemas/crucible.api.String"
+                    }
+                  },
+                  "required": [
+                    "release"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "ValidationException",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "$ref": "#/components/schemas/crucible.api.String"
+                    },
+                    "reason": {
+                      "$ref": "#/components/schemas/crucible.errors.ValidationExceptionReason"
+                    },
+                    "fieldList": {
+                      "anyOf": [
+                        {
+                          "$ref": "#/components/schemas/crucible.errors.ValidationExceptionFieldList"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "__type": {
+                      "type": "string",
+                      "const": "ValidationException"
+                    }
+                  },
+                  "required": [
+                    "message",
+                    "reason",
+                    "__type"
+                  ]
+                }
+              }
+            },
+            "headers": {
+              "X-Crucible-Error": {
+                "schema": {
+                  "type": "string",
+                  "const": "ValidationException"
+                }
+              }
+            },
+            "x-crucible-errors": [
+              "crucible.errors#ValidationException"
+            ]
+          },
+          "500": {
+            "description": "InternalServerException",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "$ref": "#/components/schemas/crucible.api.String"
+                    },
+                    "__type": {
+                      "type": "string",
+                      "const": "InternalServerException"
+                    }
+                  },
+                  "required": [
+                    "message",
+                    "__type"
+                  ]
+                }
+              }
+            },
+            "headers": {
+              "Retry-After": {
+                "schema": {
+                  "$ref": "#/components/schemas/crucible.api.Integer"
+                },
+                "style": "simple",
+                "explode": false
+              },
+              "X-Crucible-Error": {
+                "schema": {
+                  "type": "string",
+                  "const": "InternalServerException"
+                }
+              }
+            },
+            "x-crucible-errors": [
+              "crucible.errors#InternalServerException"
+            ],
+            "x-crucible-retryable": {
+              "throttling": false
+            }
+          }
+        },
+        "security": [],
+        "x-crucible-shape": "example.shop#RecordPayment",
+        "x-crucible-traits": {},
+        "description": "A payment processor's delivery (decision 81). The processor names no\nrelease of the shop: it is served at the current one, v4, whatever the\nservice does with a client's request that names none.",
+        "x-crucible-sender": {
+          "name": "Payments",
+          "member": "signature",
+          "header": "Payment-Signature"
+        },
+        "parameters": [
+          {
+            "name": "Payment-Signature",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/crucible.api.String"
+            },
+            "style": "simple",
+            "explode": false
+          }
+        ]
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "crucible.api.Boolean": {
+        "type": "boolean"
+      },
+      "crucible.api.Integer": {
+        "type": "integer",
+        "format": "int32",
+        "minimum": -2147483648,
+        "maximum": 2147483647
+      },
+      "crucible.api.String": {
+        "type": "string"
+      },
+      "crucible.errors.InternalServerException": {
+        "type": "object",
+        "properties": {
+          "message": {
+            "$ref": "#/components/schemas/crucible.api.String"
+          },
+          "retryAfterSeconds": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/crucible.api.Integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "message"
+        ],
+        "description": "An unexpected server failure. Its message never exposes the underlying cause."
+      },
+      "crucible.errors.ValidationException": {
+        "type": "object",
+        "properties": {
+          "message": {
+            "$ref": "#/components/schemas/crucible.api.String"
+          },
+          "reason": {
+            "$ref": "#/components/schemas/crucible.errors.ValidationExceptionReason"
+          },
+          "fieldList": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/crucible.errors.ValidationExceptionFieldList"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "message",
+          "reason"
+        ],
+        "description": "A request cannot be parsed or does not satisfy the service's input model."
+      },
+      "crucible.errors.ValidationExceptionField": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "$ref": "#/components/schemas/crucible.api.String"
+          },
+          "message": {
+            "$ref": "#/components/schemas/crucible.api.String"
+          }
+        },
+        "required": [
+          "name",
+          "message"
+        ],
+        "description": "A request field that failed validation."
+      },
+      "crucible.errors.ValidationExceptionFieldList": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/crucible.errors.ValidationExceptionField"
+        },
+        "uniqueItems": false
+      },
+      "crucible.errors.ValidationExceptionReason": {
+        "type": "string",
+        "enum": [
+          "unknownOperation",
+          "cannotParse",
+          "fieldValidationFailed",
+          "other"
+        ],
+        "description": "A machine-readable reason; clients never need to parse message text."
+      },
+      "example.shop.CountItemsInput": {
+        "type": "object",
+        "properties": {
+          "shelf": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/crucible.api.String"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        }
+      },
+      "example.shop.CountItemsOutput": {
+        "type": "object",
+        "properties": {
+          "count": {
+            "$ref": "#/components/schemas/crucible.api.Integer"
+          }
+        },
+        "required": [
+          "count"
+        ]
+      },
+      "example.shop.CountUnavailableException": {
+        "type": "object",
+        "properties": {
+          "message": {
+            "$ref": "#/components/schemas/crucible.api.String"
+          }
+        },
+        "required": [
+          "message"
+        ]
+      },
+      "example.shop.DeleteItemInput": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/crucible.api.String"
+          },
+          "force": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/crucible.api.Boolean"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "id"
+        ]
+      },
+      "example.shop.DeleteItemOutput": {
+        "type": "object",
+        "properties": {
+          "deleted": {
+            "$ref": "#/components/schemas/crucible.api.Boolean"
+          }
+        },
+        "required": [
+          "deleted"
+        ]
+      },
+      "example.shop.GetItemInput": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/crucible.api.String"
+          }
+        },
+        "required": [
+          "id"
+        ]
+      },
+      "example.shop.GetItemOutput": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "$ref": "#/components/schemas/crucible.api.String"
+          },
+          "size": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/crucible.api.Integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "kind": {
+            "$ref": "#/components/schemas/example.shop.Kind"
+          }
+        },
+        "required": [
+          "name",
+          "kind"
+        ]
+      },
+      "example.shop.GetLabelInput": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/crucible.api.String"
+          }
+        },
+        "required": [
+          "id"
+        ]
+      },
+      "example.shop.GetLabelOutput": {
+        "type": "object",
+        "properties": {
+          "label": {
+            "$ref": "#/components/schemas/example.shop.Label"
+          }
+        },
+        "required": [
+          "label"
+        ]
+      },
+      "example.shop.ItemNotFoundException": {
+        "type": "object",
+        "properties": {
+          "message": {
+            "$ref": "#/components/schemas/crucible.api.String"
+          }
+        },
+        "required": [
+          "message"
+        ]
+      },
+      "example.shop.Kind": {
+        "type": "string",
+        "enum": [
+          "SMALL",
+          "LARGE"
+        ]
+      },
+      "example.shop.Kinds": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/example.shop.Kind"
+        },
+        "uniqueItems": false
+      },
+      "example.shop.Label": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "$ref": "#/components/schemas/crucible.api.String"
+          },
+          "size": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/crucible.api.Integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "color": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/crucible.api.String"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "title"
+        ],
+        "additionalProperties": false,
+        "description": "An item's label. Strict: a request naming a member it does not have\nis refused, at the current release; an older release's outputs reach it\ntoo, so there it reads what it does not know."
+      },
+      "example.shop.Labels": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/example.shop.Label"
+        },
+        "uniqueItems": false
+      },
+      "example.shop.ListItemsInput": {
+        "type": "object",
+        "properties": {
+          "max": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/crucible.api.Integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "sort": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/crucible.api.String"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        }
+      },
+      "example.shop.ListItemsOutput": {
+        "type": "object",
+        "properties": {
+          "names": {
+            "$ref": "#/components/schemas/example.shop.Names"
+          },
+          "kinds": {
+            "$ref": "#/components/schemas/example.shop.Kinds"
+          }
+        },
+        "required": [
+          "names",
+          "kinds"
+        ]
+      },
+      "example.shop.ListLabelsOutput": {
+        "type": "object",
+        "properties": {
+          "labels": {
+            "$ref": "#/components/schemas/example.shop.Labels"
+          },
+          "kinds": {
+            "$ref": "#/components/schemas/example.shop.Kinds"
+          }
+        },
+        "required": [
+          "labels",
+          "kinds"
+        ]
+      },
+      "example.shop.Names": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/crucible.api.String"
+        },
+        "uniqueItems": false
+      },
+      "example.shop.PutLabelInput": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/crucible.api.String"
+          },
+          "label": {
+            "$ref": "#/components/schemas/example.shop.Label"
+          }
+        },
+        "required": [
+          "id",
+          "label"
+        ]
+      },
+      "example.shop.PutLabelOutput": {
+        "type": "object",
+        "properties": {
+          "label": {
+            "$ref": "#/components/schemas/example.shop.Label"
+          }
+        },
+        "required": [
+          "label"
+        ]
+      },
+      "example.shop.RecordPaymentInput": {
+        "type": "object",
+        "properties": {
+          "signature": {
+            "$ref": "#/components/schemas/crucible.api.String"
+          }
+        },
+        "required": [
+          "signature"
+        ]
+      },
+      "example.shop.RecordPaymentOutput": {
+        "type": "object",
+        "properties": {
+          "release": {
+            "$ref": "#/components/schemas/crucible.api.String"
+          }
+        },
+        "required": [
+          "release"
+        ]
+      }
+    },
+    "securitySchemes": {}
+  },
+  "x-crucible-service": "example.shop#Shop",
+  "x-crucible-protocol": "crucible.protocols#json",
+  "x-crucible-traits": {}
+}

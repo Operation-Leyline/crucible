@@ -759,6 +759,13 @@ version's section when it is prepared.
   version-changed warning reads the SDK's own release, which on an SDK
   line never changes.
 
+- OpenAPI: every operation a client calls takes `Crucible-Version` as a
+  required header parameter fixed to the document's release
+  (`{"type": "string", "const": "<release>"}`), so a third-party generator
+  sends the header Crucible's clients send; a document of an SDK line
+  fixes it to that line's release. A sender-signed operation takes none.
+  See [docs/openapi.md](docs/openapi.md#supported-contract).
+
 - `.cru`: the compiler projects the current model back to every older
   release it serves and checks the projection against the frozen release
   (decisions 68-71 in [docs/idl/decisions.md](docs/idl/decisions.md);
