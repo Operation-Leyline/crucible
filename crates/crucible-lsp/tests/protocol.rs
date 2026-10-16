@@ -1519,3 +1519,103 @@ fn doc_links_navigate_find_references_and_rename() {
     assert!(refused.contains("would be prose"), "{refused}");
     client.stop();
 }
+
+/// The `n`th publish for `uri` at most whose diagnostics `want` accepts.
+fn published(client: &mut Client, uri: &str, want: impl Fn(&[Value]) -> bool) -> Vec<Value> {
+    let mut last = Vec::new();
+    for _ in 0..6 {
+        last = client.diagnostics(uri);
+        if want(&last) {
+            return last;
+        }
+    }
+    panic!("never published as wanted: {last:#?}");
+}
+
+/// The editor's check of the older releases is kept only while what it
+/// reads is unchanged: a naming edit in the manifest changes the lowered
+/// model, and a release rewritten at the same size and time is another
+/// release, so either is checked again.
+#[test]
+fn the_versions_check_follows_naming_edits_and_rewritten_releases() {
+    let model =
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("../../tests/models/version-reused-member-name");
+    let dir = Path::new(env!("CARGO_TARGET_TMPDIR")).join("lsp-versions-cache");
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(dir.join("releases")).unwrap();
+    for file in [
+        "crucible.toml",
+        "shop.cru",
+        "releases/v1.json",
+        "releases/v2.json",
+        "releases/crucible.lock",
+    ] {
+        std::fs::copy(model.join(file), dir.join(file)).unwrap();
+    }
+    let text = std::fs::read_to_string(dir.join("shop.cru")).unwrap();
+    let manifest_text = std::fs::read_to_string(dir.join("crucible.toml")).unwrap();
+    let shop = uri(&dir.join("shop.cru"));
+    let manifest = uri(&dir.join("crucible.toml"));
+    let mut client = Client::start();
+    client.open(&shop, &text);
+    let named = |name: &'static str| {
+        move |diagnostics: &[Value]| {
+            diagnostics.iter().any(|d| {
+                d["code"] == "versions"
+                    && d["message"]
+                        .as_str()
+                        .unwrap()
+                        .starts_with(&format!("`{name}.name` is the older name"))
+            })
+        }
+    };
+    published(&mut client, &shop, named("GetItemOutput"));
+
+    // Only the manifest changes: the output structure is named otherwise,
+    // which renames a type the releases have, and the step that names it
+    // no longer resolves.
+    client.open(&manifest, &manifest_text);
+    let renamed = manifest_text.replace(
+        "[model.baseline]",
+        "[model.naming]\noutput = \"{Operation}Result\"\n\n[model.baseline]",
+    );
+    client.change(&manifest, 2, &renamed);
+    published(&mut client, &shop, |diagnostics| {
+        !named("GetItemOutput")(diagnostics)
+            && diagnostics.iter().any(|d| {
+                d["code"] == "versions"
+                    && d["message"].as_str().unwrap().starts_with(
+                        "`rename GetItem.output.name -> title` names example.reused#GetItemOutput",
+                    )
+            })
+    });
+    client.change(&manifest, 3, &manifest_text);
+    published(&mut client, &shop, named("GetItemOutput"));
+
+    // A release rewritten in place, its size and time kept: the lock no
+    // longer matches it, which the manifest shows.
+    let release = dir.join("releases/v2.json");
+    let before = std::fs::metadata(&release).unwrap().modified().unwrap();
+    let frozen = std::fs::read_to_string(&release).unwrap();
+    let rewritten = frozen.replacen("\"title\"", "\"titlf\"", 1);
+    assert_eq!(rewritten.len(), frozen.len());
+    assert_ne!(rewritten, frozen);
+    std::fs::write(&release, &rewritten).unwrap();
+    std::fs::File::options()
+        .write(true)
+        .open(&release)
+        .unwrap()
+        .set_modified(before)
+        .unwrap();
+    // Any edit compiles the unit again.
+    client.change(&shop, 2, &format!("{text}\n"));
+    published(&mut client, &manifest, |diagnostics| {
+        diagnostics.iter().any(|d| {
+            d["message"]
+                .as_str()
+                .unwrap()
+                .contains("changed after it was frozen")
+        })
+    });
+    client.stop();
+}

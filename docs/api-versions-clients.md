@@ -448,10 +448,10 @@ recomputed on the projection (decision 73):
   both sides excepted, leaves the step inert. A step the newer projection
   has undone (a member optional again, a type or route restored) is inert
   too. What a collision, a refused drop, a re-added member or a lost step
-  explains is not reported again at that release or any older one. What a collision, a refused drop or
-  a gone shape explains is not reported again by the check. A colliding
-  step is left out of the undo, so `validate::service` runs on each
-  projection with no targeted collision. Every older migration's steps are
+  (a shape gone since among them) explains is not reported again, at that
+  release or any older one. A colliding step is left out of the undo, and
+  `validate::service` runs on every projection, reporting what nothing
+  above explains. Every older migration's steps are
   lowered against the newer projection (same ids, as decision 71 has it),
   and their messages name the release: `release "v1"`, or `release "v1"
   as the current model sees it` for the re-check against projections.

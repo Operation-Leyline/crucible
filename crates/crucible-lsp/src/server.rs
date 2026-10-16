@@ -880,9 +880,10 @@ impl Server {
 
     /// The guard and the older releases for a unit, as the build checks
     /// them, from the last check when nothing it reads changed: the
-    /// compiled sources, the policy, and the files of the releases
-    /// directory, by size and time. The projections are an IR transform and
-    /// a diff per release, which an edit elsewhere need not repeat.
+    /// compiled sources and the IR they lowered to (which settles what a
+    /// manifest's naming changes), the policy, and the content of every
+    /// file of the releases directory. The projections are an IR transform
+    /// and a diff per release, which an unchanged unit need not repeat.
     fn checked(
         &self,
         key: &Path,
@@ -897,20 +898,27 @@ impl Server {
             file.path.hash(&mut hasher);
             file.text.hash(&mut hasher);
         }
-        compiled.service.is_some().hash(&mut hasher);
+        // The lowered model, whole: what a source text alone does not
+        // settle, such as the manifest's `[model.naming]`, shows here.
+        match &compiled.service {
+            Some(service) => serde_json::to_string(service).ok().hash(&mut hasher),
+            None => None::<String>.hash(&mut hasher),
+        }
         format!("{config:?}").hash(&mut hasher);
         package.baseline.hash(&mut hasher);
+        // Every release by its content, as `Releases` reads it: a release
+        // rewritten at the same size and time is a different release.
         if let Some(dir) = package.baseline.as_deref().and_then(Path::parent) {
-            let mut entries: Vec<(PathBuf, u64, Option<std::time::SystemTime>)> =
-                std::fs::read_dir(dir)
-                    .into_iter()
-                    .flatten()
-                    .flatten()
-                    .filter_map(|entry| {
-                        let meta = entry.metadata().ok()?;
-                        Some((entry.path(), meta.len(), meta.modified().ok()))
-                    })
-                    .collect();
+            let mut entries: Vec<(PathBuf, Option<Vec<u8>>)> = std::fs::read_dir(dir)
+                .into_iter()
+                .flatten()
+                .flatten()
+                .map(|entry| {
+                    let path = entry.path();
+                    let content = std::fs::read(&path).ok();
+                    (path, content)
+                })
+                .collect();
             entries.sort();
             entries.hash(&mut hasher);
         }
