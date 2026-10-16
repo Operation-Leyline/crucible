@@ -192,27 +192,50 @@ fn fallbacks<'a>(samples: impl IntoIterator<Item = &'a sample::Sample>) -> Value
     )
 }
 
+/// The members a binding sends as text (labels, query parameters,
+/// headers), whose samples must survive HTTP's handling of text.
+fn text_members(b: &Bindings) -> Vec<&str> {
+    b.labels
+        .iter()
+        .map(String::as_str)
+        .chain(b.query.iter().chain(&b.headers).map(|q| q.member.as_str()))
+        .collect()
+}
+
 fn error_sample(service: &Service, id: &ShapeId, info: &ErrorInfo) -> Value {
-    let value = sample::structure(service, Some(id), sample::Variant::Full, "error");
+    let headers: Vec<&str> = info.headers.iter().map(|h| h.member.as_str()).collect();
+    let value = sample::structure(service, Some(id), sample::Variant::Full, "error", &headers);
     json!({"generated":true,"message":error_message(service,id,info,&value.value),
         "fallbacks":fallbacks([&value])})
 }
 
 fn sample(service: &Service, op: &Operation) -> Value {
-    let input = sample::structure(service, op.input.as_ref(), sample::Variant::Full, "input");
+    let text = text_members(&op.request);
+    let input = sample::structure(
+        service,
+        op.input.as_ref(),
+        sample::Variant::Full,
+        "input",
+        &text,
+    );
     let minimal = sample::structure(
         service,
         op.input.as_ref(),
         sample::Variant::Minimal,
         "input",
+        &text,
     );
-    let output = sample::structure(service, op.output.as_ref(), sample::Variant::Full, "output");
-    let request = request_example(service, op, &input.value);
-    let minimal_request = request_example(service, op, &minimal.value);
+    let output = sample::structure(
+        service,
+        op.output.as_ref(),
+        sample::Variant::Full,
+        "output",
+        &text_members(&op.response),
+    );
     let mut response = wire_message(service, op.output.as_ref(), &op.response, &output.value);
     merge_headers(&mut response, &op.response_protocol_headers);
-    json!({"title":"Generated sample","generated":true,"input":request,
-        "minimalInput":if minimal_request == request { Value::Null } else { minimal_request },
+    json!({"generated":true,"input":request_example(service, op, &input.value),
+        "minimalInput":request_example(service, op, &minimal.value),
         "output":response,"fallbacks":fallbacks([&input, &minimal, &output])})
 }
 

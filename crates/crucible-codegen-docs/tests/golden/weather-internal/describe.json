@@ -482,8 +482,7 @@
           "labels": {},
           "payload": null,
           "query": []
-        },
-        "title": "Generated sample"
+        }
       },
       "status": 201,
       "uri": "/cities"
@@ -919,8 +918,7 @@
           "labels": {},
           "payload": null,
           "query": []
-        },
-        "title": "Generated sample"
+        }
       },
       "status": 200,
       "uri": "/cities/{cityId}"
@@ -1116,7 +1114,17 @@
           "query": [],
           "uri": "/cities/c-4xzk6sz6/photo"
         },
-        "minimalInput": null,
+        "minimalInput": {
+          "body": null,
+          "headers": {},
+          "labels": {
+            "cityId": "c-4xzk6sz6"
+          },
+          "method": "GET",
+          "payload": null,
+          "query": [],
+          "uri": "/cities/c-4xzk6sz6/photo"
+        },
         "output": {
           "body": null,
           "headers": {
@@ -1131,8 +1139,7 @@
             "value": "cGhvdG8="
           },
           "query": []
-        },
-        "title": "Generated sample"
+        }
       },
       "status": 200,
       "uri": "/cities/{cityId}/photo"
@@ -1557,8 +1564,7 @@
           "labels": {},
           "payload": null,
           "query": []
-        },
-        "title": "Generated sample"
+        }
       },
       "status": 200,
       "uri": "/cities"
@@ -1640,15 +1646,22 @@
           "query": [],
           "uri": "/ping"
         },
-        "minimalInput": null,
+        "minimalInput": {
+          "body": null,
+          "headers": {},
+          "labels": {},
+          "method": "GET",
+          "payload": null,
+          "query": [],
+          "uri": "/ping"
+        },
         "output": {
           "body": null,
           "headers": {},
           "labels": {},
           "payload": null,
           "query": []
-        },
-        "title": "Generated sample"
+        }
       },
       "status": 200,
       "uri": "/ping"
@@ -1948,8 +1961,7 @@
           "labels": {},
           "payload": null,
           "query": []
-        },
-        "title": "Generated sample"
+        }
       },
       "status": 200,
       "uri": "/cities/{cityId}/photo"
@@ -2038,15 +2050,22 @@
           "query": [],
           "uri": "/status"
         },
-        "minimalInput": null,
+        "minimalInput": {
+          "body": null,
+          "headers": {},
+          "labels": {},
+          "method": "GET",
+          "payload": null,
+          "query": [],
+          "uri": "/status"
+        },
         "output": {
           "body": null,
           "headers": {},
           "labels": {},
           "payload": null,
           "query": []
-        },
-        "title": "Generated sample"
+        }
       },
       "status": 200,
       "uri": "/status"

@@ -4,6 +4,9 @@ use serde_json::Value;
 
 use crate::File;
 
+/// What a generated sample is, as the static reference says it too.
+const GENERATED_NOTE: &str = "Generated from the model's types and constraints, not written by the API's authors. Nothing beyond those constraints was checked, so the service may still refuse a value (a query its parser rejects, an id that does not exist).";
+
 fn string(v: &Value) -> &str {
     v.as_str().unwrap_or_default()
 }
@@ -576,9 +579,18 @@ fn operation(d: &Description, op: &Value) -> String {
         }
     } else if !op["sample"].is_null() {
         // Without an example, the sample the model implies, marked as such.
-        out.push_str(
-            "## Generated sample\n\nGenerated from the model's types and constraints, not written by the API's authors.\n\n",
-        );
+        out.push_str(&format!("## Generated sample\n\n{}\n\n", GENERATED_NOTE));
+        // The same warning the static reference shows.
+        let fallbacks: Vec<String> = list(&op["sample"]["fallbacks"])
+            .iter()
+            .map(|f| code(string(&f["path"])))
+            .collect();
+        if !fallbacks.is_empty() {
+            out.push_str(&format!(
+                "Placeholders that do not meet their constraints: {}.\n\n",
+                fallbacks.join(", ")
+            ));
+        }
         for (key, label) in [("input", "Request"), ("output", "Response")] {
             out.push_str(&format!("{label}:\n\n"));
             out.push_str(&example_message(

@@ -1,0 +1,18 @@
+/// Values a sample cannot show in full, or can only show exactly.
+operation Bulk {
+    http POST "/bulk"
+    input {
+        labels?: ManyLabels
+        limits?: ManyLimits
+        huge?: Huge
+        tight?: Tight
+        essay?: Essay
+        archive?: Archive
+        blanks?: Blanks
+        bell?: Bell
+        @header("X-Bell")
+        headerBell?: Bell
+        @header("X-Blank")
+        headerBlank?: Blank
+    }
+}

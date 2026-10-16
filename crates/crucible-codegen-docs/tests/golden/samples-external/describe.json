@@ -1,0 +1,5749 @@
+{
+  "format": "crucible.describe/1",
+  "operations": {
+    "example.samples#Bulk": {
+      "auth": [],
+      "documentation": {
+        "html": "<p>Values a sample cannot show in full, or can only show exactly.</p>\n",
+        "markdown": "Values a sample cannot show in full, or can only show exactly.",
+        "text": "Values a sample cannot show in full, or can only show exactly."
+      },
+      "errors": [],
+      "examples": [],
+      "id": "example.samples#Bulk",
+      "idempotencyToken": null,
+      "idempotent": false,
+      "input": "example.samples#BulkInput",
+      "inputSchema": {
+        "$defs": {
+          "example.samples.Archive": {
+            "contentEncoding": "base64",
+            "type": "string",
+            "x-smithy-length": {
+              "max": null,
+              "min": 2000,
+              "unit": "bytes"
+            }
+          },
+          "example.samples.Bell": {
+            "description": "A control character, valid in a body and not in a header.",
+            "pattern": "^[\\x01]$",
+            "type": "string"
+          },
+          "example.samples.Blank": {
+            "description": "White space only: list items differ by length.",
+            "pattern": "^\\s+$",
+            "type": "string"
+          },
+          "example.samples.Blanks": {
+            "items": {
+              "description": "White space only: list items differ by length.",
+              "pattern": "^\\s+$",
+              "type": "string"
+            },
+            "maxItems": 3,
+            "minItems": 2,
+            "type": "array",
+            "uniqueItems": true
+          },
+          "example.samples.BulkInput": {
+            "properties": {
+              "archive": {
+                "anyOf": [
+                  {
+                    "contentEncoding": "base64",
+                    "type": "string",
+                    "x-smithy-length": {
+                      "max": null,
+                      "min": 2000,
+                      "unit": "bytes"
+                    }
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "bell": {
+                "anyOf": [
+                  {
+                    "description": "A control character, valid in a body and not in a header.",
+                    "pattern": "^[\\x01]$",
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "blanks": {
+                "anyOf": [
+                  {
+                    "items": {
+                      "description": "White space only: list items differ by length.",
+                      "pattern": "^\\s+$",
+                      "type": "string"
+                    },
+                    "maxItems": 3,
+                    "minItems": 2,
+                    "type": "array",
+                    "uniqueItems": true
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "essay": {
+                "anyOf": [
+                  {
+                    "description": "Longer than a sample shows.",
+                    "minLength": 2000,
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "headerBell": {
+                "anyOf": [
+                  {
+                    "description": "A control character, valid in a body and not in a header.",
+                    "pattern": "^[\\x01]$",
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "headerBlank": {
+                "anyOf": [
+                  {
+                    "description": "White space only: list items differ by length.",
+                    "pattern": "^\\s+$",
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "huge": {
+                "anyOf": [
+                  {
+                    "description": "Above every 64-bit integer.",
+                    "minimum": 9223372036854775808,
+                    "type": "integer"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "labels": {
+                "anyOf": [
+                  {
+                    "description": "More labels than a sample shows.",
+                    "items": {
+                      "maxLength": 8,
+                      "minLength": 2,
+                      "type": "string"
+                    },
+                    "minItems": 150,
+                    "type": "array",
+                    "uniqueItems": false
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "limits": {
+                "anyOf": [
+                  {
+                    "additionalProperties": {
+                      "format": "int32",
+                      "maximum": 65535,
+                      "minimum": 1024,
+                      "type": "integer"
+                    },
+                    "description": "More entries than a sample shows.",
+                    "minProperties": 150,
+                    "propertyNames": {
+                      "description": "A DNS-style name.",
+                      "maxLength": 63,
+                      "minLength": 3,
+                      "pattern": "^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$",
+                      "type": "string"
+                    },
+                    "type": "object"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "tight": {
+                "anyOf": [
+                  {
+                    "description": "Just below 0.3, which a double would round onto.",
+                    "maximum": 0.29999999999999999999,
+                    "type": "number"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "type": "object"
+          },
+          "example.samples.Essay": {
+            "description": "Longer than a sample shows.",
+            "minLength": 2000,
+            "type": "string"
+          },
+          "example.samples.GraphName": {
+            "description": "A DNS-style name.",
+            "maxLength": 63,
+            "minLength": 3,
+            "pattern": "^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$",
+            "type": "string"
+          },
+          "example.samples.Huge": {
+            "description": "Above every 64-bit integer.",
+            "minimum": 9223372036854775808,
+            "type": "integer"
+          },
+          "example.samples.Label": {
+            "maxLength": 8,
+            "minLength": 2,
+            "type": "string"
+          },
+          "example.samples.ManyLabels": {
+            "description": "More labels than a sample shows.",
+            "items": {
+              "maxLength": 8,
+              "minLength": 2,
+              "type": "string"
+            },
+            "minItems": 150,
+            "type": "array",
+            "uniqueItems": false
+          },
+          "example.samples.ManyLimits": {
+            "additionalProperties": {
+              "format": "int32",
+              "maximum": 65535,
+              "minimum": 1024,
+              "type": "integer"
+            },
+            "description": "More entries than a sample shows.",
+            "minProperties": 150,
+            "propertyNames": {
+              "description": "A DNS-style name.",
+              "maxLength": 63,
+              "minLength": 3,
+              "pattern": "^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$",
+              "type": "string"
+            },
+            "type": "object"
+          },
+          "example.samples.Port": {
+            "format": "int32",
+            "maximum": 65535,
+            "minimum": 1024,
+            "type": "integer"
+          },
+          "example.samples.Tight": {
+            "description": "Just below 0.3, which a double would round onto.",
+            "maximum": 0.29999999999999999999,
+            "type": "number"
+          }
+        },
+        "properties": {
+          "archive": {
+            "anyOf": [
+              {
+                "contentEncoding": "base64",
+                "type": "string",
+                "x-smithy-length": {
+                  "max": null,
+                  "min": 2000,
+                  "unit": "bytes"
+                }
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "bell": {
+            "anyOf": [
+              {
+                "description": "A control character, valid in a body and not in a header.",
+                "pattern": "^[\\x01]$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "blanks": {
+            "anyOf": [
+              {
+                "items": {
+                  "description": "White space only: list items differ by length.",
+                  "pattern": "^\\s+$",
+                  "type": "string"
+                },
+                "maxItems": 3,
+                "minItems": 2,
+                "type": "array",
+                "uniqueItems": true
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "essay": {
+            "anyOf": [
+              {
+                "description": "Longer than a sample shows.",
+                "minLength": 2000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "headerBell": {
+            "anyOf": [
+              {
+                "description": "A control character, valid in a body and not in a header.",
+                "pattern": "^[\\x01]$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "headerBlank": {
+            "anyOf": [
+              {
+                "description": "White space only: list items differ by length.",
+                "pattern": "^\\s+$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "huge": {
+            "anyOf": [
+              {
+                "description": "Above every 64-bit integer.",
+                "minimum": 9223372036854775808,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "labels": {
+            "anyOf": [
+              {
+                "description": "More labels than a sample shows.",
+                "items": {
+                  "maxLength": 8,
+                  "minLength": 2,
+                  "type": "string"
+                },
+                "minItems": 150,
+                "type": "array",
+                "uniqueItems": false
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "limits": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "format": "int32",
+                  "maximum": 65535,
+                  "minimum": 1024,
+                  "type": "integer"
+                },
+                "description": "More entries than a sample shows.",
+                "minProperties": 150,
+                "propertyNames": {
+                  "description": "A DNS-style name.",
+                  "maxLength": 63,
+                  "minLength": 3,
+                  "pattern": "^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$",
+                  "type": "string"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "tight": {
+            "anyOf": [
+              {
+                "description": "Just below 0.3, which a double would round onto.",
+                "maximum": 0.29999999999999999999,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object"
+      },
+      "internal": false,
+      "method": "POST",
+      "name": "Bulk",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "output": null,
+      "outputSchema": {
+        "$defs": {},
+        "maxProperties": 0,
+        "type": "object"
+      },
+      "pagination": null,
+      "protocol": "crucibleJson",
+      "protocolHeaders": {
+        "Content-Type": "application/json"
+      },
+      "readonly": false,
+      "request": {
+        "body": [
+          "labels",
+          "limits",
+          "huge",
+          "tight",
+          "essay",
+          "archive",
+          "blanks",
+          "bell"
+        ],
+        "headerEncodings": {},
+        "headers": [
+          {
+            "member": "headerBell",
+            "name": "X-Bell"
+          },
+          {
+            "member": "headerBlank",
+            "name": "X-Blank"
+          }
+        ],
+        "labels": [],
+        "payload": null,
+        "query": [],
+        "timestampFormats": {}
+      },
+      "resources": [],
+      "response": {
+        "body": [],
+        "headerEncodings": {},
+        "headers": [],
+        "labels": [],
+        "payload": null,
+        "query": [],
+        "timestampFormats": {}
+      },
+      "responseProtocolHeaders": {},
+      "sample": {
+        "fallbacks": [
+          {
+            "path": "input.archive",
+            "pattern": null,
+            "reason": "a minimum of 2000 bytes is too long to show; the sample has 1024",
+            "shape": "example.samples#BulkInput$archive"
+          },
+          {
+            "path": "input.essay",
+            "pattern": null,
+            "reason": "a minimum of 2000 characters is too long to show; the sample has 1024",
+            "shape": "example.samples#BulkInput$essay"
+          },
+          {
+            "path": "input.headerBell",
+            "pattern": "^[\\x01]$",
+            "reason": "a header, label or query value cannot carry control characters or surrounding white space",
+            "shape": "example.samples#BulkInput$headerBell"
+          },
+          {
+            "path": "input.headerBlank",
+            "pattern": "^\\s+$",
+            "reason": "a header, label or query value cannot carry control characters or surrounding white space",
+            "shape": "example.samples#BulkInput$headerBlank"
+          },
+          {
+            "path": "input.labels",
+            "pattern": null,
+            "reason": "a minimum of 150 items is too many to show; the sample has 100",
+            "shape": "example.samples#BulkInput$labels"
+          },
+          {
+            "path": "input.limits",
+            "pattern": null,
+            "reason": "a minimum of 150 items is too many to show; the sample has 100",
+            "shape": "example.samples#BulkInput$limits"
+          }
+        ],
+        "generated": true,
+        "input": {
+          "body": {
+            "archive": "YXJjaGl2ZWFyY2hpdmVhcmNoaXZlYXJjaGl2ZWFyY2hpdmVhcmNoaXZlYXJjaGl2ZWFyY2hpdmVhcmNoaXZlYXJjaGl2ZWFyY2hpdmVhcmNoaXZlYXJjaGl2ZWFyY2hpdmVhcmNoaXZlYXJjaGl2ZWFyY2hpdmVhcmNoaXZlYXJjaGl2ZWFyY2hpdmVhcmNoaXZlYXJjaGl2ZWFyY2hpdmVhcmNoaXZlYXJjaGl2ZWFyY2hpdmVhcmNoaXZlYXJjaGl2ZWFyY2hpdmVhcmNoaXZlYXJjaGl2ZWFyY2hpdmVhcmNoaXZlYXJjaGl2ZWFyY2hpdmVhcmNoaXZlYXJjaGl2ZWFyY2hpdmVhcmNoaXZlYXJjaGl2ZWFyY2hpdmVhcmNoaXZlYXJjaGl2ZWFyY2hpdmVhcmNoaXZlYXJjaGl2ZWFyY2hpdmVhcmNoaXZlYXJjaGl2ZWFyY2hpdmVhcmNoaXZlYXJjaGl2ZWFyY2hpdmVhcmNoaXZlYXJjaGl2ZWFyY2hpdmVhcmNoaXZlYXJjaGl2ZWFyY2hpdmVhcmNoaXZlYXJjaGl2ZWFyY2hpdmVhcmNoaXZlYXJjaGl2ZWFyY2hpdmVhcmNoaXZlYXJjaGl2ZWFyY2hpdmVhcmNoaXZlYXJjaGl2ZWFyY2hpdmVhcmNoaXZlYXJjaGl2ZWFyY2hpdmVhcmNoaXZlYXJjaGl2ZWFyY2hpdmVhcmNoaXZlYXJjaGl2ZWFyY2hpdmVhcmNoaXZlYXJjaGl2ZWFyY2hpdmVhcmNoaXZlYXJjaGl2ZWFyY2hpdmVhcmNoaXZlYXJjaGl2ZWFyY2hpdmVhcmNoaXZlYXJjaGl2ZWFyY2hpdmVhcmNoaXZlYXJjaGl2ZWFyY2hpdmVhcmNoaXZlYXJjaGl2ZWFyY2hpdmVhcmNoaXZlYXJjaGl2ZWFyY2hpdmVhcmNoaXZlYXJjaGl2ZWFyY2hpdmVhcmNoaXZlYXJjaGl2ZWFyY2hpdmVhcmNoaXZlYXJjaGl2ZWFyY2hpdmVhcmNoaXZlYXJjaGl2ZWFyY2hpdmVhcmNoaXZlYXJjaGl2ZWFyY2hpdmVhcmNoaXZlYXJjaGl2ZWFyY2hpdmVhcmNoaXZlYXJjaGl2ZWFyY2hpdmVhcmNoaXZlYXJjaGl2ZWFyY2hpdmVhcmNoaXZlYXJjaGl2ZWFyY2hpdmVhcmNoaXZlYXJjaGl2ZWFyY2hpdmVhcmNoaXZlYXJjaGl2ZWFyY2hpdmVhcmNoaXZlYXJjaGl2ZWFyY2hpdmVhcmNoaXZlYXJjaGl2ZWFyY2hpdmVhcmNoaXZlYXJjaGl2ZWFyY2hpdmVhcmNoaXZlYXJjaGl2ZWFyY2hpdmVhcg==",
+            "bell": "\u0001",
+            "blanks": [
+              "      ",
+              "       "
+            ],
+            "essay": "essayessayessayessayessayessayessayessayessayessayessayessayessayessayessayessayessayessayessayessayessayessayessayessayessayessayessayessayessayessayessayessayessayessayessayessayessayessayessayessayessayessayessayessayessayessayessayessayessayessayessayessayessayessayessayessayessayessayessayessayessayessayessayessayessayessayessayessayessayessayessayessayessayessayessayessayessayessayessayessayessayessayessayessayessayessayessayessayessayessayessayessayessayessayessayessayessayessayessayessayessayessayessayessayessayessayessayessayessayessayessayessayessayessayessayessayessayessayessayessayessayessayessayessayessayessayessayessayessayessayessayessayessayessayessayessayessayessayessayessayessayessayessayessayessayessayessayessayessayessayessayessayessayessayessayessayessayessayessayessayessayessayessayessayessayessayessayessayessayessayessayessayessayessayessayessayessayessayessayessayessayessayessayessayessayessayessayessayessayessayessayessayessayessayessayessayessayessayessayessayessayessayessayessayessa",
+            "huge": 9223372036854775808,
+            "labels": [
+              "labels",
+              "labels1",
+              "labels2",
+              "labels3",
+              "labels4",
+              "labels5",
+              "labels6",
+              "labels7",
+              "labels8",
+              "labels9",
+              "labels10",
+              "labels11",
+              "labels12",
+              "labels13",
+              "labels14",
+              "labels15",
+              "labels16",
+              "labels17",
+              "labels18",
+              "labels19",
+              "labels20",
+              "labels21",
+              "labels22",
+              "labels23",
+              "labels24",
+              "labels25",
+              "labels26",
+              "labels27",
+              "labels28",
+              "labels29",
+              "labels30",
+              "labels31",
+              "labels32",
+              "labels33",
+              "labels34",
+              "labels35",
+              "labels36",
+              "labels37",
+              "labels38",
+              "labels39",
+              "labels40",
+              "labels41",
+              "labels42",
+              "labels43",
+              "labels44",
+              "labels45",
+              "labels46",
+              "labels47",
+              "labels48",
+              "labels49",
+              "labels50",
+              "labels51",
+              "labels52",
+              "labels53",
+              "labels54",
+              "labels55",
+              "labels56",
+              "labels57",
+              "labels58",
+              "labels59",
+              "labels60",
+              "labels61",
+              "labels62",
+              "labels63",
+              "labels64",
+              "labels65",
+              "labels66",
+              "labels67",
+              "labels68",
+              "labels69",
+              "labels70",
+              "labels71",
+              "labels72",
+              "labels73",
+              "labels74",
+              "labels75",
+              "labels76",
+              "labels77",
+              "labels78",
+              "labels79",
+              "labels80",
+              "labels81",
+              "labels82",
+              "labels83",
+              "labels84",
+              "labels85",
+              "labels86",
+              "labels87",
+              "labels88",
+              "labels89",
+              "labels90",
+              "labels91",
+              "labels92",
+              "labels93",
+              "labels94",
+              "labels95",
+              "labels96",
+              "labels97",
+              "labels98",
+              "labels99"
+            ],
+            "limits": {
+              "key": 1024,
+              "key1": 1025,
+              "key10": 1034,
+              "key11": 1035,
+              "key12": 1036,
+              "key13": 1037,
+              "key14": 1038,
+              "key15": 1039,
+              "key16": 1040,
+              "key17": 1041,
+              "key18": 1042,
+              "key19": 1043,
+              "key2": 1026,
+              "key20": 1044,
+              "key21": 1045,
+              "key22": 1046,
+              "key23": 1047,
+              "key24": 1048,
+              "key25": 1049,
+              "key26": 1050,
+              "key27": 1051,
+              "key28": 1052,
+              "key29": 1053,
+              "key3": 1027,
+              "key30": 1054,
+              "key31": 1055,
+              "key32": 1056,
+              "key33": 1057,
+              "key34": 1058,
+              "key35": 1059,
+              "key36": 1060,
+              "key37": 1061,
+              "key38": 1062,
+              "key39": 1063,
+              "key4": 1028,
+              "key40": 1064,
+              "key41": 1065,
+              "key42": 1066,
+              "key43": 1067,
+              "key44": 1068,
+              "key45": 1069,
+              "key46": 1070,
+              "key47": 1071,
+              "key48": 1072,
+              "key49": 1073,
+              "key5": 1029,
+              "key50": 1074,
+              "key51": 1075,
+              "key52": 1076,
+              "key53": 1077,
+              "key54": 1078,
+              "key55": 1079,
+              "key56": 1080,
+              "key57": 1081,
+              "key58": 1082,
+              "key59": 1083,
+              "key6": 1030,
+              "key60": 1084,
+              "key61": 1085,
+              "key62": 1086,
+              "key63": 1087,
+              "key64": 1088,
+              "key65": 1089,
+              "key66": 1090,
+              "key67": 1091,
+              "key68": 1092,
+              "key69": 1093,
+              "key7": 1031,
+              "key70": 1094,
+              "key71": 1095,
+              "key72": 1096,
+              "key73": 1097,
+              "key74": 1098,
+              "key75": 1099,
+              "key76": 1100,
+              "key77": 1101,
+              "key78": 1102,
+              "key79": 1103,
+              "key8": 1032,
+              "key80": 1104,
+              "key81": 1105,
+              "key82": 1106,
+              "key83": 1107,
+              "key84": 1108,
+              "key85": 1109,
+              "key86": 1110,
+              "key87": 1111,
+              "key88": 1112,
+              "key89": 1113,
+              "key9": 1033,
+              "key90": 1114,
+              "key91": 1115,
+              "key92": 1116,
+              "key93": 1117,
+              "key94": 1118,
+              "key95": 1119,
+              "key96": 1120,
+              "key97": 1121,
+              "key98": 1122,
+              "key99": 1123
+            },
+            "tight": 0.29999999999999999999
+          },
+          "headers": {
+            "Content-Type": "application/json",
+            "X-Bell": "headerBell",
+            "X-Blank": "headerBlank"
+          },
+          "labels": {},
+          "method": "POST",
+          "payload": null,
+          "query": [],
+          "uri": "/bulk"
+        },
+        "minimalInput": {
+          "body": {},
+          "headers": {
+            "Content-Type": "application/json"
+          },
+          "labels": {},
+          "method": "POST",
+          "payload": null,
+          "query": [],
+          "uri": "/bulk"
+        },
+        "output": {
+          "body": null,
+          "headers": {},
+          "labels": {},
+          "payload": null,
+          "query": []
+        }
+      },
+      "status": 200,
+      "uri": "/bulk"
+    },
+    "example.samples#Check": {
+      "auth": [],
+      "documentation": {
+        "html": "<p>A pattern the generator cannot follow.</p>\n",
+        "markdown": "A pattern the generator cannot follow.",
+        "text": "A pattern the generator cannot follow."
+      },
+      "errors": [],
+      "examples": [],
+      "id": "example.samples#Check",
+      "idempotencyToken": null,
+      "idempotent": false,
+      "input": "example.samples#CheckInput",
+      "inputSchema": {
+        "$defs": {
+          "example.samples.Bounded": {
+            "description": "Outside the generator's subset: a word boundary.",
+            "pattern": "\\bword\\b",
+            "type": "string"
+          },
+          "example.samples.CheckInput": {
+            "properties": {
+              "bounded": {
+                "anyOf": [
+                  {
+                    "description": "Outside the generator's subset: a word boundary.",
+                    "pattern": "\\bword\\b",
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "type": "object"
+          }
+        },
+        "properties": {
+          "bounded": {
+            "anyOf": [
+              {
+                "description": "Outside the generator's subset: a word boundary.",
+                "pattern": "\\bword\\b",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object"
+      },
+      "internal": false,
+      "method": "POST",
+      "name": "Check",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "output": null,
+      "outputSchema": {
+        "$defs": {},
+        "maxProperties": 0,
+        "type": "object"
+      },
+      "pagination": null,
+      "protocol": "crucibleJson",
+      "protocolHeaders": {
+        "Content-Type": "application/json"
+      },
+      "readonly": false,
+      "request": {
+        "body": [
+          "bounded"
+        ],
+        "headerEncodings": {},
+        "headers": [],
+        "labels": [],
+        "payload": null,
+        "query": [],
+        "timestampFormats": {}
+      },
+      "resources": [],
+      "response": {
+        "body": [],
+        "headerEncodings": {},
+        "headers": [],
+        "labels": [],
+        "payload": null,
+        "query": [],
+        "timestampFormats": {}
+      },
+      "responseProtocolHeaders": {},
+      "sample": {
+        "fallbacks": [
+          {
+            "path": "input.bounded",
+            "pattern": "\\bword\\b",
+            "reason": "word boundaries are outside the subset",
+            "shape": "example.samples#CheckInput$bounded"
+          }
+        ],
+        "generated": true,
+        "input": {
+          "body": {
+            "bounded": "bounded"
+          },
+          "headers": {
+            "Content-Type": "application/json"
+          },
+          "labels": {},
+          "method": "POST",
+          "payload": null,
+          "query": [],
+          "uri": "/check"
+        },
+        "minimalInput": {
+          "body": {},
+          "headers": {
+            "Content-Type": "application/json"
+          },
+          "labels": {},
+          "method": "POST",
+          "payload": null,
+          "query": [],
+          "uri": "/check"
+        },
+        "output": {
+          "body": null,
+          "headers": {},
+          "labels": {},
+          "payload": null,
+          "query": []
+        }
+      },
+      "status": 200,
+      "uri": "/check"
+    },
+    "example.samples#GetGraph": {
+      "auth": [],
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "errors": [
+        "example.samples#GraphNotFound"
+      ],
+      "examples": [],
+      "id": "example.samples#GetGraph",
+      "idempotencyToken": null,
+      "idempotent": false,
+      "input": "example.samples#GetGraphInput",
+      "inputSchema": {
+        "$defs": {
+          "example.samples.GetGraphInput": {
+            "properties": {
+              "graphId": {
+                "description": "A graph id: a type prefix and 26 Crockford base-32 characters.",
+                "pattern": "^g_[0-9a-hjkmnp-tv-z]{26}(_[a-z]{3})?$",
+                "type": "string"
+              }
+            },
+            "required": [
+              "graphId"
+            ],
+            "type": "object"
+          },
+          "example.samples.GraphId": {
+            "description": "A graph id: a type prefix and 26 Crockford base-32 characters.",
+            "pattern": "^g_[0-9a-hjkmnp-tv-z]{26}(_[a-z]{3})?$",
+            "type": "string"
+          }
+        },
+        "properties": {
+          "graphId": {
+            "description": "A graph id: a type prefix and 26 Crockford base-32 characters.",
+            "pattern": "^g_[0-9a-hjkmnp-tv-z]{26}(_[a-z]{3})?$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "graphId"
+        ],
+        "type": "object"
+      },
+      "internal": false,
+      "method": "GET",
+      "name": "GetGraph",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "output": "example.samples#GetGraphOutput",
+      "outputSchema": {
+        "$defs": {
+          "example.samples.GetGraphOutput": {
+            "properties": {
+              "thumbnail": {
+                "anyOf": [
+                  {
+                    "contentEncoding": "base64",
+                    "type": "string",
+                    "x-smithy-length": {
+                      "max": 16,
+                      "min": 4,
+                      "unit": "bytes"
+                    }
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "type": "object"
+          },
+          "example.samples.Thumbnail": {
+            "contentEncoding": "base64",
+            "type": "string",
+            "x-smithy-length": {
+              "max": 16,
+              "min": 4,
+              "unit": "bytes"
+            }
+          }
+        },
+        "properties": {
+          "thumbnail": {
+            "anyOf": [
+              {
+                "contentEncoding": "base64",
+                "type": "string",
+                "x-smithy-length": {
+                  "max": 16,
+                  "min": 4,
+                  "unit": "bytes"
+                }
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object"
+      },
+      "pagination": null,
+      "protocol": "crucibleJson",
+      "protocolHeaders": {},
+      "readonly": true,
+      "request": {
+        "body": [],
+        "headerEncodings": {},
+        "headers": [],
+        "labels": [
+          "graphId"
+        ],
+        "payload": null,
+        "query": [],
+        "timestampFormats": {}
+      },
+      "resources": [],
+      "response": {
+        "body": [],
+        "headerEncodings": {},
+        "headers": [],
+        "labels": [],
+        "payload": {
+          "kind": "blob",
+          "mediaType": "application/octet-stream",
+          "member": "thumbnail"
+        },
+        "query": [],
+        "timestampFormats": {}
+      },
+      "responseProtocolHeaders": {
+        "Content-Type": "application/octet-stream"
+      },
+      "sample": {
+        "fallbacks": [],
+        "generated": true,
+        "input": {
+          "body": null,
+          "headers": {},
+          "labels": {
+            "graphId": "g_nzkxa7xw7j3ez927px4d2ejtz7"
+          },
+          "method": "GET",
+          "payload": null,
+          "query": [],
+          "uri": "/graphs/g_nzkxa7xw7j3ez927px4d2ejtz7"
+        },
+        "minimalInput": {
+          "body": null,
+          "headers": {},
+          "labels": {
+            "graphId": "g_nzkxa7xw7j3ez927px4d2ejtz7"
+          },
+          "method": "GET",
+          "payload": null,
+          "query": [],
+          "uri": "/graphs/g_nzkxa7xw7j3ez927px4d2ejtz7"
+        },
+        "output": {
+          "body": null,
+          "headers": {
+            "Content-Type": "application/octet-stream"
+          },
+          "labels": {},
+          "payload": {
+            "encoding": "base64",
+            "kind": "blob",
+            "mediaType": "application/octet-stream",
+            "value": "dGh1bWJuYWls"
+          },
+          "query": []
+        }
+      },
+      "status": 200,
+      "uri": "/graphs/{graphId}"
+    },
+    "example.samples#PutGraph": {
+      "auth": [],
+      "documentation": {
+        "html": "<p>Every scalar, collection and default in one request.</p>\n",
+        "markdown": "Every scalar, collection and default in one request.",
+        "text": "Every scalar, collection and default in one request."
+      },
+      "errors": [
+        "example.samples#GraphNotFound",
+        "example.samples#Busy"
+      ],
+      "examples": [],
+      "id": "example.samples#PutGraph",
+      "idempotencyToken": "clientToken",
+      "idempotent": true,
+      "input": "example.samples#PutGraphInput",
+      "inputSchema": {
+        "$defs": {
+          "example.samples.EpochTime": {
+            "type": "number",
+            "x-smithy-timestamp-format": "epoch-seconds"
+          },
+          "example.samples.GraphId": {
+            "description": "A graph id: a type prefix and 26 Crockford base-32 characters.",
+            "pattern": "^g_[0-9a-hjkmnp-tv-z]{26}(_[a-z]{3})?$",
+            "type": "string"
+          },
+          "example.samples.GraphName": {
+            "description": "A DNS-style name.",
+            "maxLength": 63,
+            "minLength": 3,
+            "pattern": "^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$",
+            "type": "string"
+          },
+          "example.samples.Label": {
+            "maxLength": 8,
+            "minLength": 2,
+            "type": "string"
+          },
+          "example.samples.Limits": {
+            "additionalProperties": {
+              "format": "int32",
+              "maximum": 65535,
+              "minimum": 1024,
+              "type": "integer"
+            },
+            "minProperties": 2,
+            "propertyNames": {
+              "description": "A DNS-style name.",
+              "maxLength": 63,
+              "minLength": 3,
+              "pattern": "^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$",
+              "type": "string"
+            },
+            "type": "object"
+          },
+          "example.samples.Negative": {
+            "format": "int32",
+            "maximum": -5,
+            "minimum": -2147483648,
+            "type": "integer"
+          },
+          "example.samples.Port": {
+            "format": "int32",
+            "maximum": 65535,
+            "minimum": 1024,
+            "type": "integer"
+          },
+          "example.samples.Price": {
+            "minimum": 10.5,
+            "type": "number"
+          },
+          "example.samples.Printable": {
+            "pattern": "^[^\\x00-\\x1F\\x7F-\\x9F]+$",
+            "type": "string"
+          },
+          "example.samples.Priority": {
+            "enum": [
+              1,
+              9
+            ],
+            "format": "int32",
+            "type": "integer"
+          },
+          "example.samples.PutGraphInput": {
+            "properties": {
+              "clientToken": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/smithy.api.String"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "SDKs send this automatically. When calling the API directly, send a unique value for each intended operation, and the same value when retrying it; a service may refuse a request without one."
+              },
+              "count": {
+                "$ref": "#/$defs/smithy.api.Long",
+                "default": 42,
+                "x-smithy-default": 42
+              },
+              "created": {
+                "anyOf": [
+                  {
+                    "type": "number",
+                    "x-smithy-timestamp-format": "epoch-seconds"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "description": {
+                "anyOf": [
+                  {
+                    "pattern": "^[^\\x00-\\x1F\\x7F-\\x9F]+$",
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "enabled": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/smithy.api.Boolean"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "graphId": {
+                "description": "A graph id: a type prefix and 26 Crockford base-32 characters.",
+                "pattern": "^g_[0-9a-hjkmnp-tv-z]{26}(_[a-z]{3})?$",
+                "type": "string"
+              },
+              "limits": {
+                "anyOf": [
+                  {
+                    "additionalProperties": {
+                      "format": "int32",
+                      "maximum": 65535,
+                      "minimum": 1024,
+                      "type": "integer"
+                    },
+                    "minProperties": 2,
+                    "propertyNames": {
+                      "description": "A DNS-style name.",
+                      "maxLength": 63,
+                      "minLength": 3,
+                      "pattern": "^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$",
+                      "type": "string"
+                    },
+                    "type": "object"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "modifiedSince": {
+                "anyOf": [
+                  {
+                    "format": "date-time",
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "name": {
+                "description": "A DNS-style name.",
+                "maxLength": 63,
+                "minLength": 3,
+                "pattern": "^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$",
+                "type": "string"
+              },
+              "negative": {
+                "anyOf": [
+                  {
+                    "format": "int32",
+                    "maximum": -5,
+                    "minimum": -2147483648,
+                    "type": "integer"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "port": {
+                "anyOf": [
+                  {
+                    "format": "int32",
+                    "maximum": 65535,
+                    "minimum": 1024,
+                    "type": "integer"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "price": {
+                "anyOf": [
+                  {
+                    "minimum": 10.5,
+                    "type": "number"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "priority": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/example.samples.Priority"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "ratio": {
+                "anyOf": [
+                  {
+                    "format": "double",
+                    "maximum": 0.75,
+                    "minimum": 0.25,
+                    "type": "number"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "region": {
+                "anyOf": [
+                  {
+                    "pattern": "^[a-z]{2}-[a-z]{4,9}-[0-9]$",
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "regions": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/example.samples.Regions"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "settings": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/smithy.api.Document"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "since": {
+                "anyOf": [
+                  {
+                    "format": "date-time",
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "source": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/example.samples.Source"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "tags": {
+                "items": {
+                  "maxLength": 8,
+                  "minLength": 2,
+                  "type": "string"
+                },
+                "maxItems": 3,
+                "minItems": 2,
+                "type": "array",
+                "uniqueItems": true
+              },
+              "thumbnail": {
+                "anyOf": [
+                  {
+                    "contentEncoding": "base64",
+                    "type": "string",
+                    "x-smithy-length": {
+                      "max": 16,
+                      "min": 4,
+                      "unit": "bytes"
+                    }
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "tier": {
+                "$ref": "#/$defs/example.samples.Tier",
+                "default": "small",
+                "x-smithy-default": "small"
+              },
+              "updated": {
+                "anyOf": [
+                  {
+                    "format": "date-time",
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "graphId",
+              "name",
+              "tags"
+            ],
+            "type": "object"
+          },
+          "example.samples.Ratio": {
+            "format": "double",
+            "maximum": 0.75,
+            "minimum": 0.25,
+            "type": "number"
+          },
+          "example.samples.Region": {
+            "pattern": "^[a-z]{2}-[a-z]{4,9}-[0-9]$",
+            "type": "string"
+          },
+          "example.samples.Regions": {
+            "items": {
+              "pattern": "^[a-z]{2}-[a-z]{4,9}-[0-9]$",
+              "type": "string"
+            },
+            "type": "array",
+            "uniqueItems": false
+          },
+          "example.samples.Sha": {
+            "pattern": "^[a-f0-9]{64}$",
+            "type": "string"
+          },
+          "example.samples.Source": {
+            "oneOf": [
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "snapshot": {
+                    "pattern": "^[a-f0-9]{64}$",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "snapshot"
+                ],
+                "type": "object"
+              },
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "empty": {
+                    "$ref": "#/$defs/smithy.api.Unit"
+                  }
+                },
+                "required": [
+                  "empty"
+                ],
+                "type": "object"
+              }
+            ]
+          },
+          "example.samples.Tags": {
+            "items": {
+              "maxLength": 8,
+              "minLength": 2,
+              "type": "string"
+            },
+            "maxItems": 3,
+            "minItems": 2,
+            "type": "array",
+            "uniqueItems": true
+          },
+          "example.samples.Thumbnail": {
+            "contentEncoding": "base64",
+            "type": "string",
+            "x-smithy-length": {
+              "max": 16,
+              "min": 4,
+              "unit": "bytes"
+            }
+          },
+          "example.samples.Tier": {
+            "enum": [
+              "small",
+              "large"
+            ],
+            "type": "string"
+          },
+          "smithy.api.Boolean": {
+            "type": "boolean"
+          },
+          "smithy.api.Document": {},
+          "smithy.api.Long": {
+            "format": "int64",
+            "maximum": 9223372036854775807,
+            "minimum": -9223372036854775808,
+            "type": "integer"
+          },
+          "smithy.api.String": {
+            "type": "string"
+          },
+          "smithy.api.Timestamp": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "smithy.api.Unit": {
+            "maxProperties": 0,
+            "type": "object"
+          }
+        },
+        "properties": {
+          "clientToken": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/smithy.api.String"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "SDKs send this automatically. When calling the API directly, send a unique value for each intended operation, and the same value when retrying it; a service may refuse a request without one."
+          },
+          "count": {
+            "$ref": "#/$defs/smithy.api.Long",
+            "default": 42,
+            "x-smithy-default": 42
+          },
+          "created": {
+            "anyOf": [
+              {
+                "type": "number",
+                "x-smithy-timestamp-format": "epoch-seconds"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "description": {
+            "anyOf": [
+              {
+                "pattern": "^[^\\x00-\\x1F\\x7F-\\x9F]+$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "enabled": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/smithy.api.Boolean"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "graphId": {
+            "description": "A graph id: a type prefix and 26 Crockford base-32 characters.",
+            "pattern": "^g_[0-9a-hjkmnp-tv-z]{26}(_[a-z]{3})?$",
+            "type": "string"
+          },
+          "limits": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "format": "int32",
+                  "maximum": 65535,
+                  "minimum": 1024,
+                  "type": "integer"
+                },
+                "minProperties": 2,
+                "propertyNames": {
+                  "description": "A DNS-style name.",
+                  "maxLength": 63,
+                  "minLength": 3,
+                  "pattern": "^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$",
+                  "type": "string"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "modifiedSince": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "name": {
+            "description": "A DNS-style name.",
+            "maxLength": 63,
+            "minLength": 3,
+            "pattern": "^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$",
+            "type": "string"
+          },
+          "negative": {
+            "anyOf": [
+              {
+                "format": "int32",
+                "maximum": -5,
+                "minimum": -2147483648,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "port": {
+            "anyOf": [
+              {
+                "format": "int32",
+                "maximum": 65535,
+                "minimum": 1024,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "price": {
+            "anyOf": [
+              {
+                "minimum": 10.5,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "priority": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/example.samples.Priority"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "ratio": {
+            "anyOf": [
+              {
+                "format": "double",
+                "maximum": 0.75,
+                "minimum": 0.25,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "region": {
+            "anyOf": [
+              {
+                "pattern": "^[a-z]{2}-[a-z]{4,9}-[0-9]$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "regions": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/example.samples.Regions"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "settings": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/smithy.api.Document"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "since": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "source": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/example.samples.Source"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "tags": {
+            "items": {
+              "maxLength": 8,
+              "minLength": 2,
+              "type": "string"
+            },
+            "maxItems": 3,
+            "minItems": 2,
+            "type": "array",
+            "uniqueItems": true
+          },
+          "thumbnail": {
+            "anyOf": [
+              {
+                "contentEncoding": "base64",
+                "type": "string",
+                "x-smithy-length": {
+                  "max": 16,
+                  "min": 4,
+                  "unit": "bytes"
+                }
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "tier": {
+            "$ref": "#/$defs/example.samples.Tier",
+            "default": "small",
+            "x-smithy-default": "small"
+          },
+          "updated": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "graphId",
+          "name",
+          "tags"
+        ],
+        "type": "object"
+      },
+      "internal": false,
+      "method": "PUT",
+      "name": "PutGraph",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "output": "example.samples#PutGraphOutput",
+      "outputSchema": {
+        "$defs": {
+          "example.samples.GraphId": {
+            "description": "A graph id: a type prefix and 26 Crockford base-32 characters.",
+            "pattern": "^g_[0-9a-hjkmnp-tv-z]{26}(_[a-z]{3})?$",
+            "type": "string"
+          },
+          "example.samples.GraphName": {
+            "description": "A DNS-style name.",
+            "maxLength": 63,
+            "minLength": 3,
+            "pattern": "^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$",
+            "type": "string"
+          },
+          "example.samples.PutGraphOutput": {
+            "properties": {
+              "graphId": {
+                "description": "A graph id: a type prefix and 26 Crockford base-32 characters.",
+                "pattern": "^g_[0-9a-hjkmnp-tv-z]{26}(_[a-z]{3})?$",
+                "type": "string"
+              },
+              "lastModified": {
+                "anyOf": [
+                  {
+                    "format": "date-time",
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "name": {
+                "description": "A DNS-style name.",
+                "maxLength": 63,
+                "minLength": 3,
+                "pattern": "^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$",
+                "type": "string"
+              }
+            },
+            "required": [
+              "graphId",
+              "name"
+            ],
+            "type": "object"
+          },
+          "smithy.api.Timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "properties": {
+          "graphId": {
+            "description": "A graph id: a type prefix and 26 Crockford base-32 characters.",
+            "pattern": "^g_[0-9a-hjkmnp-tv-z]{26}(_[a-z]{3})?$",
+            "type": "string"
+          },
+          "lastModified": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "name": {
+            "description": "A DNS-style name.",
+            "maxLength": 63,
+            "minLength": 3,
+            "pattern": "^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "graphId",
+          "name"
+        ],
+        "type": "object"
+      },
+      "pagination": null,
+      "protocol": "crucibleJson",
+      "protocolHeaders": {
+        "Content-Type": "application/json"
+      },
+      "readonly": false,
+      "request": {
+        "body": [
+          "clientToken",
+          "name",
+          "tier",
+          "priority",
+          "port",
+          "negative",
+          "ratio",
+          "price",
+          "enabled",
+          "created",
+          "updated",
+          "thumbnail",
+          "settings",
+          "tags",
+          "regions",
+          "limits",
+          "source",
+          "description",
+          "count"
+        ],
+        "headerEncodings": {},
+        "headers": [
+          {
+            "member": "region",
+            "name": "X-Region"
+          },
+          {
+            "member": "modifiedSince",
+            "name": "If-Modified-Since"
+          }
+        ],
+        "labels": [
+          "graphId"
+        ],
+        "payload": null,
+        "query": [
+          {
+            "member": "since",
+            "name": "since"
+          }
+        ],
+        "timestampFormats": {}
+      },
+      "resources": [],
+      "response": {
+        "body": [
+          "graphId",
+          "name"
+        ],
+        "headerEncodings": {},
+        "headers": [
+          {
+            "member": "lastModified",
+            "name": "Last-Modified"
+          }
+        ],
+        "labels": [],
+        "payload": null,
+        "query": [],
+        "timestampFormats": {}
+      },
+      "responseProtocolHeaders": {
+        "Content-Type": "application/json"
+      },
+      "sample": {
+        "fallbacks": [],
+        "generated": true,
+        "input": {
+          "body": {
+            "clientToken": "3f2b8c1e-5d4a-4e6f-9a7b-0c1d2e3f4a5b",
+            "count": 42,
+            "created": 1768469400,
+            "description": "description",
+            "enabled": false,
+            "limits": {
+              "key": 1024,
+              "key1": 1025
+            },
+            "name": "name",
+            "negative": -5,
+            "port": 1024,
+            "price": 10.5,
+            "priority": 1,
+            "ratio": 0.25,
+            "regions": [
+              "mg-regi-0"
+            ],
+            "settings": {},
+            "source": {
+              "snapshot": "a7d19042ffd96ef88907aede937fccc5ccd8da9cf716222654ba8b0ba69812c5"
+            },
+            "tags": [
+              "tags",
+              "tags1"
+            ],
+            "thumbnail": "dGh1bWJuYWls",
+            "tier": "small",
+            "updated": "2026-01-15T09:30:00Z"
+          },
+          "headers": {
+            "Content-Type": "application/json",
+            "If-Modified-Since": "2026-01-15T09:30:00Z",
+            "X-Region": "mg-regi-0"
+          },
+          "labels": {
+            "graphId": "g_nzkxa7xw7j3ez927px4d2ejtz7"
+          },
+          "method": "PUT",
+          "payload": null,
+          "query": [
+            {
+              "name": "since",
+              "value": "2026-01-15T09:30:00Z"
+            }
+          ],
+          "uri": "/graphs/g_nzkxa7xw7j3ez927px4d2ejtz7?since=2026-01-15T09%3A30%3A00Z"
+        },
+        "minimalInput": {
+          "body": {
+            "name": "name",
+            "tags": [
+              "tags",
+              "tags1"
+            ]
+          },
+          "headers": {
+            "Content-Type": "application/json"
+          },
+          "labels": {
+            "graphId": "g_nzkxa7xw7j3ez927px4d2ejtz7"
+          },
+          "method": "PUT",
+          "payload": null,
+          "query": [],
+          "uri": "/graphs/g_nzkxa7xw7j3ez927px4d2ejtz7"
+        },
+        "output": {
+          "body": {
+            "graphId": "g_nzkxa7xw7j3ez927px4d2ejtz7",
+            "name": "name"
+          },
+          "headers": {
+            "Content-Type": "application/json",
+            "Last-Modified": "2026-01-15T09:30:00Z"
+          },
+          "labels": {},
+          "payload": null,
+          "query": []
+        }
+      },
+      "status": 200,
+      "uri": "/graphs/{graphId}"
+    },
+    "example.samples#Walk": {
+      "auth": [],
+      "documentation": {
+        "html": "<p>Recursive input and output.</p>\n",
+        "markdown": "Recursive input and output.",
+        "text": "Recursive input and output."
+      },
+      "errors": [],
+      "examples": [],
+      "id": "example.samples#Walk",
+      "idempotencyToken": null,
+      "idempotent": false,
+      "input": "example.samples#WalkInput",
+      "inputSchema": {
+        "$defs": {
+          "example.samples.Expression": {
+            "description": "Recursion through a union whose first arm leads back.",
+            "oneOf": [
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "not": {
+                    "$ref": "#/$defs/example.samples.Expression"
+                  }
+                },
+                "required": [
+                  "not"
+                ],
+                "type": "object"
+              },
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "value": {
+                    "$ref": "#/$defs/smithy.api.Integer"
+                  }
+                },
+                "required": [
+                  "value"
+                ],
+                "type": "object"
+              }
+            ]
+          },
+          "example.samples.Label": {
+            "maxLength": 8,
+            "minLength": 2,
+            "type": "string"
+          },
+          "example.samples.Node": {
+            "description": "A tree: recursion through an optional list.",
+            "properties": {
+              "children": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/example.samples.Nodes"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "name": {
+                "maxLength": 8,
+                "minLength": 2,
+                "type": "string"
+              }
+            },
+            "required": [
+              "name"
+            ],
+            "type": "object"
+          },
+          "example.samples.Nodes": {
+            "items": {
+              "$ref": "#/$defs/example.samples.Node"
+            },
+            "type": "array",
+            "uniqueItems": false
+          },
+          "example.samples.WalkInput": {
+            "properties": {
+              "expression": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/example.samples.Expression"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "root": {
+                "$ref": "#/$defs/example.samples.Node"
+              }
+            },
+            "required": [
+              "root"
+            ],
+            "type": "object"
+          },
+          "smithy.api.Integer": {
+            "format": "int32",
+            "maximum": 2147483647,
+            "minimum": -2147483648,
+            "type": "integer"
+          }
+        },
+        "properties": {
+          "expression": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/example.samples.Expression"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "root": {
+            "$ref": "#/$defs/example.samples.Node"
+          }
+        },
+        "required": [
+          "root"
+        ],
+        "type": "object"
+      },
+      "internal": false,
+      "method": "POST",
+      "name": "Walk",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "output": "example.samples#WalkOutput",
+      "outputSchema": {
+        "$defs": {
+          "example.samples.Label": {
+            "maxLength": 8,
+            "minLength": 2,
+            "type": "string"
+          },
+          "example.samples.Node": {
+            "description": "A tree: recursion through an optional list.",
+            "properties": {
+              "children": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/example.samples.Nodes"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "name": {
+                "maxLength": 8,
+                "minLength": 2,
+                "type": "string"
+              }
+            },
+            "required": [
+              "name"
+            ],
+            "type": "object"
+          },
+          "example.samples.Nodes": {
+            "items": {
+              "$ref": "#/$defs/example.samples.Node"
+            },
+            "type": "array",
+            "uniqueItems": false
+          },
+          "example.samples.WalkOutput": {
+            "properties": {
+              "root": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/example.samples.Node"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "type": "object"
+          }
+        },
+        "properties": {
+          "root": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/example.samples.Node"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object"
+      },
+      "pagination": null,
+      "protocol": "crucibleJson",
+      "protocolHeaders": {
+        "Content-Type": "application/json"
+      },
+      "readonly": false,
+      "request": {
+        "body": [
+          "root",
+          "expression"
+        ],
+        "headerEncodings": {},
+        "headers": [],
+        "labels": [],
+        "payload": null,
+        "query": [],
+        "timestampFormats": {}
+      },
+      "resources": [],
+      "response": {
+        "body": [
+          "root"
+        ],
+        "headerEncodings": {},
+        "headers": [],
+        "labels": [],
+        "payload": null,
+        "query": [],
+        "timestampFormats": {}
+      },
+      "responseProtocolHeaders": {
+        "Content-Type": "application/json"
+      },
+      "sample": {
+        "fallbacks": [],
+        "generated": true,
+        "input": {
+          "body": {
+            "expression": {
+              "value": 1
+            },
+            "root": {
+              "children": [],
+              "name": "name"
+            }
+          },
+          "headers": {
+            "Content-Type": "application/json"
+          },
+          "labels": {},
+          "method": "POST",
+          "payload": null,
+          "query": [],
+          "uri": "/walk"
+        },
+        "minimalInput": {
+          "body": {
+            "root": {
+              "name": "name"
+            }
+          },
+          "headers": {
+            "Content-Type": "application/json"
+          },
+          "labels": {},
+          "method": "POST",
+          "payload": null,
+          "query": [],
+          "uri": "/walk"
+        },
+        "output": {
+          "body": {
+            "root": {
+              "children": [],
+              "name": "name"
+            }
+          },
+          "headers": {
+            "Content-Type": "application/json"
+          },
+          "labels": {},
+          "payload": null,
+          "query": []
+        }
+      },
+      "status": 200,
+      "uri": "/walk"
+    }
+  },
+  "resources": {},
+  "service": {
+    "auth": [],
+    "authSchemes": {},
+    "documentation": {
+      "html": "<p>Every kind of value the reference samples.</p>\n",
+      "markdown": "Every kind of value the reference samples.",
+      "text": "Every kind of value the reference samples."
+    },
+    "errors": [],
+    "id": "example.samples#Samples",
+    "internal": false,
+    "name": "Samples",
+    "notes": {
+      "deprecated": null,
+      "externalDocs": {},
+      "since": null,
+      "unstable": false
+    },
+    "protocol": "crucibleJson",
+    "resourceRoots": [],
+    "title": "Samples",
+    "version": "1"
+  },
+  "shapes": {
+    "example.samples#Archive": {
+      "constraints": {
+        "length": {
+          "max": null,
+          "min": 2000
+        },
+        "pattern": null,
+        "range": null,
+        "uniqueItems": false
+      },
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "id": "example.samples#Archive",
+      "internal": false,
+      "kind": "blob",
+      "members": [],
+      "name": "Archive",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false
+    },
+    "example.samples#Bell": {
+      "constraints": {
+        "length": null,
+        "pattern": "^[\\x01]$",
+        "range": null,
+        "uniqueItems": false
+      },
+      "documentation": {
+        "html": "<p>A control character, valid in a body and not in a header.</p>\n",
+        "markdown": "A control character, valid in a body and not in a header.",
+        "text": "A control character, valid in a body and not in a header."
+      },
+      "id": "example.samples#Bell",
+      "internal": false,
+      "kind": "string",
+      "members": [],
+      "name": "Bell",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false
+    },
+    "example.samples#Blank": {
+      "constraints": {
+        "length": null,
+        "pattern": "^\\s+$",
+        "range": null,
+        "uniqueItems": false
+      },
+      "documentation": {
+        "html": "<p>White space only: list items differ by length.</p>\n",
+        "markdown": "White space only: list items differ by length.",
+        "text": "White space only: list items differ by length."
+      },
+      "id": "example.samples#Blank",
+      "internal": false,
+      "kind": "string",
+      "members": [],
+      "name": "Blank",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false
+    },
+    "example.samples#Blanks": {
+      "constraints": {
+        "length": {
+          "max": 3,
+          "min": 2
+        },
+        "pattern": null,
+        "range": null,
+        "uniqueItems": true
+      },
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "id": "example.samples#Blanks",
+      "internal": false,
+      "kind": "list",
+      "members": [
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": "^\\s+$",
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "internal": false,
+          "name": "member",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": true,
+          "required": false,
+          "sensitive": false,
+          "target": "example.samples#Blank",
+          "targetName": "Blank",
+          "targetType": "string",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "member"
+        }
+      ],
+      "name": "Blanks",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false,
+      "set": true,
+      "sparse": false
+    },
+    "example.samples#Bounded": {
+      "constraints": {
+        "length": null,
+        "pattern": "\\bword\\b",
+        "range": null,
+        "uniqueItems": false
+      },
+      "documentation": {
+        "html": "<p>Outside the generator's subset: a word boundary.</p>\n",
+        "markdown": "Outside the generator's subset: a word boundary.",
+        "text": "Outside the generator's subset: a word boundary."
+      },
+      "id": "example.samples#Bounded",
+      "internal": false,
+      "kind": "string",
+      "members": [],
+      "name": "Bounded",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false
+    },
+    "example.samples#BulkInput": {
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "error": null,
+      "id": "example.samples#BulkInput",
+      "internal": false,
+      "kind": "structure",
+      "members": [
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": {
+              "max": null,
+              "min": 150
+            },
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "internal": false,
+          "name": "labels",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": true,
+          "required": false,
+          "sensitive": false,
+          "target": "example.samples#ManyLabels",
+          "targetName": "ManyLabels",
+          "targetType": "list",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "labels"
+        },
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": {
+              "max": null,
+              "min": 150
+            },
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "internal": false,
+          "name": "limits",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": true,
+          "required": false,
+          "sensitive": false,
+          "target": "example.samples#ManyLimits",
+          "targetName": "ManyLimits",
+          "targetType": "map",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "limits"
+        },
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": {
+              "max": null,
+              "min": 9223372036854775808
+            },
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "internal": false,
+          "name": "huge",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": true,
+          "required": false,
+          "sensitive": false,
+          "target": "example.samples#Huge",
+          "targetName": "Huge",
+          "targetType": "bigInteger",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "huge"
+        },
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": {
+              "max": 0.29999999999999999999,
+              "min": null
+            },
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "internal": false,
+          "name": "tight",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": true,
+          "required": false,
+          "sensitive": false,
+          "target": "example.samples#Tight",
+          "targetName": "Tight",
+          "targetType": "bigDecimal",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "tight"
+        },
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": {
+              "max": null,
+              "min": 2000
+            },
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "internal": false,
+          "name": "essay",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": true,
+          "required": false,
+          "sensitive": false,
+          "target": "example.samples#Essay",
+          "targetName": "Essay",
+          "targetType": "string",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "essay"
+        },
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": {
+              "max": null,
+              "min": 2000
+            },
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "internal": false,
+          "name": "archive",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": true,
+          "required": false,
+          "sensitive": false,
+          "target": "example.samples#Archive",
+          "targetName": "Archive",
+          "targetType": "blob",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "archive"
+        },
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": {
+              "max": 3,
+              "min": 2
+            },
+            "pattern": null,
+            "range": null,
+            "uniqueItems": true
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "internal": false,
+          "name": "blanks",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": true,
+          "required": false,
+          "sensitive": false,
+          "target": "example.samples#Blanks",
+          "targetName": "Blanks",
+          "targetType": "list",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "blanks"
+        },
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": "^[\\x01]$",
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "internal": false,
+          "name": "bell",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": true,
+          "required": false,
+          "sensitive": false,
+          "target": "example.samples#Bell",
+          "targetName": "Bell",
+          "targetType": "string",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "bell"
+        },
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": "^[\\x01]$",
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "internal": false,
+          "name": "headerBell",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": true,
+          "required": false,
+          "sensitive": false,
+          "target": "example.samples#Bell",
+          "targetName": "Bell",
+          "targetType": "string",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "headerBell"
+        },
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": "^\\s+$",
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "internal": false,
+          "name": "headerBlank",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": true,
+          "required": false,
+          "sensitive": false,
+          "target": "example.samples#Blank",
+          "targetName": "Blank",
+          "targetType": "string",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "headerBlank"
+        }
+      ],
+      "name": "BulkInput",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false
+    },
+    "example.samples#Busy": {
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "error": {
+        "bindings": {
+          "body": [
+            "message"
+          ],
+          "headerEncodings": {},
+          "headers": [
+            {
+              "member": "retryAfter",
+              "name": "Retry-After"
+            }
+          ],
+          "labels": [],
+          "payload": null,
+          "query": [],
+          "timestampFormats": {}
+        },
+        "bodyDiscriminator": "Busy",
+        "discriminatorHeader": "X-Crucible-Error",
+        "fault": "server",
+        "protocolHeaders": {
+          "Content-Type": "application/json"
+        },
+        "retryable": {
+          "throttling": false
+        },
+        "sample": {
+          "fallbacks": [],
+          "generated": true,
+          "message": {
+            "body": {
+              "__type": "Busy",
+              "message": "message"
+            },
+            "headers": {
+              "Content-Type": "application/json",
+              "Retry-After": "1",
+              "X-Crucible-Error": "Busy"
+            },
+            "labels": {},
+            "payload": null,
+            "query": []
+          }
+        },
+        "shape": "example.samples#Busy",
+        "status": 503,
+        "wireCode": "Busy"
+      },
+      "id": "example.samples#Busy",
+      "internal": false,
+      "kind": "structure",
+      "members": [
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "internal": false,
+          "name": "message",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": false,
+          "required": true,
+          "sensitive": false,
+          "target": "smithy.api#String",
+          "targetName": "String",
+          "targetType": "string",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "message"
+        },
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "internal": false,
+          "name": "retryAfter",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": true,
+          "required": false,
+          "sensitive": false,
+          "target": "smithy.api#Integer",
+          "targetName": "Integer",
+          "targetType": "integer",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "retryAfter"
+        }
+      ],
+      "name": "Busy",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false
+    },
+    "example.samples#CheckInput": {
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "error": null,
+      "id": "example.samples#CheckInput",
+      "internal": false,
+      "kind": "structure",
+      "members": [
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": "\\bword\\b",
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "internal": false,
+          "name": "bounded",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": true,
+          "required": false,
+          "sensitive": false,
+          "target": "example.samples#Bounded",
+          "targetName": "Bounded",
+          "targetType": "string",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "bounded"
+        }
+      ],
+      "name": "CheckInput",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false
+    },
+    "example.samples#EpochTime": {
+      "constraints": {
+        "length": null,
+        "pattern": null,
+        "range": null,
+        "uniqueItems": false
+      },
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "id": "example.samples#EpochTime",
+      "internal": false,
+      "kind": "timestamp",
+      "members": [],
+      "name": "EpochTime",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false
+    },
+    "example.samples#Essay": {
+      "constraints": {
+        "length": {
+          "max": null,
+          "min": 2000
+        },
+        "pattern": null,
+        "range": null,
+        "uniqueItems": false
+      },
+      "documentation": {
+        "html": "<p>Longer than a sample shows.</p>\n",
+        "markdown": "Longer than a sample shows.",
+        "text": "Longer than a sample shows."
+      },
+      "id": "example.samples#Essay",
+      "internal": false,
+      "kind": "string",
+      "members": [],
+      "name": "Essay",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false
+    },
+    "example.samples#Expression": {
+      "documentation": {
+        "html": "<p>Recursion through a union whose first arm leads back.</p>\n",
+        "markdown": "Recursion through a union whose first arm leads back.",
+        "text": "Recursion through a union whose first arm leads back."
+      },
+      "error": null,
+      "id": "example.samples#Expression",
+      "internal": false,
+      "kind": "union",
+      "members": [
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "internal": false,
+          "name": "not",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": true,
+          "required": false,
+          "sensitive": false,
+          "target": "example.samples#Expression",
+          "targetName": "Expression",
+          "targetType": "union",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "not"
+        },
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "internal": false,
+          "name": "value",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": true,
+          "required": false,
+          "sensitive": false,
+          "target": "smithy.api#Integer",
+          "targetName": "Integer",
+          "targetType": "integer",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "value"
+        }
+      ],
+      "name": "Expression",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false
+    },
+    "example.samples#GetGraphInput": {
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "error": null,
+      "id": "example.samples#GetGraphInput",
+      "internal": false,
+      "kind": "structure",
+      "members": [
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": "^g_[0-9a-hjkmnp-tv-z]{26}(_[a-z]{3})?$",
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "internal": false,
+          "name": "graphId",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": false,
+          "required": true,
+          "sensitive": false,
+          "target": "example.samples#GraphId",
+          "targetName": "GraphId",
+          "targetType": "string",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "graphId"
+        }
+      ],
+      "name": "GetGraphInput",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false
+    },
+    "example.samples#GetGraphOutput": {
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "error": null,
+      "id": "example.samples#GetGraphOutput",
+      "internal": false,
+      "kind": "structure",
+      "members": [
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": {
+              "max": 16,
+              "min": 4
+            },
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "internal": false,
+          "name": "thumbnail",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": true,
+          "required": false,
+          "sensitive": false,
+          "target": "example.samples#Thumbnail",
+          "targetName": "Thumbnail",
+          "targetType": "blob",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "thumbnail"
+        }
+      ],
+      "name": "GetGraphOutput",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false
+    },
+    "example.samples#GraphId": {
+      "constraints": {
+        "length": null,
+        "pattern": "^g_[0-9a-hjkmnp-tv-z]{26}(_[a-z]{3})?$",
+        "range": null,
+        "uniqueItems": false
+      },
+      "documentation": {
+        "html": "<p>A graph id: a type prefix and 26 Crockford base-32 characters.</p>\n",
+        "markdown": "A graph id: a type prefix and 26 Crockford base-32 characters.",
+        "text": "A graph id: a type prefix and 26 Crockford base-32 characters."
+      },
+      "id": "example.samples#GraphId",
+      "internal": false,
+      "kind": "string",
+      "members": [],
+      "name": "GraphId",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false
+    },
+    "example.samples#GraphName": {
+      "constraints": {
+        "length": {
+          "max": 63,
+          "min": 3
+        },
+        "pattern": "^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$",
+        "range": null,
+        "uniqueItems": false
+      },
+      "documentation": {
+        "html": "<p>A DNS-style name.</p>\n",
+        "markdown": "A DNS-style name.",
+        "text": "A DNS-style name."
+      },
+      "id": "example.samples#GraphName",
+      "internal": false,
+      "kind": "string",
+      "members": [],
+      "name": "GraphName",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false
+    },
+    "example.samples#GraphNotFound": {
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "error": {
+        "bindings": {
+          "body": [
+            "message",
+            "graphId"
+          ],
+          "headerEncodings": {},
+          "headers": [],
+          "labels": [],
+          "payload": null,
+          "query": [],
+          "timestampFormats": {}
+        },
+        "bodyDiscriminator": "GraphNotFound",
+        "discriminatorHeader": "X-Crucible-Error",
+        "fault": "client",
+        "protocolHeaders": {
+          "Content-Type": "application/json"
+        },
+        "retryable": null,
+        "sample": {
+          "fallbacks": [],
+          "generated": true,
+          "message": {
+            "body": {
+              "__type": "GraphNotFound",
+              "graphId": "g_nzkxa7xw7j3ez927px4d2ejtz7",
+              "message": "message"
+            },
+            "headers": {
+              "Content-Type": "application/json",
+              "X-Crucible-Error": "GraphNotFound"
+            },
+            "labels": {},
+            "payload": null,
+            "query": []
+          }
+        },
+        "shape": "example.samples#GraphNotFound",
+        "status": 404,
+        "wireCode": "GraphNotFound"
+      },
+      "id": "example.samples#GraphNotFound",
+      "internal": false,
+      "kind": "structure",
+      "members": [
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "internal": false,
+          "name": "message",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": false,
+          "required": true,
+          "sensitive": false,
+          "target": "smithy.api#String",
+          "targetName": "String",
+          "targetType": "string",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "message"
+        },
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": "^g_[0-9a-hjkmnp-tv-z]{26}(_[a-z]{3})?$",
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "internal": false,
+          "name": "graphId",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": true,
+          "required": false,
+          "sensitive": false,
+          "target": "example.samples#GraphId",
+          "targetName": "GraphId",
+          "targetType": "string",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "graphId"
+        }
+      ],
+      "name": "GraphNotFound",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false
+    },
+    "example.samples#Huge": {
+      "constraints": {
+        "length": null,
+        "pattern": null,
+        "range": {
+          "max": null,
+          "min": 9223372036854775808
+        },
+        "uniqueItems": false
+      },
+      "documentation": {
+        "html": "<p>Above every 64-bit integer.</p>\n",
+        "markdown": "Above every 64-bit integer.",
+        "text": "Above every 64-bit integer."
+      },
+      "id": "example.samples#Huge",
+      "internal": false,
+      "kind": "bigInteger",
+      "members": [],
+      "name": "Huge",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false
+    },
+    "example.samples#Label": {
+      "constraints": {
+        "length": {
+          "max": 8,
+          "min": 2
+        },
+        "pattern": null,
+        "range": null,
+        "uniqueItems": false
+      },
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "id": "example.samples#Label",
+      "internal": false,
+      "kind": "string",
+      "members": [],
+      "name": "Label",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false
+    },
+    "example.samples#Limits": {
+      "constraints": {
+        "length": {
+          "max": null,
+          "min": 2
+        },
+        "pattern": null,
+        "range": null,
+        "uniqueItems": false
+      },
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "id": "example.samples#Limits",
+      "internal": false,
+      "kind": "map",
+      "members": [
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": {
+              "max": 63,
+              "min": 3
+            },
+            "pattern": "^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$",
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "internal": false,
+          "name": "key",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": true,
+          "required": false,
+          "sensitive": false,
+          "target": "example.samples#GraphName",
+          "targetName": "GraphName",
+          "targetType": "string",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "key"
+        },
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": {
+              "max": 65535,
+              "min": 1024
+            },
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "internal": false,
+          "name": "value",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": true,
+          "required": false,
+          "sensitive": false,
+          "target": "example.samples#Port",
+          "targetName": "Port",
+          "targetType": "integer",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "value"
+        }
+      ],
+      "name": "Limits",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false,
+      "sparse": false
+    },
+    "example.samples#ManyLabels": {
+      "constraints": {
+        "length": {
+          "max": null,
+          "min": 150
+        },
+        "pattern": null,
+        "range": null,
+        "uniqueItems": false
+      },
+      "documentation": {
+        "html": "<p>More labels than a sample shows.</p>\n",
+        "markdown": "More labels than a sample shows.",
+        "text": "More labels than a sample shows."
+      },
+      "id": "example.samples#ManyLabels",
+      "internal": false,
+      "kind": "list",
+      "members": [
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": {
+              "max": 8,
+              "min": 2
+            },
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "internal": false,
+          "name": "member",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": true,
+          "required": false,
+          "sensitive": false,
+          "target": "example.samples#Label",
+          "targetName": "Label",
+          "targetType": "string",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "member"
+        }
+      ],
+      "name": "ManyLabels",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false,
+      "set": false,
+      "sparse": false
+    },
+    "example.samples#ManyLimits": {
+      "constraints": {
+        "length": {
+          "max": null,
+          "min": 150
+        },
+        "pattern": null,
+        "range": null,
+        "uniqueItems": false
+      },
+      "documentation": {
+        "html": "<p>More entries than a sample shows.</p>\n",
+        "markdown": "More entries than a sample shows.",
+        "text": "More entries than a sample shows."
+      },
+      "id": "example.samples#ManyLimits",
+      "internal": false,
+      "kind": "map",
+      "members": [
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": {
+              "max": 63,
+              "min": 3
+            },
+            "pattern": "^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$",
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "internal": false,
+          "name": "key",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": true,
+          "required": false,
+          "sensitive": false,
+          "target": "example.samples#GraphName",
+          "targetName": "GraphName",
+          "targetType": "string",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "key"
+        },
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": {
+              "max": 65535,
+              "min": 1024
+            },
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "internal": false,
+          "name": "value",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": true,
+          "required": false,
+          "sensitive": false,
+          "target": "example.samples#Port",
+          "targetName": "Port",
+          "targetType": "integer",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "value"
+        }
+      ],
+      "name": "ManyLimits",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false,
+      "sparse": false
+    },
+    "example.samples#Negative": {
+      "constraints": {
+        "length": null,
+        "pattern": null,
+        "range": {
+          "max": -5,
+          "min": null
+        },
+        "uniqueItems": false
+      },
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "id": "example.samples#Negative",
+      "internal": false,
+      "kind": "integer",
+      "members": [],
+      "name": "Negative",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false
+    },
+    "example.samples#Node": {
+      "documentation": {
+        "html": "<p>A tree: recursion through an optional list.</p>\n",
+        "markdown": "A tree: recursion through an optional list.",
+        "text": "A tree: recursion through an optional list."
+      },
+      "error": null,
+      "id": "example.samples#Node",
+      "internal": false,
+      "kind": "structure",
+      "members": [
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": {
+              "max": 8,
+              "min": 2
+            },
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "internal": false,
+          "name": "name",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": false,
+          "required": true,
+          "sensitive": false,
+          "target": "example.samples#Label",
+          "targetName": "Label",
+          "targetType": "string",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "name"
+        },
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "internal": false,
+          "name": "children",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": true,
+          "required": false,
+          "sensitive": false,
+          "target": "example.samples#Nodes",
+          "targetName": "Nodes",
+          "targetType": "list",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "children"
+        }
+      ],
+      "name": "Node",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false
+    },
+    "example.samples#Nodes": {
+      "constraints": {
+        "length": null,
+        "pattern": null,
+        "range": null,
+        "uniqueItems": false
+      },
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "id": "example.samples#Nodes",
+      "internal": false,
+      "kind": "list",
+      "members": [
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "internal": false,
+          "name": "member",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": true,
+          "required": false,
+          "sensitive": false,
+          "target": "example.samples#Node",
+          "targetName": "Node",
+          "targetType": "structure",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "member"
+        }
+      ],
+      "name": "Nodes",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false,
+      "set": false,
+      "sparse": false
+    },
+    "example.samples#Port": {
+      "constraints": {
+        "length": null,
+        "pattern": null,
+        "range": {
+          "max": 65535,
+          "min": 1024
+        },
+        "uniqueItems": false
+      },
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "id": "example.samples#Port",
+      "internal": false,
+      "kind": "integer",
+      "members": [],
+      "name": "Port",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false
+    },
+    "example.samples#Price": {
+      "constraints": {
+        "length": null,
+        "pattern": null,
+        "range": {
+          "max": null,
+          "min": 10.5
+        },
+        "uniqueItems": false
+      },
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "id": "example.samples#Price",
+      "internal": false,
+      "kind": "bigDecimal",
+      "members": [],
+      "name": "Price",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false
+    },
+    "example.samples#Printable": {
+      "constraints": {
+        "length": null,
+        "pattern": "^[^\\x00-\\x1F\\x7F-\\x9F]+$",
+        "range": null,
+        "uniqueItems": false
+      },
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "id": "example.samples#Printable",
+      "internal": false,
+      "kind": "string",
+      "members": [],
+      "name": "Printable",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false
+    },
+    "example.samples#Priority": {
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "id": "example.samples#Priority",
+      "internal": false,
+      "kind": "intEnum",
+      "members": [],
+      "name": "Priority",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false,
+      "values": [
+        {
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "internal": false,
+          "name": "LOW",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "value": 1
+        },
+        {
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "internal": false,
+          "name": "HIGH",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "value": 9
+        }
+      ]
+    },
+    "example.samples#PutGraphInput": {
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "error": null,
+      "id": "example.samples#PutGraphInput",
+      "internal": false,
+      "kind": "structure",
+      "members": [
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": "^g_[0-9a-hjkmnp-tv-z]{26}(_[a-z]{3})?$",
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "internal": false,
+          "name": "graphId",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": false,
+          "required": true,
+          "sensitive": false,
+          "target": "example.samples#GraphId",
+          "targetName": "GraphId",
+          "targetType": "string",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "graphId"
+        },
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "internal": false,
+          "name": "clientToken",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": true,
+          "required": false,
+          "sensitive": false,
+          "target": "smithy.api#String",
+          "targetName": "String",
+          "targetType": "string",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "clientToken"
+        },
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": "^[a-z]{2}-[a-z]{4,9}-[0-9]$",
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "internal": false,
+          "name": "region",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": true,
+          "required": false,
+          "sensitive": false,
+          "target": "example.samples#Region",
+          "targetName": "Region",
+          "targetType": "string",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "region"
+        },
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "internal": false,
+          "name": "since",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": true,
+          "required": false,
+          "sensitive": false,
+          "target": "smithy.api#Timestamp",
+          "targetName": "Timestamp",
+          "targetType": "timestamp",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "since"
+        },
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "internal": false,
+          "name": "modifiedSince",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": true,
+          "required": false,
+          "sensitive": false,
+          "target": "smithy.api#Timestamp",
+          "targetName": "Timestamp",
+          "targetType": "timestamp",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "modifiedSince"
+        },
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": {
+              "max": 63,
+              "min": 3
+            },
+            "pattern": "^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$",
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "internal": false,
+          "name": "name",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": false,
+          "required": true,
+          "sensitive": false,
+          "target": "example.samples#GraphName",
+          "targetName": "GraphName",
+          "targetType": "string",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "name"
+        },
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": "small",
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "internal": false,
+          "name": "tier",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": false,
+          "required": false,
+          "sensitive": false,
+          "target": "example.samples#Tier",
+          "targetName": "Tier",
+          "targetType": "enum",
+          "timestampFormat": "date-time",
+          "wireDefault": "small",
+          "wireName": "tier"
+        },
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "internal": false,
+          "name": "priority",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": true,
+          "required": false,
+          "sensitive": false,
+          "target": "example.samples#Priority",
+          "targetName": "Priority",
+          "targetType": "intEnum",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "priority"
+        },
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": {
+              "max": 65535,
+              "min": 1024
+            },
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "internal": false,
+          "name": "port",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": true,
+          "required": false,
+          "sensitive": false,
+          "target": "example.samples#Port",
+          "targetName": "Port",
+          "targetType": "integer",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "port"
+        },
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": {
+              "max": -5,
+              "min": null
+            },
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "internal": false,
+          "name": "negative",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": true,
+          "required": false,
+          "sensitive": false,
+          "target": "example.samples#Negative",
+          "targetName": "Negative",
+          "targetType": "integer",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "negative"
+        },
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": {
+              "max": 0.75,
+              "min": 0.25
+            },
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "internal": false,
+          "name": "ratio",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": true,
+          "required": false,
+          "sensitive": false,
+          "target": "example.samples#Ratio",
+          "targetName": "Ratio",
+          "targetType": "double",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "ratio"
+        },
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": {
+              "max": null,
+              "min": 10.5
+            },
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "internal": false,
+          "name": "price",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": true,
+          "required": false,
+          "sensitive": false,
+          "target": "example.samples#Price",
+          "targetName": "Price",
+          "targetType": "bigDecimal",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "price"
+        },
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "internal": false,
+          "name": "enabled",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": true,
+          "required": false,
+          "sensitive": false,
+          "target": "smithy.api#Boolean",
+          "targetName": "Boolean",
+          "targetType": "boolean",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "enabled"
+        },
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "internal": false,
+          "name": "created",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": true,
+          "required": false,
+          "sensitive": false,
+          "target": "example.samples#EpochTime",
+          "targetName": "EpochTime",
+          "targetType": "timestamp",
+          "timestampFormat": "epoch-seconds",
+          "wireDefault": null,
+          "wireName": "created"
+        },
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "internal": false,
+          "name": "updated",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": true,
+          "required": false,
+          "sensitive": false,
+          "target": "smithy.api#Timestamp",
+          "targetName": "Timestamp",
+          "targetType": "timestamp",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "updated"
+        },
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": {
+              "max": 16,
+              "min": 4
+            },
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "internal": false,
+          "name": "thumbnail",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": true,
+          "required": false,
+          "sensitive": false,
+          "target": "example.samples#Thumbnail",
+          "targetName": "Thumbnail",
+          "targetType": "blob",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "thumbnail"
+        },
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "internal": false,
+          "name": "settings",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": true,
+          "required": false,
+          "sensitive": false,
+          "target": "smithy.api#Document",
+          "targetName": "Document",
+          "targetType": "document",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "settings"
+        },
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": {
+              "max": 3,
+              "min": 2
+            },
+            "pattern": null,
+            "range": null,
+            "uniqueItems": true
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "internal": false,
+          "name": "tags",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": false,
+          "required": true,
+          "sensitive": false,
+          "target": "example.samples#Tags",
+          "targetName": "Tags",
+          "targetType": "list",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "tags"
+        },
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "internal": false,
+          "name": "regions",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": true,
+          "required": false,
+          "sensitive": false,
+          "target": "example.samples#Regions",
+          "targetName": "Regions",
+          "targetType": "list",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "regions"
+        },
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": {
+              "max": null,
+              "min": 2
+            },
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "internal": false,
+          "name": "limits",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": true,
+          "required": false,
+          "sensitive": false,
+          "target": "example.samples#Limits",
+          "targetName": "Limits",
+          "targetType": "map",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "limits"
+        },
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "internal": false,
+          "name": "source",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": true,
+          "required": false,
+          "sensitive": false,
+          "target": "example.samples#Source",
+          "targetName": "Source",
+          "targetType": "union",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "source"
+        },
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": "^[^\\x00-\\x1F\\x7F-\\x9F]+$",
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "internal": false,
+          "name": "description",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": true,
+          "required": false,
+          "sensitive": false,
+          "target": "example.samples#Printable",
+          "targetName": "Printable",
+          "targetType": "string",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "description"
+        },
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": 42,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "internal": false,
+          "name": "count",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": false,
+          "required": false,
+          "sensitive": false,
+          "target": "smithy.api#Long",
+          "targetName": "Long",
+          "targetType": "long",
+          "timestampFormat": "date-time",
+          "wireDefault": 42,
+          "wireName": "count"
+        }
+      ],
+      "name": "PutGraphInput",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false
+    },
+    "example.samples#PutGraphOutput": {
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "error": null,
+      "id": "example.samples#PutGraphOutput",
+      "internal": false,
+      "kind": "structure",
+      "members": [
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": "^g_[0-9a-hjkmnp-tv-z]{26}(_[a-z]{3})?$",
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "internal": false,
+          "name": "graphId",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": false,
+          "required": true,
+          "sensitive": false,
+          "target": "example.samples#GraphId",
+          "targetName": "GraphId",
+          "targetType": "string",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "graphId"
+        },
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": {
+              "max": 63,
+              "min": 3
+            },
+            "pattern": "^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$",
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "internal": false,
+          "name": "name",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": false,
+          "required": true,
+          "sensitive": false,
+          "target": "example.samples#GraphName",
+          "targetName": "GraphName",
+          "targetType": "string",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "name"
+        },
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "internal": false,
+          "name": "lastModified",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": true,
+          "required": false,
+          "sensitive": false,
+          "target": "smithy.api#Timestamp",
+          "targetName": "Timestamp",
+          "targetType": "timestamp",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "lastModified"
+        }
+      ],
+      "name": "PutGraphOutput",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false
+    },
+    "example.samples#Ratio": {
+      "constraints": {
+        "length": null,
+        "pattern": null,
+        "range": {
+          "max": 0.75,
+          "min": 0.25
+        },
+        "uniqueItems": false
+      },
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "id": "example.samples#Ratio",
+      "internal": false,
+      "kind": "double",
+      "members": [],
+      "name": "Ratio",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false
+    },
+    "example.samples#Region": {
+      "constraints": {
+        "length": null,
+        "pattern": "^[a-z]{2}-[a-z]{4,9}-[0-9]$",
+        "range": null,
+        "uniqueItems": false
+      },
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "id": "example.samples#Region",
+      "internal": false,
+      "kind": "string",
+      "members": [],
+      "name": "Region",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false
+    },
+    "example.samples#Regions": {
+      "constraints": {
+        "length": null,
+        "pattern": null,
+        "range": null,
+        "uniqueItems": false
+      },
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "id": "example.samples#Regions",
+      "internal": false,
+      "kind": "list",
+      "members": [
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": "^[a-z]{2}-[a-z]{4,9}-[0-9]$",
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "internal": false,
+          "name": "member",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": true,
+          "required": false,
+          "sensitive": false,
+          "target": "example.samples#Region",
+          "targetName": "Region",
+          "targetType": "string",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "member"
+        }
+      ],
+      "name": "Regions",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false,
+      "set": false,
+      "sparse": false
+    },
+    "example.samples#Sha": {
+      "constraints": {
+        "length": null,
+        "pattern": "^[a-f0-9]{64}$",
+        "range": null,
+        "uniqueItems": false
+      },
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "id": "example.samples#Sha",
+      "internal": false,
+      "kind": "string",
+      "members": [],
+      "name": "Sha",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false
+    },
+    "example.samples#Source": {
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "error": null,
+      "id": "example.samples#Source",
+      "internal": false,
+      "kind": "union",
+      "members": [
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": "^[a-f0-9]{64}$",
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "internal": false,
+          "name": "snapshot",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": true,
+          "required": false,
+          "sensitive": false,
+          "target": "example.samples#Sha",
+          "targetName": "Sha",
+          "targetType": "string",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "snapshot"
+        },
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "internal": false,
+          "name": "empty",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": true,
+          "required": false,
+          "sensitive": false,
+          "target": "smithy.api#Unit",
+          "targetName": "Unit",
+          "targetType": "unit",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "empty"
+        }
+      ],
+      "name": "Source",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false
+    },
+    "example.samples#Tags": {
+      "constraints": {
+        "length": {
+          "max": 3,
+          "min": 2
+        },
+        "pattern": null,
+        "range": null,
+        "uniqueItems": true
+      },
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "id": "example.samples#Tags",
+      "internal": false,
+      "kind": "list",
+      "members": [
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": {
+              "max": 8,
+              "min": 2
+            },
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "internal": false,
+          "name": "member",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": true,
+          "required": false,
+          "sensitive": false,
+          "target": "example.samples#Label",
+          "targetName": "Label",
+          "targetType": "string",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "member"
+        }
+      ],
+      "name": "Tags",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false,
+      "set": true,
+      "sparse": false
+    },
+    "example.samples#Thumbnail": {
+      "constraints": {
+        "length": {
+          "max": 16,
+          "min": 4
+        },
+        "pattern": null,
+        "range": null,
+        "uniqueItems": false
+      },
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "id": "example.samples#Thumbnail",
+      "internal": false,
+      "kind": "blob",
+      "members": [],
+      "name": "Thumbnail",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false
+    },
+    "example.samples#Tier": {
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "id": "example.samples#Tier",
+      "internal": false,
+      "kind": "enum",
+      "members": [],
+      "name": "Tier",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false,
+      "values": [
+        {
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "internal": false,
+          "name": "SMALL",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "value": "small"
+        },
+        {
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "internal": false,
+          "name": "LARGE",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "value": "large"
+        }
+      ]
+    },
+    "example.samples#Tight": {
+      "constraints": {
+        "length": null,
+        "pattern": null,
+        "range": {
+          "max": 0.29999999999999999999,
+          "min": null
+        },
+        "uniqueItems": false
+      },
+      "documentation": {
+        "html": "<p>Just below 0.3, which a double would round onto.</p>\n",
+        "markdown": "Just below 0.3, which a double would round onto.",
+        "text": "Just below 0.3, which a double would round onto."
+      },
+      "id": "example.samples#Tight",
+      "internal": false,
+      "kind": "bigDecimal",
+      "members": [],
+      "name": "Tight",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false
+    },
+    "example.samples#WalkInput": {
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "error": null,
+      "id": "example.samples#WalkInput",
+      "internal": false,
+      "kind": "structure",
+      "members": [
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "internal": false,
+          "name": "root",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": false,
+          "required": true,
+          "sensitive": false,
+          "target": "example.samples#Node",
+          "targetName": "Node",
+          "targetType": "structure",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "root"
+        },
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "internal": false,
+          "name": "expression",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": true,
+          "required": false,
+          "sensitive": false,
+          "target": "example.samples#Expression",
+          "targetName": "Expression",
+          "targetType": "union",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "expression"
+        }
+      ],
+      "name": "WalkInput",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false
+    },
+    "example.samples#WalkOutput": {
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "error": null,
+      "id": "example.samples#WalkOutput",
+      "internal": false,
+      "kind": "structure",
+      "members": [
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "internal": false,
+          "name": "root",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": true,
+          "required": false,
+          "sensitive": false,
+          "target": "example.samples#Node",
+          "targetName": "Node",
+          "targetType": "structure",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "root"
+        }
+      ],
+      "name": "WalkOutput",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false
+    },
+    "smithy.api#Boolean": {
+      "constraints": {
+        "length": null,
+        "pattern": null,
+        "range": null,
+        "uniqueItems": false
+      },
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "id": "smithy.api#Boolean",
+      "internal": false,
+      "kind": "boolean",
+      "members": [],
+      "name": "Boolean",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false
+    },
+    "smithy.api#Document": {
+      "constraints": {
+        "length": null,
+        "pattern": null,
+        "range": null,
+        "uniqueItems": false
+      },
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "id": "smithy.api#Document",
+      "internal": false,
+      "kind": "document",
+      "members": [],
+      "name": "Document",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false
+    },
+    "smithy.api#Integer": {
+      "constraints": {
+        "length": null,
+        "pattern": null,
+        "range": null,
+        "uniqueItems": false
+      },
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "id": "smithy.api#Integer",
+      "internal": false,
+      "kind": "integer",
+      "members": [],
+      "name": "Integer",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false
+    },
+    "smithy.api#Long": {
+      "constraints": {
+        "length": null,
+        "pattern": null,
+        "range": null,
+        "uniqueItems": false
+      },
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "id": "smithy.api#Long",
+      "internal": false,
+      "kind": "long",
+      "members": [],
+      "name": "Long",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false
+    },
+    "smithy.api#String": {
+      "constraints": {
+        "length": null,
+        "pattern": null,
+        "range": null,
+        "uniqueItems": false
+      },
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "id": "smithy.api#String",
+      "internal": false,
+      "kind": "string",
+      "members": [],
+      "name": "String",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false
+    },
+    "smithy.api#Timestamp": {
+      "constraints": {
+        "length": null,
+        "pattern": null,
+        "range": null,
+        "uniqueItems": false
+      },
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "id": "smithy.api#Timestamp",
+      "internal": false,
+      "kind": "timestamp",
+      "members": [],
+      "name": "Timestamp",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false
+    },
+    "smithy.api#Unit": {
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "id": "smithy.api#Unit",
+      "internal": false,
+      "kind": "unit",
+      "members": [],
+      "name": "Unit",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false
+    }
+  }
+}

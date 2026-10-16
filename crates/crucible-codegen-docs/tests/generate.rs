@@ -420,3 +420,19 @@ fn file_description_preserves_arbitrary_example_keys() {
         serde_json::from_str::<Value>(json).unwrap()
     );
 }
+
+/// Generated samples, with the placeholders a sample cannot avoid named on
+/// their page as the static reference names them: `tests/models/samples`.
+#[test]
+fn samples_match_reviewed_goldens() {
+    golden("samples-external", "samples", Audience::External);
+    let page = files("samples", Audience::External)
+        .into_iter()
+        .find(|f| f.path == "src/operations/API_Check.md")
+        .expect("the Check page");
+    assert!(
+        page.contents.contains(
+            "Placeholders that do not meet their constraints: <code>input.bounded</code>."
+        )
+    );
+}

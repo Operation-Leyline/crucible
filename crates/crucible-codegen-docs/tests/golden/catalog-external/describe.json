@@ -330,8 +330,7 @@
           "labels": {},
           "payload": null,
           "query": []
-        },
-        "title": "Generated sample"
+        }
       },
       "status": 200,
       "uri": "/ListItems"
@@ -720,8 +719,7 @@
           "labels": {},
           "payload": null,
           "query": []
-        },
-        "title": "Generated sample"
+        }
       },
       "status": 200,
       "uri": "/WriteItem"

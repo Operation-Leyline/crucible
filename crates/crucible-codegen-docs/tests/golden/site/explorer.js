@@ -423,7 +423,7 @@
     if (!s || !s.input) return null;
     const out = [
       sectionHeading(op, "examples", "Generated sample"),
-      h("p", { class: "cx-muted cx-generated" }, "This operation has no examples. This generated sample follows the model's types and constraints; it was not written by the API's authors."),
+      h("p", { class: "cx-muted cx-generated" }, "This operation has no examples. Generated from the model's types and constraints, not written by the API's authors. Nothing beyond those constraints was checked, so the service may still refuse a value (a query its parser rejects, an id that does not exist)."),
     ];
     const fallbacks = list(s.fallbacks).map((f) => text(f.path));
     if (fallbacks.length) out.push(h("p", { class: "cx-muted" }, `Placeholders that do not meet their constraints: ${fallbacks.join(", ")}.`));

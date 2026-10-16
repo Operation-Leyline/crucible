@@ -185,7 +185,20 @@
           "query": [],
           "uri": "/orgs/org_organizationid/graphs/g_graphid/archive"
         },
-        "minimalInput": null,
+        "minimalInput": {
+          "body": null,
+          "headers": {
+            "Content-Type": "application/json"
+          },
+          "labels": {
+            "graphId": "g_graphid",
+            "organizationId": "org_organizationid"
+          },
+          "method": "POST",
+          "payload": null,
+          "query": [],
+          "uri": "/orgs/org_organizationid/graphs/g_graphid/archive"
+        },
         "output": {
           "body": {
             "archived": false
@@ -196,8 +209,7 @@
           "labels": {},
           "payload": null,
           "query": []
-        },
-        "title": "Generated sample"
+        }
       },
       "status": 200,
       "uri": "/orgs/{organizationId}/graphs/{graphId}/archive"
@@ -387,7 +399,21 @@
           "query": [],
           "uri": "/orgs/org_organizationid/graphs"
         },
-        "minimalInput": null,
+        "minimalInput": {
+          "body": {
+            "name": "name"
+          },
+          "headers": {
+            "Content-Type": "application/json"
+          },
+          "labels": {
+            "organizationId": "org_organizationid"
+          },
+          "method": "POST",
+          "payload": null,
+          "query": [],
+          "uri": "/orgs/org_organizationid/graphs"
+        },
         "output": {
           "body": {
             "created": "g_created"
@@ -398,8 +424,7 @@
           "labels": {},
           "payload": null,
           "query": []
-        },
-        "title": "Generated sample"
+        }
       },
       "status": 200,
       "uri": "/orgs/{organizationId}/graphs"
@@ -743,8 +768,7 @@
           "labels": {},
           "payload": null,
           "query": []
-        },
-        "title": "Generated sample"
+        }
       },
       "status": 200,
       "uri": "/orgs/{organizationId}/graphs/{graphId}/query"
@@ -928,7 +952,18 @@
           "query": [],
           "uri": "/orgs/org_organizationid/graphs/g_graph"
         },
-        "minimalInput": null,
+        "minimalInput": {
+          "body": null,
+          "headers": {},
+          "labels": {
+            "graph": "g_graph",
+            "organizationId": "org_organizationid"
+          },
+          "method": "GET",
+          "payload": null,
+          "query": [],
+          "uri": "/orgs/org_organizationid/graphs/g_graph"
+        },
         "output": {
           "body": {
             "name": "name"
@@ -939,8 +974,7 @@
           "labels": {},
           "payload": null,
           "query": []
-        },
-        "title": "Generated sample"
+        }
       },
       "status": 200,
       "uri": "/orgs/{organizationId}/graphs/{graph}"
@@ -1090,7 +1124,17 @@
           "query": [],
           "uri": "/orgs/org_organizationid"
         },
-        "minimalInput": null,
+        "minimalInput": {
+          "body": null,
+          "headers": {},
+          "labels": {
+            "organizationId": "org_organizationid"
+          },
+          "method": "GET",
+          "payload": null,
+          "query": [],
+          "uri": "/orgs/org_organizationid"
+        },
         "output": {
           "body": {
             "name": "name"
@@ -1101,8 +1145,7 @@
           "labels": {},
           "payload": null,
           "query": []
-        },
-        "title": "Generated sample"
+        }
       },
       "status": 200,
       "uri": "/orgs/{organizationId}"
@@ -1220,7 +1263,15 @@
           "query": [],
           "uri": "/user"
         },
-        "minimalInput": null,
+        "minimalInput": {
+          "body": null,
+          "headers": {},
+          "labels": {},
+          "method": "GET",
+          "payload": null,
+          "query": [],
+          "uri": "/user"
+        },
         "output": {
           "body": {
             "subject": "subject"
@@ -1231,8 +1282,7 @@
           "labels": {},
           "payload": null,
           "query": []
-        },
-        "title": "Generated sample"
+        }
       },
       "status": 200,
       "uri": "/user"
@@ -1335,7 +1385,15 @@
           "query": [],
           "uri": "/health"
         },
-        "minimalInput": null,
+        "minimalInput": {
+          "body": null,
+          "headers": {},
+          "labels": {},
+          "method": "GET",
+          "payload": null,
+          "query": [],
+          "uri": "/health"
+        },
         "output": {
           "body": {
             "status": "status"
@@ -1346,8 +1404,7 @@
           "labels": {},
           "payload": null,
           "query": []
-        },
-        "title": "Generated sample"
+        }
       },
       "status": 200,
       "uri": "/health"
@@ -1522,7 +1579,17 @@
           "query": [],
           "uri": "/orgs/org_organizationid/graphs"
         },
-        "minimalInput": null,
+        "minimalInput": {
+          "body": null,
+          "headers": {},
+          "labels": {
+            "organizationId": "org_organizationid"
+          },
+          "method": "GET",
+          "payload": null,
+          "query": [],
+          "uri": "/orgs/org_organizationid/graphs"
+        },
         "output": {
           "body": {
             "names": [
@@ -1535,8 +1602,7 @@
           "labels": {},
           "payload": null,
           "query": []
-        },
-        "title": "Generated sample"
+        }
       },
       "status": 200,
       "uri": "/orgs/{organizationId}/graphs"
@@ -1704,7 +1770,19 @@
           "query": [],
           "uri": "/orgs/org_organizationid/graphs/g_graphid/histories/h_historyid/restore"
         },
-        "minimalInput": null,
+        "minimalInput": {
+          "body": null,
+          "headers": {},
+          "labels": {
+            "graphId": "g_graphid",
+            "historyId": "h_historyid",
+            "organizationId": "org_organizationid"
+          },
+          "method": "POST",
+          "payload": null,
+          "query": [],
+          "uri": "/orgs/org_organizationid/graphs/g_graphid/histories/h_historyid/restore"
+        },
         "output": {
           "body": {
             "restored": false
@@ -1715,8 +1793,7 @@
           "labels": {},
           "payload": null,
           "query": []
-        },
-        "title": "Generated sample"
+        }
       },
       "status": 200,
       "uri": "/orgs/{organizationId}/graphs/{graphId}/histories/{historyId}/restore"
@@ -1986,8 +2063,7 @@
           "labels": {},
           "payload": null,
           "query": []
-        },
-        "title": "Generated sample"
+        }
       },
       "status": 200,
       "uri": "/orgs/{organizationId}/graphs/{graphId}/rewrite"

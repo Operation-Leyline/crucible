@@ -9,6 +9,7 @@
 //! The caller still checks the result against the compiled pattern: this
 //! module is a generator, not a second regex engine.
 
+use std::cell::OnceCell;
 use std::iter::Peekable;
 use std::str::Chars;
 
@@ -33,6 +34,9 @@ enum Node {
 struct Class {
     negated: bool,
     items: Vec<Item>,
+    /// [`Class::choices`], worked out once per class: for a negated class
+    /// it can mean a scan of every scalar value.
+    choices: OnceCell<Vec<char>>,
 }
 
 #[derive(Debug, Clone)]
@@ -67,6 +71,7 @@ impl Class {
         Self {
             negated,
             items: ranges.iter().map(|&(a, b)| Item::Range(a, b)).collect(),
+            choices: OnceCell::new(),
         }
     }
 
@@ -79,20 +84,24 @@ impl Class {
     }
 
     /// The readable characters in the class, in [`READABLE`] order, then the
-    /// rest of printable ASCII; else the first character it holds at all.
-    fn choices(&self) -> Vec<char> {
-        let mut choices: Vec<char> = READABLE.chars().filter(|&c| self.contains(c)).collect();
-        choices.extend(
-            ('!'..='~')
-                .chain([' '])
-                .filter(|&c| !READABLE.contains(c) && self.contains(c)),
-        );
-        if choices.is_empty()
-            && let Some(c) = ('\u{a1}'..=char::MAX).find(|&c| self.contains(c))
-        {
-            choices.push(c);
-        }
-        choices
+    /// rest of printable ASCII and the space; else the first character it
+    /// holds at all, a control character included (the caller decides
+    /// whether its location can carry one). Empty: the class holds nothing.
+    fn choices(&self) -> &[char] {
+        self.choices.get_or_init(|| {
+            let mut choices: Vec<char> = READABLE.chars().filter(|&c| self.contains(c)).collect();
+            choices.extend(
+                ('!'..='~')
+                    .chain([' '])
+                    .filter(|&c| !READABLE.contains(c) && self.contains(c)),
+            );
+            if choices.is_empty()
+                && let Some(c) = ('\0'..=char::MAX).find(|&c| self.contains(c))
+            {
+                choices.push(c);
+            }
+            choices
+        })
     }
 }
 
@@ -341,23 +350,36 @@ fn range_items(set: &Class) -> Vec<Item> {
         .collect()
 }
 
-/// The shortest and longest strings a node matches; `None` is unbounded.
-fn bounds(node: &Node) -> (usize, Option<usize>) {
-    match node {
+/// Lengths in characters: the shortest, and the longest (`None`: unbounded).
+type Bounds = (usize, Option<usize>);
+
+/// The shortest and longest strings a node matches; `None` when it matches
+/// none at all (an empty class, such as `[^\s\S]`, and what must contain one).
+fn bounds(node: &Node) -> Option<Bounds> {
+    Some(match node {
         Node::Anchor => (0, Some(0)),
-        Node::Literal(_) | Node::Class(_) => (1, Some(1)),
-        Node::Concat(nodes) => nodes.iter().map(bounds).fold((0, Some(0)), |a, b| {
-            (a.0 + b.0, a.1.zip(b.1).map(|(x, y)| x + y))
-        }),
+        Node::Literal(_) => (1, Some(1)),
+        Node::Class(class) if class.choices().is_empty() => return None,
+        Node::Class(_) => (1, Some(1)),
+        Node::Concat(nodes) => nodes.iter().try_fold((0, Some(0)), |a, node| {
+            let b = bounds(node)?;
+            Some((a.0 + b.0, a.1.zip(b.1).map(|(x, y)| x + y)))
+        })?,
         Node::Alternation(nodes) => {
-            let all: Vec<_> = nodes.iter().map(bounds).collect();
+            let all: Vec<_> = nodes.iter().filter_map(bounds).collect();
+            if all.is_empty() {
+                return None;
+            }
             (
                 all.iter().map(|b| b.0).min().unwrap_or(0),
                 all.iter().try_fold(0, |m, b| b.1.map(|x| m.max(x))),
             )
         }
         Node::Repeat { node, min, max } => {
-            let (low, high) = bounds(node);
+            let Some((low, high)) = bounds(node) else {
+                // No copy can be made, so only none is.
+                return (*min == 0).then_some((0, Some(0)));
+            };
             let high = match (high, max) {
                 (Some(0), _) => Some(0),
                 (Some(h), Some(m)) => Some(h.saturating_mul(*m)),
@@ -365,7 +387,7 @@ fn bounds(node: &Node) -> (usize, Option<usize>) {
             };
             (low.saturating_mul(*min), high)
         }
-    }
+    })
 }
 
 /// How many characters of the shortest match come from classes, which a
@@ -429,7 +451,7 @@ impl Writer {
                 }
             }
             Node::Alternation(nodes) => nodes.iter().find_map(|node| {
-                let (low, high) = bounds(node);
+                let (low, high) = bounds(node)?;
                 if len < low || high.is_some_and(|h| len > h) {
                     return None;
                 }
@@ -441,7 +463,7 @@ impl Writer {
                 written
             }),
             Node::Concat(nodes) => {
-                let all: Vec<_> = nodes.iter().map(bounds).collect();
+                let all = nodes.iter().map(bounds).collect::<Option<Vec<_>>>()?;
                 let least: usize = all.iter().map(|b| b.0).sum();
                 if len < least {
                     return None;
@@ -470,7 +492,9 @@ impl Writer {
                 })
             }
             Node::Repeat { node, min, max } => {
-                let (low, high) = bounds(node);
+                let Some((low, high)) = bounds(node) else {
+                    return (len == 0 && *min == 0).then(String::new);
+                };
                 let varied = varied || (max == &Some(*min) && *min >= 2);
                 if len == 0 {
                     return (*min == 0 || low == 0)
@@ -501,7 +525,7 @@ impl Writer {
         len: usize,
         varied: bool,
     ) -> Option<String> {
-        let (low, high) = bounds(node);
+        let (low, high) = bounds(node)?;
         let each = vec![(low, high); count];
         let plan = spread(&each, len.checked_sub(low * count)?)?;
         let saved = (self.cursor, self.state);
@@ -531,16 +555,20 @@ fn spread(all: &[(usize, Option<usize>)], mut extra: usize) -> Option<Vec<usize>
 /// A string matching `pattern` whose length in characters is within
 /// `min..=max`, readable where the pattern allows it: the open parts spell
 /// out `hint` (a member name), fixed runs (`[0-9a-f]{32}`) vary. `seed`
-/// selects another value of the same pattern, for distinct list items.
+/// selects another value of the same pattern, for distinct list items, and
+/// `stretch` lengthens the preferred string, for items that came out alike.
 pub(crate) fn generate(
     pattern: &str,
     min: usize,
     max: Option<usize>,
     hint: &str,
     seed: u64,
+    stretch: usize,
 ) -> Result<String, String> {
     let node = parse(pattern)?;
-    let (low, high) = bounds(&node);
+    let Some((low, high)) = bounds(&node) else {
+        return Err("the pattern matches no string".into());
+    };
     let from = low.max(min);
     let to = match (high, max) {
         (Some(a), Some(b)) => Some(a.min(b)),
@@ -554,7 +582,7 @@ pub(crate) fn generate(
     } else {
         format!("{hint}{seed}").chars().collect()
     };
-    let preferred = low + hint.len().saturating_sub(open_positions(&node));
+    let preferred = low + hint.len().saturating_sub(open_positions(&node)) + stretch;
     let clamp = |len: usize| to.map_or(len, |to| len.min(to)).max(from);
     let mut lengths = vec![clamp(preferred)];
     lengths.extend(
@@ -585,7 +613,16 @@ pub(crate) fn generate(
 
 #[cfg(test)]
 mod tests {
-    use super::generate;
+    /// [`super::generate`] at the preferred length.
+    fn generate(
+        pattern: &str,
+        min: usize,
+        max: Option<usize>,
+        hint: &str,
+        seed: u64,
+    ) -> Result<String, String> {
+        super::generate(pattern, min, max, hint, seed, 0)
+    }
 
     fn matches(pattern: &str, text: &str) -> bool {
         regex::Regex::new(pattern).unwrap().is_match(text)
@@ -689,5 +726,29 @@ mod tests {
         for pattern in ["\\ba\\b", "^(?=a)a$", "^(a)\\1$", "^[]$", "^(?<n>a)$"] {
             assert!(generate(pattern, 0, None, "x", 0).is_err(), "{pattern}");
         }
+    }
+
+    #[test]
+    fn a_class_of_control_characters_yields_one() {
+        assert_eq!(generate("^[\\x01]$", 0, None, "x", 0).unwrap(), "\u{1}");
+    }
+
+    #[test]
+    fn an_empty_class_is_refused_at_once() {
+        // Each class's characters are worked out once, and a class holding
+        // none makes the pattern unsatisfiable before any search.
+        let started = std::time::Instant::now();
+        let error = generate("^[^\\s\\S]{1,40}$", 0, None, "x", 0).unwrap_err();
+        assert!(error.contains("matches no string"), "{error}");
+        assert!(started.elapsed().as_secs() < 5);
+        // Optional, it only rules out its own alternative.
+        assert_eq!(generate("^a(?:[^\\s\\S])?$", 0, None, "x", 0).unwrap(), "a");
+    }
+
+    #[test]
+    fn stretch_lengthens_an_open_pattern() {
+        let short = generate("^\\s+$", 0, None, "", 1).unwrap();
+        let long = super::generate("^\\s+$", 0, None, "", 1, 1).unwrap();
+        assert_eq!(long.chars().count(), short.chars().count() + 1);
     }
 }

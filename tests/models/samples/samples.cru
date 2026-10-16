@@ -2,5 +2,5 @@
 service Samples {
     version "1"
     protocol json
-    operations [PutGraph, GetGraph, Walk, Check]
+    operations [PutGraph, GetGraph, Walk, Check, Bulk]
 }

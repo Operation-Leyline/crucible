@@ -245,7 +245,7 @@ provisioning member bindings or interpreting design-time resource references.
 | `readonly`, `idempotent`, `idempotencyToken` | Retry/idempotency flags and nullable input token member name |
 | `pagination` | Null or `{inputToken, outputToken, items, pageSize}`; token strings and nullable item/page-size member paths |
 | `examples` | Ordered example objects described below |
-| `sample` | A generated example, below: `{title, generated: true, input, minimalInput, output, fallbacks}` |
+| `sample` | A generated example, below: `{generated: true, input, minimalInput, output, fallbacks}` |
 | `requirements` | Absent when the operation declares nothing; else `{kind}`: `none`, `internal`, `pending` with `reason`, or `list` with `clauses` (`mode`, `permission`, `resourceType`, `tier`, and optional `bindings`, `when`, `documentation`) and `partial: true` when further clauses name internal permissions this audience does not see. A clause's `documentation` is the model's raw Markdown string, not a common documentation object; beside it, `renderedDocumentation` is the same text as a common documentation object (`markdown`, `html`, `text`) |
 | `requirementSentences`, `requirementDocumentation` | Beside `requirements`: what the caller must hold, as Markdown strings and as common documentation objects (`markdown`, `html`, `text`), since they carry model text. The two arrays are index-aligned. An entry may hold several paragraphs (a handler clause's longer documentation follows the sentences as its own entry) |
 
@@ -303,28 +303,31 @@ Every operation also carries a `sample`, and every error's metadata a
 `sample`, generated from the model alone (`crucible_codegen_common::sample`)
 so a reader sees a realistic request and response where the model declares
 no `example`. Explicit examples stay authoritative: a sample is labelled
-`generated: true` and titled "Generated sample", and the renderers show it
-only for an operation without examples.
+`generated: true`, and the renderers show it, headed "Generated sample",
+only for an operation without examples. A sample knows only the model: it
+meets the types and constraints, and nothing the service checks beyond
+them (a query its parser accepts, an id that exists), which the renderers
+say beside it. An `example` is how a model shows a value that works.
 
 A sample's `input`, `minimalInput` and `output` are wire messages in the same
 form as an example's, built by the same code: labels, query, headers, body,
 payload, and for inputs the method and percent-encoded URI. `input`
 includes every optional member, for a complete picture; `minimalInput` has
 only what the server requires (required members without a default), and is
-null when that is the same request. An error's `message` is its response as
+always present, so a reader need not compare the two. An error's `message` is its response as
 an error example's would be. Values follow the model, deterministically:
 
 | Shape | Sample |
 |---|---|
 | string | matches its `pattern` within its length bounds; open parts spell the member name, fixed runs (an id's body, a hash) vary; without a pattern, the member name, padded or cut to its length |
 | idempotency token | a fixed UUID, when its constraints allow one |
-| integer kinds, floats, decimals | 1 (1.5 for fractional kinds), moved to the nearest bound when outside the range |
+| integer kinds, floats, decimals | 1 (1.5 for fractional kinds), moved to the nearest bound when outside the range; a bound is used as the model writes it, and `bigInteger` and `bigDecimal` are exact past 64 bits |
 | boolean | `false` |
 | enum, intEnum | the first value |
 | timestamp | 2026-01-15T09:30:00Z, in the member's resolved format |
 | blob | the member name's bytes within the length bounds, base64 |
 | document | `{}` |
-| list, map | one entry, or the minimum length; distinct for `unique` lists and for map keys |
+| list, map | one entry, or the minimum length up to 100; distinct for `unique` lists (strings grow longer where a pattern allows few values) and for map keys |
 | union | the first member, or the first that does not close a cycle |
 | a member with a default | the default |
 
@@ -335,9 +338,13 @@ generator supports anchors, literals and escapes (`\d`, `\w`, `\s`, their
 complements, `\xHH`, `\uHHHH`, `\cX`), `.`, character classes with ranges and
 negation, capturing and `(?:)` groups, alternation, and the quantifiers `?`,
 `*`, `+`, `{n}`, `{n,}` and `{n,m}`, lazy or not. Each generated string is
-checked against the compiled pattern and length. A value that cannot be
-generated (a word boundary, a back reference or look-around, bounds no
-string meets) becomes a readable placeholder and an entry in the sample's
+checked against the compiled pattern and length. Strings and blobs stop at
+1024 characters or bytes. A header, path label or query value avoids
+control characters and white space at either end, which HTTP does not
+carry intact, trying other values of its pattern first. A value that cannot
+be generated (a word boundary, a back reference or look-around, bounds no
+string meets, a minimum past those limits, a header value its pattern
+leaves no other choice for) becomes a readable placeholder and an entry in the sample's
 `fallbacks`: `{path, shape, pattern, reason}`, where `path` names the value
 as example diagnostics do (`input.name`, `input.tags[0]`) and `shape` the
 member that constrains it. An empty `fallbacks` means the sample passes the

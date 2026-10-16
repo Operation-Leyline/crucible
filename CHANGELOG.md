@@ -29,8 +29,8 @@ version's section when it is prepared.
   examples. `crucible_codegen_common::sample` builds them
   ([docs/docs.md](docs/docs.md#generated-samples)).
 - Policy: `[rules.examples]` reports operations without an `example`
-  (`examples.operations`) and errors an operation returns without
-  documentation (`examples.errors`). Its checks are warnings unless
+  (`examples.operations`) and errors an operation declares that none of
+  its examples shows (`examples.errors`). Its checks are warnings unless
   configured otherwise ([docs/api-policy.md](docs/api-policy.md#example-coverage)).
 
 - `.cru`: the compiler lowers resources. `ir::Service::resources` holds every

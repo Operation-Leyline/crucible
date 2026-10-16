@@ -1,11 +1,12 @@
 //! Generated samples pass the model's own validation: the property every
 //! `tests/models` package is held to, and what each sampling rule yields.
 
+use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 
 use crucible_codegen_common::describe;
 use crucible_codegen_common::sample::{self, Fallback, Sample, Variant};
-use crucible_ir::ir::{Constraints, Service, Shape};
+use crucible_ir::ir::{Bindings, Constraints, Service, Shape};
 use crucible_ir::{Audience, ShapeId, project};
 use serde_json::{Value, json};
 
@@ -18,7 +19,45 @@ fn load(name: &str) -> Service {
         .unwrap_or_else(|rendered| panic!("{name}:\n{rendered}"))
 }
 
-/// Every package that compiles, as the server and as external readers see it.
+/// The packages written for the compiler to refuse: nothing to sample.
+const REFUSED: &[&str] = &[
+    "patterns-unsupported",
+    "recursive-output",
+    "resource-entry-refusals",
+];
+
+/// Every fallback a package's samples report, as `package: shape: path`.
+/// Anything else is a value the generator should have made.
+const FALLBACKS: &[&str] = &[
+    // A word boundary, and a class that holds nothing.
+    "patterns: example.patterns#CheckInput$boundary: CheckInput.boundary",
+    "patterns: example.patterns#CheckInput$boundary: input.boundary",
+    "patterns: example.patterns#CheckInput$empty: CheckInput.empty",
+    "patterns: example.patterns#CheckInput$empty: input.empty",
+    // Lengths past the sample's limits.
+    "samples: example.samples#Archive: Archive",
+    "samples: example.samples#BulkInput$archive: BulkInput.archive",
+    "samples: example.samples#BulkInput$archive: input.archive",
+    "samples: example.samples#BulkInput$essay: BulkInput.essay",
+    "samples: example.samples#BulkInput$essay: input.essay",
+    "samples: example.samples#BulkInput$labels: BulkInput.labels",
+    "samples: example.samples#BulkInput$labels: input.labels",
+    "samples: example.samples#BulkInput$limits: BulkInput.limits",
+    "samples: example.samples#BulkInput$limits: input.limits",
+    "samples: example.samples#Essay: Essay",
+    "samples: example.samples#ManyLabels: ManyLabels",
+    "samples: example.samples#ManyLimits: ManyLimits",
+    // Header values HTTP cannot carry intact (only where they are headers).
+    "samples: example.samples#BulkInput$headerBell: input.headerBell",
+    "samples: example.samples#BulkInput$headerBlank: input.headerBlank",
+    // A word boundary.
+    "samples: example.samples#Bounded: Bounded",
+    "samples: example.samples#CheckInput$bounded: CheckInput.bounded",
+    "samples: example.samples#CheckInput$bounded: input.bounded",
+];
+
+/// Every package, as the server and as external readers see it; a package
+/// that does not load must be one of [`REFUSED`].
 fn services() -> Vec<(String, Service)> {
     let mut dirs: Vec<_> = std::fs::read_dir(models())
         .unwrap()
@@ -27,10 +66,11 @@ fn services() -> Vec<(String, Service)> {
         .collect();
     dirs.sort();
     let mut services = Vec::new();
+    let mut refused = Vec::new();
     for dir in dirs {
         let name = dir.file_name().unwrap().to_string_lossy().into_owned();
-        // Packages the compiler refuses have nothing to sample.
         let Ok(service) = crucible_lang::load_service(&dir) else {
+            refused.push(name);
             continue;
         };
         if let Ok(external) = project(&service, Audience::External) {
@@ -38,8 +78,17 @@ fn services() -> Vec<(String, Service)> {
         }
         services.push((name, service));
     }
-    assert!(services.len() > 20, "the packages load");
+    assert_eq!(refused, REFUSED, "the packages that do not load");
     services
+}
+
+/// The members a binding sends as text, as the description passes them.
+fn text(b: &Bindings) -> Vec<&str> {
+    b.labels
+        .iter()
+        .map(String::as_str)
+        .chain(b.query.iter().chain(&b.headers).map(|q| q.member.as_str()))
+        .collect()
 }
 
 /// The model's checks on `sample`, less the problems at a reported fallback.
@@ -70,29 +119,30 @@ fn unexplained(
 
 /// Checks every sample of `service`: each operation's full and minimal
 /// input and its output, each error, and each shape. Collects the problems
-/// no fallback explains, and the fallbacks.
+/// no fallback explains, and the fallbacks as `name: shape: path`.
 fn check_service(
     name: &str,
     service: &Service,
     failures: &mut Vec<String>,
-    fallbacks: &mut Vec<String>,
+    fallbacks: &mut BTreeSet<String>,
 ) {
     let mut check = |what: String, target: Option<&ShapeId>, c: &Constraints, s: Sample| {
         for problem in unexplained(service, path_of(&what), target, c, &s) {
             failures.push(format!("{name}: {what}: {problem}"));
         }
         for fallback in &s.fallbacks {
-            fallbacks.push(format!(
-                "{name}: {}: {:?}: {}",
-                fallback.shape,
-                fallback.pattern.as_deref().unwrap_or_default(),
-                fallback.reason
-            ));
+            fallbacks.insert(format!("{name}: {}: {}", fallback.shape, fallback.path));
         }
     };
     for op in &service.operations {
         for variant in [Variant::Full, Variant::Minimal] {
-            let input = sample::structure(service, op.input.as_ref(), variant, "input");
+            let input = sample::structure(
+                service,
+                op.input.as_ref(),
+                variant,
+                "input",
+                &text(&op.request),
+            );
             check(
                 format!("{} input", op.id),
                 op.input.as_ref(),
@@ -100,7 +150,13 @@ fn check_service(
                 input,
             );
         }
-        let output = sample::structure(service, op.output.as_ref(), Variant::Full, "output");
+        let output = sample::structure(
+            service,
+            op.output.as_ref(),
+            Variant::Full,
+            "output",
+            &text(&op.response),
+        );
         check(
             format!("{} output", op.id),
             op.output.as_ref(),
@@ -109,8 +165,11 @@ fn check_service(
         );
     }
     for (id, shape) in &service.shapes {
-        if matches!(shape, Shape::Structure(s) if s.error.is_some()) {
-            let error = sample::structure(service, Some(id), Variant::Full, "error");
+        if let Shape::Structure(s) = shape
+            && let Some(info) = &s.error
+        {
+            let headers: Vec<&str> = info.headers.iter().map(|h| h.member.as_str()).collect();
+            let error = sample::structure(service, Some(id), Variant::Full, "error", &headers);
             check(format!("{id} error"), Some(id), &none(), error);
         }
         let constraints = match shape {
@@ -127,37 +186,24 @@ fn check_service(
 #[test]
 fn every_sample_of_every_package_passes_the_models_validation() {
     let mut failures = Vec::new();
-    let mut fallbacks = Vec::new();
+    let mut fallbacks = BTreeSet::new();
     for (name, service) in services() {
+        // The external projection reports what the full model does.
+        let name = name.trim_end_matches(" (external)").to_owned();
         check_service(&name, &service, &mut failures, &mut fallbacks);
     }
-    assert!(
-        failures.is_empty(),
-        "{}",
-        failures.join(
-            "
-"
-        )
+    assert!(failures.is_empty(), "{}", failures.join("\n"));
+    let expected: BTreeSet<String> = FALLBACKS.iter().map(|f| (*f).to_owned()).collect();
+    assert_eq!(
+        fallbacks,
+        expected,
+        "the fallbacks, as reported:\n{}",
+        fallbacks
+            .iter()
+            .map(|f| format!("    {f:?},"))
+            .collect::<Vec<_>>()
+            .join("\n")
     );
-    // A fallback is a pattern or bound the generator cannot meet; only
-    // the packages written to have one do.
-    fallbacks.sort();
-    fallbacks.dedup();
-    for fallback in &fallbacks {
-        assert!(
-            ["patterns", "samples", "hostile-text"]
-                .iter()
-                .any(|package| fallback.starts_with(&format!("{package}:"))
-                    || fallback.starts_with(&format!("{package} (external):"))),
-            "unexpected fallback {fallback}
-all:
-{}",
-            fallbacks.join(
-                "
-"
-            )
-        );
-    }
 }
 
 /// The same check of the packages named in `CRUCIBLE_SAMPLE_PACKAGES`
@@ -171,40 +217,21 @@ fn named_packages_pass_the_models_validation() {
         return;
     };
     let mut failures = Vec::new();
-    let mut fallbacks = Vec::new();
+    let mut fallbacks = BTreeSet::new();
     for dir in std::env::split_paths(&paths) {
-        let service = crucible_lang::load_service(&dir).unwrap_or_else(|rendered| {
-            panic!(
-                "{}:
-{rendered}",
-                dir.display()
-            )
-        });
+        let service = crucible_lang::load_service(&dir)
+            .unwrap_or_else(|rendered| panic!("{}:\n{rendered}", dir.display()));
         let name = dir.display().to_string();
         println!("{name}: {} operations", service.operations.len());
         check_service(&name, &service, &mut failures, &mut fallbacks);
         let external = project(&service, Audience::External).unwrap();
-        check_service(
-            &format!("{name} (external)"),
-            &external,
-            &mut failures,
-            &mut fallbacks,
-        );
+        check_service(&name, &external, &mut failures, &mut fallbacks);
     }
-    fallbacks.sort();
-    fallbacks.dedup();
     println!("{} fallbacks", fallbacks.len());
     for fallback in &fallbacks {
         println!("  {fallback}");
     }
-    assert!(
-        failures.is_empty(),
-        "{}",
-        failures.join(
-            "
-"
-        )
-    );
+    assert!(failures.is_empty(), "{}", failures.join("\n"));
 }
 
 /// The path a sample's fallbacks use for `what`: `input`, `output`, `error`,
@@ -234,6 +261,15 @@ fn operation(name: &str) -> Value {
     let service = load("samples");
     let description = describe::describe(&service).unwrap();
     description.operations[&format!("example.samples#{name}")]["sample"].clone()
+}
+
+fn fallback_paths(sample: &Value) -> Vec<&str> {
+    sample["fallbacks"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|f| f["path"].as_str().unwrap())
+        .collect()
 }
 
 #[test]
@@ -325,10 +361,8 @@ fn recursion_ends_at_the_shortest_valid_value() {
 fn payloads_and_errors_are_sampled_on_the_wire() {
     let sample = operation("GetGraph");
     assert_eq!(sample["output"]["payload"]["encoding"], "base64");
-    assert!(
-        sample["minimalInput"].is_null(),
-        "the same as the full input"
-    );
+    // Always present, even where it is the same request.
+    assert_eq!(sample["minimalInput"], sample["input"]);
     let description = describe::describe(&load("samples")).unwrap();
     let busy = &description.shapes["example.samples#Busy"]["error"]["sample"];
     assert_eq!(busy["generated"], true);
@@ -351,6 +385,49 @@ fn a_pattern_outside_the_subset_is_reported_not_passed_off() {
             .unwrap()
             .contains("word boundaries")
     );
+}
+
+#[test]
+fn large_and_exact_values_are_capped_or_kept_exact() {
+    let sample = operation("Bulk");
+    let body = &sample["input"]["body"];
+    // Collections and strings stop at the sample's limits, and say so.
+    assert_eq!(body["labels"].as_array().unwrap().len(), sample::MAX_ITEMS);
+    assert_eq!(body["limits"].as_object().unwrap().len(), sample::MAX_ITEMS);
+    assert_eq!(
+        body["essay"].as_str().unwrap().chars().count(),
+        sample::MAX_LENGTH
+    );
+    assert_eq!(
+        fallback_paths(&sample),
+        [
+            "input.archive",
+            "input.essay",
+            "input.headerBell",
+            "input.headerBlank",
+            "input.labels",
+            "input.limits",
+        ]
+    );
+    let reasons: Vec<&str> = sample["fallbacks"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|f| f["reason"].as_str().unwrap())
+        .collect();
+    assert!(
+        reasons[4].contains("a minimum of 150 items is too many to show"),
+        "{reasons:?}"
+    );
+    assert!(reasons[2].contains("header, label or query"), "{reasons:?}");
+    // Past i64, and just below a value f64 rounds onto, exactly.
+    assert_eq!(body["huge"].to_string(), "9223372036854775808");
+    assert_eq!(body["tight"].to_string(), "0.29999999999999999999");
+    // In a body a control character is fine; white space items differ.
+    assert_eq!(body["bell"], "\u{1}");
+    let blanks = body["blanks"].as_array().unwrap();
+    assert_eq!(blanks.len(), 2);
+    assert_ne!(blanks[0], blanks[1]);
 }
 
 #[test]

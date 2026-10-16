@@ -61,7 +61,7 @@ impl Check<'_> {
             }
         }
         for member in &shape.members {
-            if member.required && member.default.is_none() && !members.contains_key(&member.name) {
+            if member.required_without_default() && !members.contains_key(&member.name) {
                 self.constraint(format!("{path}.{} is required", member.name));
             }
         }
