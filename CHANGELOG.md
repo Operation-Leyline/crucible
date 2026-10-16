@@ -54,6 +54,10 @@ version's section when it is prepared.
   gains `surface(&Service, &Options)`, and `crucible-codegen-common` the
   `surface` module. See `docs/docs.md`, "The `crucible.sdks/1` contract".
 
+- `crucible_client_runtime_rust::Document`, an alias of the
+  `serde_json::Value` that document fields hold, reachable from a generated
+  SDK as `runtime::Document` without depending on `serde_json`.
+
 - `.cru`: `template <role> { .. }` compiles. Every operation of the role gets
   the template's `paginated` arguments, `errors`, and `input` and `output`
   members; restating one is an error. Rules read them with the `template`

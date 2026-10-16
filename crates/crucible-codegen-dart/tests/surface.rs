@@ -279,3 +279,39 @@ fn derived_name_collisions_are_refused_not_suffixed() {
         "{diagnostics}"
     );
 }
+
+/// A member with a modeled default is no more omittable than a required
+/// one: the generated constructor (or encoder) requires both, and only
+/// `optional_on_client` members may be left out, as `optional` says.
+#[test]
+fn defaulted_members_are_as_optional_as_the_emitted_code_says() {
+    let service = load("client-docs-surface-defaults");
+    let surface = {
+        let options = options(None);
+        let surface = surface(&service, &options);
+        assert_declared(&service, &options, &surface);
+        surface
+    };
+    let configure = &surface.operations["example.defaults#Configure"];
+    fn optional(structure: &crucible_codegen_common::surface::Structure) -> Vec<(&str, bool)> {
+        structure
+            .members
+            .iter()
+            .map(|member| (member.member.as_str(), member.optional))
+            .collect()
+    }
+    assert_eq!(
+        optional(configure.input.as_ref().unwrap()),
+        [
+            ("name", false),
+            ("count", false),
+            ("mode", false),
+            ("token", true),
+            ("note", true)
+        ]
+    );
+    assert_eq!(
+        optional(configure.output.as_ref().unwrap()),
+        [("name", false), ("count", false), ("note", true)]
+    );
+}

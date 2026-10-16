@@ -204,8 +204,9 @@ on every attempt, so refreshed credentials are picked up.
 ## Models and errors
 
 Structures use public snake_case fields. `long` is `i64`, `integer` is
-`i32`, document values use `serde_json::Value`, and blobs use
-`weather_client::Blob`. A JSON blob is base64; an `@httpPayload` blob is raw bytes.
+`i32`, document values use `serde_json::Value` (the runtime's version,
+named `weather_client::runtime::Document` without a `serde_json`
+dependency), and blobs use `weather_client::Blob`. A JSON blob is base64; an `@httpPayload` blob is raw bytes.
 Use `Model::builder()` for ordinary construction. Fluent member methods accept
 native values and collections; string methods also accept `&str`. Unspecified
 optional members stay absent. `build()` returns the model directly when all

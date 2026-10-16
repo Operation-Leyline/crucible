@@ -90,3 +90,8 @@ pub mod __generated {
 
 /// Exact numbers for Smithy arbitrary-precision numeric shapes.
 pub use crucible_wire::number::{BigDecimal, BigInteger};
+
+/// A `document` value, as model fields hold it: the runtime's own
+/// `serde_json` version, which a caller reaches here without depending on
+/// that crate.
+pub type Document = serde_json::Value;

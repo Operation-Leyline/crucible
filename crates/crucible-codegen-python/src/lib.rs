@@ -56,6 +56,21 @@ pub fn capabilities() -> Capabilities {
     ])
 }
 
+/// Whether a structure's dataclass field defaults to `UNSET`, so a caller
+/// may leave it out: in an input every member not `@required` (the server
+/// applies a default), elsewhere a client-optional one; an idempotency
+/// token always, since the client fills it.
+pub(crate) fn omittable(
+    structure: &crucible_ir::ir::Structure,
+    member: &crucible_ir::ir::Member,
+) -> bool {
+    (if structure.input {
+        !member.required
+    } else {
+        member.optional_on_client()
+    }) || member.idempotency_token
+}
+
 pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnostics> {
     let exception = crucible_codegen_common::service_exception_name(service);
     service.require_capabilities(&capabilities())?;
@@ -342,13 +357,7 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
                 for m in &s.members {
                     let native = field(&m.name);
                     let t = ty(service, &m.target, "");
-                    let optional = matches!(shape, Shape::Union(_))
-                        || if s.input {
-                            !m.required
-                        } else {
-                            m.optional_on_client()
-                        }
-                        || m.idempotency_token;
+                    let optional = matches!(shape, Shape::Union(_)) || omittable(s, m);
                     if s.error.is_some() {
                         if native == "message" {
                             models.push_str("    message: str\n");

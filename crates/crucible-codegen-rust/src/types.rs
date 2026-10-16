@@ -58,7 +58,7 @@ pub(crate) fn public_builtin(kind: SimpleKind) -> &'static str {
         SimpleKind::Float => "f32",
         SimpleKind::Double => "f64",
         SimpleKind::Timestamp => "runtime::time::Timestamp",
-        SimpleKind::Document => "serde_json::Value",
+        SimpleKind::Document => "runtime::Document",
         SimpleKind::Blob => "runtime::Blob",
     }
 }

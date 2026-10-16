@@ -10,18 +10,9 @@ mod common;
 /// The `impl {name} {` block of `source`.
 fn block<'s>(source: &'s str, name: &str) -> &'s str {
     let start = source
-        .find(&format!(
-            "impl {name} {{
-"
-        ))
+        .find(&format!("impl {name} {{\n"))
         .unwrap_or_else(|| panic!("impl {name}"));
-    let end = source[start..]
-        .find(
-            "
-}
-",
-        )
-        .unwrap();
+    let end = source[start..].find("\n}\n").unwrap();
     &source[start..start + end]
 }
 
@@ -31,15 +22,7 @@ fn method<'s>(block: &'s str, name: &str) -> Option<&'s str> {
         .find(&format!("pub async fn {name}("))
         .or_else(|| block.find(&format!("pub fn {name}(")))?;
     let rest = &block[start..];
-    Some(
-        &rest[..rest
-            .find(
-                "
-    }
-",
-            )
-            .unwrap_or(rest.len())],
-    )
+    Some(&rest[..rest.find("\n    }\n").unwrap_or(rest.len())])
 }
 
 /// The type the declaration `start` names, up to `end`, with paths
@@ -48,6 +31,13 @@ fn declared_type(block: &str, start: &str, end: &str) -> String {
     let at = block.find(start).unwrap_or_else(|| panic!("{start}")) + start.len();
     let ty = &block[at..at + block[at..].find(end).unwrap()];
     surface::unqualified(ty, "::")
+}
+
+/// A surface type with its paths dropped, as [`declared_type`] reads the
+/// generated one: `runtime::Document` is the runtime's alias of the
+/// `serde_json::Value` fields hold.
+fn surface_type(ty: &str) -> String {
+    surface::unqualified(ty, "::").replace("Document", "Value")
 }
 
 /// Every name the surface gives is declared in the generated client: each
@@ -111,10 +101,17 @@ fn assert_declared(service: &crucible_ir::ir::Service, surface: &Surface) {
                 );
                 assert_eq!(
                     declared_type(builder, &start, ">) -> Self"),
-                    surface::unqualified(&member.type_name, "::"),
+                    surface_type(&member.type_name),
                     "{id}: setter {}",
                     member.name
                 );
+            }
+            for member in &input.members {
+                let required = builder.contains(&format!(
+                    "build_error({:?}, {:?})",
+                    input.type_name, member.member
+                ));
+                assert_eq!(member.optional, !required, "{id}: {} optional", member.name);
             }
             let build = if input.fallible {
                 format!(
@@ -132,13 +129,19 @@ fn assert_declared(service: &crucible_ir::ir::Service, surface: &Surface) {
             for member in &output.members {
                 let start = format!("pub fn {}(&self) -> ", member.name);
                 let declared = declared_type(model, &start, " {");
+                assert_eq!(
+                    member.optional,
+                    declared.starts_with("Option<"),
+                    "{id}: {} optional",
+                    member.name
+                );
                 let declared = declared
                     .strip_prefix("Option<&")
                     .map(|ty| ty.strip_suffix('>').unwrap().to_owned())
                     .unwrap_or_else(|| declared.trim_start_matches('&').to_owned());
                 assert_eq!(
                     declared,
-                    surface::unqualified(&member.type_name, "::"),
+                    surface_type(&member.type_name),
                     "{id}: accessor {}",
                     member.name
                 );
@@ -260,4 +263,67 @@ fn boxed_and_keyword_members_match_the_emitted_client() {
         .collect();
     assert!(names.contains(&"r#type"), "{names:?}");
     assert!(input.members.iter().all(|member| member.optional));
+}
+
+/// A builder may leave unset a member with a modeled default (`build`
+/// applies it); an accessor returns it directly. A document member is the
+/// runtime's `Document`, which `use sdk::*;` reaches.
+#[test]
+fn defaults_and_documents_match_the_emitted_client() {
+    let service = common::load_with("client-docs-surface-defaults", |package| {
+        for file in &mut package.files {
+            file.text = file.text.replace(
+                "        note?: string\n    }\n}",
+                "        note?: string\n        extra?: document\n    }\n}",
+            );
+        }
+    });
+    let surface = surface(&service, &ClientOptions::default());
+    assert_declared(&service, &surface);
+    let configure = &surface.operations["example.defaults#Configure"];
+    fn optional(structure: &crucible_codegen_common::surface::Structure) -> Vec<(&str, bool)> {
+        structure
+            .members
+            .iter()
+            .map(|member| (member.member.as_str(), member.optional))
+            .collect()
+    }
+    let input = configure.input.as_ref().unwrap();
+    assert!(input.fallible, "name has no default");
+    assert_eq!(
+        optional(input),
+        [
+            ("name", false),
+            ("count", true),
+            ("mode", true),
+            ("token", true),
+            ("note", true)
+        ]
+    );
+    let output = configure.output.as_ref().unwrap();
+    assert_eq!(
+        optional(output),
+        [
+            ("name", false),
+            ("count", false),
+            ("note", true),
+            ("extra", true)
+        ]
+    );
+    assert_eq!(output.members[3].type_name, "runtime::Document");
+    let runtime = std::fs::read_to_string(
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../crucible-client-runtime-rust/src/lib.rs"),
+    )
+    .unwrap()
+    .replace("\r\n", "\n");
+    let hidden = runtime.find("pub mod __generated {").unwrap();
+    let hidden_end = hidden + runtime[hidden..].find("\n}\n").unwrap();
+    let alias = runtime
+        .find("\npub type Document = serde_json::Value;")
+        .expect("the client runtime exports Document");
+    assert!(
+        alias > hidden_end,
+        "Document is public, outside __generated"
+    );
 }

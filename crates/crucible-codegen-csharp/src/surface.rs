@@ -5,7 +5,10 @@ use crucible_codegen_common::surface::{self, ClientType, Member, Operation, Pack
 use crucible_ir::ShapeId;
 use crucible_ir::ir::{Service, Shape};
 
-use crate::{Options, async_method_name, client_name, field, method_name, pages_method_name, ty};
+use crate::{
+    Options, async_method_name, client_name, field, method_name, omittable, pages_method_name,
+    presence, ty,
+};
 
 /// What the generated package shows its callers: the NuGet package, the
 /// client class, and per operation its blocking and asynchronous methods,
@@ -45,16 +48,24 @@ pub fn surface(service: &Service, options: &Options) -> surface::Surface {
 /// A model class as `Models/<Name>.cs` declares it: a property per member.
 fn structure(service: &Service, id: &ShapeId, ns: &str, style: &str) -> Structure {
     let mut structure = Structure::new(caller_type(&ty(service, id, ns), ns), style);
-    if let Some(Shape::Structure(shape)) = service.shape(id) {
+    if let Some(model @ Shape::Structure(shape)) = service.shape(id) {
         structure.members = shape
             .members
             .iter()
             .map(|member| {
-                Member::new(
+                let mut entry = Member::new(
                     member,
                     identifier(&field(&member.name)),
                     caller_type(&ty(service, &member.target, ns), ns),
-                )
+                );
+                // An input may leave out what the client defaults; an
+                // output lacks only what has a presence.
+                entry.optional = if style == "fields" {
+                    omittable(model, member)
+                } else {
+                    presence(model, member)
+                };
+                entry
             })
             .collect();
     }

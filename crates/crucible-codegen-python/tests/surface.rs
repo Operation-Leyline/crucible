@@ -123,9 +123,15 @@ fn assert_declared(service: &crucible_ir::ir::Service, options: &Options, surfac
                     .type_name
                     .strip_prefix(qualifier.as_str())
                     .unwrap_or(&member.type_name);
-                assert!(
-                    block.contains(&format!("\n    {}: {native}", member.name)),
-                    "{name}.{}: {native}",
+                let start = block
+                    .find(&format!("\n    {}: {native}", member.name))
+                    .unwrap_or_else(|| panic!("{name}.{}: {native}", member.name));
+                let line = block[start + 1..].lines().next().unwrap();
+                // An omittable member defaults to `UNSET`.
+                assert_eq!(
+                    member.optional,
+                    line.contains("= field(default=UNSET"),
+                    "{name}.{}: {line}",
                     member.name
                 );
             }
@@ -139,6 +145,7 @@ fn surface_names_what_the_package_declares() {
         "weather",
         "client-docs",
         "client-docs-surface-keywords",
+        "client-docs-surface-defaults",
         "extended-types",
     ] {
         let service = load(model);
@@ -222,4 +229,37 @@ fn keywords_take_the_emitted_suffix() {
 fn colliding_method_names_are_refused() {
     let service = load("client-docs-surface-collisions");
     assert!(emit(&service, &options(None)).is_err());
+}
+
+/// An input member with a modeled default may be left out (the server
+/// applies it); the same member of an output is always present.
+#[test]
+fn defaulted_input_members_are_omittable() {
+    let service = load("client-docs-surface-defaults");
+    let surface = surface(&service, &options(None));
+    let operation = &surface.operations["example.defaults#Configure"];
+    let optional = |members: &[crucible_codegen_common::surface::Member]| {
+        members
+            .iter()
+            .map(|member| (member.member.clone(), member.optional))
+            .collect::<Vec<_>>()
+    };
+    assert_eq!(
+        optional(&operation.input.as_ref().unwrap().members),
+        [
+            ("name".to_owned(), false),
+            ("count".to_owned(), true),
+            ("mode".to_owned(), true),
+            ("token".to_owned(), true),
+            ("note".to_owned(), true),
+        ]
+    );
+    assert_eq!(
+        optional(&operation.output.as_ref().unwrap().members),
+        [
+            ("name".to_owned(), false),
+            ("count".to_owned(), false),
+            ("note".to_owned(), true),
+        ]
+    );
 }

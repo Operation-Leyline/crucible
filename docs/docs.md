@@ -354,10 +354,14 @@ identifier that style uses. `fallible` is true when finishing an input's
 builder can fail at the call site (Rust's `build()` returns a `Result`
 when a required member has no default). Each member is
 `{member, name, type, optional}`: the model member name, the native
-identifier, the native type, and whether the member may be absent (the
-model's client nullability). The type is what the style's form takes or
+identifier, the native type, and `optional`: for an input, whether the
+caller may leave it out of the style's form, as the generated code allows
+(a member with a modeled default that the server or builder applies, an
+idempotency token the client fills); for an output, whether it may be
+absent. The type is what the style's form takes or
 yields: the value's type (`bigint`, `Date` and `Uint8Array` in
-TypeScript; `i64`, and `Box<Node>` for a recursive member, in Rust),
+TypeScript; `i64`, `runtime::Document`, and `Box<Node>` for a recursive
+member, in Rust),
 unless the language's field holds a wrapper a bare value does not convert
 to (Go's `weather.Optional[string]`, set with `weather.Some(value)`).
 

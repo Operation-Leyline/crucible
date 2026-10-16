@@ -6,8 +6,8 @@ use crucible_ir::ShapeId;
 use crucible_ir::ir::{Service, Shape};
 
 use crate::{
-    Options, accessor, async_name, client_name, member_field, method, pages_async_name, pages_name,
-    ty,
+    Options, accessor, async_name, client_name, member_field, method, omittable, pages_async_name,
+    pages_name, ty, unset_field,
 };
 
 /// What the generated package shows its callers: the Maven coordinate and
@@ -91,7 +91,14 @@ fn structure(service: &Service, id: &ShapeId, package: &str, input: bool) -> Str
                 } else {
                     accessor(&field, shape.error.is_some())
                 };
-                Member::new(member, name, caller_type(service, &member.target, package))
+                let mut entry =
+                    Member::new(member, name, caller_type(service, &member.target, package));
+                entry.optional = if input {
+                    omittable(member, false)
+                } else {
+                    unset_field(member, false)
+                };
+                entry
             })
             .collect();
     }

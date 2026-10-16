@@ -173,12 +173,16 @@ fn assert_declared(service: &Service, options: &Options, surface: &Surface) {
                     "{id}: {bare}.{}",
                     member.name
                 );
-                assert_eq!(
-                    member.optional,
-                    property.contains("Presence"),
-                    "{id}: {}",
-                    member.name
-                );
+                // A presence may be unset; an input may also leave out a
+                // member whose doc says the client defaults it. Only a
+                // "Required." member must be set.
+                let at = class.find(property).unwrap();
+                let doc = &class[class[..at]
+                    .rfind("    public ")
+                    .map_or(0, |start| start + 1)..at];
+                let optional = property.contains("Presence")
+                    || (style == "fields" && !doc.contains("Required."));
+                assert_eq!(member.optional, optional, "{id}: {}", member.name);
             }
         }
     }
@@ -287,5 +291,41 @@ fn colliding_operation_names_are_refused() {
             .to_string()
             .contains("C# client method name collision"),
         "{diagnostics}"
+    );
+}
+
+/// The client fills a defaulted input member left unset, so an object
+/// initializer may leave it out; an output's defaulted member is always
+/// present.
+#[test]
+fn defaulted_input_members_are_omittable() {
+    let service = load("client-docs-surface-defaults");
+    let options = options("Example.Defaults", None);
+    let surface = surface(&service, &options);
+    assert_declared(&service, &options, &surface);
+    let operation = &surface.operations["example.defaults#Configure"];
+    let optional = |members: &[crucible_codegen_common::surface::Member]| {
+        members
+            .iter()
+            .map(|member| (member.member.clone(), member.optional))
+            .collect::<Vec<_>>()
+    };
+    assert_eq!(
+        optional(&operation.input.as_ref().unwrap().members),
+        [
+            ("name".to_owned(), false),
+            ("count".to_owned(), true),
+            ("mode".to_owned(), true),
+            ("token".to_owned(), true),
+            ("note".to_owned(), true),
+        ]
+    );
+    assert_eq!(
+        optional(&operation.output.as_ref().unwrap().members),
+        [
+            ("name".to_owned(), false),
+            ("count".to_owned(), false),
+            ("note".to_owned(), true),
+        ]
     );
 }

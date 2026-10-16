@@ -167,6 +167,7 @@ fn surface_names_what_the_module_declares() {
         "weather",
         "client-docs",
         "client-docs-surface-keywords",
+        "client-docs-surface-defaults",
         "extended-types",
     ] {
         let service = load(model);
@@ -279,4 +280,37 @@ fn keywords_are_exported_identifiers() {
 fn colliding_method_names_are_refused() {
     let service = load("client-docs-surface-collisions");
     assert!(emit(&service, &options(None)).is_err());
+}
+
+/// Go fills no modeled defaults: a member is absent only through its
+/// `Optional` field, so a defaulted input member is not omittable (a plain
+/// field sends its value), and the same holds for outputs.
+#[test]
+fn only_optional_fields_may_be_absent() {
+    let surface = surface(&load("client-docs-surface-defaults"), &options(None));
+    let operation = &surface.operations["example.defaults#Configure"];
+    let optional = |members: &[crucible_codegen_common::surface::Member]| {
+        members
+            .iter()
+            .map(|member| (member.member.clone(), member.optional))
+            .collect::<Vec<_>>()
+    };
+    assert_eq!(
+        optional(&operation.input.as_ref().unwrap().members),
+        [
+            ("name".to_owned(), false),
+            ("count".to_owned(), false),
+            ("mode".to_owned(), false),
+            ("token".to_owned(), true),
+            ("note".to_owned(), true),
+        ]
+    );
+    assert_eq!(
+        optional(&operation.output.as_ref().unwrap().members),
+        [
+            ("name".to_owned(), false),
+            ("count".to_owned(), false),
+            ("note".to_owned(), true),
+        ]
+    );
 }

@@ -152,6 +152,31 @@ fn assert_declared(service: &crucible_ir::ir::Service, options: &Options, surfac
                     "{local}.{}: {declaration}",
                     member.name
                 );
+                // The field says whether the member may be unset: an
+                // `OptionalValue` starts unset, a defaulted field starts
+                // at its default, a bare one is required. Outputs here
+                // are not errors, so their accessor is the field's name.
+                let field = fields
+                    .lines()
+                    .map(str::trim)
+                    .find(|line| {
+                        let declaration = line.split(" = ").next().unwrap();
+                        line.starts_with("public ")
+                            && declaration.trim_end_matches(';').rsplit(' ').next()
+                                == Some(member.name.as_str())
+                    })
+                    .unwrap_or_else(|| panic!("{local}.{}: field", member.name));
+                let unset = field.contains(".OptionalValue<");
+                let optional = if structure.style == "builder" {
+                    unset || field.contains(" = ")
+                } else {
+                    unset
+                };
+                assert_eq!(
+                    member.optional, optional,
+                    "{local}.{}: {field}",
+                    member.name
+                );
             }
         }
     }
@@ -163,6 +188,7 @@ fn surface_names_what_the_package_declares() {
         "weather",
         "client-docs-jvm",
         "client-docs-surface-keywords",
+        "client-docs-surface-defaults",
         "extended-types",
     ] {
         let service = load(model);
@@ -265,4 +291,39 @@ fn keywords_take_the_emitted_suffix() {
 fn colliding_method_names_are_refused() {
     let service = load("client-docs-surface-collisions");
     assert!(emit(&service, &options("example.weather", None)).is_err());
+}
+
+/// A builder may leave a defaulted input member unset (its field starts at
+/// the default); an output's defaulted member is always present.
+#[test]
+fn defaulted_input_members_are_omittable() {
+    let surface = surface(
+        &load("client-docs-surface-defaults"),
+        &options("example.defaults", None),
+    );
+    let operation = &surface.operations["example.defaults#Configure"];
+    let optional = |members: &[crucible_codegen_common::surface::Member]| {
+        members
+            .iter()
+            .map(|member| (member.member.clone(), member.optional))
+            .collect::<Vec<_>>()
+    };
+    assert_eq!(
+        optional(&operation.input.as_ref().unwrap().members),
+        [
+            ("name".to_owned(), false),
+            ("count".to_owned(), true),
+            ("mode".to_owned(), true),
+            ("token".to_owned(), true),
+            ("note".to_owned(), true),
+        ]
+    );
+    assert_eq!(
+        optional(&operation.output.as_ref().unwrap().members),
+        [
+            ("name".to_owned(), false),
+            ("count".to_owned(), false),
+            ("note".to_owned(), true),
+        ]
+    );
 }

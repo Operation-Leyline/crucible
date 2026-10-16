@@ -7,7 +7,9 @@ use crucible_codegen_common::surface::{self, ClientType, Member, Operation, Pack
 use crucible_ir::ShapeId;
 use crucible_ir::ir::{Service, Shape};
 
-use crate::{Options, client_name, exported, field_type, method_name, pages_name, type_name};
+use crate::{
+    Options, absent, client_name, exported, field_type, method_name, pages_name, type_name,
+};
 
 /// What the generated module shows its callers: the module path, the
 /// client struct, and per operation its method, paginator, and the
@@ -88,7 +90,9 @@ fn structure(
                         platform.insert(import.to_owned());
                     }
                 }
-                Member::new(member, exported(&member.name), native)
+                let mut entry = Member::new(member, exported(&member.name), native);
+                entry.optional = absent(shape, member);
+                entry
             })
             .collect();
     }

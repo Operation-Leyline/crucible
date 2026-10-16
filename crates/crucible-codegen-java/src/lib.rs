@@ -123,6 +123,19 @@ fn field(text: &str) -> String {
         text.into()
     }
 }
+/// Whether a member's field is an `OptionalValue`, unset until a caller
+/// sets it, so an output may lack it.
+pub(crate) fn unset_field(member: &crucible_ir::ir::Member, union: bool) -> bool {
+    member.optional_on_client() || union
+}
+
+/// Whether a builder may leave a member unset: it is an `OptionalValue`,
+/// or its field starts at the modeled default. Only a member without
+/// either is "Required." when the request is sent.
+pub(crate) fn omittable(member: &crucible_ir::ir::Member, union: bool) -> bool {
+    unset_field(member, union) || member.client_default().is_some()
+}
+
 pub(crate) fn member_field(text: &str, package: &str) -> String {
     let name = field(text);
     if name == package.split('.').next().expect("validated package") {
@@ -736,7 +749,7 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
                 for m in &s.members {
                     let t = ty(service, &m.target, package);
                     let f = member_field(&m.name, package);
-                    let optional = m.optional_on_client() || is_union;
+                    let optional = unset_field(m, is_union);
                     let note = if optional {
                         format!(
                             "Unset members are omitted from requests; see {{@link {package}.OptionalValue}}."
@@ -814,7 +827,7 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
                 for (index, m) in s.members.iter().enumerate() {
                     let t = ty(service, &m.target, package);
                     let f = member_field(&m.name, package);
-                    let optional = m.optional_on_client() || is_union;
+                    let optional = unset_field(m, is_union);
                     // '$' cannot occur in a lowered Smithy member name, keeping
                     // these private flags independent of modeled identifiers.
                     let set_default = if !optional && m.client_default().is_some() {

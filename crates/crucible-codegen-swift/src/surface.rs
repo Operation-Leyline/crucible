@@ -63,11 +63,13 @@ fn structure(
             .members
             .iter()
             .map(|member| {
-                Member::new(
+                let mut entry = Member::new(
                     member,
                     escape(&field(&member.name)),
                     caller_type(&ty(service, &member.target, module), models),
-                )
+                );
+                entry.optional = crate::models::presence(member);
+                entry
             })
             .collect();
     }

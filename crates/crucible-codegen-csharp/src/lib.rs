@@ -312,6 +312,19 @@ pub fn capabilities() -> crucible_ir::Capabilities {
     ])
 }
 
+/// Whether a member is an `Optional<T>` `{Name}Presence` property, unset
+/// until a caller sets it, so an output may lack it.
+pub(crate) fn presence(shape: &Shape, member: &crucible_ir::ir::Member) -> bool {
+    member.optional_on_client() || matches!(shape, Shape::Union(_))
+}
+
+/// Whether an object initializer may leave a member out: it has a
+/// presence, or the client fills its modeled default when it is left
+/// unset. Only a member with neither is "Required.".
+pub(crate) fn omittable(shape: &Shape, member: &crucible_ir::ir::Member) -> bool {
+    presence(shape, member) || member.client_default().is_some()
+}
+
 pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnostics> {
     let exception = crucible_codegen_common::service_exception_name(service);
     service.require_capabilities(&capabilities())?;
@@ -359,7 +372,7 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
             let mut members = BTreeSet::from([name.to_string()]);
             for m in &s.members {
                 if !members.insert(field(&m.name))
-                    || ((m.optional_on_client() || matches!(shape, Shape::Union(_)))
+                    || (presence(shape, m)
                         && !members.insert(format!("{}Presence", field(&m.name))))
                 {
                     diagnostics.push(&id.with_member(&m.name), "C# member name collision");
@@ -549,7 +562,7 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
                 for m in &s.members {
                     let t = ty(service, &m.target, ns);
                     let f = field(&m.name);
-                    if m.optional_on_client() || matches!(shape, Shape::Union(_)) {
+                    if presence(shape, m) {
                         let unwrap = if matches!(service.shape(&m.target), Some(Shape::Simple(s)) if !matches!(s.kind, SimpleKind::String | SimpleKind::Blob | SimpleKind::Document))
                         {
                             ".Value"

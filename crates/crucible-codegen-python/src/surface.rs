@@ -8,7 +8,7 @@ use crucible_ir::ShapeId;
 use crucible_ir::ir::{Service, Shape};
 
 use crate::names::{field, ty};
-use crate::{Options, client_name, method_name, pages_name};
+use crate::{Options, client_name, method_name, omittable, pages_name};
 
 /// What the generated package shows its callers: the distribution and
 /// module, the client class, and per operation its method, paginator, and
@@ -71,7 +71,9 @@ fn structure(
                 if let Some(import) = import(&native) {
                     platform.insert(import.to_owned());
                 }
-                Member::new(member, field(&member.name), native)
+                let mut entry = Member::new(member, field(&member.name), native);
+                entry.optional = omittable(shape, member);
+                entry
             })
             .collect();
     }

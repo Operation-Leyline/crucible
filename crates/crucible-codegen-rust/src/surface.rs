@@ -7,7 +7,7 @@ use crucible_codegen_common::surface::{self, ClientType, Member, Operation, Pack
 use crucible_ir::ShapeId;
 use crucible_ir::ir::{Service, Shape};
 
-use crate::builders::{fallible, getter_names, setter_names};
+use crate::builders::{fallible, getter_names, required_to_build, setter_names};
 use crate::client::{client_name, method_names};
 use crate::names::function;
 use crate::types::{boxed_members, public_builtin};
@@ -79,7 +79,13 @@ fn structure(service: &Service, id: &ShapeId, boxed: &BTreeSet<ShapeId>, input: 
                 if boxed.contains(&id.with_member(&member.name)) {
                     ty = format!("Box<{ty}>");
                 }
-                Member::new(member, names[&member.name].clone(), ty)
+                let mut entry = Member::new(member, names[&member.name].clone(), ty);
+                // A builder may leave unset what `build` does not need; an
+                // accessor returns an `Option` for what may be absent.
+                if input {
+                    entry.optional = !required_to_build(member);
+                }
+                entry
             })
             .collect();
     }

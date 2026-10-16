@@ -82,14 +82,8 @@ fn assert_declared(service: &crucible_ir::ir::Service, options: &Options, surfac
         };
         let method = block(
             &client,
-            &format!(
-                "
-  {}{parameter}",
-                entry.method
-            ),
-            "
-  }
-",
+            &format!("\n  {}{parameter}", entry.method),
+            "\n  }\n",
         )
         .unwrap_or_else(|| panic!("{id}: {}{parameter}", entry.method));
         assert!(
@@ -98,17 +92,8 @@ fn assert_declared(service: &crucible_ir::ir::Service, options: &Options, surfac
             entry.method
         );
         for paginator in entry.paginators.iter().flatten() {
-            let body = block(
-                &client,
-                &format!(
-                    "
-  {paginator}{parameter}"
-                ),
-                "
-  }
-",
-            )
-            .unwrap_or_else(|| panic!("{id}: paginator {paginator}"));
+            let body = block(&client, &format!("\n  {paginator}{parameter}"), "\n  }\n")
+                .unwrap_or_else(|| panic!("{id}: paginator {paginator}"));
             assert!(
                 body.contains(&format!("this.{}(page, options)", entry.method)),
                 "{id}: {paginator} pages another method"
@@ -131,8 +116,7 @@ fn assert_declared(service: &crucible_ir::ir::Service, options: &Options, surfac
             let body = block(
                 &models,
                 &format!("export interface {} {{", service.name_of(shape)),
-                "
-}",
+                "\n}",
             )
             .unwrap_or_else(|| panic!("{id}: interface {}", structure.type_name));
             for member in &structure.members {
@@ -152,9 +136,7 @@ fn assert_declared(service: &crucible_ir::ir::Service, options: &Options, surfac
                     structure.type_name,
                     member.name
                 );
-                if structure.style == "properties" {
-                    assert_eq!(member.optional, declared.0, "{id}: {}", member.name);
-                }
+                assert_eq!(member.optional, declared.0, "{id}: {}", member.name);
             }
         }
     }
@@ -225,6 +207,7 @@ fn collision_suffixes_match_the_emitted_client() {
     for name in [
         "client-docs-surface-collisions",
         "client-docs-surface-keywords",
+        "client-docs-surface-defaults",
         "hardening",
         "extended-types",
     ] {
@@ -251,4 +234,35 @@ fn collision_suffixes_match_the_emitted_client() {
         .as_ref()
         .unwrap();
     assert_eq!(output.members[2].type_name, "bigint");
+}
+
+/// An input may omit a member with a modeled default (the server applies
+/// it) and the idempotency token (the client fills it); an output always
+/// has the defaulted member.
+#[test]
+fn input_optionality_is_the_interfaces_own() {
+    let service = load("client-docs-surface-defaults");
+    let surface = surface(&service, &options());
+    let configure = &surface.operations["example.defaults#Configure"];
+    fn optional(structure: &crucible_codegen_common::surface::Structure) -> Vec<(&str, bool)> {
+        structure
+            .members
+            .iter()
+            .map(|member| (member.member.as_str(), member.optional))
+            .collect()
+    }
+    assert_eq!(
+        optional(configure.input.as_ref().unwrap()),
+        [
+            ("name", false),
+            ("count", true),
+            ("mode", true),
+            ("token", true),
+            ("note", true)
+        ]
+    );
+    assert_eq!(
+        optional(configure.output.as_ref().unwrap()),
+        [("name", false), ("count", false), ("note", true)]
+    );
 }

@@ -55,7 +55,26 @@ fn assert_declared(service: &Service, options: &Options) -> Surface {
         &format!("include/{package}/runtime/client_runtime.h"),
     );
     let types = file(&files, &format!("include/{package}/runtime/types.h"));
+    let descriptors = file(&files, "src/models.c");
     let surface = surface(service, options);
+    // A member is optional exactly when its descriptor says so: the flag
+    // the runtime reads to accept it absent ("Missing required member").
+    let descriptor_optional = |owner: &str, accessor: &str, kind: &str| {
+        let field = accessor
+            .strip_prefix(&format!("{owner}_{kind}_"))
+            .unwrap_or_else(|| panic!("{accessor} is {owner}'s {kind}ter"));
+        let value = format!("offsetof({owner}, {field}.value), ");
+        let line = descriptors
+            .lines()
+            .find(|line| line.contains(&value))
+            .unwrap_or_else(|| panic!("{owner}.{field} has a descriptor"));
+        let flag = &line[line.find(&value).unwrap() + value.len()..];
+        match flag.split(',').next() {
+            Some("true") => true,
+            Some("false") => false,
+            other => panic!("{owner}.{field}: {other:?}"),
+        }
+    };
     assert_eq!(surface.package.import, format!("{package}/client.h"));
     assert_eq!(
         surface.package.imports,
@@ -141,6 +160,12 @@ fn assert_declared(service: &Service, options: &Options) -> Surface {
                     member.name, input.type_name, member.type_name
                 );
                 assert!(models.contains(&setter), "{setter}");
+                assert_eq!(
+                    member.optional,
+                    descriptor_optional(&input.type_name, &member.name, "set"),
+                    "{} optional",
+                    member.name
+                );
             }
         }
         if let Some(output) = &entry.output {
@@ -152,6 +177,12 @@ fn assert_declared(service: &Service, options: &Options) -> Surface {
                     member.type_name, member.name, output.type_name
                 );
                 assert!(models.contains(&getter), "{getter}");
+                assert_eq!(
+                    member.optional,
+                    descriptor_optional(&output.type_name, &member.name, "get"),
+                    "{} optional",
+                    member.name
+                );
             }
         }
     }
@@ -263,5 +294,36 @@ fn derived_names_beside_colliding_operations_are_declared() {
     assert_eq!(
         surface.operations["example.surface#ListThingsPages"].method,
         "weather_operations_list_things_pages"
+    );
+}
+
+/// A member with a modeled default is no more omittable than a required
+/// one: the generated constructor (or encoder) requires both, and only
+/// `optional_on_client` members may be left out, as `optional` says.
+#[test]
+fn defaulted_members_are_as_optional_as_the_emitted_code_says() {
+    let service = load("client-docs-surface-defaults");
+    let surface = assert_declared(&service, &options());
+    let configure = &surface.operations["example.defaults#Configure"];
+    fn optional(structure: &crucible_codegen_common::surface::Structure) -> Vec<(&str, bool)> {
+        structure
+            .members
+            .iter()
+            .map(|member| (member.member.as_str(), member.optional))
+            .collect()
+    }
+    assert_eq!(
+        optional(configure.input.as_ref().unwrap()),
+        [
+            ("name", false),
+            ("count", false),
+            ("mode", false),
+            ("token", true),
+            ("note", true)
+        ]
+    );
+    assert_eq!(
+        optional(configure.output.as_ref().unwrap()),
+        [("name", false), ("count", false), ("note", true)]
     );
 }

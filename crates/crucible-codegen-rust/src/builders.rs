@@ -81,12 +81,15 @@ pub(crate) fn setter_names(structure: &Structure) -> BTreeMap<String, String> {
     method_names(structure, &["build", "default", "clone"])
 }
 
+/// Whether `build` needs this member set: it is neither optional nor
+/// filled from a modeled default.
+pub(crate) fn required_to_build(member: &crucible_ir::ir::Member) -> bool {
+    !member.optional_on_client() && member.default.is_none()
+}
+
 /// Whether `build` returns a `Result`: a required member has no default.
 pub(crate) fn fallible(structure: &Structure) -> bool {
-    structure
-        .members
-        .iter()
-        .any(|m| !m.optional_on_client() && m.default.is_none())
+    structure.members.iter().any(required_to_build)
 }
 
 pub(crate) fn emit(

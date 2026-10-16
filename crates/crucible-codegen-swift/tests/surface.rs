@@ -178,6 +178,15 @@ fn assert_declared(service: &Service, options: &Options, surface: &Surface) {
                     member.name
                 );
                 assert_eq!(member.optional, ty.ends_with('?'), "{id}: {}", member.name);
+                // A caller may leave out exactly the parameters with `= nil`.
+                let parameter = format!("{}: ", declared(&member.name));
+                let at = init.find(&parameter).unwrap_or_else(|| panic!("{init}"));
+                let parameter = init[at..].split([',', ')']).next().unwrap();
+                assert_eq!(
+                    member.optional,
+                    parameter.ends_with(" = nil"),
+                    "{id}: {parameter}"
+                );
                 // Each member is an initializer label.
                 assert!(
                     init.contains(&format!("{}: ", declared(&member.name))),
@@ -285,5 +294,40 @@ fn colliding_operation_names_are_refused() {
             .to_string()
             .contains("Swift operation name collision"),
         "{diagnostics}"
+    );
+}
+
+/// Swift's initializer takes every member that has no presence, a
+/// defaulted one too: only `Presence` members may be left out.
+#[test]
+fn only_presence_members_may_be_left_out() {
+    let service = load("client-docs-surface-defaults");
+    let options = options("Defaults", None);
+    let surface = surface(&service, &options);
+    assert_declared(&service, &options, &surface);
+    let operation = &surface.operations["example.defaults#Configure"];
+    let optional = |members: &[crucible_codegen_common::surface::Member]| {
+        members
+            .iter()
+            .map(|member| (member.member.clone(), member.optional))
+            .collect::<Vec<_>>()
+    };
+    assert_eq!(
+        optional(&operation.input.as_ref().unwrap().members),
+        [
+            ("name".to_owned(), false),
+            ("count".to_owned(), false),
+            ("mode".to_owned(), false),
+            ("token".to_owned(), true),
+            ("note".to_owned(), true),
+        ]
+    );
+    assert_eq!(
+        optional(&operation.output.as_ref().unwrap().members),
+        [
+            ("name".to_owned(), false),
+            ("count".to_owned(), false),
+            ("note".to_owned(), true),
+        ]
     );
 }

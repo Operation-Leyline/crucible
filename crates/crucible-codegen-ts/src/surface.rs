@@ -9,7 +9,7 @@ use crucible_ir::ir::{Service, Shape};
 
 use crate::Options;
 use crate::client::method_names;
-use crate::names::{literal, property, ts_type};
+use crate::names::{literal, optional, property, ts_type};
 
 /// The namespace a snippet imports the package's types under. Every
 /// generated name lives in it, so none can collide with the snippet's own.
@@ -81,11 +81,16 @@ fn structure(service: &Service, id: &ShapeId, style: &str) -> Structure {
             .members
             .iter()
             .map(|member| {
-                Member::new(
+                let mut entry = Member::new(
                     member,
                     property(&member.name),
                     caller_type(service, &member.target),
-                )
+                );
+                // The interface's own `?`: an input may omit what is not
+                // `@required` (a default is the server's to apply), and an
+                // output follows client nullability.
+                entry.optional = optional(shape, member);
+                entry
             })
             .collect();
     }

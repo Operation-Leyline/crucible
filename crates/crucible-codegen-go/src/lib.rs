@@ -123,6 +123,13 @@ pub(crate) fn qualified_ty(service: &Service, id: &ShapeId, qualifier: &str) -> 
 
 /// A structure or union member's field type: its value's type, wrapped in
 /// `Optional` when the member may be absent and in every union.
+/// Whether a member's field is `Optional[T]`, so it can be left absent:
+/// Go fills no modeled defaults, and a plain field always sends its value
+/// (its zero value when unset).
+pub(crate) fn absent(shape: &Shape, member: &crucible_ir::ir::Member) -> bool {
+    member.optional_on_client() || matches!(shape, Shape::Union(_))
+}
+
 pub(crate) fn field_type(
     service: &Service,
     shape: &Shape,
@@ -130,7 +137,7 @@ pub(crate) fn field_type(
     qualifier: &str,
 ) -> String {
     let t = qualified_ty(service, &member.target, qualifier);
-    if member.optional_on_client() || matches!(shape, Shape::Union(_)) {
+    if absent(shape, member) {
         format!("{qualifier}Optional[{t}]")
     } else {
         t
