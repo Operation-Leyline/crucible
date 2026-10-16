@@ -574,10 +574,13 @@ version's section when it is prepared.
   `into`. `Hook::Conversion` is gone: a `retype` without `by hook` lowers to
   `Hook::Retype` with `by: RetypeBy::Conversion`, with the same sides as a
   hooked one. Every step has `docs` (`VersionStep::docs()`) and
-  `ApiVersion` has `docs`, the migration's `///`. Their `[Name]` doc links
-  resolve in the current model like any other's, into `Service::doc_links`,
-  so one that names nothing is a compile error (decision 80). Release
-  snapshots are unchanged: `snapshot::write` leaves out `Service::versions`.
+  `ApiVersion` has `docs`, the migration's `///`, and `sunset_docs`, its
+  `sunset` step's. Their `[Name]` doc links resolve in the current model
+  like any other's, into `Service::doc_links`; a label naming what only the
+  release the migration comes from had (a removed operation, a member's
+  older name) is accepted as text, and one naming nothing in either is a
+  compile error (decision 80). Release snapshots are unchanged:
+  `snapshot::write` leaves out `Service::versions`.
 
 - `.cru`: a `[Name]` doc link that names nothing is a compile error, reported
   at its label (decision 80); it was a warning (decision 41). So is

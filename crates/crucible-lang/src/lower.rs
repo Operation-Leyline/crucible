@@ -91,6 +91,12 @@ pub(crate) fn lower(
         carried: BTreeMap::new(),
         resource_notes: BTreeMap::new(),
         doc_link_sites: BTreeSet::new(),
+        migration_link_sites: BTreeSet::new(),
+        releases: package
+            .baseline
+            .as_deref()
+            .and_then(std::path::Path::parent)
+            .map(std::path::Path::to_path_buf),
         rule_names: BTreeSet::new(),
     };
     lowerer.collect(parsed, namespaces);
@@ -503,6 +509,12 @@ struct Lowerer<'a> {
     /// Every `[Name]` doc link the lowered documentation holds: its label,
     /// file and the label's span, resolved once every shape is lowered.
     doc_link_sites: BTreeSet<(String, usize, u32, u32)>,
+    /// The doc links of migrations and their steps, as `doc_link_sites`,
+    /// each with the release the migration comes from: such a link may name
+    /// what that release had and the current model no longer does.
+    migration_link_sites: BTreeSet<(String, usize, u32, u32, String)>,
+    /// The directory of the frozen releases, beside the baseline.
+    releases: Option<std::path::PathBuf>,
     /// The package's and its imports' policy rules, which a doc link may
     /// name without linking anywhere.
     rule_names: BTreeSet<String>,
@@ -574,6 +586,25 @@ impl<'a> Lowerer<'a> {
         Some(doc.text.clone())
     }
 
+    /// A migration's or its step's doc comment: its links are checked as
+    /// any other's, except that one may name what the release `from` had
+    /// ([`Self::resolve_doc_links`]).
+    fn migration_doc(&mut self, file: usize, doc: Option<&Doc>, from: &str) {
+        let Some(doc) = doc else {
+            return;
+        };
+        for link in crucible_ir::doc_links::links(&doc.text) {
+            let span = doc.source_span(link.label_span);
+            self.migration_link_sites.insert((
+                link.label,
+                file,
+                span.start,
+                span.end,
+                from.to_owned(),
+            ));
+        }
+    }
+
     /// What each doc link names (decision 80): a declaration of the package
     /// or its imports, or a member, enum value or operation input or output
     /// member of one, by id. A link that names nothing is an error. A
@@ -602,6 +633,39 @@ impl<'a> Lowerer<'a> {
                 }
                 Ok(None) => {}
                 Err(message) => self.error(file, Span { start, end }, message),
+            }
+        }
+        // A migration describes what changed, so its documentation may name
+        // what the release it comes from had: a removed operation, a
+        // member's older name. Such a label links nothing, and renders as
+        // its text; one the current model has links as any other.
+        let mut releases: BTreeMap<String, Option<crucible_ir::ir::Service>> = BTreeMap::new();
+        for (label, file, start, end, from) in std::mem::take(&mut self.migration_link_sites) {
+            match self.doc_link(&label, service, operations, shapes) {
+                Ok(Some((id, owner))) => {
+                    if let Some(owner) = owner {
+                        owners.insert(label.clone(), owner);
+                    }
+                    links.insert(label, id);
+                }
+                Ok(None) => {}
+                Err(message) => {
+                    let release = releases.entry(from.clone()).or_insert_with(|| {
+                        let dir = self.releases.as_ref()?;
+                        let path = dir.join(crate::release::file_name(&from).ok()?);
+                        crate::release::load(&path).ok()
+                    });
+                    if !release
+                        .as_ref()
+                        .is_some_and(|release| names_in_release(release, &label))
+                    {
+                        self.error(
+                            file,
+                            Span { start, end },
+                            format!("{message}, nor in release \"{from}\", which this migration comes from"),
+                        );
+                    }
+                }
             }
         }
         (links, owners)
@@ -727,9 +791,10 @@ impl<'a> Lowerer<'a> {
                     // but their documentation and their steps' link into the
                     // current model like any other (decision 80).
                     Decl::Migration(migration) => {
-                        self.doc(file, item.doc.as_ref());
+                        let from = &migration.from.value;
+                        self.migration_doc(file, item.doc.as_ref(), from);
                         for step in &migration.steps {
-                            self.doc(file, step.doc.as_ref());
+                            self.migration_doc(file, step.doc.as_ref(), from);
                         }
                         continue;
                     }
@@ -5571,5 +5636,34 @@ fn article(word: &str) -> &'static str {
         "an"
     } else {
         "a"
+    }
+}
+/// Whether `label`, a doc link's, names something `release` has: an
+/// operation, a shape, a member, an enum value, or an operation's input or
+/// output member, by name, as a link in the current model would.
+fn names_in_release(release: &crucible_ir::ir::Service, label: &str) -> bool {
+    let (name, member) = crucible_ir::doc_links::split(label);
+    let operation = release.operations.iter().find(|op| op.name() == name);
+    let shape = release
+        .shapes
+        .iter()
+        .find(|(id, _)| id.name() == name)
+        .map(|(_, shape)| shape);
+    let has = |shape: &Shape, member: &str| match shape {
+        Shape::Enum(e) => e.values.iter().any(|value| value.name == member),
+        Shape::IntEnum(e) => e.values.iter().any(|value| value.name == member),
+        shape => shape.members().iter().any(|m| m.name == member),
+    };
+    match member {
+        None => operation.is_some() || shape.is_some() || release.id.name() == name,
+        Some(member) => {
+            operation.is_some_and(|op| {
+                op.input
+                    .iter()
+                    .chain(&op.output)
+                    .filter_map(|side| release.shapes.get(side))
+                    .any(|side| has(side, member))
+            }) || shape.is_some_and(|shape| has(shape, member))
+        }
     }
 }

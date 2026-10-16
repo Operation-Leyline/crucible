@@ -1393,6 +1393,10 @@ fn every_step_kind_lowers_with_both_sides_and_its_documentation() {
     assert_eq!(v1.name, "v1");
     assert_eq!(v1.sunset.as_deref(), Some("2027-01-01"));
     assert_eq!(
+        v1.sunset_docs.as_deref(),
+        Some("v1 is served until the end of 2026.")
+    );
+    assert_eq!(
         v1.docs.as_deref(),
         Some(
             "v2 names an item's title, measures its size as an area, and counts\nitems in [ListItems]."
@@ -1407,6 +1411,10 @@ fn every_step_kind_lowers_with_both_sides_and_its_documentation() {
         links.get("GetItem.title"),
         Some(&id("GetItemOutput").with_member("title"))
     );
+    // What only the release the migration comes from has, a member's older
+    // name and a removed operation, is accepted as text: it links nothing.
+    assert_eq!(links.get("GetItem.name"), None);
+    assert_eq!(links.get("CountItems"), None);
     let docs = |text: &str| Some(text.to_owned());
     let steps = &v1.steps;
     // One step each, in declaration order; `sunset` is the release's.
@@ -1418,7 +1426,7 @@ fn every_step_kind_lowers_with_both_sides_and_its_documentation() {
             new: id("GetItemOutput"),
             from: "name".into(),
             to: "title".into(),
-            docs: docs("An item's name is its [GetItem.title]."),
+            docs: docs("An item's name, [GetItem.name] in v1, is its [GetItem.title]."),
         }
     );
     assert_eq!(
@@ -1555,7 +1563,7 @@ fn every_step_kind_lowers_with_both_sides_and_its_documentation() {
                 operation: id("CountItems"),
             },
             is_async: true,
-            docs: docs("ListItems counts items now."),
+            docs: docs("[CountItems] is gone: ListItems counts items now."),
         }
     );
     assert_eq!(
@@ -1665,7 +1673,9 @@ fn a_dangling_doc_link_in_a_migration_is_an_error() {
         let compiled = compile(&load_package(&dir).unwrap(), None);
         let rendered = compiled.render();
         assert!(
-            compiled.service.is_none() && rendered.contains("[Gone]"),
+            compiled.service.is_none()
+                && rendered.contains("the doc link `[Gone]` names nothing")
+                && rendered.contains("nor in release \"v1\", which this migration comes from"),
             "{name}: {rendered}"
         );
     }

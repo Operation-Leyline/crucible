@@ -1592,7 +1592,12 @@ references are to the code as of the design.
     `docs` as written. Both fields are `serde(default)` and omitted when
     empty, so a snapshot without links is unchanged and every older one
     reads; `crucible-model.json` drops them with the documentation. Links
-    are checked in a package with no service, or several, as well. Only the
+    are checked in a package with no service, or several, as well. A
+    migration's and its steps' documentation describes what changed, so a
+    label there may also name what the release the migration comes from
+    had (a removed operation, a member's older name): it is accepted with
+    no entry and renders as its text, while one the current model has links
+    as any other, and one in neither is an error. Only the
     broken-link callback makes a doc link, never a destination or definition
     the model wrote, so model text cannot pose as one.
     `crucible_ir::doc_links::links` is the one finder (pulldown-cmark's

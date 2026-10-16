@@ -56,7 +56,7 @@ idempotent operation PutItem {
 /// v2 names an item's title, measures its size as an area, and counts
 /// items in [ListItems].
 migration "v2" from "v1" {
-    /// An item's name is its [GetItem.title].
+    /// An item's name, [GetItem.name] in v1, is its [GetItem.title].
     rename GetItem.output.name -> title
     /// The page size is `limit`.
     rename ListItems.input.max -> limit
@@ -79,9 +79,10 @@ migration "v2" from "v1" {
     retype PutItem.input.quantity -> string by hook
     /// The total is a string, by a declared conversion.
     retype PutItem.output.total -> string
-    /// ListItems counts items now.
+    /// [CountItems] is gone: ListItems counts items now.
     remove operation CountItems
     /// ListItems sorts by name.
     behavior ListItems.ordering
+    /// v1 is served until the end of 2026.
     sunset "2027-01-01"
 }

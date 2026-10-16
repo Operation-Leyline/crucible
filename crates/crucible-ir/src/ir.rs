@@ -141,6 +141,10 @@ pub struct ApiVersion {
     pub steps: Vec<VersionStep>,
     /// After this date the version may be refused (`YYYY-MM-DD`).
     pub sunset: Option<String>,
+    /// The `///` documentation of the `sunset` step: why and how the
+    /// version ends, for the reference and upgrade guides.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub sunset_docs: Option<String>,
     /// The `///` documentation of the migration from this version to the
     /// next: what changed, for the reference and upgrade guides.
     #[serde(default, skip_serializing_if = "Option::is_none")]

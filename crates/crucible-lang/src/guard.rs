@@ -1048,9 +1048,13 @@ pub fn versions(
         let context = Context::new(&compiled.namespace, &old, &newer, migration);
         let mut steps = Vec::new();
         let mut sunset = None;
+        let mut sunset_docs = None;
         for step in &migration.steps {
+            // A sunset is the release's, not a conversion: it and its
+            // documentation go on the version.
             if let StepKind::Sunset(date) = &step.kind {
                 sunset = Some(date.value.clone());
+                sunset_docs = doc_text(step.doc.as_ref());
                 continue;
             }
             steps.push(context.lower(step).map_err(|diagnostic| {
@@ -1066,6 +1070,7 @@ pub fn versions(
             service: Box::new(old),
             steps,
             sunset,
+            sunset_docs,
             docs: doc_text(doc),
         });
         newer = next;
