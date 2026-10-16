@@ -305,6 +305,11 @@ const ENUM_VALUE: &[&str] = &["compatibility.enum", "compatibility.sdk"];
 const PAGINATION: &[&str] = &["compatibility.pagination"];
 const ERROR: &[&str] = &["compatibility.error", "compatibility.sdk"];
 const ROUTE: &[&str] = &["compatibility.http"];
+/// A retype's change of where its member travels: an operation's payload
+/// or header encoding, and the member moving between the body and the
+/// payload, which the checker sees as one member gone and one added.
+const REBINDING: &[&str] = &["compatibility.bindings"];
+const MOVED: &[&str] = &["compatibility.member", "compatibility.required"];
 const RETYPE: &[&str] = &[
     "compatibility.type",
     "compatibility.constraints",
@@ -1182,12 +1187,16 @@ impl<'a> Context<'a> {
                     target(self.old, &old.shape, was),
                     target(self.new, &new.shape, member),
                 ) {
-                    (Some(left), Some(now)) if named(&now) && left != now => Ok(vec![
-                        Cover::exact(old.shape.with_member(was), RETYPE),
-                        Cover::exact(new.shape.with_member(member), RETYPE),
-                        // The checker reports the change on the type it left.
-                        Cover::exact(left, RETYPE),
-                    ]),
+                    (Some(left), Some(now)) if named(&now) && left != now => {
+                        let mut covers = vec![
+                            Cover::exact(old.shape.with_member(was), RETYPE),
+                            Cover::exact(new.shape.with_member(member), RETYPE),
+                            // The checker reports the change on the type it left.
+                            Cover::exact(left, RETYPE),
+                        ];
+                        covers.extend(self.rebinding_covers(&old.shape, &new.shape, member, was));
+                        Ok(covers)
+                    }
                     (Some(_), Some(now)) if !named(&now) => Err(error(
                         to.span,
                         format!("`{member}` is a {} now, not a {}", now.name(), to.name),
@@ -1219,6 +1228,86 @@ impl<'a> Context<'a> {
                 Ok(Vec::new())
             }
         }
+    }
+
+    /// What a retype changes in where its member travels: a payload's kind
+    /// and media type follow its target, and a member retyped between a
+    /// body member and the payload moves. The projection restores the
+    /// release's binding for a retyped member (decision 72), so the step
+    /// declares an operation's binding finding when the members this
+    /// migration retypes explain its whole change, and the member's move.
+    fn rebinding_covers(
+        &self,
+        old: &ShapeId,
+        new: &ShapeId,
+        member: &str,
+        was: &str,
+    ) -> Vec<Cover> {
+        // Every member of the structure this migration retypes, by its
+        // name in each release: one operation's change may be several's.
+        let retyped: Vec<(&str, &str)> = self
+            .retyped
+            .iter()
+            .filter(|(shape, _)| shape == new)
+            .map(|(_, name)| (self.old_name(new, name), name.as_str()))
+            .collect();
+        // A message's payload and header encodings, without what the
+        // retyped members bring to them.
+        let rest = |bindings: &crucible_ir::ir::Bindings, names: &[&str]| {
+            let payload = bindings
+                .payload
+                .as_ref()
+                .filter(|payload| !names.contains(&payload.member.as_str()))
+                .cloned();
+            let encodings: BTreeMap<String, _> = bindings
+                .header_encodings
+                .iter()
+                .filter(|(name, _)| !names.contains(&name.as_str()))
+                .map(|(name, encoding)| (name.clone(), encoding.clone()))
+                .collect();
+            (payload, encodings)
+        };
+        let older: Vec<&str> = retyped.iter().map(|(older, _)| *older).collect();
+        let newer: Vec<&str> = retyped.iter().map(|(_, newer)| *newer).collect();
+        let is_payload = |bindings: &crucible_ir::ir::Bindings, name: &str| {
+            bindings
+                .payload
+                .as_ref()
+                .is_some_and(|payload| payload.member == name)
+        };
+        let mut covers = Vec::new();
+        for old_op in &self.old.operations {
+            let Some(new_op) = self.new.operations.iter().find(|op| op.id == old_op.id) else {
+                continue;
+            };
+            for (then, now, bindings) in [
+                (
+                    &old_op.input,
+                    &new_op.input,
+                    (&old_op.request, &new_op.request),
+                ),
+                (
+                    &old_op.output,
+                    &new_op.output,
+                    (&old_op.response, &new_op.response),
+                ),
+            ] {
+                if then.as_ref() != Some(old) || now.as_ref() != Some(new) {
+                    continue;
+                }
+                let (before, after) = bindings;
+                let changed = before.payload != after.payload
+                    || before.header_encodings != after.header_encodings;
+                if changed && rest(before, &older) == rest(after, &newer) {
+                    covers.push(Cover::exact(old_op.id.clone(), REBINDING));
+                }
+                if is_payload(before, was) != is_payload(after, member) {
+                    covers.push(Cover::exact(old.with_member(was), MOVED));
+                    covers.push(Cover::exact(new.with_member(member), MOVED));
+                }
+            }
+        }
+        covers
     }
 
     /// Renames that account for a paginated operation's whole pagination

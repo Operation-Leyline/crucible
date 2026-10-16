@@ -2010,3 +2010,21 @@ fn a_rename_follows_into_permission_conditions() {
     assert_eq!(rules(&checked), Vec::<String>::new());
     assert_eq!(problems(&checked), Vec::<String>::new());
 }
+
+/// #348: a `retype` declares the binding change it causes, a payload's kind
+/// and media type or a member moving between the body and the payload, so
+/// the package needs no exception for it.
+#[test]
+fn a_retype_declares_the_rebinding_it_causes() {
+    let dir = model("version-projection-payload");
+    let loaded = load_package(&dir).unwrap();
+    let own = loaded.files.len();
+    let compiled = compile(&loaded, None);
+    assert!(compiled.service.is_some(), "{}", compiled.render());
+    let config = policy(&dir);
+    assert!(config.exceptions.is_empty());
+    let checked = guard(&loaded, &compiled, own, &config).unwrap().unwrap();
+    assert_eq!(rules(&checked), Vec::<String>::new());
+    assert_eq!(problems(&checked), Vec::<String>::new());
+    assert!(checked.declared > 0);
+}
