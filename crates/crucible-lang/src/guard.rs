@@ -9,11 +9,13 @@ use std::path::Path;
 use std::collections::BTreeSet;
 
 use crucible_ir::ShapeId;
-use crucible_ir::ir::{ApiVersion, Hook, Operation, Paginated, Service, Shape, VersionStep};
+use crucible_ir::ir::{
+    ApiVersion, Hook, Operation, Paginated, RetypeBy, Service, Shape, VersionStep,
+};
 use crucible_policy::{Config, Finding, Renames, Severity};
 use serde_json::Value as Json;
 
-use crate::ast::{Decl, Dotted, Ident, Key, Migration, RequireHow, StepKind, Value};
+use crate::ast::{Decl, Doc, Dotted, Ident, Key, Migration, RequireHow, Step, StepKind, Value};
 use crate::compile::{Compiled, FileDiagnostic, Package, load_baseline};
 use crate::diagnostic::Diagnostic;
 use crate::literal::{duplicate_keys, resolve_enum_symbols};
@@ -291,6 +293,8 @@ struct Context<'a> {
     new: &'a Service,
     /// The migration's renames that name a member of both releases.
     renames: Renames,
+    /// The members the migration retypes, as the current model names them.
+    retyped: BTreeSet<(ShapeId, String)>,
 }
 
 /// Where a dotted path points: a shape, or a member of one.
@@ -314,8 +318,17 @@ impl<'a> Context<'a> {
             old,
             new,
             renames: Renames::new(),
+            retyped: BTreeSet::new(),
         };
         for step in &migration.steps {
+            if let StepKind::Retype { path, .. } = &step.kind
+                && let Some(Target {
+                    shape,
+                    member: Some(member),
+                }) = context.resolve(context.new, path)
+            {
+                context.retyped.insert((shape, member));
+            }
             if let StepKind::Rename { path, to } = &step.kind
                 && let Ok((old, new)) = context.both(path)
                 && let Some(from) = old.member
@@ -545,6 +558,20 @@ impl<'a> Context<'a> {
                         path.span,
                         format!(
                             "`{member}` is renamed from `{was}` in this migration, which a hooked requirement cannot follow yet; declare `require .. default`"
+                        ),
+                    ));
+                }
+                // The hook fills the member with the next version's value
+                // before the other conversions run, so a retype would
+                // convert a value that is already converted.
+                if matches!(how, RequireHow::Hook(_))
+                    && self.retyped.contains(&(new.shape.clone(), member.clone()))
+                {
+                    return Err(error(
+                        path.span,
+                        format!(
+                            "`{}.{member}` is both required by hook and retyped in this migration; declare one step for it",
+                            new.shape.name()
                         ),
                     ));
                 }
@@ -979,22 +1006,22 @@ pub fn versions(
         return Ok(Vec::new());
     };
     let releases = baseline.parent().unwrap_or(baseline);
-    let migrations: Vec<&Migration> = compiled
+    let migrations: Vec<(&Migration, Option<&Doc>)> = compiled
         .parsed
         .iter()
         .take(own)
         .flat_map(|parsed| &parsed.file.items)
         .filter_map(|item| match &item.decl {
-            Decl::Migration(migration) => Some(migration),
+            Decl::Migration(migration) => Some((migration, item.doc.as_ref())),
             _ => None,
         })
         .collect();
     let mut out = Vec::new();
     let mut newer = service.clone();
     let mut seen = BTreeSet::new();
-    while let Some(migration) = migrations
+    while let Some(&(migration, doc)) = migrations
         .iter()
-        .find(|migration| migration.version.value == newer.version)
+        .find(|(migration, _)| migration.version.value == newer.version)
     {
         let name = migration.from.value.clone();
         if !seen.insert(name.clone()) {
@@ -1026,7 +1053,7 @@ pub fn versions(
                 sunset = Some(date.value.clone());
                 continue;
             }
-            steps.push(context.lower(&step.kind).map_err(|diagnostic| {
+            steps.push(context.lower(step).map_err(|diagnostic| {
                 format!(
                     "the migration to \"{}\": {}",
                     migration.version.value, diagnostic.message
@@ -1039,11 +1066,17 @@ pub fn versions(
             service: Box::new(old),
             steps,
             sunset,
+            docs: doc_text(doc),
         });
         newer = next;
     }
     out.reverse();
     Ok(out)
+}
+
+/// A `///` comment's text, as the IR keeps documentation.
+fn doc_text(doc: Option<&Doc>) -> Option<String> {
+    doc.map(|doc| doc.text.clone())
 }
 
 /// A literal as JSON, for a `require .. default` value.
@@ -1106,8 +1139,11 @@ fn operations_reaching(service: &Service, shape: &ShapeId) -> Vec<ShapeId> {
 }
 
 impl Context<'_> {
-    /// A checked step, lowered with its paths resolved.
-    fn lower(&self, step: &StepKind) -> Result<VersionStep, Diagnostic> {
+    /// A checked step, lowered with its paths resolved, both its sides and
+    /// its documentation.
+    fn lower(&self, step: &Step) -> Result<VersionStep, Diagnostic> {
+        let docs = doc_text(step.doc.as_ref());
+        let step = &step.kind;
         self.checked_step(step).map_err(|diagnostics| {
             error(
                 diagnostics[0].span,
@@ -1134,11 +1170,17 @@ impl Context<'_> {
                     new: new.shape,
                     from: old.member.unwrap_or_default(),
                     to: to.name.clone(),
+                    docs,
                 }
             }
             StepKind::Require { path, how } => {
                 let (old, new) = self.both(path)?;
                 let member = new.member.clone().unwrap_or_default();
+                // Empty when the member kept its name.
+                let from = match self.old_name(&new.shape, &member) {
+                    was if was == member => String::new(),
+                    was => was.to_owned(),
+                };
                 match how {
                     RequireHow::Default(value) => {
                         let (default, _) = self.require_default(&new, value);
@@ -1150,9 +1192,12 @@ impl Context<'_> {
                         // names; conversions inject protocol document values.
                         let default = self.new.wire_example(target, &default, None);
                         VersionStep::Require {
+                            old: old.shape,
                             new: new.shape,
                             member,
+                            from,
                             default,
+                            docs,
                         }
                     }
                     RequireHow::Hook(hook) => VersionStep::Hooked {
@@ -1163,8 +1208,10 @@ impl Context<'_> {
                             old: old.shape,
                             new: new.shape,
                             member,
+                            from,
                         },
                         is_async: hook.is_async,
+                        docs,
                     },
                 }
             }
@@ -1188,6 +1235,7 @@ impl Context<'_> {
                     .iter()
                     .map(|(old, new)| (old.name.clone(), new.name.clone()))
                     .collect(),
+                docs,
             },
             StepKind::Add {
                 path,
@@ -1195,18 +1243,32 @@ impl Context<'_> {
                 downgrade,
                 ..
             } => {
-                let (_, new) = self.both(path)?;
+                let (old, new) = self.both(path)?;
                 VersionStep::AddEnumValue {
+                    old: old.shape,
                     new: new.shape,
                     value: new.member.unwrap_or_default(),
                     downgrade: downgrade.name.clone(),
+                    docs,
                 }
             }
-            StepKind::Move { operation, .. } => VersionStep::Move {
-                operation: op_id(&operation.name, self.new)
-                    .unwrap_or_else(|| self.id(&operation.name)),
-            },
-            StepKind::Reshape { path, hook, .. } => {
+            StepKind::Move { operation, .. } => {
+                let older = self::operation(self.old, &operation.name)
+                    .expect("a checked move names an operation of the baseline");
+                VersionStep::Move {
+                    operation: op_id(&operation.name, self.new)
+                        .unwrap_or_else(|| self.id(&operation.name)),
+                    old_method: older.method.clone(),
+                    old_uri: older.uri.clone(),
+                    docs,
+                }
+            }
+            StepKind::Reshape {
+                path,
+                members,
+                into,
+                hook,
+            } => {
                 let (old, new) = self.both(path)?;
                 VersionStep::Hooked {
                     kind: "reshape".into(),
@@ -1214,33 +1276,36 @@ impl Context<'_> {
                     hook: Hook::Reshape {
                         old: old.shape,
                         new: new.shape,
+                        members: members.iter().map(|member| member.name.clone()).collect(),
+                        into: into.name.clone(),
                     },
                     is_async: hook.is_async,
+                    docs,
                 }
             }
             StepKind::Retype { path, hook, .. } => {
                 let (old, new) = self.both(path)?;
+                let member = new.member.clone().unwrap_or_default();
+                // Empty when the member kept its name.
+                let from = match self.old_name(&new.shape, &member) {
+                    was if was == member => String::new(),
+                    was => was.to_owned(),
+                };
                 VersionStep::Hooked {
                     kind: "retype".into(),
                     operations: operations_reaching(self.new, &new.shape),
-                    hook: match hook {
-                        Some(_) => {
-                            let member = new.member.clone().unwrap_or_default();
-                            // Empty when the member kept its name.
-                            let from = match self.old_name(&new.shape, &member) {
-                                was if was == member => String::new(),
-                                was => was.to_owned(),
-                            };
-                            Hook::Retype {
-                                member,
-                                from,
-                                old: old.shape,
-                                new: new.shape,
-                            }
-                        }
-                        None => Hook::Conversion,
+                    hook: Hook::Retype {
+                        member,
+                        from,
+                        old: old.shape,
+                        new: new.shape,
+                        by: match hook {
+                            Some(_) => RetypeBy::Hook,
+                            None => RetypeBy::Conversion,
+                        },
                     },
                     is_async: hook.is_some_and(|hook| hook.is_async),
+                    docs,
                 }
             }
             StepKind::RemoveOperation(name) => {
@@ -1251,6 +1316,7 @@ impl Context<'_> {
                     hook: Hook::RemoveOperation { operation },
                     // A handler may always do I/O.
                     is_async: true,
+                    docs,
                 }
             }
             StepKind::Behavior(path) => VersionStep::Behavior {
@@ -1259,6 +1325,7 @@ impl Context<'_> {
                     .parts
                     .get(1)
                     .map_or_else(String::new, |p| p.name.clone()),
+                docs,
             },
             StepKind::Sunset(_) => unreachable!("handled by the caller"),
         })

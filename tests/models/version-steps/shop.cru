@@ -1,0 +1,87 @@
+service Shop {
+    version "v2"
+    protocol json
+    operations [GetItem, ListItems, PutItem]
+}
+
+readonly operation GetItem {
+    http GET "/things/{id}"
+    input { id: string }
+    errors [ItemNotFound, ItemGone]
+    output {
+        title: string
+        kind: Kind
+        size: Size
+    }
+}
+
+enum Kind { SMALL, LARGE, HUGE }
+
+structure Size {
+    area: integer
+}
+
+error ItemNotFound {
+    status 404
+    message: string
+}
+
+error ItemGone {
+    status 410
+    message: string
+}
+
+readonly operation ListItems {
+    http GET "/items"
+    input {
+        @query
+        limit: integer
+        @query
+        sort: string
+    }
+    output { names: Names }
+}
+
+list Names: string
+
+idempotent operation PutItem {
+    http PUT "/items/{id}"
+    input {
+        id: string
+        quantity?: string
+    }
+    output { total: string }
+}
+
+/// v2 names an item's title, measures its size as an area, and counts
+/// items in ListItems.
+migration "v2" from "v1" {
+    /// An item's name is its title.
+    rename GetItem.output.name -> title
+    /// The page size is `limit`.
+    rename ListItems.input.max -> limit
+    /// An older request without a page size gets 20.
+    require ListItems.input.limit default 20
+    /// An older request's sort order is the account's.
+    require ListItems.input.sort by async hook
+    /// Older clients see a huge item as large.
+    add Kind.HUGE downgrade LARGE
+    /// Older clients see a deleted item as not found.
+    add GetItem.errors ItemGone downgrade ItemNotFound {
+        message <- message
+    }
+    /// Items are things now.
+    move GetItem from GET "/items/{id}"
+    /// A size is its area.
+    reshape Size { width, height } -> area by hook
+    /// The count is a quantity, and a string.
+    rename PutItem.input.count -> quantity
+    retype PutItem.input.quantity -> string by hook
+    /// The total is a string, by a declared conversion.
+    retype PutItem.output.total -> string
+    /// ListItems counts items now.
+    remove operation CountItems
+    /// ListItems sorts by name.
+    behavior ListItems.ordering
+    sunset "2027-01-01"
+}

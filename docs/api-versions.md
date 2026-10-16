@@ -89,13 +89,21 @@ pub struct ApiVersion {
     pub service: Service,        // that release's IR: its shapes, routes, errors
     pub steps: Vec<VersionStep>, // the migration from it to the next version
     pub sunset: Option<String>,
+    pub docs: Option<String>,    // the migration's `///`
 }
 // ir::Service gains `versions: Vec<ApiVersion>`, oldest first.
 ```
 
 `VersionStep` is the lowered, checked form of a migration step, with its
-paths resolved to shape ids in both releases. Generators that do not serve
-versions ignore `versions`; the semantics are settled once, here.
+paths resolved to shape ids in both releases. Each step carries both its
+sides, so nothing is looked up in one release by the other's id: the
+older shape and member name of a `require`, the older enum of an `add ..
+downgrade`, the older route of a `move`, the members a `reshape` replaced
+and the one they became. A `retype` without `by hook` lowers as a hooked
+one does, `Hook::Retype` with `by: RetypeBy::Conversion`. Each step keeps
+its `///` documentation. `snapshot::write` clears `versions`, so none of
+it reaches a release. Generators that do not serve versions ignore
+`versions`; the semantics are settled once, here.
 
 ## Generated code
 
@@ -225,7 +233,10 @@ What the generator cannot convert is a diagnostic against the shape, not a
 silent skip: a member inside a recursive shape, and a member renamed inside
 an error. An `add .. downgrade F { .. }` step must fill every member `F`
 requires, from members the new error has; the guard checks it, so a
-downgrade never fails at run time for a missing member.
+downgrade never fails at run time for a missing member. A `require .. by
+hook` on a member the same migration renames or retypes is refused by the
+compiler, at the requirement: the hook fills the member with the next
+version's value, which the other step would convert again.
 
 ## Testing
 

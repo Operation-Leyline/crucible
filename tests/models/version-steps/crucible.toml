@@ -1,0 +1,8 @@
+# Every kind of migration step, each lowered with both its sides and its
+# documentation (crucible-lang/tests/migrations.rs): v1 is frozen under
+# releases/, v2 is current.
+[model]
+namespace = "example.steps"
+
+[model.baseline]
+path = "releases/v1.json"

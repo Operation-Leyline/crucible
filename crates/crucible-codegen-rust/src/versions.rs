@@ -6,7 +6,7 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use crucible_ir::ir::{Hook, Operation, Service, Shape, VersionStep};
+use crucible_ir::ir::{Hook, Operation, RetypeBy, Service, Shape, VersionStep};
 use crucible_ir::{Diagnostics, ShapeId};
 
 use crate::info::constant;
@@ -631,6 +631,7 @@ fn conversion(
                 new: new_shape,
                 from,
                 to,
+                ..
             } => {
                 let (Some(from_wire), Some(to_wire)) =
                     (wire(old, old_shape, from), wire(new, new_shape, to))
@@ -680,9 +681,11 @@ fn conversion(
                 inside_error(new_shape, "a member renamed", diagnostics);
             }
             VersionStep::Require {
+                old: old_shape,
                 new: new_shape,
                 member,
                 default,
+                ..
             } => {
                 let Some(member_wire) = wire(new, new_shape, member) else {
                     continue;
@@ -691,7 +694,7 @@ fn conversion(
                 for at in places(
                     old,
                     old_op.input.as_ref(),
-                    new_shape,
+                    old_shape,
                     operation,
                     diagnostics,
                 ) {
@@ -710,9 +713,11 @@ fn conversion(
                 }
             }
             VersionStep::AddEnumValue {
+                old: old_shape,
                 new: new_shape,
                 value,
                 downgrade: replacement,
+                ..
             } => {
                 if !matches!(new.shape(new_shape), Some(Shape::Enum(_))) {
                     diagnostics.push(
@@ -727,7 +732,7 @@ fn conversion(
                 // The value is the next version's; the downgrade, this one's.
                 let (Some(from), Some(to)) = (
                     enum_value(new, new_shape, value),
-                    enum_value(old, new_shape, replacement),
+                    enum_value(old, old_shape, replacement),
                 ) else {
                     continue;
                 };
@@ -767,6 +772,7 @@ fn conversion(
                 error,
                 downgrade: replacement,
                 members,
+                ..
             } if target == operation => {
                 if models[step + 1..]
                     .iter()
@@ -860,6 +866,7 @@ fn conversion(
                 Hook::Reshape {
                     old: old_shape,
                     new: new_shape,
+                    ..
                 } => {
                     let name = function(old_shape.name());
                     let ups = places(
@@ -939,10 +946,23 @@ fn conversion(
                     inside_error(new_shape, "a reshaped structure", diagnostics);
                 }
                 Hook::Retype {
+                    by: RetypeBy::Conversion,
+                    ..
+                } => {
+                    diagnostics.push(
+                        operation,
+                        format!(
+                            "a `{kind}` step without `by hook` needs a declared `conversion`, which is not generated yet; add `by hook` to the step"
+                        ),
+                    );
+                    return refused("a conversion is not generated yet");
+                }
+                Hook::Retype {
                     old: old_shape,
                     new: new_shape,
                     member,
                     from,
+                    by: RetypeBy::Hook,
                 } => {
                     // A member the same migration renamed had its old name
                     // in the older version.
@@ -1040,35 +1060,19 @@ fn conversion(
                     }
                     inside_error(new_shape, "a retyped member", diagnostics);
                 }
+                // The compiler refuses a hooked requirement that a `rename`
+                // or `retype` of the same migration also names: the fill
+                // runs first and writes the next version's value, which
+                // another step on the member would read as the older one.
                 Hook::Require {
                     old: old_shape,
                     new: new_shape,
                     member,
+                    ..
                 } => {
                     let Some(new_member) = member_of(new, new_shape, member) else {
                         continue;
                     };
-                    // The fill runs first and writes the next version's
-                    // value; another step on the same member would read it
-                    // as the older one.
-                    let conflicts = steps.iter().any(|other| match other {
-                        VersionStep::Rename { new, to, .. } => new == new_shape && to == member,
-                        VersionStep::Hooked {
-                            hook: Hook::Retype { new, member: m, .. },
-                            ..
-                        } => new == new_shape && m == member,
-                        _ => false,
-                    });
-                    if conflicts {
-                        diagnostics.push(
-                            &new_shape.with_member(member),
-                            format!(
-                                "`{}.{member}` is both required by hook and renamed or retyped in the migration from API version {version}; declare one step for it",
-                                new_shape.name()
-                            ),
-                        );
-                        continue;
-                    }
                     if crate::types::codec(new, new_member).is_some() {
                         diagnostics.push(
                             &new_shape.with_member(member),
@@ -1120,15 +1124,6 @@ fn conversion(
                     }
                 }
                 Hook::RemoveOperation { .. } => {}
-                Hook::Conversion => {
-                    diagnostics.push(
-                        operation,
-                        format!(
-                            "a `{kind}` step without `by hook` needs a declared `conversion`, which is not generated yet; add `by hook` to the step"
-                        ),
-                    );
-                    return refused("a conversion is not generated yet");
-                }
             },
             _ => {}
         }

@@ -1,0 +1,7 @@
+# Refused: `require .. by hook` on a member the same migration retypes
+# (crucible-lang/tests/migrations.rs). v1 is frozen under releases/.
+[model]
+namespace = "example.refused"
+
+[model.baseline]
+path = "releases/v1.json"

@@ -558,6 +558,25 @@ version's section when it is prepared.
 
 ### Changed
 
+- `.cru`: `require S.m by hook` on a member that a `retype` of the same
+  migration also names is refused by the compiler, at the requirement
+  (`crucible check`, the build and the editor), instead of by the Rust
+  server generator: the hook fills the member with the next version's
+  value, which the retype would convert again. Declare one step for it.
+  The same refusal for a renamed member was already the compiler's.
+
+- IR (`crucible_ir::ir`, outside the stable surface): migration steps carry
+  both their sides and their documentation, so nothing reads one release
+  by the other's ids (decision 72). `VersionStep::Require` gains `old` and
+  `from` (the member's older name when the migration renamed it),
+  `Hook::Require` gains `from`, `AddEnumValue` gains `old`, `Move` gains
+  `old_method` and `old_uri`, and `Hook::Reshape` gains `members` and
+  `into`. `Hook::Conversion` is gone: a `retype` without `by hook` lowers to
+  `Hook::Retype` with `by: RetypeBy::Conversion`, with the same sides as a
+  hooked one. Every step has `docs` (`VersionStep::docs()`) and
+  `ApiVersion` has `docs`, the migration's `///`. Release snapshots are
+  unchanged: `snapshot::write` leaves out `Service::versions`.
+
 - `.cru`: a `[Name]` doc link that names nothing is a compile error, reported
   at its label (decision 80); it was a warning (decision 41). So is
   `[Name.member]` naming a member, value or operation input or output member
