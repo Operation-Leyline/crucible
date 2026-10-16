@@ -4,7 +4,8 @@
 //!
 //! The value is the operation's first `example` with an input, and
 //! otherwise its generated [`sample`](crate::sample) (every member, so the
-//! snippet shows the whole input). Each client generator renders a [`Call`]
+//! snippet shows the whole input), less the idempotency and pagination
+//! input tokens. Each client generator renders a [`Call`]
 //! with its own naming functions, into the `snippet` and `paginatedSnippet`
 //! of `crucible.sdks/1` (docs/docs.md) and the package README: the tree
 //! settles once what a model value means (which enum value, which union
@@ -367,7 +368,11 @@ pub fn call<'a>(service: &'a Service, operation: &'a Operation) -> Call<'a> {
         None => (None, None),
         Some((id, shape)) => match example.and_then(|e| e.input.as_ref().map(|v| (e, v))) {
             Some((example, value)) => (
-                Some(without_token(structure(service, id, shape, value))),
+                Some(without_tokens(
+                    service,
+                    operation,
+                    structure(service, id, shape, value),
+                )),
                 Some(example.title.as_str()),
             ),
             None => {
@@ -389,7 +394,11 @@ pub fn call<'a>(service: &'a Service, operation: &'a Operation) -> Call<'a> {
                     });
                 }
                 (
-                    Some(without_token(structure(service, id, shape, &value))),
+                    Some(without_tokens(
+                        service,
+                        operation,
+                        structure(service, id, shape, &value),
+                    )),
                     None,
                 )
             }
@@ -440,12 +449,27 @@ pub fn call<'a>(service: &'a Service, operation: &'a Operation) -> Call<'a> {
     }
 }
 
-/// `node` without its idempotency token, whether an example or a sample
-/// set it: a fixed token in copied code would replay one logical request
-/// forever, so the client fills a fresh one.
-fn without_token(mut node: Node<'_>) -> Node<'_> {
+/// `node` without its idempotency token or pagination input token,
+/// whether an example or a sample set it. A fixed idempotency token in
+/// copied code would replay one logical request forever, so the client
+/// fills a fresh one; a page token is one the service issued, so a
+/// sample's (`"nextToken"`) is refused as invalid, and the first page
+/// sends none. A page token with a modelled default keeps the member, at
+/// its default: that is the first page's value, and some languages'
+/// constructors (Ruby's, Swift's, PHP's, R's) require a defaulted member.
+fn without_tokens<'a>(service: &'a Service, operation: &Operation, mut node: Node<'a>) -> Node<'a> {
+    let page_token = operation.paginated.as_ref().map(|p| p.input_token.as_str());
     if let Kind::Structure(members) = &mut node.kind {
-        members.retain(|(m, _)| !m.idempotency_token);
+        members.retain(|(m, _)| {
+            !m.idempotency_token && (Some(m.name.as_str()) != page_token || m.default.is_some())
+        });
+        for (m, value) in members.iter_mut() {
+            if Some(m.name.as_str()) == page_token
+                && let Some(default) = &m.default
+            {
+                *value = member(service, m, default);
+            }
+        }
     }
     node
 }

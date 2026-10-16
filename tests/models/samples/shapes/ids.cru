@@ -31,6 +31,8 @@ list Tags: Label { length 2..3 unique }
 
 list Regions: Region
 
+list GraphIds: GraphId
+
 map Limits: GraphName -> Port { length 2.. }
 
 enum Tier {

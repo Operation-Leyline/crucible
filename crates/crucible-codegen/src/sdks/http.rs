@@ -8,7 +8,9 @@
 //! (`crucible_codegen_common::describe`), so the reference and the snippet
 //! never disagree about a label, a query parameter or a body. The request
 //! leaves out the idempotency token, as the SDK snippets do: a fixed token
-//! in a copied command would replay one logical request forever.
+//! in a copied command would replay one logical request forever. It leaves
+//! out the pagination input token too: the first page sends none, and a
+//! sample's is no token the service issued.
 //!
 //! The command is pasted into a terminal, so model text reaches it only as
 //! printable characters: a body holding any other is sent through
@@ -17,6 +19,7 @@
 //! `omitted`. A raw `\x03` or `ESC [201~` would otherwise interrupt the
 //! shell or end a bracketed paste early and run what follows.
 
+use crucible_codegen_common::describe::query_component;
 use crucible_codegen_common::snippet::{base64_bytes, base64_text, env_var};
 use crucible_ir::Audience;
 use crucible_ir::ir::{Operation, Service};
@@ -101,39 +104,49 @@ fn body(message: &Value) -> Option<Body> {
     Some(Body::of(text.into_bytes()))
 }
 
-/// `message` without the operation's idempotency token: the body member,
-/// header or query parameter it travels in.
-fn without_token(operation: &Operation, message: &Value) -> Value {
+/// `message` without the operation's idempotency token and pagination
+/// input token: the body member, header or query parameter each travels
+/// in.
+fn without_tokens(operation: &Operation, message: &Value) -> Value {
+    let page_token = operation.paginated.as_ref().map(|p| &p.input_token);
     let mut message = message.clone();
-    let Some(token) = &operation.idempotency_token else {
-        return message;
-    };
+    for token in operation.idempotency_token.iter().chain(page_token) {
+        without_member(operation, &mut message, token);
+    }
+    message
+}
+
+/// Removes `member` from `message`, wherever the request binds it.
+fn without_member(operation: &Operation, message: &mut Value, member: &str) {
     if let Some(body) = message["body"].as_object_mut() {
-        body.remove(token);
+        body.remove(member);
     }
     let request = &operation.request;
     // A token bound as the whole payload goes with its body and the body's
     // media type: the request is then sent without one, as a caller who
     // leaves the token to the service does.
-    if request.payload.as_ref().is_some_and(|p| &p.member == token) {
+    if request.payload.as_ref().is_some_and(|p| p.member == member) {
         message["payload"] = Value::Null;
         message["body"] = Value::Null;
         if let Some(headers) = message["headers"].as_object_mut() {
             headers.retain(|name, _| !name.eq_ignore_ascii_case("content-type"));
         }
     }
-    if let Some(binding) = request.headers.iter().find(|b| &b.member == token)
+    if let Some(binding) = request.headers.iter().find(|b| b.member == member)
         && let Some(headers) = message["headers"].as_object_mut()
     {
         headers.retain(|name, _| !name.eq_ignore_ascii_case(&binding.name));
     }
-    if let Some(binding) = request.query.iter().find(|b| &b.member == token)
+    if let Some(binding) = request.query.iter().find(|b| b.member == member)
         && let Some(uri) = message["uri"].as_str()
         && let Some((path, query)) = uri.split_once('?')
     {
+        // The `uri` holds each name percent-encoded (`page%5Bcursor%5D`),
+        // so the binding's name is compared encoded the same way.
+        let name = query_component(&binding.name);
         let kept: Vec<&str> = query
             .split('&')
-            .filter(|pair| pair.split('=').next() != Some(binding.name.as_str()))
+            .filter(|pair| pair.split('=').next() != Some(name.as_str()))
             .collect();
         message["uri"] = json!(if kept.is_empty() {
             path.to_owned()
@@ -141,7 +154,6 @@ fn without_token(operation: &Operation, message: &Value) -> Value {
             format!("{path}?{}", kept.join("&"))
         });
     }
-    message
 }
 
 /// `text` inside single quotes for a POSIX shell, where nothing expands.
@@ -191,15 +203,16 @@ pub(super) fn document(
             .into_iter()
             .flatten()
             .find(|example| !example["input"].is_null());
-        // An example's token, like a sample's, is left out: a copied
-        // command repeated with it would replay one logical request.
+        // An example's tokens, like a sample's, are left out: a copied
+        // command repeated with its idempotency token would replay one
+        // logical request, and the first page sends no page token.
         let (message, title) = match example {
             Some(example) => (
-                without_token(operation, &example["input"]),
+                without_tokens(operation, &example["input"]),
                 example["title"].clone(),
             ),
             None => (
-                without_token(operation, &described["sample"]["input"]),
+                without_tokens(operation, &described["sample"]["input"]),
                 Value::Null,
             ),
         };

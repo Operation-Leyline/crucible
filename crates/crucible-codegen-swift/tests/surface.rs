@@ -6,7 +6,7 @@ use std::path::{Path, PathBuf};
 
 use crucible_codegen_common::surface::Surface;
 use crucible_codegen_swift::{Options, emit, surface};
-use crucible_ir::ir::Service;
+use crucible_ir::ir::{Service, Shape};
 
 fn model_dir(name: &str) -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -399,9 +399,25 @@ fn snippets_call_what_the_package_declares() {
                         "for try await page in try client.{}(",
                         paginators[0]
                     )));
-                    // The paginator sends the token: the input leaves it out.
+                    // The paginator sends the token: the input leaves it
+                    // out, or writes a defaulted one at its default, which
+                    // the initializer requires.
                     let token = &operation.paginated.as_ref().unwrap().input_token;
-                    assert!(!pages.contains(&format!("    {token}: ")), "{id}");
+                    let defaulted = operation
+                        .input
+                        .as_ref()
+                        .and_then(|id| match service.shape(id) {
+                            Some(Shape::Structure(input)) => input.member(token),
+                            _ => None,
+                        })
+                        .is_some_and(|member| member.default.is_some());
+                    for snippet in [snippet, pages] {
+                        assert_eq!(
+                            snippet.contains(&format!("    {token}: ")),
+                            defaulted,
+                            "{id}: {snippet}"
+                        );
+                    }
                 }
                 (None, None) => {}
                 _ => panic!("{id}: a paginated snippet exactly for a paginated operation"),

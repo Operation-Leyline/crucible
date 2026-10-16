@@ -321,13 +321,10 @@ pub(crate) fn snippets(
 
     let paginated = paginator.zip(call.pages).map(|(paginator, pages)| {
         let mut needs = Needs::default();
-        let input = call.input.as_ref().map(|node| {
-            let mut node = node.clone();
-            if let Kind::Structure(members) = &mut node.kind {
-                members.retain(|(m, _)| m.name != pages.paginated.input_token);
-            }
-            expr(service, module, &node, "", &mut needs)
-        });
+        let input = call
+            .input
+            .as_ref()
+            .map(|node| expr(service, module, node, "", &mut needs));
         let mut out = requires(options, &needs);
         out.push('\n');
         out.push_str(&header);

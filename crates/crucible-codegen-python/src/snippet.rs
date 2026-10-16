@@ -367,14 +367,7 @@ pub(crate) fn snippets(
 
     let paginated = paginator.zip(call.pages).map(|(paginator, pages)| {
         let token = &pages.paginated.input_token;
-        let input = call.input.as_ref().map(|node| {
-            let mut node = node.clone();
-            if let Kind::Structure(members) = &mut node.kind {
-                members.retain(|(m, _)| &m.name != token);
-            }
-            node
-        });
-        let (mut out, has_request) = head(service, options, middleware, call, input.as_ref());
+        let (mut out, has_request) = head(service, options, middleware, call, call.input.as_ref());
         let argument = if has_request { "request" } else { "" };
         out.push_str(&format!(
             "# Each page is one response; the paginator sends `{}` for the next.\n",

@@ -567,12 +567,8 @@ pub(crate) fn snippets(
         let mut body = String::new();
         let argument = match &call.input {
             Some(node) => {
-                let mut node = node.clone();
-                if let Kind::Structure(members) = &mut node.kind {
-                    members.retain(|(m, _)| m.name != pages.paginated.input_token);
-                }
                 body.push_str(&provenance(call));
-                body.push_str(&input(&mut writer, &node));
+                body.push_str(&input(&mut writer, node));
                 "input"
             }
             None => "",

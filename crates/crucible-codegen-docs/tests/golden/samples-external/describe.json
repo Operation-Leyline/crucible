@@ -1700,6 +1700,450 @@
       "status": 200,
       "uri": "/graphs/{graphId}"
     },
+    "example.samples#ListGraphs": {
+      "auth": [],
+      "documentation": {
+        "html": "<p>Paginated, with the page token in the query and no example: the\nsample's token is none the service issued, so no SDK snippet or <code>http</code>\nrequest sends it.</p>\n",
+        "markdown": "Paginated, with the page token in the query and no example: the\nsample's token is none the service issued, so no SDK snippet or `http`\nrequest sends it.",
+        "text": "Paginated, with the page token in the query and no example: the\nsample's token is none the service issued, so no SDK snippet or http\nrequest sends it."
+      },
+      "errors": [],
+      "examples": [],
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
+      "id": "example.samples#ListGraphs",
+      "idempotencyToken": null,
+      "idempotent": false,
+      "input": "example.samples#ListGraphsInput",
+      "inputSchema": {
+        "$defs": {
+          "crucible.api.Integer": {
+            "format": "int32",
+            "maximum": 2147483647,
+            "minimum": -2147483648,
+            "type": "integer"
+          },
+          "crucible.api.String": {
+            "type": "string"
+          },
+          "example.samples.ListGraphsInput": {
+            "properties": {
+              "maxResults": {
+                "anyOf": [
+                  {
+                    "format": "int32",
+                    "maximum": 100,
+                    "minimum": 1,
+                    "type": "integer"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "nextToken": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/crucible.api.String"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "type": "object"
+          }
+        },
+        "properties": {
+          "maxResults": {
+            "anyOf": [
+              {
+                "format": "int32",
+                "maximum": 100,
+                "minimum": 1,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "nextToken": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/crucible.api.String"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object"
+      },
+      "internal": false,
+      "method": "GET",
+      "name": "ListGraphs",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "output": "example.samples#ListGraphsOutput",
+      "outputSchema": {
+        "$defs": {
+          "crucible.api.String": {
+            "type": "string"
+          },
+          "example.samples.GraphId": {
+            "description": "A graph id: a type prefix and 26 Crockford base-32 characters.",
+            "pattern": "^g_[0-9a-hjkmnp-tv-z]{26}(_[a-z]{3})?$",
+            "type": "string"
+          },
+          "example.samples.GraphIds": {
+            "items": {
+              "description": "A graph id: a type prefix and 26 Crockford base-32 characters.",
+              "pattern": "^g_[0-9a-hjkmnp-tv-z]{26}(_[a-z]{3})?$",
+              "type": "string"
+            },
+            "type": "array",
+            "uniqueItems": false
+          },
+          "example.samples.ListGraphsOutput": {
+            "properties": {
+              "graphIds": {
+                "$ref": "#/$defs/example.samples.GraphIds"
+              },
+              "nextToken": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/crucible.api.String"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "graphIds"
+            ],
+            "type": "object"
+          }
+        },
+        "properties": {
+          "graphIds": {
+            "$ref": "#/$defs/example.samples.GraphIds"
+          },
+          "nextToken": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/crucible.api.String"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "graphIds"
+        ],
+        "type": "object"
+      },
+      "pagination": {
+        "inputToken": "nextToken",
+        "items": "graphIds",
+        "outputToken": "nextToken",
+        "pageSize": "maxResults"
+      },
+      "protocol": "crucibleJson",
+      "protocolHeaders": {},
+      "readonly": true,
+      "request": {
+        "body": [],
+        "headerEncodings": {},
+        "headers": [],
+        "labels": [],
+        "payload": null,
+        "query": [
+          {
+            "member": "nextToken",
+            "name": "nextToken"
+          },
+          {
+            "member": "maxResults",
+            "name": "maxResults"
+          }
+        ],
+        "timestampFormats": {}
+      },
+      "resources": [],
+      "response": {
+        "body": [
+          "graphIds",
+          "nextToken"
+        ],
+        "headerEncodings": {},
+        "headers": [],
+        "labels": [],
+        "payload": null,
+        "query": [],
+        "timestampFormats": {}
+      },
+      "responseProtocolHeaders": {
+        "Content-Type": "application/json"
+      },
+      "sample": {
+        "fallbacks": [],
+        "generated": true,
+        "input": {
+          "body": null,
+          "headers": {},
+          "labels": {},
+          "method": "GET",
+          "payload": null,
+          "query": [
+            {
+              "name": "nextToken",
+              "value": "nextToken"
+            },
+            {
+              "name": "maxResults",
+              "value": "1"
+            }
+          ],
+          "uri": "/graphs?nextToken=nextToken&maxResults=1"
+        },
+        "minimalInput": {
+          "body": null,
+          "headers": {},
+          "labels": {},
+          "method": "GET",
+          "payload": null,
+          "query": [],
+          "uri": "/graphs"
+        },
+        "output": {
+          "body": {
+            "graphIds": [
+              "g_nzkxa7xw7j3ez927px4d2ejtz7"
+            ],
+            "nextToken": "nextToken"
+          },
+          "headers": {
+            "Content-Type": "application/json"
+          },
+          "labels": {},
+          "payload": null,
+          "query": []
+        }
+      },
+      "status": 200,
+      "uri": "/graphs"
+    },
+    "example.samples#ListRevisions": {
+      "auth": [],
+      "documentation": {
+        "html": "<p>Paginated, with a page token that has a default and no example: the\nsnippets write the default, the first page's value, which some\nlanguages' constructors require, and never the sample's token.</p>\n",
+        "markdown": "Paginated, with a page token that has a default and no example: the\nsnippets write the default, the first page's value, which some\nlanguages' constructors require, and never the sample's token.",
+        "text": "Paginated, with a page token that has a default and no example: the\nsnippets write the default, the first page's value, which some\nlanguages' constructors require, and never the sample's token."
+      },
+      "errors": [],
+      "examples": [],
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
+      "id": "example.samples#ListRevisions",
+      "idempotencyToken": null,
+      "idempotent": false,
+      "input": "example.samples#ListRevisionsInput",
+      "inputSchema": {
+        "$defs": {
+          "crucible.api.String": {
+            "type": "string"
+          },
+          "example.samples.ListRevisionsInput": {
+            "properties": {
+              "after": {
+                "$ref": "#/$defs/crucible.api.String",
+                "default": "first-page",
+                "x-crucible-default": "first-page"
+              }
+            },
+            "type": "object"
+          }
+        },
+        "properties": {
+          "after": {
+            "$ref": "#/$defs/crucible.api.String",
+            "default": "first-page",
+            "x-crucible-default": "first-page"
+          }
+        },
+        "type": "object"
+      },
+      "internal": false,
+      "method": "GET",
+      "name": "ListRevisions",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "output": "example.samples#ListRevisionsOutput",
+      "outputSchema": {
+        "$defs": {
+          "crucible.api.String": {
+            "type": "string"
+          },
+          "example.samples.GraphId": {
+            "description": "A graph id: a type prefix and 26 Crockford base-32 characters.",
+            "pattern": "^g_[0-9a-hjkmnp-tv-z]{26}(_[a-z]{3})?$",
+            "type": "string"
+          },
+          "example.samples.GraphIds": {
+            "items": {
+              "description": "A graph id: a type prefix and 26 Crockford base-32 characters.",
+              "pattern": "^g_[0-9a-hjkmnp-tv-z]{26}(_[a-z]{3})?$",
+              "type": "string"
+            },
+            "type": "array",
+            "uniqueItems": false
+          },
+          "example.samples.ListRevisionsOutput": {
+            "properties": {
+              "next": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/crucible.api.String"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "revisions": {
+                "$ref": "#/$defs/example.samples.GraphIds"
+              }
+            },
+            "required": [
+              "revisions"
+            ],
+            "type": "object"
+          }
+        },
+        "properties": {
+          "next": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/crucible.api.String"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "revisions": {
+            "$ref": "#/$defs/example.samples.GraphIds"
+          }
+        },
+        "required": [
+          "revisions"
+        ],
+        "type": "object"
+      },
+      "pagination": {
+        "inputToken": "after",
+        "items": "revisions",
+        "outputToken": "next",
+        "pageSize": null
+      },
+      "protocol": "crucibleJson",
+      "protocolHeaders": {},
+      "readonly": true,
+      "request": {
+        "body": [],
+        "headerEncodings": {},
+        "headers": [],
+        "labels": [],
+        "payload": null,
+        "query": [
+          {
+            "member": "after",
+            "name": "after"
+          }
+        ],
+        "timestampFormats": {}
+      },
+      "resources": [],
+      "response": {
+        "body": [
+          "revisions",
+          "next"
+        ],
+        "headerEncodings": {},
+        "headers": [],
+        "labels": [],
+        "payload": null,
+        "query": [],
+        "timestampFormats": {}
+      },
+      "responseProtocolHeaders": {
+        "Content-Type": "application/json"
+      },
+      "sample": {
+        "fallbacks": [],
+        "generated": true,
+        "input": {
+          "body": null,
+          "headers": {},
+          "labels": {},
+          "method": "GET",
+          "payload": null,
+          "query": [
+            {
+              "name": "after",
+              "value": "first-page"
+            }
+          ],
+          "uri": "/revisions?after=first-page"
+        },
+        "minimalInput": {
+          "body": null,
+          "headers": {},
+          "labels": {},
+          "method": "GET",
+          "payload": null,
+          "query": [],
+          "uri": "/revisions"
+        },
+        "output": {
+          "body": {
+            "next": "next",
+            "revisions": [
+              "g_nzkxa7xw7j3ez927px4d2ejtz7"
+            ]
+          },
+          "headers": {
+            "Content-Type": "application/json"
+          },
+          "labels": {},
+          "payload": null,
+          "query": []
+        }
+      },
+      "status": 200,
+      "uri": "/revisions"
+    },
     "example.samples#PutGraph": {
       "auth": [],
       "documentation": {
@@ -2660,6 +3104,244 @@
       },
       "status": 200,
       "uri": "/graphs/{graphId}"
+    },
+    "example.samples#SearchGraphs": {
+      "auth": [],
+      "documentation": {
+        "html": "<p>Paginated, with the page token in the body beside the query, and no\nexample: no SDK snippet or <code>http</code> request sends it.</p>\n",
+        "markdown": "Paginated, with the page token in the body beside the query, and no\nexample: no SDK snippet or `http` request sends it.",
+        "text": "Paginated, with the page token in the body beside the query, and no\nexample: no SDK snippet or http request sends it."
+      },
+      "errors": [],
+      "examples": [],
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
+      "id": "example.samples#SearchGraphs",
+      "idempotencyToken": null,
+      "idempotent": false,
+      "input": "example.samples#SearchGraphsInput",
+      "inputSchema": {
+        "$defs": {
+          "crucible.api.String": {
+            "type": "string"
+          },
+          "example.samples.GraphName": {
+            "description": "A DNS-style name.",
+            "maxLength": 63,
+            "minLength": 3,
+            "pattern": "^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$",
+            "type": "string"
+          },
+          "example.samples.SearchGraphsInput": {
+            "properties": {
+              "pageToken": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/crucible.api.String"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "query": {
+                "description": "A DNS-style name.",
+                "maxLength": 63,
+                "minLength": 3,
+                "pattern": "^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$",
+                "type": "string"
+              }
+            },
+            "required": [
+              "query"
+            ],
+            "type": "object"
+          }
+        },
+        "properties": {
+          "pageToken": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/crucible.api.String"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "query": {
+            "description": "A DNS-style name.",
+            "maxLength": 63,
+            "minLength": 3,
+            "pattern": "^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "query"
+        ],
+        "type": "object"
+      },
+      "internal": false,
+      "method": "POST",
+      "name": "SearchGraphs",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "output": "example.samples#SearchGraphsOutput",
+      "outputSchema": {
+        "$defs": {
+          "crucible.api.String": {
+            "type": "string"
+          },
+          "example.samples.GraphId": {
+            "description": "A graph id: a type prefix and 26 Crockford base-32 characters.",
+            "pattern": "^g_[0-9a-hjkmnp-tv-z]{26}(_[a-z]{3})?$",
+            "type": "string"
+          },
+          "example.samples.GraphIds": {
+            "items": {
+              "description": "A graph id: a type prefix and 26 Crockford base-32 characters.",
+              "pattern": "^g_[0-9a-hjkmnp-tv-z]{26}(_[a-z]{3})?$",
+              "type": "string"
+            },
+            "type": "array",
+            "uniqueItems": false
+          },
+          "example.samples.SearchGraphsOutput": {
+            "properties": {
+              "graphIds": {
+                "$ref": "#/$defs/example.samples.GraphIds"
+              },
+              "pageToken": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/crucible.api.String"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "graphIds"
+            ],
+            "type": "object"
+          }
+        },
+        "properties": {
+          "graphIds": {
+            "$ref": "#/$defs/example.samples.GraphIds"
+          },
+          "pageToken": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/crucible.api.String"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "graphIds"
+        ],
+        "type": "object"
+      },
+      "pagination": {
+        "inputToken": "pageToken",
+        "items": "graphIds",
+        "outputToken": "pageToken",
+        "pageSize": null
+      },
+      "protocol": "crucibleJson",
+      "protocolHeaders": {
+        "Content-Type": "application/json"
+      },
+      "readonly": true,
+      "request": {
+        "body": [
+          "query",
+          "pageToken"
+        ],
+        "headerEncodings": {},
+        "headers": [],
+        "labels": [],
+        "payload": null,
+        "query": [],
+        "timestampFormats": {}
+      },
+      "resources": [],
+      "response": {
+        "body": [
+          "graphIds",
+          "pageToken"
+        ],
+        "headerEncodings": {},
+        "headers": [],
+        "labels": [],
+        "payload": null,
+        "query": [],
+        "timestampFormats": {}
+      },
+      "responseProtocolHeaders": {
+        "Content-Type": "application/json"
+      },
+      "sample": {
+        "fallbacks": [],
+        "generated": true,
+        "input": {
+          "body": {
+            "pageToken": "pageToken",
+            "query": "query"
+          },
+          "headers": {
+            "Content-Type": "application/json"
+          },
+          "labels": {},
+          "method": "POST",
+          "payload": null,
+          "query": [],
+          "uri": "/graphs/search"
+        },
+        "minimalInput": {
+          "body": {
+            "query": "query"
+          },
+          "headers": {
+            "Content-Type": "application/json"
+          },
+          "labels": {},
+          "method": "POST",
+          "payload": null,
+          "query": [],
+          "uri": "/graphs/search"
+        },
+        "output": {
+          "body": {
+            "graphIds": [
+              "g_nzkxa7xw7j3ez927px4d2ejtz7"
+            ],
+            "pageToken": "pageToken"
+          },
+          "headers": {
+            "Content-Type": "application/json"
+          },
+          "labels": {},
+          "payload": null,
+          "query": []
+        }
+      },
+      "status": 200,
+      "uri": "/graphs/search"
     },
     "example.samples#Walk": {
       "auth": [],
@@ -5076,6 +5758,76 @@
       },
       "sensitive": false
     },
+    "example.samples#GraphIds": {
+      "constraints": {
+        "length": null,
+        "pattern": null,
+        "range": null,
+        "uniqueItems": false
+      },
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
+      "id": "example.samples#GraphIds",
+      "internal": false,
+      "kind": "list",
+      "members": [
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": "^g_[0-9a-hjkmnp-tv-z]{26}(_[a-z]{3})?$",
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "member",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": true,
+          "required": false,
+          "sensitive": false,
+          "target": "example.samples#GraphId",
+          "targetName": "GraphId",
+          "targetType": "string",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "member"
+        }
+      ],
+      "name": "GraphIds",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false,
+      "set": false,
+      "sparse": false
+    },
     "example.samples#GraphName": {
       "constraints": {
         "length": {
@@ -5430,6 +6182,372 @@
       },
       "sensitive": false,
       "sparse": false
+    },
+    "example.samples#ListGraphsInput": {
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "error": null,
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
+      "id": "example.samples#ListGraphsInput",
+      "internal": false,
+      "kind": "structure",
+      "members": [
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "nextToken",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": true,
+          "required": false,
+          "sensitive": false,
+          "target": "crucible.api#String",
+          "targetName": "String",
+          "targetType": "string",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "nextToken"
+        },
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": {
+              "max": 100,
+              "min": 1
+            },
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "maxResults",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": true,
+          "required": false,
+          "sensitive": false,
+          "target": "crucible.api#Integer",
+          "targetName": "Integer",
+          "targetType": "integer",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "maxResults"
+        }
+      ],
+      "name": "ListGraphsInput",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false
+    },
+    "example.samples#ListGraphsOutput": {
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "error": null,
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
+      "id": "example.samples#ListGraphsOutput",
+      "internal": false,
+      "kind": "structure",
+      "members": [
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "graphIds",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": false,
+          "required": true,
+          "sensitive": false,
+          "target": "example.samples#GraphIds",
+          "targetName": "GraphIds",
+          "targetType": "list",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "graphIds"
+        },
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "nextToken",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": true,
+          "required": false,
+          "sensitive": false,
+          "target": "crucible.api#String",
+          "targetName": "String",
+          "targetType": "string",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "nextToken"
+        }
+      ],
+      "name": "ListGraphsOutput",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false
+    },
+    "example.samples#ListRevisionsInput": {
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "error": null,
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
+      "id": "example.samples#ListRevisionsInput",
+      "internal": false,
+      "kind": "structure",
+      "members": [
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": "first-page",
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "after",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": false,
+          "required": false,
+          "sensitive": false,
+          "target": "crucible.api#String",
+          "targetName": "String",
+          "targetType": "string",
+          "timestampFormat": "date-time",
+          "wireDefault": "first-page",
+          "wireName": "after"
+        }
+      ],
+      "name": "ListRevisionsInput",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false
+    },
+    "example.samples#ListRevisionsOutput": {
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "error": null,
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
+      "id": "example.samples#ListRevisionsOutput",
+      "internal": false,
+      "kind": "structure",
+      "members": [
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "revisions",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": false,
+          "required": true,
+          "sensitive": false,
+          "target": "example.samples#GraphIds",
+          "targetName": "GraphIds",
+          "targetType": "list",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "revisions"
+        },
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "next",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": true,
+          "required": false,
+          "sensitive": false,
+          "target": "crucible.api#String",
+          "targetName": "String",
+          "targetType": "string",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "next"
+        }
+      ],
+      "name": "ListRevisionsOutput",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false
     },
     "example.samples#ManyLabels": {
       "constraints": {
@@ -7165,6 +8283,209 @@
       "sensitive": false,
       "set": false,
       "sparse": false
+    },
+    "example.samples#SearchGraphsInput": {
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "error": null,
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
+      "id": "example.samples#SearchGraphsInput",
+      "internal": false,
+      "kind": "structure",
+      "members": [
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": {
+              "max": 63,
+              "min": 3
+            },
+            "pattern": "^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$",
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "query",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": false,
+          "required": true,
+          "sensitive": false,
+          "target": "example.samples#GraphName",
+          "targetName": "GraphName",
+          "targetType": "string",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "query"
+        },
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "pageToken",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": true,
+          "required": false,
+          "sensitive": false,
+          "target": "crucible.api#String",
+          "targetName": "String",
+          "targetType": "string",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "pageToken"
+        }
+      ],
+      "name": "SearchGraphsInput",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false
+    },
+    "example.samples#SearchGraphsOutput": {
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "error": null,
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
+      "id": "example.samples#SearchGraphsOutput",
+      "internal": false,
+      "kind": "structure",
+      "members": [
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "graphIds",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": false,
+          "required": true,
+          "sensitive": false,
+          "target": "example.samples#GraphIds",
+          "targetName": "GraphIds",
+          "targetType": "list",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "graphIds"
+        },
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "pageToken",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": true,
+          "required": false,
+          "sensitive": false,
+          "target": "crucible.api#String",
+          "targetName": "String",
+          "targetType": "string",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "pageToken"
+        }
+      ],
+      "name": "SearchGraphsOutput",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false
     },
     "example.samples#Sha": {
       "constraints": {

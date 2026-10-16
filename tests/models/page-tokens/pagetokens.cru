@@ -1,0 +1,115 @@
+service PageTokens {
+    version "1"
+    protocol json
+    operations [ListByBody, ListByHeader, ListByPayload, ListByQuery, ListDefaulted, Submit]
+}
+
+list Names: string
+
+/// The page token in the JSON body.
+readonly operation ListByBody {
+    http POST "/by-body"
+    paginated(inputToken: pageToken, outputToken: next, items: names)
+    input {
+        pageToken?: string
+        filter?: string
+    }
+    output {
+        names: Names
+        next?: string
+    }
+    example "A later page" {
+        input { pageToken: "page-token-left-out", filter: "filter-kept" }
+    }
+}
+
+/// The page token in a header.
+readonly operation ListByHeader {
+    http GET "/by-header"
+    paginated(inputToken: pageToken, outputToken: next, items: names)
+    input {
+        @header("X-Page-Token")
+        pageToken?: string
+        @query("filter")
+        filter?: string
+    }
+    output {
+        names: Names
+        next?: string
+    }
+    example "A later page" {
+        input { pageToken: "page-token-left-out", filter: "filter-kept" }
+    }
+}
+
+/// The page token as the whole payload.
+readonly operation ListByPayload {
+    http POST "/by-payload"
+    paginated(inputToken: pageToken, outputToken: next, items: names)
+    input {
+        @payload
+        pageToken?: string
+        @header("X-Filter")
+        filter?: string
+    }
+    output {
+        names: Names
+        next?: string
+    }
+    example "A later page" {
+        input { pageToken: "page-token-left-out", filter: "filter-kept" }
+    }
+}
+
+/// The page token in a query parameter whose name is percent-encoded.
+readonly operation ListByQuery {
+    http GET "/by-query"
+    paginated(inputToken: cursor, outputToken: next, items: names)
+    input {
+        @query("page[cursor]")
+        cursor?: string
+        @query("filter")
+        filter?: string
+    }
+    output {
+        names: Names
+        next?: string
+    }
+    example "A later page" {
+        input { cursor: "page-token-left-out", filter: "filter-kept" }
+    }
+}
+
+/// A page token with a default: the snippets write the default.
+readonly operation ListDefaulted {
+    http GET "/defaulted"
+    paginated(inputToken: after, outputToken: next, items: names)
+    input {
+        @query
+        after: string = "first-page"
+        @query("filter")
+        filter?: string
+    }
+    output {
+        names: Names
+        next?: string
+    }
+    example "A later page" {
+        input { after: "page-token-left-out", filter: "filter-kept" }
+    }
+}
+
+/// An idempotency token in a query parameter whose name is
+/// percent-encoded.
+operation Submit {
+    http POST "/submit"
+    input {
+        @token
+        @query("client[token]")
+        clientToken?: string
+        filter?: string
+    }
+    example "Submit once" {
+        input { clientToken: "idempotency-token-left-out", filter: "filter-kept" }
+    }
+}

@@ -682,6 +682,13 @@ fn wire_message(service: &Service, id: Option<&ShapeId>, b: &Bindings, content: 
         "payload":payload})
 }
 
+/// A query parameter's name or value as a request example's `uri` writes
+/// it, percent-encoded: what a reader of that `uri` compares a binding's
+/// name against.
+pub fn query_component(text: &str) -> String {
+    percent(text, false)
+}
+
 fn percent(text: &str, greedy: bool) -> String {
     let mut encoded = String::new();
     for byte in text.bytes() {
@@ -711,8 +718,8 @@ fn request_example(service: &Service, op: &Operation, value: &Value) -> Value {
             let separator = if uri.contains('?') { '&' } else { '?' };
             uri.push_str(&format!(
                 "{separator}{}={}",
-                percent(pair["name"].as_str().expect("query name"), false),
-                percent(pair["value"].as_str().expect("query value"), false)
+                query_component(pair["name"].as_str().expect("query name")),
+                query_component(pair["value"].as_str().expect("query value"))
             ));
         }
     }

@@ -496,3 +496,99 @@ fn a_big_integer_snippet_is_written_in_digits() {
         assert_eq!(text, digits, "{}", &written[..written.len().min(20)]);
     }
 }
+
+/// A paginated call's input leaves out the page token, whether a sample
+/// sets it (Samples' `ListGraphs`, `SearchGraphs`) or an example might:
+/// the first page sends none, and a sample's is no token the service
+/// issued. The rest of the input stays.
+#[test]
+fn a_snippet_input_has_no_page_token() {
+    use crucible_codegen_common::snippet::{self, Kind};
+    let service = load("samples");
+    for (name, token, kept) in [
+        ("ListGraphs", "nextToken", "maxResults"),
+        ("SearchGraphs", "pageToken", "query"),
+    ] {
+        let operation = service
+            .operations
+            .iter()
+            .find(|op| op.id.name() == name)
+            .unwrap();
+        assert_eq!(operation.paginated.as_ref().unwrap().input_token, token);
+        let call = snippet::call(&service, operation);
+        assert!(call.example.is_none(), "{name}: the sample's input");
+        let Some(Kind::Structure(members)) = call.input.map(|node| node.kind) else {
+            panic!("{name}: a structure input")
+        };
+        let names: Vec<&str> = members.iter().map(|(m, _)| m.name.as_str()).collect();
+        assert!(!names.contains(&token), "{name}: {names:?}");
+        assert!(names.contains(&kept), "{name}: {names:?}");
+    }
+}
+
+/// An example's page token is left out as a sample's is, and a defaulted
+/// page token is written at its default, the first page's value, whatever
+/// the example or sample set (`page-tokens`' examples, Samples'
+/// `ListRevisions`).
+#[test]
+fn an_example_page_token_is_left_out_or_defaulted() {
+    use crucible_codegen_common::snippet::{self, Kind};
+    let input = |model: &str, name: &str| {
+        let service = load(model);
+        let operation = service
+            .operations
+            .iter()
+            .find(|op| op.id.name() == name)
+            .unwrap()
+            .clone();
+        let call = snippet::call(&service, &operation);
+        let example = call.example.map(str::to_owned);
+        let Some(Kind::Structure(members)) = call.input.map(|node| node.kind) else {
+            panic!("{name}: a structure input")
+        };
+        let members: Vec<(String, String)> = members
+            .iter()
+            .map(|(m, node)| {
+                let text = match &node.kind {
+                    Kind::String(text) => text.clone(),
+                    other => format!("{other:?}"),
+                };
+                (m.name.clone(), text)
+            })
+            .collect();
+        (example, members)
+    };
+    for (name, token) in [
+        ("ListByBody", "pageToken"),
+        ("ListByHeader", "pageToken"),
+        ("ListByPayload", "pageToken"),
+        ("ListByQuery", "cursor"),
+        ("Submit", "clientToken"),
+    ] {
+        let (example, members) = input("page-tokens", name);
+        assert_eq!(
+            example.as_deref(),
+            if name == "Submit" {
+                Some("Submit once")
+            } else {
+                Some("A later page")
+            }
+        );
+        assert_eq!(
+            members,
+            [("filter".to_owned(), "filter-kept".to_owned())],
+            "{name}: without {token}"
+        );
+    }
+    let (_, members) = input("page-tokens", "ListDefaulted");
+    assert_eq!(
+        members,
+        [
+            ("after".to_owned(), "first-page".to_owned()),
+            ("filter".to_owned(), "filter-kept".to_owned())
+        ]
+    );
+    let (example, members) = input("samples", "ListRevisions");
+    assert!(example.is_none());
+    assert_eq!(members, [("after".to_owned(), "first-page".to_owned())]);
+}

@@ -251,17 +251,13 @@ pub(crate) fn snippets(
         ));
     }
     head.push_str(&format!("{INDENT}{}\n\n", construct(service, INDENT)));
-    let input = |pages: bool| -> Option<String> {
-        let mut node = call.input.clone()?;
-        if pages && let (Kind::Structure(members), Some(pages)) = (&mut node.kind, call.pages) {
-            members.retain(|(m, _)| m.name != pages.paginated.input_token);
-        }
-        Some(format!(
+    let input = call.input.as_ref().map(|node| {
+        format!(
             "{}{INDENT}let input = {};\n\n",
             provenance(call),
-            renderer.expr(&node, INDENT, false)
-        ))
-    };
+            renderer.expr(node, INDENT, false)
+        )
+    });
     let argument = if call.operation.input.is_some() {
         "input"
     } else {
@@ -269,8 +265,8 @@ pub(crate) fn snippets(
     };
 
     let mut body = head.clone();
-    if let Some(input) = input(false) {
-        body.push_str(&input);
+    if let Some(input) = &input {
+        body.push_str(input);
     }
     let output_shape = call.output;
     let reads: Vec<String> = output_shape
@@ -327,8 +323,8 @@ pub(crate) fn snippets(
 
     let paginated = paginator.zip(call.pages).map(|(paginator, pages)| {
         let mut out = head.clone();
-        if let Some(input) = input(true) {
-            out.push_str(&input);
+        if let Some(input) = &input {
+            out.push_str(input);
         }
         out.push_str(&format!(
             "{INDENT}// Each page is one response; the paginator sends `{}` for the next.\n",

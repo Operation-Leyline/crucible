@@ -548,26 +548,17 @@ struct Program {
 }
 
 /// Starts `main`: the error, any parsed documents, the client and the
-/// input, which a paginated snippet builds without its input token.
-fn program(
-    service: &Service,
-    options: &Options,
-    call: &Call<'_>,
-    skip: Option<&str>,
-) -> (Program, Vec<String>) {
+/// input, which `snippet::call` already holds without its idempotency and
+/// page tokens.
+fn program(service: &Service, options: &Options, call: &Call<'_>) -> (Program, Vec<String>) {
     let p = &options.prefix;
     let mut input = Input::new(service, p);
     let mut empty = true;
     if let Some(node) = &call.input
         && let Kind::Structure(members) = &node.kind
     {
-        let members: Vec<_> = members
-            .iter()
-            .filter(|(m, _)| Some(m.name.as_str()) != skip)
-            .cloned()
-            .collect();
         empty = members.is_empty();
-        input.structure(node.target, &members, "input");
+        input.structure(node.target, members, "input");
     } else if let Some(id) = &call.operation.input {
         input
             .lines
@@ -653,7 +644,7 @@ pub(crate) fn snippets(
         ""
     };
 
-    let (start, cleanup) = program(service, options, call, None);
+    let (start, cleanup) = program(service, options, call);
     let mut body = vec![
         format!("{name}_result result = {{0}};"),
         format!("{p}_status status = {name}(client, {argument}NULL, NULL, &result, &error);"),
@@ -725,8 +716,7 @@ pub(crate) fn snippets(
     let snippet = start.finish(&body);
 
     let paginated = pages(operation, p).zip(call.pages).map(|([pages_new, pages_next], paging)| {
-        let (start, cleanup) =
-            program(service, options, call, Some(&paging.paginated.input_token));
+        let (start, cleanup) = program(service, options, call);
         let mut body = vec![
             format!(
                 "/* Each page is one response; the iterator sends `{}` for the next. */",

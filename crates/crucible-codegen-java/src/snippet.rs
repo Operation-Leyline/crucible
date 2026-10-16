@@ -466,7 +466,7 @@ pub(crate) fn snippets(
     let class = class_name(operation.name(), "");
     let mut values = literal_for(service, options, &class);
     let mut body = start.clone();
-    let argument = input(&mut values, call, None, &body_indent, &mut body);
+    let argument = input(&mut values, call, &body_indent, &mut body);
     let output_class = operation.output.as_ref().map(|id| values.model(id));
     let reads: Vec<String> = call
         .output
@@ -520,13 +520,7 @@ pub(crate) fn snippets(
         let class = class_name(operation.name(), "Pages");
         let mut values = literal_for(service, options, &class);
         let mut body = start.clone();
-        let argument = input(
-            &mut values,
-            call,
-            Some(&pages.paginated.input_token),
-            &body_indent,
-            &mut body,
-        );
+        let argument = input(&mut values, call, &body_indent, &mut body);
         let output = operation
             .output
             .as_ref()
@@ -558,27 +552,16 @@ pub(crate) fn snippets(
     (snippet, paginated)
 }
 
-/// Declares `input` in `body`, without the member named `drop` (the page
-/// token a paginator sends), and returns the call's argument.
-fn input(
-    values: &mut Literal<'_>,
-    call: &Call<'_>,
-    drop: Option<&str>,
-    indent: &str,
-    body: &mut String,
-) -> String {
+/// Declares `input` in `body` and returns the call's argument.
+fn input(values: &mut Literal<'_>, call: &Call<'_>, indent: &str, body: &mut String) -> String {
     let (Some(node), Some(id)) = (&call.input, &call.operation.input) else {
         return String::new();
     };
-    let mut node = node.clone();
-    if let (Kind::Structure(members), Some(drop)) = (&mut node.kind, drop) {
-        members.retain(|(m, _)| m.name != drop);
-    }
     let class = values.model(id);
     body.push_str(&provenance(call, indent));
     body.push_str(&format!(
         "{indent}{class} input = {};\n\n",
-        values.expr(&node, indent)
+        values.expr(node, indent)
     ));
     "input".to_owned()
 }
