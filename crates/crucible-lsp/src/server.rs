@@ -250,6 +250,10 @@ pub struct Server {
     spelling: HashMap<PathBuf, PathBuf>,
     documents: HashMap<Url, Document>,
     units: HashMap<PathBuf, Unit>,
+    /// The frozen releases the guard has read, kept across compiles: an
+    /// edit to a `.cru` file reloads none, and a release is read again only
+    /// when its file changes.
+    releases: crucible_lang::Releases,
 }
 
 impl Server {
@@ -292,6 +296,7 @@ impl Server {
             spelling: HashMap::new(),
             documents: HashMap::new(),
             units: HashMap::new(),
+            releases: crucible_lang::Releases::default(),
         }
     }
 
@@ -839,7 +844,7 @@ impl Server {
         // applies it.
         let mut baseline_notes = Vec::new();
         let config = config.unwrap_or_default();
-        match crucible_lang::guard(&package, &compiled, own, &config) {
+        match crucible_lang::guard_in(&package, &compiled, own, &config, &self.releases) {
             None => {}
             Some(Err(problem)) => baseline_notes.push((true, problem)),
             Some(Ok(guard)) => {

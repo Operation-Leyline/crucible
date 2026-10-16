@@ -1937,3 +1937,60 @@ fn an_enum_change_no_step_explains_keeps_its_finding() {
         );
     }
 }
+
+#[test]
+fn a_rename_across_enum_kinds_is_refused() {
+    // `"1"` and `1` read alike as text, not as JSON: a retype.
+    let checked = enum_guard(
+        "enum-kind-changed",
+        "enum Kind { ONE = \"1\", TWO = \"2\" }",
+        "enum Kind: integer { UNO = 1, TWO = 2 }",
+        "    rename Kind.ONE -> UNO\n",
+    );
+    assert!(
+        problems(&checked).contains(
+            &"Kind is an enum in the baseline and an integer enum now, so its values change JSON type; a `rename` cannot convert that".to_owned()
+        ),
+        "{:?}",
+        problems(&checked)
+    );
+}
+
+#[test]
+fn the_guard_and_versions_share_the_releases_they_load() {
+    let dir = model("version-steps");
+    let loaded = load_package(&dir).unwrap();
+    let own = loaded.files.len();
+    let compiled = compile(&loaded, None);
+    let releases = crucible_lang::Releases::default();
+    let checked = crucible_lang::guard_in(&loaded, &compiled, own, &Config::default(), &releases)
+        .unwrap()
+        .unwrap();
+    assert!(!checked.has_errors(), "{:?}", problems(&checked));
+    assert_eq!(releases.len(), 1, "the guard read v1 once");
+    let versions =
+        crucible_lang::versions_in(&loaded, &compiled, own, &Config::default(), &releases).unwrap();
+    assert_eq!(versions.len(), 1);
+    assert_eq!(releases.len(), 1, "versions read nothing again");
+    let path = dir.join("releases/v1.json");
+    let first = releases.load(&path).unwrap();
+    assert!(std::sync::Arc::ptr_eq(
+        &first,
+        &releases.load(&path).unwrap()
+    ));
+
+    // A cached release still answers to its lock: an edited file is
+    // refused, not served from the cache.
+    let copy = Path::new(env!("CARGO_TARGET_TMPDIR")).join("migrations-releases-cache");
+    let _ = std::fs::remove_dir_all(&copy);
+    std::fs::create_dir_all(&copy).unwrap();
+    for file in ["v1.json", "crucible.lock"] {
+        std::fs::copy(dir.join("releases").join(file), copy.join(file)).unwrap();
+    }
+    let path = copy.join("v1.json");
+    releases.load(&path).unwrap();
+    let text = std::fs::read_to_string(&path).unwrap();
+    std::fs::write(&path, format!("{text} ")).unwrap();
+    let error = releases.load(&path).unwrap_err();
+    assert!(error.contains("changed after it was frozen"), "{error}");
+}

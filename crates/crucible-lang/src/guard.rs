@@ -16,7 +16,7 @@ use crucible_policy::{Config, Finding, Renames, Severity};
 use serde_json::Value as Json;
 
 use crate::ast::{Decl, Doc, Dotted, Ident, Key, Migration, RequireHow, Step, StepKind, Value};
-use crate::compile::{Compiled, FileDiagnostic, Package, load_baseline};
+use crate::compile::{Compiled, FileDiagnostic, Package};
 use crate::diagnostic::Diagnostic;
 use crate::literal::{duplicate_keys, resolve_enum_symbols};
 
@@ -86,8 +86,20 @@ pub fn guard(
     own: usize,
     config: &Config,
 ) -> Option<Result<Guard, String>> {
+    guard_in(package, compiled, own, config, &crate::Releases::default())
+}
+
+/// [`guard`], reading frozen releases through `releases`, which a build
+/// shares with [`versions_in`] and an editor keeps across compiles.
+pub fn guard_in(
+    package: &Package,
+    compiled: &Compiled,
+    own: usize,
+    config: &Config,
+    releases: &crate::Releases,
+) -> Option<Result<Guard, String>> {
     let service = compiled.service.as_ref()?;
-    let old = match load_baseline(package)? {
+    let old = match releases.load(package.baseline.as_deref()?) {
         Ok(old) => old,
         Err(problem) => return Some(Err(problem)),
     };
@@ -133,9 +145,9 @@ pub fn guard(
     // accepts the drop, in every migration of the chain: the diff below
     // sees only the newest. A chain that does not load is `versions`' to
     // report.
-    if let Ok(links) = chain(package, compiled, own) {
+    if let Ok(links) = chain(package, compiled, own, releases) {
         for link in &links {
-            for drop in dropped(link, config) {
+            for drop in dropped(link, service, config) {
                 // The refusal at the migration says what the undeclared
                 // finding would.
                 if !drop.excepted && link.migration.from.value == version {
@@ -773,6 +785,26 @@ impl<'a> Context<'a> {
                     Cover::exact(old.shape.with_member(from), RENAME),
                     Cover::exact(new.shape.with_member(&to.name), RENAME),
                 ];
+                // A string value and an integer one differ in their JSON
+                // type, whatever their text: that is a retype, which a
+                // rename does not convert.
+                let kind = |service: &Service, shape: &ShapeId| match service.shapes.get(shape) {
+                    Some(Shape::Enum(_)) => Some("an enum"),
+                    Some(Shape::IntEnum(_)) => Some("an integer enum"),
+                    _ => None,
+                };
+                if let (Some(before), Some(after)) =
+                    (kind(self.old, &old.shape), kind(self.new, &new.shape))
+                    && before != after
+                {
+                    return Err(error(
+                        path.span,
+                        format!(
+                            "{} is {before} in the baseline and {after} now, so its values change JSON type; a `rename` cannot convert that",
+                            new.shape.name()
+                        ),
+                    ));
+                }
                 // An enum value renamed: the checker sees the enum lose one
                 // value and gain another, which the rename declares. The
                 // server maps a string enum's wire value both ways; an
@@ -1292,9 +1324,16 @@ struct Link<'c> {
     migration: &'c Migration,
     doc: Option<&'c Doc>,
     /// Its `from` release, frozen.
-    old: Service,
-    /// The release it serves: the next frozen one, or the current model.
-    newer: Service,
+    old: std::sync::Arc<Service>,
+    /// The release it serves, frozen; `None` for the current model.
+    newer: Option<std::sync::Arc<Service>>,
+}
+
+impl Link<'_> {
+    /// The release the migration serves, given the current model.
+    fn newer<'s>(&'s self, current: &'s Service) -> &'s Service {
+        self.newer.as_deref().unwrap_or(current)
+    }
 }
 
 /// The chain of migrations back from the service's version, newest first,
@@ -1304,6 +1343,7 @@ fn chain<'c>(
     package: &Package,
     compiled: &'c Compiled,
     own: usize,
+    loaded: &crate::Releases,
 ) -> Result<Vec<Link<'c>>, String> {
     let (Some(service), Some(baseline)) = (&compiled.service, &package.baseline) else {
         return Ok(Vec::new());
@@ -1321,12 +1361,11 @@ fn chain<'c>(
         })
         .collect();
     let mut out = Vec::new();
-    let mut newer = service.clone();
+    let mut newer: Option<std::sync::Arc<Service>> = None;
     let mut seen = BTreeSet::new();
-    while let Some(&(file, migration, doc)) = migrations
-        .iter()
-        .find(|(_, migration, _)| migration.version.value == newer.version)
-    {
+    while let Some(&(file, migration, doc)) = migrations.iter().find(|(_, migration, _)| {
+        migration.version.value == newer.as_deref().unwrap_or(service).version
+    }) {
         let name = migration.from.value.clone();
         if !seen.insert(name.clone()) {
             return Err(format!("the migrations from \"{name}\" form a cycle"));
@@ -1339,7 +1378,7 @@ fn chain<'c>(
                 path.display()
             ));
         }
-        let old = crate::release::load(&path)?;
+        let old = loaded.load(&path)?;
         // The chain follows releases by name: a release frozen under another
         // version's name would serve one version's contract as another's.
         if old.version != name {
@@ -1349,7 +1388,7 @@ fn chain<'c>(
                 old.version
             ));
         }
-        let next = old.clone();
+        let next = Some(std::sync::Arc::clone(&old));
         out.push(Link {
             file,
             migration,
@@ -1377,7 +1416,7 @@ struct Dropped {
 /// releases stop serving it, which a warning says (decision 70). The
 /// manifest's exceptions apply to every migration, as frozen releases do
 /// not record them (decision 68); its settings do not.
-fn dropped(link: &Link, config: &Config) -> Vec<Dropped> {
+fn dropped(link: &Link, current: &Service, config: &Config) -> Vec<Dropped> {
     let removed: BTreeSet<&str> = link
         .migration
         .steps
@@ -1391,7 +1430,13 @@ fn dropped(link: &Link, config: &Config) -> Vec<Dropped> {
     link.old
         .operations
         .iter()
-        .filter(|old| !link.newer.operations.iter().any(|op| op.id == old.id))
+        .filter(|old| {
+            !link
+                .newer(current)
+                .operations
+                .iter()
+                .any(|op| op.id == old.id)
+        })
         .filter(|old| !removed.contains(old.name()))
         .map(|old| {
             let (name, id) = (old.name(), old.id.to_string());
@@ -1436,11 +1481,26 @@ pub fn versions(
     own: usize,
     config: &Config,
 ) -> Result<Vec<ApiVersion>, String> {
+    versions_in(package, compiled, own, config, &crate::Releases::default())
+}
+
+/// [`versions`], reading frozen releases through `releases`: the build
+/// passes the ones its guard loaded.
+pub fn versions_in(
+    package: &Package,
+    compiled: &Compiled,
+    own: usize,
+    config: &Config,
+    releases: &crate::Releases,
+) -> Result<Vec<ApiVersion>, String> {
+    let Some(service) = compiled.service.as_ref() else {
+        return Ok(Vec::new());
+    };
     let mut out = Vec::new();
-    for link in chain(package, compiled, own)? {
+    for link in chain(package, compiled, own, releases)? {
         let to = &link.migration.version.value;
         let mut retired = Vec::new();
-        for drop in dropped(&link, config) {
+        for drop in dropped(&link, service, config) {
             if !drop.excepted {
                 return Err(format!(
                     "the migration to \"{to}\": {}",
@@ -1449,7 +1509,12 @@ pub fn versions(
             }
             retired.push(drop.operation);
         }
-        let context = Context::new(&compiled.namespace, &link.old, &link.newer, link.migration);
+        let context = Context::new(
+            &compiled.namespace,
+            &link.old,
+            link.newer(service),
+            link.migration,
+        );
         let mut steps = Vec::new();
         let mut sunset = None;
         let mut sunset_docs = None;
@@ -1467,7 +1532,7 @@ pub fn versions(
         }
         out.push(ApiVersion {
             name: link.migration.from.value.clone(),
-            service: Box::new(link.old),
+            service: Box::new((*link.old).clone()),
             steps,
             sunset,
             sunset_docs,

@@ -66,10 +66,13 @@ pub(crate) fn lower(path: &Path, service: Option<&ShapeId>) -> Result<Service, S
         Some(manifest) => crucible_policy::Config::load(&manifest)?,
         None => crucible_policy::Config::default(),
     };
-    check_baseline(path, &package, &compiled, &config)?;
+    // The frozen releases, read once for the guard and the versions.
+    let releases = crucible_lang::Releases::default();
+    check_baseline(path, &package, &compiled, &config, &releases)?;
     // The older versions the service still serves, for generators that
     // serve them (docs/api-versions.md).
-    let versions = crucible_lang::versions(&package, &compiled, package.files.len(), &config)?;
+    let versions =
+        crucible_lang::versions_in(&package, &compiled, package.files.len(), &config, &releases)?;
     let mut service = compiled.service.expect("checked above");
     service.versions = versions;
     Ok(service)
@@ -127,8 +130,11 @@ fn check_baseline(
     package: &crucible_lang::Package,
     compiled: &crucible_lang::Compiled,
     config: &crucible_policy::Config,
+    releases: &crucible_lang::Releases,
 ) -> Result<(), String> {
-    let Some(guard) = crucible_lang::guard(package, compiled, package.files.len(), config) else {
+    let Some(guard) =
+        crucible_lang::guard_in(package, compiled, package.files.len(), config, releases)
+    else {
         return Ok(());
     };
     // The releases directory: the baseline, older releases and their lock.

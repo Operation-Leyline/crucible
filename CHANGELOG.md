@@ -566,7 +566,11 @@ version's section when it is prepared.
   exception for the operation in the manifest accepts the drop: the
   operation is then not served at those releases, with a warning there,
   and `ApiVersion::retired` records it. A setting that turns the finding
-  off does not accept it (decision 68). See *Migration*.
+  off does not accept it (decision 68). See *Migration*. The guard and
+  `versions` read the chain of frozen releases through one
+  `crucible_lang::Releases` (`guard_in`, `versions_in`): the build loads
+  each release once, and the language server keeps the loaded releases
+  across edits, reading one again only when its file changes.
 
 - `.cru`: `rename Enum.A -> B` declares the enum's change, and the Rust
   server maps a changed wire value both ways, in requests and responses,
@@ -582,7 +586,10 @@ version's section when it is prepared.
   what another wrote; a composition that sends a newer value to two older
   ones, or reads two older values as one newer one, is refused at the
   step. Renaming an integer enum's value must keep its number, which older
-  clients send; the compiler refuses one that changes it, at the step.
+  clients send; the compiler refuses one that changes it, at the step, and
+  a rename between a string enum and an integer one, whose values change
+  JSON type. A renamed or added value keying a map inside an error is
+  reported, as one keying a map in an output is.
 
 - The Rust server generator reports what it used to skip silently when it
   converts between API versions, so a release is never served wrong

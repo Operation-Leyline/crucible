@@ -692,7 +692,11 @@ fn conversion(
     let mut refusal = None;
     let inside_error = |shape: &ShapeId, what: &str, diagnostics: &mut Diagnostics| {
         for error in &new_op.errors {
-            if !places(new, Some(error), shape, operation, diagnostics).is_empty() {
+            // A map key is not a place, so a value keying a map inside the
+            // error is looked for apart, as `reaches` follows keys.
+            if !places(new, Some(error), shape, operation, diagnostics).is_empty()
+                || keyed(new, Some(error), shape)
+            {
                 diagnostics.push(
                     shape,
                     format!(
@@ -723,12 +727,29 @@ fn conversion(
                     enum_wire(old, old_shape, from),
                     enum_wire(new, new_shape, to),
                 ) {
-                    if before == after || !concerns(old_shape, new_shape) {
+                    if !concerns(old_shape, new_shape) {
                         continue;
                     }
-                    let strings = matches!(old.shape(old_shape), Some(Shape::Enum(_)))
-                        && matches!(new.shape(new_shape), Some(Shape::Enum(_)));
-                    if !strings {
+                    let strings = (
+                        matches!(old.shape(old_shape), Some(Shape::Enum(_))),
+                        matches!(new.shape(new_shape), Some(Shape::Enum(_))),
+                    );
+                    if strings.0 != strings.1 {
+                        // The compiler refuses it: `1` and `"1"` read the
+                        // same as text, but not as JSON.
+                        diagnostics.push(
+                            &new_shape.with_member(to),
+                            format!(
+                                "`{text}`, in the migration from API version {version}, renames between a string enum and an integer one, whose values differ in JSON type; {} is not converted across it",
+                                operation.name()
+                            ),
+                        );
+                        continue;
+                    }
+                    if before == after {
+                        continue;
+                    }
+                    if !strings.0 {
                         // The compiler refuses it: an intEnum's number is
                         // what older clients send.
                         diagnostics.push(

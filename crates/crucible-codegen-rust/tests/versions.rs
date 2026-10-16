@@ -926,3 +926,56 @@ enum Kind { SMALL = "small", LARGE = "large" }
     let expected = r#"downgrade: &[Transform::Map { at: &[Seg::Field("kind")], values: &[("small", "large"), ("tiny", "small")] }]"#;
     assert!(code.contains(expected), "{expected}\n{code}");
 }
+
+#[test]
+fn a_renamed_enum_value_keying_a_map_in_an_error_is_reported() {
+    // The enum is reached only as the key of a map an error holds: not a
+    // place a value sits, yet a value that changes on the wire.
+    let v1 = r#"service Shop {
+    version "v1"
+    protocol json
+    operations [GetItem]
+    errors [ValidationException, InternalServerException]
+}
+
+readonly operation GetItem {
+    http GET "/items/{id}"
+    input { id: string }
+    errors [Missing]
+    output { name: string }
+}
+
+error Missing {
+    status 404
+    message: string
+    counts?: Counts
+}
+
+map Counts: Kind -> integer
+
+enum Kind { SMALL, LARGE }
+"#;
+    let dir = Path::new(env!("CARGO_TARGET_TMPDIR")).join("versions-enum-error-key");
+    let _ = fs::remove_dir_all(&dir);
+    fs::create_dir_all(&dir).unwrap();
+    freeze(&dir, v1);
+    fs::write(
+        dir.join("crucible.toml"),
+        format!("{MANIFEST}\n[model.baseline]\npath = \"releases/v1.json\"\n"),
+    )
+    .unwrap();
+    let current = v1
+        .replace("version \"v1\"", "version \"v2\"")
+        .replace("enum Kind { SMALL, LARGE }", "enum Kind { TINY, LARGE }");
+    fs::write(
+        dir.join("shop.cru"),
+        format!("{current}\nmigration \"v2\" from \"v1\" {{\n    rename Kind.SMALL -> TINY\n}}\n"),
+    )
+    .unwrap();
+    let reported = reported(&lower(&dir));
+    assert!(
+        reported.iter().any(|line| line
+            == "example.shop#Kind: a renamed enum value inside error example.shop#Missing is not converted for API version v1 yet"),
+        "{reported:#?}"
+    );
+}
