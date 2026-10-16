@@ -25,6 +25,17 @@ Generation writes package identity and provenance; it does not publish.
 Supply your license and release metadata before distribution. Use a Composer
 path repository during development or archive the package for distribution.
 
+The package ships a generated `README.md` (named by `composer.json`'s
+`readme`) and `AGENTS.md`: the install line, client construction with its
+token, one complete call, pagination, errors and retries, the second terse
+and exact for coding agents. Their scripts are the operations' snippets
+from the [`crucible.sdks/1`](../docs.md#the-cruciblesdks1-contract)
+document: each loads Composer's autoloader, reads the token (and, without a
+generated endpoint, the endpoint) from `WEATHER_TOKEN` and
+`WEATHER_ENDPOINT`, builds the input from the operation's first example or
+a generated sample, and catches one modelled error.
+`tools/test-php.py` lints every Weather and Samples snippet with `php -l`.
+
 The public client name comes from the service: `WeatherClient` for
 `Weather`, or `LeylineClient` for `Leyline`. Regenerate and replace earlier
 `Client` imports and construction sites with the service-specific name.

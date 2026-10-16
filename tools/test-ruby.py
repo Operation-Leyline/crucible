@@ -4,7 +4,7 @@ from pathlib import Path
 import subprocess
 import sys
 import tempfile
-from sdk_test_support import ROOT, run, weather
+from sdk_test_support import ROOT, describe_sdk, run, snippets, weather
 from sdk_conformance_model import qualification_model
 from sdk_cru_packages import copy_package, rename_shapes, replace_once, write_package
 from sdk_http_fixture import fixture
@@ -93,6 +93,35 @@ def qualify(output):
     generate(ROOT / "tests/fixtures/permissions", output / "permissions", "leyline_client", "Leyline")
     run(RUBY, "-I", str(output / "permissions/lib"), str(ROOT / "crates/crucible-codegen-ruby/tests/permissions.rb"))
     print("Ruby empty, void, renamed and extended-type packages passed")
+    check_snippets(output)
+
+
+def check_snippets(output):
+    """The crucible.sdks/1 snippets (docs/docs.md, "Snippets") run against
+    the gem they describe, generated with the same options: each parses,
+    resolves every constant it names and encodes its input, then fails to
+    connect to a closed loopback port, which is the one error tolerated."""
+    env = dict(os.environ, WEATHER_ENDPOINT="http://127.0.0.1:9", SAMPLES_ENDPOINT="http://127.0.0.1:9",
+               WEATHER_TOKEN="snippet-token")
+    count = 0
+    for model, package, module in (("weather", "weather_client", "Weather"),
+                                   ("samples", "samples_client", "Samples")):
+        generated = output / f"snippets-{model}"
+        generate(ROOT / "tests/models" / model, generated, package, module)
+        document = describe_sdk(f'[sdk.ruby]\nout = "generated/ruby"\npackage = "{package}"\n'
+                                f'module_name = "{module}"\n', ROOT / "tests/models" / model)
+        directory = output / f"snippets-{model}-programs"
+        directory.mkdir(exist_ok=True)
+        for _, operation, variant, text in snippets(document):
+            path = directory / f"{operation}.{variant}.rb"
+            path.write_text(text, encoding="utf-8", newline="\n")
+            run(RUBY, "-c", str(path), stdout=subprocess.DEVNULL)
+            run(RUBY, "-I", str(generated / "lib"), "-e",
+                f"begin; load ARGV[0]; rescue {module}::Runtime::NetworkError; end", str(path), env=env)
+            count += 1
+    if count == 0:
+        raise RuntimeError("no Ruby snippets described")
+    print(f"Ruby snippets passed ({count})")
 
 
 def generate(model, out, package, module, *extra):

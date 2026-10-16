@@ -17,6 +17,7 @@ fn load(name: &str) -> Service {
 
 fn options(endpoint: Option<&str>) -> Options {
     Options {
+        metadata: Default::default(),
         package_name: "example/weather-client".into(),
         namespace: r"Example\Weather".into(),
         package_version: "0.0.0".into(),
@@ -291,4 +292,62 @@ fn defaulted_members_are_as_optional_as_the_emitted_code_says() {
         optional(configure.output.as_ref().unwrap()),
         [("name", false), ("count", false), ("note", true)]
     );
+}
+
+/// Each snippet is a script calling its own operation through the declared
+/// client, building the declared input class, and a paginated snippet
+/// iterates the declared paginator.
+#[test]
+fn snippets_call_what_the_package_declares() {
+    for (model, endpoint) in [
+        ("weather", None),
+        ("weather", Some("https://weather.example")),
+        ("samples", None),
+    ] {
+        let service = load(model);
+        let options = options(endpoint);
+        let surface = surface(&service, &options);
+        for (id, operation) in &surface.operations {
+            let snippet = &operation.snippet;
+            assert!(
+                snippet.starts_with("<?php\ndeclare(strict_types=1);\n"),
+                "{id}"
+            );
+            assert!(
+                snippet.contains(&format!("new {}(", surface.client.name)),
+                "{id}: {snippet}"
+            );
+            assert!(
+                snippet.contains(&format!("$client->{}(", operation.method)),
+                "{id}: {snippet}"
+            );
+            if let Some(input) = &operation.input {
+                assert!(
+                    snippet.contains(&format!("$input = new {}(", input.type_name)),
+                    "{id}: {snippet}"
+                );
+            }
+            let paginator = operation.paginators.iter().flatten().next();
+            assert_eq!(
+                paginator.is_some(),
+                operation.paginated_snippet.is_some(),
+                "{id}"
+            );
+            if let (Some(paginator), Some(paged)) = (paginator, &operation.paginated_snippet) {
+                assert!(
+                    paged.contains(&format!("foreach ($client->{paginator}(")),
+                    "{id}: {paged}"
+                );
+            }
+        }
+        if endpoint.is_none() {
+            assert!(
+                surface
+                    .operations
+                    .values()
+                    .all(|op| op.snippet.contains("endpoint: getenv('")),
+                "{model}: the endpoint is read when none is generated"
+            );
+        }
+    }
 }

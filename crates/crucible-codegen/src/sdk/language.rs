@@ -103,7 +103,7 @@ impl Language {
     /// The language keys this language's generator takes.
     pub(crate) fn keys(self) -> &'static [&'static str] {
         match self {
-            Self::Rust => &["package", "runtime", "runtime_path"],
+            Self::Rust => &["package", "middleware", "runtime", "runtime_path"],
             Self::Ts => &[
                 "package",
                 "client_name",

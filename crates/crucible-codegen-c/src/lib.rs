@@ -4,6 +4,7 @@ mod links;
 pub mod models;
 mod names;
 mod permissions;
+mod snippet;
 mod surface;
 
 pub use surface::surface;
@@ -20,6 +21,10 @@ pub struct Options {
     pub prefix: String,
     pub package_version: String,
     pub endpoint: Option<String>,
+    /// Description, URLs, license, authors, README, AGENTS.md, keywords,
+    /// `private` and the release channel: the generated README and
+    /// AGENTS.md use the README, AGENTS.md, URLs, `private` and channel.
+    pub metadata: crucible_codegen_common::PackageMetadata,
 }
 
 pub struct File {
@@ -234,14 +239,37 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
         path: "schema.json".into(),
         contents: schema,
     });
+    files.extend(package_docs(service, options));
     let sources = files
         .iter()
         .filter(|f| f.path.ends_with(".c"))
         .map(|f| f.path.as_str())
         .collect::<Vec<_>>()
         .join(" ");
-    files.push(File {path:"CMakeLists.txt".into(),contents:format!("cmake_minimum_required(VERSION 3.20)\nproject({package} VERSION {} LANGUAGES C)\nfind_package(yyjson CONFIG REQUIRED)\nfind_package(CURL 7.68 REQUIRED)\nfind_package(OpenSSL 1.1.1 REQUIRED)\nfind_package(Threads REQUIRED)\ninclude(GNUInstallDirs)\ninclude(CMakePackageConfigHelpers)\nadd_library({package} STATIC {sources})\nadd_library({package}::{package} ALIAS {package})\ntarget_compile_features({package} PUBLIC c_std_17)\nset_target_properties({package} PROPERTIES C_EXTENSIONS OFF POSITION_INDEPENDENT_CODE ON DEBUG_POSTFIX d)\ntarget_link_libraries({package} PRIVATE yyjson::yyjson CURL::libcurl OpenSSL::Crypto Threads::Threads)\ntarget_include_directories({package} PUBLIC $<BUILD_INTERFACE:${{CMAKE_CURRENT_SOURCE_DIR}}/include> $<INSTALL_INTERFACE:${{CMAKE_INSTALL_INCLUDEDIR}}>)\nif(MSVC)\n  target_compile_definitions({package} PRIVATE _CRT_SECURE_NO_WARNINGS)\n  target_compile_options({package} PRIVATE /W4 /WX)\nelse()\n  target_compile_options({package} PRIVATE -Wall -Wextra -Werror)\n  target_link_libraries({package} PRIVATE m)\nendif()\ninstall(TARGETS {package} EXPORT {package}Targets ARCHIVE DESTINATION ${{CMAKE_INSTALL_LIBDIR}})\ninstall(DIRECTORY include/ DESTINATION ${{CMAKE_INSTALL_INCLUDEDIR}})\ninstall(EXPORT {package}Targets NAMESPACE {package}:: DESTINATION ${{CMAKE_INSTALL_LIBDIR}}/cmake/{package})\nconfigure_package_config_file(cmake/Config.cmake.in ${{CMAKE_CURRENT_BINARY_DIR}}/{package}Config.cmake INSTALL_DESTINATION ${{CMAKE_INSTALL_LIBDIR}}/cmake/{package})\nwrite_basic_package_version_file(${{CMAKE_CURRENT_BINARY_DIR}}/{package}ConfigVersion.cmake VERSION ${{PROJECT_VERSION}} COMPATIBILITY SameMajorVersion)\ninstall(FILES ${{CMAKE_CURRENT_BINARY_DIR}}/{package}Config.cmake ${{CMAKE_CURRENT_BINARY_DIR}}/{package}ConfigVersion.cmake DESTINATION ${{CMAKE_INSTALL_LIBDIR}}/cmake/{package})\ninstall(FILES crucible.json schema.json DESTINATION ${{CMAKE_INSTALL_DATADIR}}/{package})\n",options.package_version)});
+    files.push(File {path:"CMakeLists.txt".into(),contents:format!("cmake_minimum_required(VERSION 3.20)\nproject({package} VERSION {} LANGUAGES C)\nfind_package(yyjson CONFIG REQUIRED)\nfind_package(CURL 7.68 REQUIRED)\nfind_package(OpenSSL 1.1.1 REQUIRED)\nfind_package(Threads REQUIRED)\ninclude(GNUInstallDirs)\ninclude(CMakePackageConfigHelpers)\nadd_library({package} STATIC {sources})\nadd_library({package}::{package} ALIAS {package})\ntarget_compile_features({package} PUBLIC c_std_17)\nset_target_properties({package} PROPERTIES C_EXTENSIONS OFF POSITION_INDEPENDENT_CODE ON DEBUG_POSTFIX d)\ntarget_link_libraries({package} PRIVATE yyjson::yyjson CURL::libcurl OpenSSL::Crypto Threads::Threads)\ntarget_include_directories({package} PUBLIC $<BUILD_INTERFACE:${{CMAKE_CURRENT_SOURCE_DIR}}/include> $<INSTALL_INTERFACE:${{CMAKE_INSTALL_INCLUDEDIR}}>)\nif(MSVC)\n  target_compile_definitions({package} PRIVATE _CRT_SECURE_NO_WARNINGS)\n  target_compile_options({package} PRIVATE /W4 /WX)\nelse()\n  target_compile_options({package} PRIVATE -Wall -Wextra -Werror)\n  target_link_libraries({package} PRIVATE m)\nendif()\ninstall(TARGETS {package} EXPORT {package}Targets ARCHIVE DESTINATION ${{CMAKE_INSTALL_LIBDIR}})\ninstall(DIRECTORY include/ DESTINATION ${{CMAKE_INSTALL_INCLUDEDIR}})\ninstall(EXPORT {package}Targets NAMESPACE {package}:: DESTINATION ${{CMAKE_INSTALL_LIBDIR}}/cmake/{package})\nconfigure_package_config_file(cmake/Config.cmake.in ${{CMAKE_CURRENT_BINARY_DIR}}/{package}Config.cmake INSTALL_DESTINATION ${{CMAKE_INSTALL_LIBDIR}}/cmake/{package})\nwrite_basic_package_version_file(${{CMAKE_CURRENT_BINARY_DIR}}/{package}ConfigVersion.cmake VERSION ${{PROJECT_VERSION}} COMPATIBILITY SameMajorVersion)\ninstall(FILES ${{CMAKE_CURRENT_BINARY_DIR}}/{package}Config.cmake ${{CMAKE_CURRENT_BINARY_DIR}}/{package}ConfigVersion.cmake DESTINATION ${{CMAKE_INSTALL_LIBDIR}}/cmake/{package})\ninstall(FILES crucible.json schema.json DESTINATION ${{CMAKE_INSTALL_DATADIR}}/{package})\ninstall(FILES README.md AGENTS.md DESTINATION ${{CMAKE_INSTALL_DOCDIR}})\n",options.package_version)});
     files.push(File {path:"cmake/Config.cmake.in".into(),contents:format!("@PACKAGE_INIT@\ninclude(CMakeFindDependencyMacro)\nfind_dependency(yyjson CONFIG)\nfind_dependency(CURL 7.68)\nfind_dependency(OpenSSL 1.1.1)\nfind_dependency(Threads)\ninclude(\"${{CMAKE_CURRENT_LIST_DIR}}/{package}Targets.cmake\")\ncheck_required_components({package})\n")});
     files.sort_by(|left, right| left.path.cmp(&right.path));
     Ok(files)
+}
+
+/// The package's `README.md` and `AGENTS.md`, installed beside its
+/// documentation, and Doxygen's configuration for its API reference.
+fn package_docs(service: &Service, options: &Options) -> Vec<File> {
+    use crucible_codegen_common::guide;
+    let surface = surface::surface(service, options);
+    let facts = snippet::guide(service, options);
+    vec![
+        File {
+            path: guide::README.to_owned(),
+            contents: guide::readme(service, &surface, &facts),
+        },
+        File {
+            path: guide::AGENTS.to_owned(),
+            contents: guide::agents(service, &surface, &facts),
+        },
+        File {
+            path: "Doxyfile".to_owned(),
+            contents: snippet::doxyfile(options),
+        },
+    ]
 }

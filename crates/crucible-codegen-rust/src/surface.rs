@@ -31,6 +31,12 @@ pub fn surface(service: &Service, options: &ClientOptions) -> surface::Surface {
             format!("{client}::new(runtime::Config::new(endpoint))"),
         ),
     );
+    if options.content_sha256 {
+        out.middleware = vec![surface::Middleware::new(
+            "content-sha256",
+            &["x-amz-content-sha256"],
+        )];
+    }
     let boxed = boxed_members(service);
     for (operation, derived) in service.operations.iter().zip(method_names(service)) {
         let mut entry = Operation::new(function(operation.name()));
@@ -44,6 +50,19 @@ pub fn surface(service: &Service, options: &ClientOptions) -> surface::Surface {
             .output
             .as_ref()
             .map(|id| structure(service, id, &boxed, false));
+        let call = crucible_codegen_common::snippet::call(service, operation);
+        (entry.snippet, entry.paginated_snippet) = crate::snippet::snippets(
+            service,
+            options,
+            &out.middleware,
+            &call,
+            &entry.method,
+            entry
+                .paginators
+                .as_ref()
+                .and_then(|pages| pages.first())
+                .map(String::as_str),
+        );
         out.operations.insert(operation.id.to_string(), entry);
     }
     out

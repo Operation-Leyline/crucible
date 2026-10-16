@@ -33,6 +33,44 @@ crucible generate ts tests/models/payload-bindings \
   --out "$dir/generated-payloadbindings" --package-name @example/payloadbindings >/dev/null
 crucible generate ts tests/models/globals \
   --out "$dir/generated-globals" --package-name @example/globals >/dev/null
+crucible generate ts tests/models/samples   --out "$dir/generated-samples" --package-name @example/samples >/dev/null
+
+# The crucible.sdks/1 snippets (docs/docs.md, "Snippets") for a generated
+# package compile against it: each is described with the options the
+# package was generated with, so its names are the ones the package declares.
+work=$(mktemp -d)
+trap 'rm -rf "$work"' EXIT
+rm -rf "$dir/snippets/generated"
+snippets() { # model, name, SDK table options
+  mkdir -p "$work/$2"
+  cp -r "tests/models/$1" "$work/$2/model"
+  printf 'schema_version = 1\nmodel = "model"\n\n[sdk.ts]\nout = "generated/ts"\n%s\n' "$3" \
+    > "$work/$2/crucible-sdk.toml"
+  crucible sdk describe --file "$work/$2/crucible-sdk.toml" --out "$work/$2/sdks.json" 2>/dev/null
+  node -e '
+const fs = require("node:fs");
+const [file, out] = process.argv.slice(1);
+const operations = JSON.parse(fs.readFileSync(file, "utf8")).sdks.ts.operations;
+fs.mkdirSync(out, { recursive: true });
+let count = 0;
+for (const [id, operation] of Object.entries(operations)) {
+  const name = id.split("#")[1];
+  fs.writeFileSync(`${out}/${name}.ts`, operation.snippet);
+  count++;
+  if (operation.paginatedSnippet) {
+    fs.writeFileSync(`${out}/${name}.pages.ts`, operation.paginatedSnippet);
+    count++;
+  }
+}
+if (count === 0) throw new Error(`no snippets in ${file}`);
+' "$work/$2/sdks.json" "$dir/snippets/generated/$2"
+}
+snippets weather weather 'package = "@example/weather"
+endpoint = "https://weather.example"
+middleware = ["content-sha256"]'
+snippets samples samples 'package = "@example/samples"'
+
 rm -rf "$dir/dist"
 ${TSC:-npx --yes -p typescript@5.9.3 tsc} -p "$dir"
+${TSC:-npx --yes -p typescript@5.9.3 tsc} -p "$dir/snippets"
 node --test "$dir"/dist/*.test.js

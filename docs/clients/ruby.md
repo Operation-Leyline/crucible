@@ -88,7 +88,18 @@ Every generated type, member, enum value, operation and the client carry YARD
 comments built from the model's doc comments plus Crucible's own text for
 the client, `ClientConfig`, transports and errors. The gem ships a
 `.yardopts` that selects Markdown, which is what `.cru` documentation is
-written in; `yard doc` renders them.
+written in, with the generated README as the front page; `yard doc` renders
+them.
+
+The gem also ships a generated `README.md` (installing, building the client,
+one complete call, pagination, errors and retries) and an `AGENTS.md` that
+tells a coding agent the exact gem, require and class names. Their programs
+are the `snippet` and `paginatedSnippet` of the gem's
+[`crucible.sdks/1`](../docs.md#the-cruciblesdks1-contract) entry: a runnable
+script per operation that reads its token from `WEATHER_TOKEN` (the
+service's name, upper snake case), builds the input from the operation's
+first example (or a generated sample), prints the output and rescues one
+modelled error.
 
 Models define `inspect` (and `to_s`, except on exceptions, whose `to_s` stays
 the message) and print as `Secret(name=db, password=*** Sensitive Data Redacted ***)`.
@@ -177,7 +188,8 @@ collisions, and model/member/operation name collisions. Recursive models and
 collections are supported through runtime descriptions.
 `python tools/test-ruby.py` checks shared fixtures, native weather-service
 HTTP, interruptions and proxy handling, gem installation into a separate
-consumer, and empty and renamed models. It also runs a native suite for the
+consumer, and empty and renamed models; it runs every Weather and Samples
+snippet against its generated gem, up to the connection. It also runs a native suite for the
 typed permissions of `tests/fixtures/permissions` (`tests/permissions.rb`).
 Set `RUBY` to select the executable.
 These checks do not establish published-gem or authenticated deployed-Leyline

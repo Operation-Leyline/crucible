@@ -11,3 +11,4 @@ __pycache__/
 .mypy_cache/
 /.sdk/
 *.egg-info/
+crates/crucible-codegen-ts/tests/ts/snippets/generated/

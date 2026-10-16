@@ -87,6 +87,7 @@ fn sdk_compiles_for_recursive_shapes() {
     let files = emit_client_package(
         &service(),
         &ClientOptions {
+            content_sha256: false,
             package_name: Some("recursive-sdk".into()),
             package_version: "0.0.0".into(),
             runtime: RuntimeDependency::Path(crate_path("crucible-client-runtime-rust")),

@@ -4,7 +4,7 @@ from pathlib import Path
 import shutil
 import tempfile
 from sdk_cru_packages import copy_package, rename_shapes, replace_once
-from sdk_test_support import ROOT, run, weather
+from sdk_test_support import ROOT, describe_sdk, run, snippets, weather
 
 
 RECURSIVE = """structure RecursiveNode {
@@ -65,6 +65,46 @@ def consume(output, model, name, namespace, program, args=()):
 def permissions(output):
     """Typed permissions: the open permission records and the registry; pack's -warnaserror checks the hostile docs."""
     consume(output, ROOT / "tests/fixtures/permissions", "permissions", "Example.Leyline", "Permissions.cs")
+
+
+def check_snippets(output, weather_feed):
+    """The crucible.sdks/1 snippets (docs/docs.md, "Snippets") build against the
+    packages they call: weather packed in `weather_feed`, and samples, generated
+    with the options it is described with. Each snippet is a console project's
+    top-level statements, as a caller pastes it, so each has its own project;
+    one solution builds them all. Warnings stay warnings: a snippet calling a
+    deprecated operation is still the call a caller makes."""
+    samples = output / "samples"
+    generate(ROOT / "tests/models/samples", samples, "Example.Samples", "Example.Samples")
+    samples_feed = output / "samples-feed"
+    run("dotnet", "pack", "--nologo", "-v", "quiet", "-warnaserror", "-o", str(samples_feed), cwd=samples)
+    root = output / "snippets"
+    root.mkdir()
+    projects = []
+    for model, namespace, table in (
+        ("weather", "Example.Weather",
+         '[sdk.csharp]\nout = "generated/csharp"\nnamespace = "Example.Weather"\npackage_id = "Example.Weather"\n'),
+        ("samples", "Example.Samples",
+         '[sdk.csharp]\nout = "generated/csharp"\nnamespace = "Example.Samples"\npackage_id = "Example.Samples"\n'),
+    ):
+        for _, operation, variant, text in snippets(describe_sdk(table, ROOT / "tests/models" / model)):
+            project = root / model / f"{operation}{'Pages' if variant == 'pages' else ''}"
+            project.mkdir(parents=True)
+            name = f"{model.title()}{project.name}"
+            (project / f"{name}.csproj").write_text(f'''<Project Sdk="Microsoft.NET.Sdk">
+      <PropertyGroup><TargetFramework>net8.0</TargetFramework><OutputType>Exe</OutputType><ImplicitUsings>enable</ImplicitUsings><Nullable>enable</Nullable></PropertyGroup>
+      <ItemGroup><PackageReference Include="{namespace}" Version="0.0.0-test"/></ItemGroup>
+    </Project>''', encoding="utf-8")
+            (project / "Program.cs").write_text(text, encoding="utf-8")
+            projects.append(str(project / f"{name}.csproj"))
+    if not projects:
+        raise RuntimeError("no C# snippets described")
+    run("dotnet", "new", "sln", "--name", "Snippets", cwd=root)
+    solution = next(root.glob("Snippets.sln*"))
+    run("dotnet", "sln", str(solution), "add", *projects, cwd=root)
+    run("dotnet", "restore", str(solution), "--source", str(weather_feed), "--source", str(samples_feed),
+        "--packages", str(output / "snippets-installed"), cwd=root)
+    run("dotnet", "build", str(solution), "--no-restore", "--nologo", "-v", "quiet", cwd=root)
 
 
 def qualify(output):
@@ -131,6 +171,7 @@ def qualify(output):
         run("dotnet", str(consumer / "bin/Debug/net8.0/Consumer.dll"),
             str(ROOT / "tests/conformance/retry.json"), str(ROOT / "tests/conformance/header-lists.json"),
             env=dict(os.environ, WEATHER_URL=endpoint))
+    check_snippets(output, feed)
     renamed = copy_package("weather", output / "renamed-model")
     replace_once(renamed, "location?: Location\n", "location?: Location\n" + "".join(f"        {name}?: string\n" for name in ["toString", "getType", "equals", "getHashCode"]))
     replace_once(renamed, "    status 409\n", "    status 409\n" + "".join(f"    {name}?: string\n" for name in ["getBaseException", "getObjectData"]))

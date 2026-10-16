@@ -23,6 +23,7 @@ impl<'a> RSdk<'a> {
             name: name.into(),
             audience: crucible_codegen::Audience::External,
             options: ROptions {
+                metadata: Default::default(),
                 package_name: format!("{}.sdk", name.replace('-', ".")),
                 package_version: std::env::var("CARGO_PKG_VERSION")
                     .unwrap_or_else(|_| "0.1.0".into()),

@@ -9,7 +9,7 @@ import tempfile
 import threading
 import time
 
-from sdk_test_support import ROOT, run, weather
+from sdk_test_support import ROOT, describe_sdk, run, snippets, weather
 from sdk_conformance_model import qualification_model
 from sdk_cru_packages import copy_package, rename_shapes, replace_once, write_package
 
@@ -171,6 +171,37 @@ func check(_ ok: Bool, _ what: String) {
     swift("run", consumer, scratch, "PermissionsConsumer")
 
 
+def qualify_snippets(output):
+    """Each `crucible.sdks/1` snippet (docs/docs.md, "Snippets") builds as its
+    own executable target of a consumer package, against packages generated
+    with the options the snippets are described with. Weather has the examples
+    a reference shows; Samples has every kind of value a sample holds."""
+    consumer = output / "snippet-consumer"
+    dependencies, targets = [], []
+    for model, module in [("weather", "Weather"), ("samples", "Samples")]:
+        document = describe_sdk(
+            f'[sdk.swift]\nout = "generated/swift"\npackage = "{module}"\nmodule_name = "{module}"\n',
+            ROOT / "tests/models" / model)
+        generate(ROOT / "tests/models" / model, output / f"snippet-{model}", module)
+        dependencies.append(f'.package(path: "../snippet-{model}")')
+        for _, operation, variant, text in snippets(document):
+            # Top-level code: each snippet is the main.swift of its own target.
+            target = module + operation + ("Pages" if variant == "pages" else "")
+            sources = consumer / "Sources" / target
+            sources.mkdir(parents=True, exist_ok=True)
+            (sources / "main.swift").write_text(text, encoding="utf-8")
+            targets.append(f'.executableTarget(name: "{target}", dependencies: '
+                           f'[.product(name: "{module}", package: "snippet-{model}")])')
+    assert targets, "no snippets"
+    (consumer / "Package.swift").write_text(
+        '// swift-tools-version: 6.0\nimport PackageDescription\n'
+        'let package = Package(name: "SnippetConsumer", platforms: [.macOS(.v12)],\n'
+        f'    dependencies: [{", ".join(dependencies)}],\n'
+        '    targets: [\n        ' + ",\n        ".join(targets) + "\n    ])\n", encoding="utf-8")
+    # Its own scratch path: these modules share names with the packages above.
+    swift("build", consumer, output / "snippet-build")
+
+
 def qualify(output):
     package = output / "sdk"
     scratch = Path(os.environ.get("SWIFT_TEST_SCRATCH", output / "build")).resolve()
@@ -280,7 +311,8 @@ struct Fake: VoidSDK.HTTPTransport {
     tests.mkdir(parents=True, exist_ok=True)
     shutil.copyfile(ROOT / "crates/crucible-codegen-swift/tests/DescribeTests.swift", tests / "DescribeTests.swift")
     swift("test", vault, scratch)
-    print("Swift native package, fresh consumer, conformance, and weather HTTP passed")
+    qualify_snippets(output)
+    print("Swift native package, fresh consumer, conformance, snippets, and weather HTTP passed")
 
 
 if __name__ == "__main__":

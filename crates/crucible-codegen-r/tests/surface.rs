@@ -9,6 +9,7 @@ use crucible_ir::ir::Service;
 
 fn options() -> Options {
     Options {
+        metadata: Default::default(),
         package_name: "weather.client".into(),
         package_version: "0.0.0".into(),
         endpoint: None,
@@ -166,6 +167,7 @@ fn weather_surface_names_the_generated_declarations() {
 #[test]
 fn a_default_endpoint_needs_no_configuration() {
     let options = Options {
+        metadata: Default::default(),
         package_name: "forecast".into(),
         package_version: "0.0.0".into(),
         endpoint: Some("https://api.weather.example".into()),
@@ -244,5 +246,139 @@ fn defaulted_members_are_as_optional_as_the_emitted_code_says() {
     assert_eq!(
         optional(configure.output.as_ref().unwrap()),
         [("name", false), ("count", false), ("note", true)]
+    );
+}
+
+/// The surface's snippets call what the package declares: they attach the
+/// package, build the exported client, construct the operation's input
+/// with its exported constructor and call its method; a paginated
+/// operation's second snippet pages with its page function. The package
+/// ships both guides, `AGENTS.md` under `inst/`.
+#[test]
+fn snippets_call_the_declared_names() {
+    for model in [
+        "weather",
+        "samples",
+        "client-docs-surface-keywords",
+        "client-docs-surface-defaults",
+    ] {
+        let service = load(model);
+        let options = options();
+        let surface = assert_declared(&service, &options);
+        let files = emit(&service, &options).unwrap();
+        let readme = file(&files, "README.md");
+        let agents = file(&files, "inst/AGENTS.md");
+        assert!(readme.starts_with("# weather.client\n"), "{model}");
+        assert!(agents.contains("library(weather.client)"), "{model}");
+        assert!(
+            !files.iter().any(|f| f.path == "AGENTS.md"),
+            "a top-level AGENTS.md is a check NOTE"
+        );
+        for (id, operation) in &surface.operations {
+            let snippet = &operation.snippet;
+            assert!(
+                snippet.starts_with("library(weather.client)\n"),
+                "{id}: {snippet}"
+            );
+            assert!(
+                snippet.contains(&format!("client <- {}(", surface.client.name)),
+                "{id}: {snippet}"
+            );
+            assert!(snippet.ends_with("client$close()\n"), "{id}: {snippet}");
+            let argument = match &operation.input {
+                Some(input) => {
+                    assert!(
+                        snippet.contains(&format!("input <- {}(", input.type_name)),
+                        "{id}: {snippet}"
+                    );
+                    "input"
+                }
+                None => "",
+            };
+            assert!(
+                snippet.contains(&format!("client${}({argument})", operation.method)),
+                "{id}: {snippet}"
+            );
+            match (&operation.paginators, &operation.paginated_snippet) {
+                (Some(pages), Some(paginated)) => assert!(
+                    paginated.contains(&format!("next_page <- client${}(input)", pages[0])),
+                    "{id}: {paginated}"
+                ),
+                (None, None) => {}
+                other => panic!("{id}: {other:?}"),
+            }
+        }
+    }
+}
+
+/// Weather's calls, spelled as the R package takes them.
+#[test]
+fn weather_snippets_spell_r_values() {
+    let weather = surface(&load("weather"), &options());
+    let get = &weather.operations["example.weather#GetCity"].snippet;
+    assert!(get.contains("token = function() Sys.getenv(\"WEATHER_TOKEN\")"));
+    assert!(get.contains("endpoint = Sys.getenv(\"WEATHER_ENDPOINT\")"));
+    assert!(get.contains("# Values from the model's example \"Read a city\".\n"));
+    assert!(get.contains("  at = timestamp(1767323045)\n"));
+    assert!(get.contains("  NotFoundError = function(error) {\n"));
+    assert!(get.contains("error$metadata$status"));
+    let create = &weather.operations["example.weather#CreateCity"].snippet;
+    assert!(
+        create.contains("Location(\n    \"coordinates\",\n"),
+        "{create}"
+    );
+    assert!(
+        create.contains("expected_revision = long(\"7\")"),
+        "{create}"
+    );
+    let pages = weather.operations["example.weather#ListCities"]
+        .paginated_snippet
+        .as_ref()
+        .unwrap();
+    assert!(!pages.contains("next_token ="), "{pages}");
+    assert!(pages.contains("while (!is.null(page <- next_page())) {\n  print(page$cities)\n}\n"));
+    // A generated-in endpoint is not read from the environment.
+    let configured = Options {
+        endpoint: Some("https://weather.example".into()),
+        ..options()
+    };
+    let configured = surface(&load("weather"), &configured);
+    assert!(
+        !configured.operations["example.weather#GetCity"]
+            .snippet
+            .contains("WEATHER_ENDPOINT")
+    );
+}
+
+/// An example that leaves out a member with a modeled default still
+/// constructs: the R constructor requires the member, so the snippet
+/// passes its default.
+#[test]
+fn an_example_without_defaulted_members_passes_their_defaults() {
+    let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../tests/models/client-docs-surface-defaults");
+    let mut package = crucible_lang::load_package(&dir).unwrap();
+    let file = package
+        .files
+        .iter_mut()
+        .find(|file| file.text.contains("operation Configure"))
+        .unwrap();
+    file.text = file.text.replace("\r\n", "\n").replacen(
+        "    output {",
+        "    example \"Name only\" {\n        input { name: \"n\" }\n    }\n    output {",
+        1,
+    );
+    let compiled = crucible_lang::compile(&package, None);
+    let service = compiled
+        .service
+        .clone()
+        .unwrap_or_else(|| panic!("{}", compiled.render()));
+    let surface = surface(&service, &options());
+    let snippet = &surface.operations["example.defaults#Configure"].snippet;
+    assert!(
+        snippet.contains(
+            "input <- ConfigureInput(\n  name = \"n\",\n  count = 17,\n  mode = \"fast\"\n)\n"
+        ),
+        "{snippet}"
     );
 }

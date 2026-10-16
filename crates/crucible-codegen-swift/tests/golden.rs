@@ -5,6 +5,7 @@ use std::{fs, path::Path};
 
 fn options() -> Options {
     Options {
+        metadata: Default::default(),
         package_name: "WeatherClient".into(),
         module_name: "WeatherClient".into(),
         package_version: "0.0.0-dev".into(),
@@ -79,7 +80,8 @@ fn weather_matches_goldens() {
             file.path
         );
     }
-    assert_eq!(snapshots, 5);
+    // The three sources, two resources, README, AGENTS.md and the DocC page.
+    assert_eq!(snapshots, 8);
 }
 
 #[test]
@@ -722,6 +724,7 @@ fn permissions_with(symbol: &str) -> crucible_ir::ir::Service {
 
 fn permission_options() -> Options {
     Options {
+        metadata: Default::default(),
         package_name: "Leyline".into(),
         module_name: "Leyline".into(),
         package_version: "0.0.0-dev".into(),

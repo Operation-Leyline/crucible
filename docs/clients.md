@@ -57,6 +57,57 @@ metadata keys (description, URLs, license, authors, README, keywords,
 `crucible-model.json`. See [releasing generated SDKs](sdk-releases.md) and
 the design in [SDK packaging](sdk-packaging.md).
 
+## Generated package documentation
+
+Every generated SDK package, in all 14 languages, carries two generated
+Markdown files at its root (R's `AGENTS.md` is under `inst/`, see the
+[R guide](clients/r.md)), both owned by generation like the code beside
+them. npm, PyPI, RubyGems, Composer, NuGet, pub, CRAN, Cargo and CMake
+packages ship them; Java and Kotlin keep them beside `pom.xml` and
+`build.gradle.kts`, outside the jar.
+
+- `README.md`, for a person adding the package: the install line with the
+  exact package name and version, constructing the client with its token
+  (and endpoint, where none is generated in), one complete call, a
+  paginated call, how modelled errors are told apart, the retry and
+  idempotency rules, and links (the model's `@externalDocs`, the package's
+  documentation, home page and repository, and the language guide). The
+  install line follows the release: a private package, or one released
+  by Git tag, names its tag or says it is private instead of an install
+  from the public registry, which could fetch someone else's package of
+  that name; a scoped npm package on another registry configures its
+  scope's registry first. A Rust package's README is also its crate
+  documentation.
+- `AGENTS.md`, for a coding agent working in a project that depends on the
+  package: the same facts as terse rules, with the exact install line,
+  imports, client name and construction, the headers the client sends
+  itself (`Authorization`, `Crucible-Version`, default middleware such as
+  `content-sha256`'s `x-amz-content-sha256`), pagination, errors, retries,
+  which calls fill an idempotency token, and one complete call. Agents
+  read it whenever they work beside the package, so they need not guess a
+  package or method name.
+
+A configured `readme` or `agents` (in `crucible-sdk.toml`, `--readme` and
+`--agents`, or the build helpers' `.readme()` and `.agents()`) replaces the
+generated file, in every language. Model text in either file (the
+service's title, `@externalDocs` names and URLs, versions) is escaped
+Markdown on one line, and links are `http`, `https` or `mailto` with
+`<`, `>`, parentheses and spaces percent-encoded, so a model cannot add a
+heading, a paragraph, a link or an HTML comment to what an agent reads as
+instructions.
+
+The calls in both are the `crucible.sdks/1` snippets
+([docs.md](docs.md#snippets)), compile-checked by each language's
+qualification script. Packages also carry their documentation tool's
+configuration: `typedoc.json` (TypeScript), `[package.metadata.docs.rs]`
+(Rust), a `Doxyfile` (C and C++), `dartdoc_options.yaml` (Dart), a DocC
+catalog (Swift), `.yardopts` (Ruby) and `man/*.Rd` (R).
+
+A directory you generate into that already holds a handwritten
+`README.md` or `AGENTS.md` is refused, as for any file generation does
+not own: declare it as the SDK's `readme` or `agents`, or move it out of
+the output directory.
+
 ## API documentation and debug formatting
 
 The TypeScript, Python and Go clients preserve documentation on models,

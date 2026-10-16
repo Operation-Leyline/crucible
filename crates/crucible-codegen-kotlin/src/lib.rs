@@ -1,6 +1,7 @@
 //! Kotlin Multiplatform models and coroutine clients.
 mod models;
 mod permissions;
+mod snippet;
 mod surface;
 
 use crucible_codegen_common::documentation as docs;
@@ -16,6 +17,10 @@ pub struct Options {
     pub package_name: String,
     pub package_version: String,
     pub endpoint: Option<String>,
+    /// Description, URLs, license, authors, README, AGENTS.md, keywords,
+    /// `private` and the release channel: the generated README and
+    /// AGENTS.md use the README, AGENTS.md, URLs, `private` and channel.
+    pub metadata: crucible_codegen_common::PackageMetadata,
 }
 pub struct File {
     pub path: String,
@@ -708,6 +713,19 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
     ];
     files.push(File { path: format!("{source}/WireSchema.kt"), contents: format!("{header}internal fun loadSchema(): kotlinx.serialization.json.JsonObject = kotlinx.serialization.json.Json.parseToJsonElement(listOf({}).joinToString(\"\")) as kotlinx.serialization.json.JsonObject\n", schema.chars().collect::<Vec<_>>().chunks(6000).map(|chunk| literal(&chunk.iter().collect::<String>())).collect::<Vec<_>>().join(",\n")) });
     files.extend(permissions::files(service, package, &source));
+    {
+        use crucible_codegen_common::guide;
+        let surface = surface::surface(service, options);
+        let facts = snippet::guide(service, options);
+        files.push(File {
+            path: guide::README.into(),
+            contents: guide::readme(service, &surface, &facts),
+        });
+        files.push(File {
+            path: guide::AGENTS.into(),
+            contents: guide::agents(service, &surface, &facts),
+        });
+    }
     for (name, body) in models {
         files.push(File {
             path: format!("{source}/model/{name}.kt"),

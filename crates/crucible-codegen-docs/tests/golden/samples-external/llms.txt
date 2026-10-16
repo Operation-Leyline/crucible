@@ -12,6 +12,7 @@ Every page below is Markdown. Requests are JSON over HTTP; each operation's page
 
 - [Bulk](src/operations/API_Bulk.md): `POST /bulk`. Values a sample cannot show in full\, or can only show exactly\.
 - [Check](src/operations/API_Check.md): `POST /check`. A pattern the generator cannot follow\.
+- [Edges](src/operations/API_Edges.md): `POST /edges`. Values at the edges of what each language represents\, in an example\: both ends of long\, bigInteger and bigDecimal past 64 bits\, instants with nanoseconds\, before the epoch\, with an offset\, at both ends of the calendar and before its first year\, a null in a sparse recursive map and list\, a member left to its default\, and an idempotency token the snippets leave to the client\.
 - [GetGraph](src/operations/API_GetGraph.md): `GET /graphs/{graphId}`.
 - [PutGraph](src/operations/API_PutGraph.md): `PUT /graphs/{graphId}`. Every scalar\, collection and default in one request\.
 - [Walk](src/operations/API_Walk.md): `POST /walk`. Recursive input and output\.
@@ -23,9 +24,11 @@ Every page below is Markdown. Requests are JSON over HTTP; each operation's page
 - [Blank](src/shapes/Blank.md): string. White space only\: list items differ by length\.
 - [Blanks](src/shapes/Blanks.md): list.
 - [Bounded](src/shapes/Bounded.md): string. Outside the generator\'s subset\: a word boundary\.
+- [Branch](src/shapes/Branch.md): structure.
 - [BulkInput](src/shapes/BulkInput.md): structure.
 - [Busy](src/shapes/Busy.md): error, HTTP 503.
 - [CheckInput](src/shapes/CheckInput.md): structure.
+- [EdgesInput](src/shapes/EdgesInput.md): structure.
 - [EpochTime](src/shapes/EpochTime.md): timestamp.
 - [Essay](src/shapes/Essay.md): string. Longer than a sample shows\.
 - [Expression](src/shapes/Expression.md): union. Recursion through a union whose first arm leads back\.
@@ -53,10 +56,12 @@ Every page below is Markdown. Requests are JSON over HTTP; each operation's page
 - [Regions](src/shapes/Regions.md): list.
 - [Sha](src/shapes/Sha.md): string.
 - [Source](src/shapes/Source.md): union.
+- [SparseLabels](src/shapes/SparseLabels.md): list.
 - [Tags](src/shapes/Tags.md): list.
 - [Thumbnail](src/shapes/Thumbnail.md): blob.
 - [Tier](src/shapes/Tier.md): enum.
 - [Tight](src/shapes/Tight.md): bigDecimal. Just below 0\.3\, which a double would round onto\.
+- [Tree](src/shapes/Tree.md): map. A map that reaches itself through its values\, whose entries may be null\.
 - [WalkInput](src/shapes/WalkInput.md): structure.
 - [WalkOutput](src/shapes/WalkOutput.md): structure.
 

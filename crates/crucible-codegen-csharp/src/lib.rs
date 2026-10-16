@@ -1,5 +1,6 @@
 //! Native .NET 8 models, asynchronous clients, and NuGet packaging.
 mod permissions;
+mod snippet;
 mod surface;
 
 use crucible_codegen_common::documentation as docs;
@@ -14,19 +15,23 @@ pub struct Options {
     pub package_id: String,
     pub package_version: String,
     pub endpoint: Option<String>,
+    /// Description, URLs, license, authors, README, AGENTS.md, keywords,
+    /// `private` and the release channel: the generated README and
+    /// AGENTS.md use the README, AGENTS.md, URLs, `private` and channel.
+    pub metadata: crucible_codegen_common::PackageMetadata,
 }
 pub struct File {
     pub path: String,
     pub contents: String,
 }
-fn literal(text: &str) -> String {
+pub(crate) fn literal(text: &str) -> String {
     crucible_codegen_common::quoted(text)
 }
 fn identifier(text: &str) -> bool {
     text.starts_with(|c: char| c.is_ascii_alphabetic() || c == '_')
         && text.chars().all(|c| c.is_ascii_alphanumeric() || c == '_')
 }
-fn pascal(text: &str) -> String {
+pub(crate) fn pascal(text: &str) -> String {
     let mut chars = text.chars();
     format!(
         "{}{}",
@@ -34,7 +39,7 @@ fn pascal(text: &str) -> String {
         chars.as_str()
     )
 }
-fn field(text: &str) -> String {
+pub(crate) fn field(text: &str) -> String {
     let name = pascal(text);
     // Exception and union metadata remain accessible without hiding modeled members.
     if [
@@ -827,7 +832,22 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
         path: format!("{client_name}.cs"),
         contents: client,
     });
-    files.push(File{path:"Client.csproj".into(),contents:format!("<Project Sdk=\"Microsoft.NET.Sdk\">\n  <PropertyGroup>\n    <TargetFramework>net8.0</TargetFramework><GenerateDocumentationFile>true</GenerateDocumentationFile><Nullable>enable</Nullable><ImplicitUsings>enable</ImplicitUsings><LangVersion>12</LangVersion>\n    <PackageId>{}</PackageId><Version>{}</Version><AssemblyName>{}</AssemblyName><RootNamespace>{ns}</RootNamespace><IsTrimmable>false</IsTrimmable>\n  </PropertyGroup>\n  <ItemGroup><EmbeddedResource Include=\"schema.json\" LogicalName=\"crucible.schema.json\"/><EmbeddedResource Include=\"crucible.json\" LogicalName=\"crucible.provenance.json\"/></ItemGroup>\n</Project>\n",options.package_id,options.package_version,options.package_id)});
+    files.push(File{path:"Client.csproj".into(),contents:format!("<Project Sdk=\"Microsoft.NET.Sdk\">\n  <PropertyGroup>\n    <TargetFramework>net8.0</TargetFramework><GenerateDocumentationFile>true</GenerateDocumentationFile><Nullable>enable</Nullable><ImplicitUsings>enable</ImplicitUsings><LangVersion>12</LangVersion>\n    <PackageId>{}</PackageId><Version>{}</Version><AssemblyName>{}</AssemblyName><RootNamespace>{ns}</RootNamespace><IsTrimmable>false</IsTrimmable><PackageReadmeFile>README.md</PackageReadmeFile>\n  </PropertyGroup>\n  <ItemGroup><EmbeddedResource Include=\"schema.json\" LogicalName=\"crucible.schema.json\"/><EmbeddedResource Include=\"crucible.json\" LogicalName=\"crucible.provenance.json\"/><None Include=\"README.md\" Pack=\"true\" PackagePath=\"\\\"/><None Include=\"AGENTS.md\" Pack=\"true\" PackagePath=\"\\\"/></ItemGroup>\n</Project>\n",options.package_id,options.package_version,options.package_id)});
+    {
+        use crucible_codegen_common::guide;
+        // The package's README is its NuGet page (`PackageReadmeFile`);
+        // both files are packed at the package root.
+        let surface = surface::surface(service, options);
+        let facts = snippet::guide(service, options);
+        files.push(File {
+            path: guide::README.into(),
+            contents: guide::readme(service, &surface, &facts),
+        });
+        files.push(File {
+            path: guide::AGENTS.into(),
+            contents: guide::agents(service, &surface, &facts),
+        });
+    }
     let provenance=serde_json::to_string_pretty(&serde_json::json!({"generatorVersion":env!("CARGO_PKG_VERSION"),"service":service.id.to_string(),"serviceVersion":service.version,"schemaSha256":format!("{:x}",Sha256::digest(schema.as_bytes()))})).expect("serializes");
     files.push(File {
         path: "schema.json".into(),

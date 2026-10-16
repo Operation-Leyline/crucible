@@ -10,6 +10,7 @@ fn files() -> Vec<crucible_codegen_php::File> {
     )
     .unwrap();
     let options = Options {
+        metadata: Default::default(),
         package_name: "example/links".into(),
         namespace: "LinksSdk".into(),
         package_version: "0.0.0".into(),

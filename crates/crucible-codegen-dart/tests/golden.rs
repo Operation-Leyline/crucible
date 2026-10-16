@@ -125,6 +125,7 @@ fn permissions_with(symbol: &str) -> crucible_ir::ir::Service {
 
 fn permission_options() -> Options {
     Options {
+        metadata: Default::default(),
         package_name: "leyline".into(),
         package_version: "0.0.0-dev".into(),
         endpoint: None,

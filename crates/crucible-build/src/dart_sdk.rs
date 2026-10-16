@@ -23,6 +23,7 @@ impl<'a> DartSdk<'a> {
             name: name.into(),
             audience: crucible_codegen::Audience::External,
             options: DartOptions {
+                metadata: Default::default(),
                 package_name: format!("{}_sdk", crate::output_builder::native_snake(name)),
                 package_version: std::env::var("CARGO_PKG_VERSION")
                     .unwrap_or_else(|_| "0.1.0".into()),

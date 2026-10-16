@@ -1,5 +1,101 @@
 {
   "format": "crucible.sdks/1",
+  "http": {
+    "endpointEnv": "SURFACE_ENDPOINT",
+    "operations": {
+      "example.surface#Constructor": {
+        "body": null,
+        "bodyEncoding": null,
+        "example": null,
+        "headers": [
+          {
+            "name": "Crucible-Version",
+            "value": "1"
+          }
+        ],
+        "method": "GET",
+        "omitted": [],
+        "snippet": "curl \"$SURFACE_ENDPOINT\"'/Constructor' \\\n  -H 'Crucible-Version: 1'\n",
+        "uri": "/Constructor"
+      },
+      "example.surface#ListThings": {
+        "body": null,
+        "bodyEncoding": null,
+        "example": null,
+        "headers": [
+          {
+            "name": "Crucible-Version",
+            "value": "1"
+          }
+        ],
+        "method": "GET",
+        "omitted": [],
+        "snippet": "curl \"$SURFACE_ENDPOINT\"'/ListThings?token=nextToken&build=build' \\\n  -H 'Crucible-Version: 1'\n",
+        "uri": "/ListThings?token=nextToken&build=build"
+      },
+      "example.surface#ListThingsPages": {
+        "body": null,
+        "bodyEncoding": null,
+        "example": null,
+        "headers": [
+          {
+            "name": "Crucible-Version",
+            "value": "1"
+          }
+        ],
+        "method": "GET",
+        "omitted": [],
+        "snippet": "curl \"$SURFACE_ENDPOINT\"'/ListThingsPages' \\\n  -H 'Crucible-Version: 1'\n",
+        "uri": "/ListThingsPages"
+      },
+      "example.surface#ListThingsPaginator": {
+        "body": null,
+        "bodyEncoding": null,
+        "example": null,
+        "headers": [
+          {
+            "name": "Crucible-Version",
+            "value": "1"
+          }
+        ],
+        "method": "GET",
+        "omitted": [],
+        "snippet": "curl \"$SURFACE_ENDPOINT\"'/ListThingsPaginator' \\\n  -H 'Crucible-Version: 1'\n",
+        "uri": "/ListThingsPaginator"
+      },
+      "example.surface#ListThingsWithOptions": {
+        "body": null,
+        "bodyEncoding": null,
+        "example": null,
+        "headers": [
+          {
+            "name": "Crucible-Version",
+            "value": "1"
+          }
+        ],
+        "method": "GET",
+        "omitted": [],
+        "snippet": "curl \"$SURFACE_ENDPOINT\"'/ListThingsWithOptions' \\\n  -H 'Crucible-Version: 1'\n",
+        "uri": "/ListThingsWithOptions"
+      },
+      "example.surface#PaginateListThings": {
+        "body": null,
+        "bodyEncoding": null,
+        "example": null,
+        "headers": [
+          {
+            "name": "Crucible-Version",
+            "value": "1"
+          }
+        ],
+        "method": "GET",
+        "omitted": [],
+        "snippet": "curl \"$SURFACE_ENDPOINT\"'/PaginateListThings' \\\n  -H 'Crucible-Version: 1'\n",
+        "uri": "/PaginateListThings"
+      }
+    },
+    "tokenEnv": null
+  },
   "sdks": {
     "rust": {
       "audience": "external",
@@ -21,7 +117,9 @@
           "method": "constructor",
           "optionsMethod": "constructor_with_options",
           "output": null,
-          "paginators": null
+          "paginatedSnippet": null,
+          "paginators": null,
+          "snippet": "use surface_sdk::*;\n\n#[tokio::main]\nasync fn main() -> Result<(), Box<dyn std::error::Error>> {\n    // The client sends Crucible-Version: 1 on every request.\n    let client = SurfaceClient::new(runtime::Config::new(std::env::var(\"SURFACE_ENDPOINT\")?));\n\n    client.constructor().await?;\n    Ok(())\n}\n"
         },
         "example.surface#ListThings": {
           "asyncMethod": null,
@@ -71,9 +169,11 @@
             "style": "methods",
             "type": "ListThingsOutput"
           },
+          "paginatedSnippet": "use surface_sdk::*;\n\n#[tokio::main]\nasync fn main() -> Result<(), Box<dyn std::error::Error>> {\n    // The client sends Crucible-Version: 1 on every request.\n    let client = SurfaceClient::new(runtime::Config::new(std::env::var(\"SURFACE_ENDPOINT\")?));\n\n    // Sample values generated from the model's types and constraints.\n    let input = ListThingsInput::builder()\n        .member_build(\"build\")\n        .build();\n\n    // Each page is one response; the paginator sends `nextToken` for the next.\n    let mut pages = client.list_things_pages_2(input);\n    while let Some(page) = pages.next_page().await {\n        let page = page?;\n        println!(\"{:?}\", page);\n    }\n    Ok(())\n}\n",
           "paginators": [
             "list_things_pages_2"
-          ]
+          ],
+          "snippet": "use surface_sdk::*;\n\n#[tokio::main]\nasync fn main() -> Result<(), Box<dyn std::error::Error>> {\n    // The client sends Crucible-Version: 1 on every request.\n    let client = SurfaceClient::new(runtime::Config::new(std::env::var(\"SURFACE_ENDPOINT\")?));\n\n    // Sample values generated from the model's types and constraints.\n    let input = ListThingsInput::builder()\n        .next_token(\"nextToken\")\n        .member_build(\"build\")\n        .build();\n\n    let output = client.list_things(input).await?;\n    println!(\"{:?}\", output.next_token());\n    println!(\"{:?}\", output.member_info());\n    println!(\"{:?}\", output.count());\n    Ok(())\n}\n"
         },
         "example.surface#ListThingsPages": {
           "asyncMethod": null,
@@ -81,7 +181,9 @@
           "method": "list_things_pages",
           "optionsMethod": "list_things_pages_with_options",
           "output": null,
-          "paginators": null
+          "paginatedSnippet": null,
+          "paginators": null,
+          "snippet": "use surface_sdk::*;\n\n#[tokio::main]\nasync fn main() -> Result<(), Box<dyn std::error::Error>> {\n    // The client sends Crucible-Version: 1 on every request.\n    let client = SurfaceClient::new(runtime::Config::new(std::env::var(\"SURFACE_ENDPOINT\")?));\n\n    client.list_things_pages().await?;\n    Ok(())\n}\n"
         },
         "example.surface#ListThingsPaginator": {
           "asyncMethod": null,
@@ -89,7 +191,9 @@
           "method": "list_things_paginator",
           "optionsMethod": "list_things_paginator_with_options",
           "output": null,
-          "paginators": null
+          "paginatedSnippet": null,
+          "paginators": null,
+          "snippet": "use surface_sdk::*;\n\n#[tokio::main]\nasync fn main() -> Result<(), Box<dyn std::error::Error>> {\n    // The client sends Crucible-Version: 1 on every request.\n    let client = SurfaceClient::new(runtime::Config::new(std::env::var(\"SURFACE_ENDPOINT\")?));\n\n    client.list_things_paginator().await?;\n    Ok(())\n}\n"
         },
         "example.surface#ListThingsWithOptions": {
           "asyncMethod": null,
@@ -97,7 +201,9 @@
           "method": "list_things_with_options",
           "optionsMethod": "list_things_with_options_with_options",
           "output": null,
-          "paginators": null
+          "paginatedSnippet": null,
+          "paginators": null,
+          "snippet": "use surface_sdk::*;\n\n#[tokio::main]\nasync fn main() -> Result<(), Box<dyn std::error::Error>> {\n    // The client sends Crucible-Version: 1 on every request.\n    let client = SurfaceClient::new(runtime::Config::new(std::env::var(\"SURFACE_ENDPOINT\")?));\n\n    client.list_things_with_options().await?;\n    Ok(())\n}\n"
         },
         "example.surface#PaginateListThings": {
           "asyncMethod": null,
@@ -105,7 +211,9 @@
           "method": "paginate_list_things",
           "optionsMethod": "paginate_list_things_with_options",
           "output": null,
-          "paginators": null
+          "paginatedSnippet": null,
+          "paginators": null,
+          "snippet": "use surface_sdk::*;\n\n#[tokio::main]\nasync fn main() -> Result<(), Box<dyn std::error::Error>> {\n    // The client sends Crucible-Version: 1 on every request.\n    let client = SurfaceClient::new(runtime::Config::new(std::env::var(\"SURFACE_ENDPOINT\")?));\n\n    client.paginate_list_things().await?;\n    Ok(())\n}\n"
         }
       },
       "package": {
@@ -145,7 +253,9 @@
           "method": "constructor_2",
           "optionsMethod": null,
           "output": null,
-          "paginators": null
+          "paginatedSnippet": null,
+          "paginators": null,
+          "snippet": "import { SurfaceClient } from \"@example/surface\";\n\n// The client sends Crucible-Version: 1 and x-amz-content-sha256 (content-sha256) on every request.\nconst client = new SurfaceClient();\n\nawait client.constructor_2();\n"
         },
         "example.surface#ListThings": {
           "asyncMethod": null,
@@ -195,9 +305,11 @@
             "style": "properties",
             "type": "models.ListThingsOutput"
           },
+          "paginatedSnippet": "import { SurfaceClient } from \"@example/surface\";\nimport type * as models from \"@example/surface\";\n\n// The client sends Crucible-Version: 1 and x-amz-content-sha256 (content-sha256) on every request.\nconst client = new SurfaceClient();\n\n// Sample values generated from the model's types and constraints.\nconst input: models.ListThingsInput = {\n  build: \"build\",\n};\n\n// Each page is one response; the paginator sends `nextToken` for the next.\nfor await (const page of client.paginateListThings_2(input)) {\n  console.log(page);\n}\n",
           "paginators": [
             "paginateListThings_2"
-          ]
+          ],
+          "snippet": "import { SurfaceClient } from \"@example/surface\";\nimport type * as models from \"@example/surface\";\n\n// The client sends Crucible-Version: 1 and x-amz-content-sha256 (content-sha256) on every request.\nconst client = new SurfaceClient();\n\n// Sample values generated from the model's types and constraints.\nconst input: models.ListThingsInput = {\n  nextToken: \"nextToken\",\n  build: \"build\",\n};\n\nconst output = await client.listThings(input);\nconsole.log(output.nextToken);\nconsole.log(output.info);\nconsole.log(output.count);\n"
         },
         "example.surface#ListThingsPages": {
           "asyncMethod": null,
@@ -205,7 +317,9 @@
           "method": "listThingsPages",
           "optionsMethod": null,
           "output": null,
-          "paginators": null
+          "paginatedSnippet": null,
+          "paginators": null,
+          "snippet": "import { SurfaceClient } from \"@example/surface\";\n\n// The client sends Crucible-Version: 1 and x-amz-content-sha256 (content-sha256) on every request.\nconst client = new SurfaceClient();\n\nawait client.listThingsPages();\n"
         },
         "example.surface#ListThingsPaginator": {
           "asyncMethod": null,
@@ -213,7 +327,9 @@
           "method": "listThingsPaginator",
           "optionsMethod": null,
           "output": null,
-          "paginators": null
+          "paginatedSnippet": null,
+          "paginators": null,
+          "snippet": "import { SurfaceClient } from \"@example/surface\";\n\n// The client sends Crucible-Version: 1 and x-amz-content-sha256 (content-sha256) on every request.\nconst client = new SurfaceClient();\n\nawait client.listThingsPaginator();\n"
         },
         "example.surface#ListThingsWithOptions": {
           "asyncMethod": null,
@@ -221,7 +337,9 @@
           "method": "listThingsWithOptions",
           "optionsMethod": null,
           "output": null,
-          "paginators": null
+          "paginatedSnippet": null,
+          "paginators": null,
+          "snippet": "import { SurfaceClient } from \"@example/surface\";\n\n// The client sends Crucible-Version: 1 and x-amz-content-sha256 (content-sha256) on every request.\nconst client = new SurfaceClient();\n\nawait client.listThingsWithOptions();\n"
         },
         "example.surface#PaginateListThings": {
           "asyncMethod": null,
@@ -229,7 +347,9 @@
           "method": "paginateListThings",
           "optionsMethod": null,
           "output": null,
-          "paginators": null
+          "paginatedSnippet": null,
+          "paginators": null,
+          "snippet": "import { SurfaceClient } from \"@example/surface\";\n\n// The client sends Crucible-Version: 1 and x-amz-content-sha256 (content-sha256) on every request.\nconst client = new SurfaceClient();\n\nawait client.paginateListThings();\n"
         }
       },
       "package": {

@@ -34,6 +34,14 @@ The runtime uses JDK HTTP and Gson; both native builds declare the dependency.
 The generated Gradle build uses `java-library` and `maven-publish`; its project
 name matches the configured artifact ID for composite dependency substitution.
 The retained `pom.xml` supports Maven consumers as well.
+The package root also carries a generated `README.md` (the Maven dependency,
+building the client with its token, one complete call, pagination, errors and
+retries) and `AGENTS.md`, the same facts tersely for coding agents; neither is
+packed into the jar. Their code is the `snippet` and `paginatedSnippet` of the [`crucible.sdks/1`](../docs.md#the-cruciblesdks1-contract) document: a complete program per operation, built from the operation's first example input (or generated sample values), that reads its token from `<SERVICE>_TOKEN` (and its endpoint from `<SERVICE>_ENDPOINT` when none is generated in). See [generated package documentation](../clients.md#generated-package-documentation). Each snippet is a class named for its
+operation (`GetCityExample`, `ListCitiesPagesExample`) with a `main` that builds
+the input with the models' builders, calls the blocking method and catches one
+modelled error. `tools/test-java.py` compiles every Weather and Samples snippet
+against the generated packages.
 Arbitrary precision numbers use `java.math.BigInteger` and `BigDecimal`.
 Integer enums are open records with an `int value()` and named constants.
 Unique lists use `List<T>` and reject duplicate wire values; sparse lists and

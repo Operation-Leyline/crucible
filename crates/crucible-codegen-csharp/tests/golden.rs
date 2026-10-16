@@ -26,6 +26,7 @@ fn weather_with(edit: impl Fn(&str) -> String) -> Service {
 }
 fn options() -> Options {
     Options {
+        metadata: Default::default(),
         namespace: "Example.Weather".into(),
         package_id: "Example.Weather".into(),
         package_version: "0.0.0-dev".into(),
@@ -312,6 +313,7 @@ fn doc_links_are_see_cref_elements() {
     let service = crucible_lang::load_service(&model_dir("doc-links")).unwrap();
     let service = crucible_ir::project(&service, crucible_ir::Audience::External).unwrap();
     let options = Options {
+        metadata: Default::default(),
         namespace: "Example.Links".into(),
         package_id: "Example.Links".into(),
         package_version: "0.0.0".into(),

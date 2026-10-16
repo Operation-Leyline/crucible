@@ -11,6 +11,7 @@ fn doc_links_are_yard_references() {
     )
     .unwrap();
     let options = Options {
+        metadata: Default::default(),
         package_name: "links_client".into(),
         module_name: "Links".into(),
         package_version: "0.0.0".into(),

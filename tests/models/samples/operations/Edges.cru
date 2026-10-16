@@ -1,0 +1,47 @@
+/// Values at the edges of what each language represents, in an example:
+/// both ends of `long`, `bigInteger` and `bigDecimal` past 64 bits,
+/// instants with nanoseconds, before the epoch, with an offset, at both
+/// ends of the calendar and before its first year, a null in a sparse recursive map and list, a
+/// member left to its default, and an idempotency token the snippets leave
+/// to the client.
+operation Edges {
+    http POST "/edges"
+    input {
+        smallest?: long
+        largest?: long
+        huge?: bigInteger
+        negativeHuge?: bigInteger
+        tiny?: bigDecimal
+        wide?: bigDecimal
+        precise?: timestamp
+        early?: EpochTime
+        offset?: timestamp
+        first?: timestamp
+        ancient?: EpochTime
+        last?: timestamp
+        tree?: Tree
+        names?: SparseLabels
+        level: integer = 3
+        @token
+        token?: string
+    }
+    example "Values at the edges" {
+        input {
+            smallest: -9223372036854775808
+            largest: 9223372036854775807
+            huge: 123456789012345678901234567890
+            negativeHuge: -123456789012345678901234567890
+            tiny: 0.000000000000000000000000000001
+            wide: -98765432109876543210.0123456789
+            precise: "2026-01-15T09:30:00.123456789Z"
+            early: -1.5
+            offset: "2026-01-15T09:30:00+05:30"
+            first: "0001-01-01T00:00:00Z"
+            ancient: -62135596801
+            last: "9999-12-31T23:59:59.999Z"
+            tree: { a: { children: { b: null } }, c: {} }
+            names: ["x", null]
+            token: "fixed-token-the-client-replaces"
+        }
+    }
+}

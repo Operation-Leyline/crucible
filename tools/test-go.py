@@ -7,7 +7,7 @@ import shutil
 import subprocess
 import tempfile
 import threading
-from sdk_test_support import generator_command
+from sdk_test_support import describe_sdk, generator_command, snippets
 
 ROOT = Path(__file__).resolve().parents[1]
 GO = os.environ.get("GO", "go")
@@ -147,12 +147,46 @@ func main() {
 }
 ''', encoding="utf-8")
     run(GO, "run", ".", cwd=consumer)
+    check_snippets(output)
     empty = output / "empty"
     run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "generate", "go",
         "tests/models/empty-service", "--out", str(empty),
         "--module-path", "example.com/empty", "--package-name", "empty")
     run(GO, "test", "./...", cwd=empty)
     permissions(output)
+
+
+def check_snippets(output):
+    """The crucible.sdks/1 snippets (docs/docs.md, "Snippets") compile against
+    the modules they call: weather as `sdk` above is generated, and samples
+    with the same options, each `package main` in its own directory."""
+    samples = output / "samples"
+    run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "generate", "go",
+        "tests/models/samples", "--out", str(samples),
+        "--module-path", "example.com/samples", "--package-name", "samples")
+    consumer = output / "snippets"
+    consumer.mkdir()
+    (consumer / "go.mod").write_text(
+        "module example.com/snippets\n\ngo 1.24.0\n"
+        "require (\n\texample.com/weather v0.0.0\n\texample.com/samples v0.0.0\n)\n"
+        "replace example.com/weather => ../sdk\n"
+        "replace example.com/samples => ../samples\n", encoding="utf-8")
+    count = 0
+    for model, table in (
+        (ROOT / "tests/models/weather",
+         '[sdk.go]\nout = "generated/go"\npackage = "weather"\nmodule_path = "example.com/weather"\n'
+         'endpoint = "https://weather.example"\n'),
+        (ROOT / "tests/models/samples",
+         '[sdk.go]\nout = "generated/go"\npackage = "samples"\nmodule_path = "example.com/samples"\n'),
+    ):
+        for _, operation, variant, text in snippets(describe_sdk(table, model)):
+            directory = consumer / model.name / f"{operation}-{variant}".lower()
+            directory.mkdir(parents=True)
+            (directory / "main.go").write_text(text, encoding="utf-8")
+            count += 1
+    if count == 0:
+        raise RuntimeError("no Go snippets described")
+    run(GO, "vet", "./...", cwd=consumer)
 
 
 def permissions(output):

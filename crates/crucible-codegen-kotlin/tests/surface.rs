@@ -42,6 +42,7 @@ fn keywords_with_class() -> Service {
 
 fn options(package: &str, endpoint: Option<&str>) -> Options {
     Options {
+        metadata: Default::default(),
         group_id: "com.example".into(),
         artifact_id: "weather-client".into(),
         package_name: package.into(),
@@ -129,6 +130,45 @@ fn assert_declared(service: &Service, options: &Options, surface: &Surface) {
             ),
             None => (String::new(), "null"),
         };
+        // The snippet is a `main` calling this method, the paginated one
+        // collecting its page flow; every model it builds is declared.
+        let snippet_argument = if entry.input.is_some() { "input" } else { "" };
+        assert!(entry.snippet.contains("suspend fun main() {\n"), "{id}");
+        assert!(
+            entry
+                .snippet
+                .contains(&format!("client.{}({snippet_argument})", entry.method)),
+            "{id}: {}",
+            entry.snippet
+        );
+        assert_eq!(
+            entry.paginated_snippet.is_some(),
+            operation.paginated.is_some(),
+            "{id}"
+        );
+        if let (Some(snippet), Some(pages)) = (&entry.paginated_snippet, &entry.paginators) {
+            assert!(snippet.contains(&format!("client.{}(", pages[0])), "{id}");
+        }
+        for snippet in std::iter::once(&entry.snippet).chain(&entry.paginated_snippet) {
+            for (at, _) in snippet.match_indices(" {\n") {
+                let line = &snippet[snippet[..at].rfind('\n').map_or(0, |n| n + 1)..at];
+                let Some(name) = line
+                    .rsplit([' ', '('])
+                    .next()
+                    .filter(|name| name.starts_with(|c: char| c.is_ascii_uppercase()))
+                else {
+                    continue;
+                };
+                assert!(
+                    files.iter().any(|file| file.path
+                        == format!(
+                            "{source}/model/{}.kt",
+                            name.trim_end_matches(')').trim_matches('`')
+                        )),
+                    "{id}: {name}"
+                );
+            }
+        }
         // The method takes its own input type and calls its own operation.
         let method = format!("    suspend fun {}({parameter}): ", declared(&entry.method));
         let line = client

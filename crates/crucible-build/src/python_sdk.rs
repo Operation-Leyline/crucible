@@ -24,6 +24,7 @@ impl<'a> PythonSdk<'a> {
             name: name.into(),
             audience: crucible_codegen::Audience::External,
             options: PythonOptions {
+                metadata: Default::default(),
                 package_name: native_name.replace('_', "-"),
                 module_name: native_name,
                 package_version: std::env::var("CARGO_PKG_VERSION")

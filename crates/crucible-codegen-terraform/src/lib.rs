@@ -472,6 +472,7 @@ pub fn emit(service: &Service, plan: &Plan, options: &Options) -> Result<Vec<Fil
     let sdk = crucible_codegen_go::emit_without_permissions(
         service,
         &crucible_codegen_go::Options {
+            metadata: Default::default(),
             module_path: options.module_path.clone(),
             package_name: "provider".into(),
             endpoint: None,

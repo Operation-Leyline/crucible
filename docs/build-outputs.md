@@ -258,6 +258,7 @@ model.rust_client("rust")
     .license("MIT")                      // or .license_file("../LICENSE")
     .authors(&["Weather <sdk@weather.example>"])
     .readme("../sdk/README.md")          // copied in as README.md
+    .agents("../sdk/AGENTS.md")          // copied in as AGENTS.md
     .keywords(&["weather"])
     .private(true)                       // publish = false
     .generate_into("../target/rust-sdk");

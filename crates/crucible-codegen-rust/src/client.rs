@@ -17,6 +17,23 @@ pub(crate) fn client_name(service: &Service) -> String {
     format!("{}Client", variant(service.id.name()))
 }
 
+/// The client constructor's transport, as `emit` writes it; a Cargo SDK
+/// with default middleware rewrites it (see [`with_content_sha256`]).
+const TRANSPORT_NEW: &str =
+    "transport: ::crucible_server_runtime_rust::__generated::Transport::new(config),";
+
+/// `source` (a generated client, its runtime paths resolved) whose client
+/// adds `x-amz-content-sha256` whatever configuration it is given.
+pub(crate) fn with_content_sha256(source: &str) -> String {
+    let from = TRANSPORT_NEW.replace(
+        "crucible_server_runtime_rust",
+        "crucible_client_runtime_rust",
+    );
+    let to = from.replace("new(config)", "new(config.content_sha256(true))");
+    assert_eq!(source.matches(&from).count(), 1, "one client constructor");
+    source.replacen(&from, &to, 1)
+}
+
 pub(crate) fn emit(service: &Service, diagnostics: &mut Diagnostics) -> String {
     let client = client_name(service);
     for id in service.shapes.keys() {
@@ -67,7 +84,7 @@ pub(crate) fn emit(service: &Service, diagnostics: &mut Diagnostics) -> String {
     // client they describe (clippy::empty_line_after_doc_comments).
     let separator = if out.len() == before { "\n" } else { "" };
     out.push_str(&format!(
-        "{separator}/// A client for {}. Construct with `new(Config)`. Cheap to clone: clones share connections.\n/// Concurrent calls are supported; configured callbacks must be thread safe. Drop all clones to release connections.\n#[derive(Clone)]\npub struct {client} {{\n    transport: ::crucible_server_runtime_rust::__generated::Transport,\n}}\n\n#[allow(dead_code, deprecated)]\nimpl {client} {{\n    /// Constructs the shared HTTP transport from configuration.\n    pub fn new(config: ::crucible_server_runtime_rust::__generated::Config) -> Self {{\n        Self {{\n            transport: ::crucible_server_runtime_rust::__generated::Transport::new(config),\n        }}\n    }}\n{methods}}}\n",
+        "{separator}/// A client for {}. Construct with `new(Config)`. Cheap to clone: clones share connections.\n/// Concurrent calls are supported; configured callbacks must be thread safe. Drop all clones to release connections.\n#[derive(Clone)]\npub struct {client} {{\n    transport: ::crucible_server_runtime_rust::__generated::Transport,\n}}\n\n#[allow(dead_code, deprecated)]\nimpl {client} {{\n    /// Constructs the shared HTTP transport from configuration.\n    pub fn new(config: ::crucible_server_runtime_rust::__generated::Config) -> Self {{\n        Self {{\n            {TRANSPORT_NEW}\n        }}\n    }}\n{methods}}}\n",
         service.id.name()
     ));
     out

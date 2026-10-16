@@ -650,6 +650,7 @@ dependencies = [
  "crucible-ir",
  "crucible-lang",
  "crucible-revision",
+ "pulldown-cmark",
  "serde",
  "serde_json",
  "sha2",

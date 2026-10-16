@@ -21,6 +21,19 @@ cmake --build build
 cmake --install build
 ```
 
+The package also carries a generated `README.md` (install lines, constructing
+the client with its bearer token callback, a complete call, pagination,
+errors and retries), an `AGENTS.md` that says the same tersely for coding
+agents, both installed under `share/doc/<package>`, and a `Doxyfile`: run
+`doxygen` in the package directory for the API reference in `docs/html`. The
+README's programs are the package's `crucible.sdks/1` snippets
+([docs/docs.md](../docs.md#the-cruciblesdks1-contract)): each operation's
+complete C17 program, built from its first example's input (or a generated
+sample) with the typed setters, reading each output member through its getter
+and one modelled error through `weather_error_as_...`, and freeing what it
+creates. `tools/test-c.py` compiles every snippet against the installed
+package.
+
 The package requires yyjson 0.13.0, libcurl 7.68 or newer with asynchronous
 DNS, OpenSSL 1.1.1 or newer, and platform thread support. Install the native
 dependencies before configuring CMake. A separate consumer uses

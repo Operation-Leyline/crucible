@@ -16,6 +16,7 @@ fn service() -> crucible_ir::ir::Service {
 
 fn explicit() -> ClientOptions {
     ClientOptions {
+        content_sha256: false,
         package_name: Some("weather-sdk".into()),
         package_version: "1.2.3".into(),
         runtime: RuntimeDependency::Git {
@@ -68,13 +69,27 @@ fn native_package_manifest_and_public_api_match_explicit_source_goldens() {
             .iter()
             .map(|file| file.path.as_str())
             .collect::<Vec<_>>(),
-        ["Cargo.toml", "src/lib.rs", ".rustfmt.toml"]
+        [
+            "Cargo.toml",
+            "src/lib.rs",
+            ".rustfmt.toml",
+            "README.md",
+            "AGENTS.md"
+        ]
     );
     golden("Cargo.toml", &files[0].contents);
     let source = generate_client(&service).unwrap();
-    assert!(files[1].contents.starts_with(&source));
-    golden("runtime_api.rs", &files[1].contents[source.len()..]);
+    // The README is the crate's documentation, generated where none is
+    // configured.
+    let docs = "#![cfg_attr(not(doctest), doc = include_str!(\"../README.md\"))]
+
+";
+    let api = files[1].contents.strip_prefix(docs).unwrap();
+    assert!(api.starts_with(&source));
+    golden("runtime_api.rs", &api[source.len()..]);
     golden("rustfmt.toml", &files[2].contents);
+    golden("README.md", &files[3].contents);
+    golden("AGENTS.md", &files[4].contents);
     assert!(!files[1].contents.contains("include!"));
     assert!(!files.iter().any(|file| file.path == "build.rs"));
     let manifest: toml::Value = toml::from_str(&files[0].contents).unwrap();

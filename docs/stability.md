@@ -48,7 +48,11 @@ described in [the docs guide](docs.md#the-cruciblesdks1-contract) under
 FILE_NAME, visible_in, document, render, file}` and
 `crucible_codegen_ts::Middleware::{name, headers}` are additive. The
 structs are non-exhaustive: start from `new` and set fields, so new
-contract fields are not breaking.
+contract fields are not breaking. `Operation::snippet` and
+`Operation::paginated_snippet` are such fields. The modules
+`crucible_codegen_common::snippet` and `crucible_codegen_common::guide`,
+which generators share to write snippets and package READMEs, are
+generator support, not part of the stable surface.
 
 `Crucible::builder` takes the operation registry produced by the generated
 service module. `Crucible::{invoke, invoke_json, invoke_json_with}` support

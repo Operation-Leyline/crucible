@@ -23,14 +23,40 @@ pub struct PackageMetadata {
     pub license_file: Option<String>,
     /// `Name <email>` strings; the first is the maintainer where one is required.
     pub authors: Vec<String>,
-    /// Contents copied into the package as `README.md`.
+    /// Contents copied into the package as `README.md`, in place of the
+    /// generated one.
     pub readme: Option<String>,
+    /// Contents copied into the package as `AGENTS.md`, in place of the
+    /// generated one.
+    pub agents: Option<String>,
     pub keywords: Vec<String>,
     /// Never published to a public registry: the package carries its
     /// ecosystem's guard against an accidental publish.
     pub private: bool,
     /// Where the package is released, when that decides its manifest.
     pub registry: Option<Registry>,
+    /// The Git repository and tag this version is released as, for a Git
+    /// channel: what a consumer depends on instead of a registry name.
+    pub git: Option<GitRelease>,
+}
+
+/// A version released as a Git tag of a distribution repository.
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct GitRelease {
+    /// The repository a consumer fetches, as the channel names it.
+    pub url: String,
+    /// This version's tag: the channel's template with the version in it.
+    pub tag: String,
+}
+
+impl GitRelease {
+    pub fn new(url: impl Into<String>, tag: impl Into<String>) -> Self {
+        Self {
+            url: url.into(),
+            tag: tag.into(),
+        }
+    }
 }
 
 /// Where a package is released, as far as its generated manifest says so.

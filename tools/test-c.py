@@ -8,7 +8,7 @@ import tempfile
 from sdk_cru_packages import add_operations, copy_package, rename_shapes, write_package
 from sdk_native_docs_model import qualification_model
 from sdk_http_fixture import fixture
-from sdk_test_support import ROOT, run, weather
+from sdk_test_support import ROOT, describe_sdk, run, snippets, weather
 
 CMAKE = os.environ.get("CMAKE", "cmake")
 
@@ -113,19 +113,43 @@ def models(output):
     generate(ROOT / "tests/fixtures/permissions", output / "permissions", "leyline_client", "leyline")
     recursive = write_package(output / "recursive-model", "test", **{"recursive.cru": RECURSIVE})
     generate(recursive, output / "recursive", "recursive_client", "weather")
+    # Every kind of value a snippet spells, from the generated samples.
+    generate(ROOT / "tests/models/samples", output / "samples", "samples_client", "samples")
+    return source
 
 
 def check_docs(package):
     if not shutil.which("doxygen"):
         print("Doxygen unavailable; documentation markup covered by generator regression tests")
         return
-    config = package / "Doxyfile"
-    config.write_text('INPUT = include\nRECURSIVE = YES\nEXTRACT_ALL = YES\nQUIET = YES\nGENERATE_HTML = NO\nGENERATE_LATEX = NO\nWARN_IF_UNDOCUMENTED = NO\nWARN_AS_ERROR = YES\n', encoding="utf-8")
-    run("doxygen", str(config), cwd=package)
+    # The package's own Doxyfile, with warnings made fatal: the shipped
+    # configuration must build a clean API reference.
+    config = (package / "Doxyfile").read_text(encoding="utf-8") + "WARN_AS_ERROR = YES\n"
+    run("doxygen", "-", cwd=package, input=config.encode("utf-8"))
+
+
+def write_snippets(output, model, name, package, prefix):
+    """Writes the crucible.sdks/1 snippets (docs/docs.md, "Snippets") for `model`,
+    described with the options its package is generated with, and returns the
+    CMake lines building each as a program, and their target names."""
+    document = describe_sdk(
+        f'[sdk.c]\npackage = "{package}"\nprefix = "{prefix}"\nout = "generated/c"\n', model)
+    directory = output / "snippets" / name
+    directory.mkdir(parents=True, exist_ok=True)
+    lines, targets = [], []
+    for _, operation, variant, text in snippets(document):
+        target = f"snippet_{name}_{operation}_{variant}"
+        path = directory / f"{operation}_{variant}.c"
+        path.write_text(text, encoding="utf-8", newline="\n")
+        lines.append(f'add_executable({target} "{path.as_posix()}")')
+        targets.append(target)
+    if not targets:
+        raise RuntimeError(f"no C snippets for {model}")
+    return lines, targets
 
 
 def qualify(output):
-    models(output)
+    source = models(output)
     check_docs(output / "sdk")
     sdk_build, install = output / "sdk-build", output / "installed"
     configure(output / "sdk", sdk_build, "-DCMAKE_INSTALL_PREFIX=" + install.as_posix())
@@ -151,6 +175,13 @@ int main(void) {
     edge_client_free(one); empty_client_free(two); puts("C renamed and empty packages coexist"); return 0;
 }
 ''', encoding="utf-8")
+    # Snippets compile against the packages they describe: the installed
+    # qualification package and the samples one.
+    weather_snippets, weather_targets = write_snippets(output, source, "weather", "weather_client", "weather")
+    samples_snippets, samples_targets = write_snippets(
+        output, ROOT / "tests/models/samples", "samples", "samples_client", "samples")
+    snippet_lines = "\n".join(weather_snippets + samples_snippets)
+    snippet_targets = " ".join(weather_targets + samples_targets)
     (consumer / "CMakeLists.txt").write_text(f'''cmake_minimum_required(VERSION 3.20)
 project(consumer LANGUAGES C)
 find_package(weather_client CONFIG REQUIRED)
@@ -174,6 +205,14 @@ target_link_libraries(edge PRIVATE edge_client empty_client)
 add_executable(recursive recursive.c)
 target_link_libraries(recursive PRIVATE recursive_client)
 add_executable(core core.c)
+add_subdirectory("{(output / 'samples').as_posix()}" samples-sdk)
+{snippet_lines}
+foreach(name {' '.join(weather_targets)})
+  target_link_libraries(${{name}} PRIVATE weather_client::weather_client)
+endforeach()
+foreach(name {' '.join(samples_targets)})
+  target_link_libraries(${{name}} PRIVATE samples_client)
+endforeach()
 foreach(name models runtime proxy serialization)
   add_executable(${{name}} "{tests.as_posix()}/${{name}}.c")
 endforeach()
@@ -182,7 +221,7 @@ foreach(name core models runtime proxy serialization)
   target_link_libraries(${{name}} PRIVATE weather_client::weather_client)
   target_include_directories(${{name}} PRIVATE "{install.as_posix()}/include/weather_client/runtime")
 endforeach()
-foreach(name core models runtime proxy serialization edge recursive extensions wire_test permissions_test payload_content_type)
+foreach(name core models runtime proxy serialization edge recursive extensions wire_test permissions_test payload_content_type {snippet_targets})
   target_compile_features(${{name}} PRIVATE c_std_17)
   set_target_properties(${{name}} PROPERTIES C_EXTENSIONS OFF)
   if(MSVC)

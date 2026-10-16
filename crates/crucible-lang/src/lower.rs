@@ -330,6 +330,27 @@ const WRITES: &[&str] = &["creates", "puts", "updates"];
 /// The annotations that become a declaration's documentation notes.
 const DOC_NOTES: &[&str] = &["deprecated", "since", "unstable", "externalDocs"];
 
+/// Whether `url` may be an `@externalDocs` link: a web or mail address,
+/// with no white space, control or bidirectional character that could end
+/// a link, a line or a terminal paste in the documents that show it.
+fn documentation_url(url: &str) -> bool {
+    let lower = url.to_ascii_lowercase();
+    ["http://", "https://", "mailto:"]
+        .iter()
+        .any(|scheme| lower.len() > scheme.len() && lower.starts_with(scheme))
+        && !url.chars().any(|c| {
+            c.is_whitespace()
+                || c.is_control()
+                || matches!(
+                    c,
+                    '\u{200b}'..='\u{200f}'
+                        | '\u{202a}'..='\u{202e}'
+                        | '\u{2066}'..='\u{2069}'
+                        | '\u{feff}'
+                )
+        })
+}
+
 #[derive(Default)]
 struct ConstraintInfo {
     constraints: Constraints,
@@ -1876,6 +1897,15 @@ impl<'a> Lowerer<'a> {
                     let mut value = JsonMap::new();
                     for arg in &annotation.args {
                         match (&arg.key, &arg.value) {
+                            (Some(Key::Text(_)), Value::Str(url))
+                                if !documentation_url(&url.value) =>
+                            {
+                                self.error(
+                                    file,
+                                    url.span,
+                                    "an `@externalDocs` URL is an `http`, `https` or `mailto` URL without spaces or control characters: documentation and SDK READMEs link it as written",
+                                );
+                            }
                             (Some(Key::Text(name)), Value::Str(url)) => {
                                 value.insert(name.value.clone(), Json::String(url.value.clone()));
                                 out.notes

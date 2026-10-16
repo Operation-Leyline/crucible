@@ -26,6 +26,15 @@ third-party dependencies. Publish it using ordinary Go module tags; its
 lowered wire description. The module path is explicit and independent of the
 service name.
 
+The module root also carries a generated `README.md` (the `go get` line, building
+the client with its token, one complete call, pagination, errors and retries) and
+`AGENTS.md`, the same facts tersely for coding agents. Their code is the `snippet` and `paginatedSnippet` of the [`crucible.sdks/1`](../docs.md#the-cruciblesdks1-contract) document: a complete program per operation, built from the operation's first example input (or generated sample values), that reads its token from `<SERVICE>_TOKEN` (and its endpoint from `<SERVICE>_ENDPOINT` when none is generated in). See [generated package documentation](../clients.md#generated-package-documentation).
+Each snippet is a `package main` with `func main()`: field literals with
+`weather.Some(...)` for optional members, the call with a context, and
+`errors.As` for one modelled error. `tools/test-go.py` vets every Weather and
+Samples snippet against the generated modules. A module embedded in another
+(the Terraform provider) has neither file.
+
 ## Calling operations
 
 ```go

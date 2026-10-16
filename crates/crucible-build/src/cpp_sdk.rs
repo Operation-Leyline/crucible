@@ -24,6 +24,7 @@ impl<'a> CppSdk<'a> {
             name: name.into(),
             audience: crucible_codegen::Audience::External,
             options: CppOptions {
+                metadata: Default::default(),
                 package_name: native_name.clone(),
                 namespace: native_name,
                 package_version: std::env::var("CARGO_PKG_VERSION")

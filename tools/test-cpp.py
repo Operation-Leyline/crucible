@@ -7,7 +7,7 @@ import tempfile
 from sdk_cru_packages import copy_package, rename_shapes, replace_once
 from sdk_native_docs_model import qualification_model
 from sdk_http_fixture import fixture
-from sdk_test_support import ROOT, run, weather
+from sdk_test_support import ROOT, describe_sdk, run, snippets, weather
 
 CMAKE = os.environ.get("CMAKE", "cmake")
 
@@ -70,9 +70,41 @@ def check_docs(package):
     if not shutil.which("doxygen"):
         print("Doxygen unavailable; documentation markup covered by generator regression tests")
         return
-    config = package / "Doxyfile"
-    config.write_text('INPUT = include\nRECURSIVE = YES\nEXTRACT_ALL = YES\nQUIET = YES\nGENERATE_HTML = NO\nGENERATE_LATEX = NO\nWARN_IF_UNDOCUMENTED = NO\nWARN_AS_ERROR = YES\n', encoding="utf-8")
-    run("doxygen", str(config), cwd=package)
+    # The package's own Doxyfile over the headers alone, with warnings fatal
+    # and no output: what this checks is the generated markup.
+    config = (package / "Doxyfile").read_text(encoding="utf-8")
+    config += "INPUT = include\nUSE_MDFILE_AS_MAINPAGE =\nGENERATE_HTML = NO\nWARN_AS_ERROR = YES\n"
+    run("doxygen", "-", cwd=package, input=config.encode())
+
+
+def snippet_cmake(output, model):
+    """The crucible.sdks/1 snippets (docs/docs.md) of the Weather and Samples
+    packages as object libraries: each snippet is a complete program that
+    compiles against its package. Each is described with the options its
+    package is generated with, so its names are the ones the package declares."""
+    lines = []
+    for name, path, target, sdk in [
+        ("weather", model, "weather_client::weather_client",
+         'package = "weather_client"\nnamespace = "crucible_generated"'),
+        ("samples", ROOT / "tests/models/samples", "samples_client",
+         'package = "samples_client"\nnamespace = "example::samples"'),
+    ]:
+        document = describe_sdk(f'[sdk.cpp]\nout = "generated/cpp"\n{sdk}\n', path)
+        directory = output / "snippets" / name
+        directory.mkdir(parents=True, exist_ok=True)
+        sources = []
+        for _, operation, variant, text in snippets(document):
+            source = directory / f"{operation}.{variant}.cpp"
+            source.write_text(text, encoding="utf-8", newline="\n")
+            sources.append(f'"{source.as_posix()}"')
+        if not sources:
+            raise RuntimeError(f"no C++ snippets for {name}")
+        lines.append(f"add_library({name}_snippets OBJECT {' '.join(sources)})")
+        lines.append(f"target_link_libraries({name}_snippets PRIVATE {target})")
+        # Snippets read their endpoint and token with std::getenv.
+        lines.append(f"if(MSVC)\n  target_compile_options({name}_snippets PRIVATE /W4 /WX /D_CRT_SECURE_NO_WARNINGS)\n"
+                     f"else()\n  target_compile_options({name}_snippets PRIVATE -Wall -Wextra -Werror)\nendif()")
+    return "\n".join(lines) + "\n"
 
 
 def qualify(output):
@@ -86,12 +118,16 @@ def qualify(output):
         str(ROOT / "tests/models/payload-bindings"),
         "--out", str(output / "payload"), "--package-name", "payload_client", "--namespace", "payload_sdk")
     edge_packages(output)
+    run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "generate", "cpp",
+        str(ROOT / "tests/models/samples"), "--out", str(output / "samples"),
+        "--package-name", "samples_client", "--namespace", "example::samples")
     # Typed permissions (docs/permissions.md §6.3), from the `.cru` fixture package.
     run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "generate", "cpp",
         str(ROOT / "tests/fixtures/permissions"), "--out", str(output / "permissions"),
         "--package-name", "leyline_client", "--namespace", "leyline")
+    model = qualification_model(output)
     run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "generate", "cpp",
-        str(qualification_model(output)), "--out", str(package), "--package-name", "weather_client",
+        str(model), "--out", str(package), "--package-name", "weather_client",
         "--namespace", "crucible_generated")
     check_docs(package)
     sdk_build = output / "sdk-build"
@@ -115,7 +151,8 @@ target_link_libraries(wire_test PRIVATE wire_client)
 target_link_libraries(extensions PRIVATE types_client)
 add_executable(edge_models "{tests.as_posix()}/edge_models.cpp")
 target_link_libraries(edge_models PRIVATE edge_client empty_client)
-add_subdirectory("{(output / 'permissions').as_posix()}" permissions-sdk)
+add_subdirectory("{(output / 'samples').as_posix()}" samples-sdk)
+{snippet_cmake(output, model)}add_subdirectory("{(output / 'permissions').as_posix()}" permissions-sdk)
 add_executable(permissions_test "{tests.as_posix()}/permissions.cpp")
 target_link_libraries(permissions_test PRIVATE leyline_client)
 if(MSVC)

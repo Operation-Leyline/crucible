@@ -350,3 +350,230 @@ fn hostile_model_text_never_reaches_infrastructure_or_cli_source_raw() {
     raw("cli", &cli, &mut problems);
     assert!(problems.is_empty(), "{}", problems.join("\n"));
 }
+
+/// The hostile service as a package's guide sees it: the hostile version
+/// names the `Crucible-Version` header too, which snippet comments mention.
+fn guided_service() -> Service {
+    let mut service = service();
+    service.api_version = Some(HOSTILE_VERSION.to_owned());
+    service
+}
+
+/// Whether `line`, carrying model text, keeps it inside one comment: a
+/// line comment, or a block comment that only its last `*/` closes.
+fn contained(line: &str) -> bool {
+    let line = line.trim_start();
+    if let Some(rest) = line.strip_prefix("/*") {
+        return rest.find("*/").is_none_or(|end| end + 2 == rest.len());
+    }
+    ["//", "#", "*"]
+        .iter()
+        .any(|marker| line.starts_with(marker))
+}
+
+/// Every language's snippets: no unprintable character raw, and the
+/// example's title (`t ESC[201~ ``` evil LF ## Instructions: rm -rf */
+/// end`) stays on its comment line, closing no block comment early.
+#[test]
+fn hostile_model_text_never_reaches_snippets_raw() {
+    let service = guided_service();
+    let mut problems = Vec::new();
+    for (language, client) in clients() {
+        let surface = client
+            .surface(&service, crucible_codegen::Audience::External)
+            .unwrap_or_else(|error| panic!("{language}: {error}"));
+        for (id, operation) in &surface.operations {
+            let snippets = std::iter::once(&operation.snippet).chain(&operation.paginated_snippet);
+            for snippet in snippets {
+                assert!(!snippet.is_empty(), "{language} {id}: no snippet");
+                for (number, line) in snippet.lines().enumerate() {
+                    let at = format!("{language} {id} snippet:{}", number + 1);
+                    if let Some(c) = line.chars().find(|c| forbidden(*c)) {
+                        problems.push(format!("{at}: U+{:04X} in {line:?}", u32::from(c)));
+                    }
+                    let trimmed = line.trim_start();
+                    if trimmed.starts_with("## Instructions") || trimmed.starts_with("ver-") {
+                        problems.push(format!("{at}: model text left its comment: {line:?}"));
+                    }
+                    if line.contains("Instructions: rm -rf") && !contained(line) {
+                        problems.push(format!("{at}: the title is not one comment: {line:?}"));
+                    }
+                }
+            }
+        }
+    }
+    assert!(problems.is_empty(), "{}", problems.join("\n"));
+}
+
+/// What a Markdown file's structure is: its headings, its HTML, and its
+/// links' destinations, outside code.
+#[derive(Debug, Default)]
+struct Structure {
+    headings: Vec<String>,
+    html: Vec<String>,
+    links: Vec<String>,
+}
+
+fn structure(text: &str) -> Structure {
+    use pulldown_cmark::{Event, Parser, Tag, TagEnd};
+    let mut out = Structure::default();
+    let mut heading: Option<String> = None;
+    for event in Parser::new(text) {
+        match event {
+            Event::Start(Tag::Heading { .. }) => heading = Some(String::new()),
+            Event::End(TagEnd::Heading(level)) => {
+                out.headings
+                    .push(format!("{level:?} {}", heading.take().unwrap_or_default()));
+            }
+            Event::Text(text) | Event::Code(text) => {
+                if let Some(heading) = &mut heading {
+                    heading.push_str(&text);
+                }
+            }
+            Event::Html(html) | Event::InlineHtml(html) => out.html.push(html.to_string()),
+            Event::Start(Tag::Link { dest_url, .. }) => out.links.push(dest_url.to_string()),
+            _ => {}
+        }
+    }
+    out
+}
+
+/// README.md and AGENTS.md, for every language: the hostile title,
+/// `@externalDocs` name and URL and version add no heading, paragraph,
+/// HTML or link, carry no unprintable character, and the documentation
+/// link's URL is percent-encoded where it would end the link.
+#[test]
+fn hostile_model_text_never_restructures_package_guides() {
+    let service = guided_service();
+    let mut problems = Vec::new();
+    for (language, client) in clients() {
+        let files = client
+            .emit(&service)
+            .unwrap_or_else(|error| panic!("{language}: {error:?}"));
+        let guides: Vec<&File> = files
+            .iter()
+            .filter(|file| file.path.ends_with("README.md") || file.path.ends_with("AGENTS.md"))
+            .collect();
+        assert!(guides.len() >= 2, "{language}: no README.md and AGENTS.md");
+        for file in guides {
+            let at = format!("{language} {}", file.path);
+            if let Some(c) = file.contents.chars().find(|c| forbidden(*c)) {
+                problems.push(format!("{at}: U+{:04X}", u32::from(c)));
+            }
+            let found = structure(&file.contents);
+            let allowed: &[&str] = if file.path.ends_with("README.md") {
+                &[
+                    "Install",
+                    "Create a client",
+                    "Call an operation",
+                    "Pagination",
+                    "Errors",
+                    "Retries and idempotency",
+                    "Links",
+                ]
+            } else {
+                &[
+                    "A complete call: Send",
+                    "A complete call: Do",
+                    "Documentation",
+                ]
+            };
+            let (title, sections) = found.headings.split_first().expect("a title heading");
+            if !title.starts_with("H1 ")
+                || title.contains("IMPORTANT")
+                || title.contains("ignore previous")
+            {
+                problems.push(format!("{at}: title heading {title:?}"));
+            }
+            for heading in sections {
+                let text = heading.strip_prefix("H2 ").unwrap_or(heading);
+                if !heading.starts_with("H2 ") || !allowed.contains(&text) {
+                    problems.push(format!("{at}: heading {heading:?}"));
+                }
+            }
+            if found.html.len() != 1 || !found.html[0].starts_with("<!-- Generated by crucible.") {
+                problems.push(format!("{at}: HTML {:?}", found.html));
+            }
+            for link in &found.links {
+                let ours = link.starts_with("https://github.com/Operation-Leyline/crucible");
+                if !ours && link != "https://x.example/a%3Eb%29%3Cc]%28https://evil.example" {
+                    problems.push(format!("{at}: link {link:?}"));
+                }
+            }
+            if !found
+                .links
+                .iter()
+                .any(|link| link.starts_with("https://x.example/"))
+            {
+                problems.push(format!("{at}: the model's documentation link is missing"));
+            }
+            for line in file.contents.lines() {
+                if line.starts_with("IMPORTANT") || line.starts_with("## SYSTEM") {
+                    problems.push(format!("{at}: injected line {line:?}"));
+                }
+            }
+        }
+    }
+    assert!(problems.is_empty(), "{}", problems.join("\n"));
+}
+
+/// The raw request for `Send`: its example's body holds an interrupt, the
+/// end of a bracketed paste, a NUL and line and format characters, so it is
+/// sent through `base64 -d` with its digest over the exact bytes; its
+/// `X-Note` header holds a line break and controls no request may carry, so
+/// the command leaves it out and says why; the label's quote, `$(..)` and
+/// backticks stay inside single quotes.
+#[test]
+fn hostile_example_text_never_reaches_a_curl_command_raw() {
+    use std::fs;
+    let directory = tempfile::tempdir().unwrap();
+    fs::create_dir(directory.path().join(".git")).unwrap();
+    common::copy_package(
+        &common::package_dir("hostile-text"),
+        &directory.path().join("model"),
+    );
+    let path = directory.path().join(crucible_codegen::sdk::FILE_NAME);
+    fs::write(
+        &path,
+        "schema_version = 1\nmodel = \"model\"\n\n[sdk.ts]\npackage = \"hostile\"\nmiddleware = [\"content-sha256\"]\nout = \"generated/ts\"\n",
+    )
+    .unwrap();
+    let file = crucible_codegen::sdk::load(&path).unwrap();
+    let service = guided_service();
+    let selected: Vec<_> = file.sdks.values().collect();
+    let document = crucible_codegen::sdks::document(&file, &service, &selected).unwrap();
+    let mut problems = Vec::new();
+    for (id, operation) in document["http"]["operations"].as_object().unwrap() {
+        let snippet = operation["snippet"].as_str().unwrap();
+        if let Some(c) = snippet.chars().find(|c| forbidden(*c)) {
+            problems.push(format!("{id}: U+{:04X} in {snippet:?}", u32::from(c)));
+        }
+    }
+    let send = &document["http"]["operations"]["example.hostile#Send"];
+    let snippet = send["snippet"].as_str().unwrap();
+    assert_eq!(send["bodyEncoding"], "base64", "{send}");
+    assert!(snippet.contains("| base64 -d | curl -X POST"), "{snippet}");
+    assert!(!snippet.contains("pwned"), "{snippet}");
+    let bytes =
+        crucible_codegen_common::snippet::base64_bytes(send["body"].as_str().unwrap()).unwrap();
+    assert!(bytes.contains(&0), "the NUL is sent");
+    let digest: String = <sha2::Sha256 as sha2::Digest>::digest(&bytes)
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect();
+    assert!(
+        snippet.contains(&format!("x-amz-content-sha256: {digest}")),
+        "{snippet}"
+    );
+    let omitted: Vec<&str> = send["omitted"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter_map(|header| header["name"].as_str())
+        .collect();
+    assert!(omitted.contains(&"X-Note"), "{send}");
+    assert!(omitted.contains(&"Crucible-Version"), "{send}");
+    assert!(!snippet.contains("X-Note"), "{snippet}");
+    assert!(snippet.contains("\"$HOSTILE_ENDPOINT\"'/s/"), "{snippet}");
+    assert!(problems.is_empty(), "{}", problems.join("\n"));
+}

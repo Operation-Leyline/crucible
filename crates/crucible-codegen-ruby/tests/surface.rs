@@ -17,6 +17,7 @@ fn load(name: &str) -> Service {
 
 fn options(endpoint: Option<&str>) -> Options {
     Options {
+        metadata: Default::default(),
         package_name: "weather_client".into(),
         module_name: "Weather".into(),
         package_version: "0.0.0".into(),
@@ -332,4 +333,107 @@ fn defaulted_members_are_as_optional_as_the_emitted_code_says() {
         optional(configure.output.as_ref().unwrap()),
         [("name", false), ("count", false), ("note", true)]
     );
+}
+
+/// Each snippet calls its operation's declared method on the declared
+/// client, builds the declared input class and requires the gem; a
+/// paginated one enumerates the declared pages method. The packages also
+/// carry the README and `AGENTS.md`, which the gemspec ships.
+#[test]
+fn snippets_name_what_the_gem_declares() {
+    for (model, endpoint) in [
+        ("weather", None),
+        ("weather", Some("https://weather.example")),
+        ("samples", None),
+    ] {
+        let service = load(model);
+        let options = options(endpoint);
+        let surface = surface(&service, &options);
+        let files = emit(&service, &options).unwrap();
+        for (id, operation) in &surface.operations {
+            let snippet = &operation.snippet;
+            assert!(
+                snippet.starts_with(&format!("{}\n", surface.package.imports[0]))
+                    || snippet.starts_with("require 'bigdecimal'\n"),
+                "{id}: {snippet}"
+            );
+            assert!(
+                snippet.contains(&format!("client = {}.new", surface.client.name)),
+                "{id}: {snippet}"
+            );
+            assert!(
+                snippet.contains(&format!("client.{}", operation.method)),
+                "{id}: {snippet}"
+            );
+            if let Some(input) = &operation.input {
+                assert!(
+                    snippet.contains(&format!("input = {}.new", input.type_name)),
+                    "{id}: {snippet}"
+                );
+            }
+            // The generated endpoint is used as is; otherwise one is read.
+            assert_eq!(
+                snippet.contains("ENV.fetch('WEATHER_ENDPOINT')")
+                    || snippet.contains("ENV.fetch('SAMPLES_ENDPOINT')"),
+                endpoint.is_none(),
+                "{id}: {snippet}"
+            );
+            match (&operation.paginators, &operation.paginated_snippet) {
+                (Some(pages), Some(paginated)) => assert!(
+                    paginated.contains(&format!("client.{}(", pages[0])),
+                    "{id}: {paginated}"
+                ),
+                (None, None) => {}
+                _ => panic!("{id}: a paginated snippet exactly when there is a paginator"),
+            }
+        }
+        for name in ["README.md", "AGENTS.md"] {
+            let text = file(&files, name);
+            assert!(text.contains(&format!("gem install {}", options.package_name)));
+            assert!(
+                text.contains(&surface.client.name),
+                "{name} names the client"
+            );
+        }
+        let gemspec = file(&files, &format!("{}.gemspec", options.package_name));
+        assert!(gemspec.contains("'README.md', 'AGENTS.md'"));
+        assert!(file(&files, ".yardopts").contains("--readme README.md\n"));
+    }
+}
+
+/// The weather snippets spell each value as the gem's classes take it.
+#[test]
+fn weather_snippets_spell_ruby_values() {
+    let weather = surface(&load("weather"), &options(None));
+    let get = &weather.operations["example.weather#GetCity"].snippet;
+    assert!(get.contains("token: -> { ENV.fetch('WEATHER_TOKEN') }"));
+    assert!(get.contains("at: Weather::Runtime::Timestamp.parse('2026-01-02T03:04:05Z'),"));
+    assert!(get.contains("rescue Weather::NotFoundError => error\n"));
+    // The modelled `message` member, not the exception's own reader.
+    assert!(get.contains("#{error.message_value}"));
+    let pages = weather.operations["example.weather#ListCities"]
+        .paginated_snippet
+        .as_ref()
+        .unwrap();
+    assert!(
+        !pages.contains("next_token:"),
+        "the paginator sends the token"
+    );
+    assert!(
+        pages.contains("client.list_cities_pages(input).each do |page|\n  p page.cities\nend\n")
+    );
+    let samples = surface(&load("samples"), &options(None));
+    let put = &samples.operations["example.samples#PutGraph"].snippet;
+    for spelling in [
+        "require 'bigdecimal'\n",
+        "tier: Weather::Tier::SMALL,",
+        "priority: Weather::Priority::LOW,",
+        "price: BigDecimal('10.5'),",
+        "thumbnail: 'thumbnail'.b,",
+        "settings: Weather::Runtime::JsonValue.new({}),",
+        "source: Weather::Source::SnapshotVariant.new(",
+    ] {
+        assert!(put.contains(spelling), "{spelling}: {put}");
+    }
+    assert!(!put.contains("client_token"), "the client fills the token");
 }

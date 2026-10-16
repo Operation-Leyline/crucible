@@ -14,6 +14,7 @@ fn load(name: &str) -> crucible_ir::ir::Service {
 
 fn options(package: &str, endpoint: Option<&str>) -> Options {
     Options {
+        metadata: Default::default(),
         group_id: "example".into(),
         artifact_id: "weather-client".into(),
         package_name: package.into(),
@@ -120,6 +121,51 @@ fn assert_declared(service: &crucible_ir::ir::Service, options: &Options, surfac
             None => (String::new(), "null"),
         };
         let wire = format!("\"{}\"", op.name());
+        // The snippet is a class named for its operation calling this
+        // method; the paginated one iterates the paginator.
+        assert!(
+            operation
+                .snippet
+                .contains(&format!("\npublic class {}Example {{\n", op.name())),
+            "{id}"
+        );
+        let snippet_argument = if operation.input.is_some() {
+            "input"
+        } else {
+            ""
+        };
+        assert!(
+            operation
+                .snippet
+                .contains(&format!("client.{}({snippet_argument})", operation.method)),
+            "{id}: {}",
+            operation.snippet
+        );
+        assert_eq!(
+            operation.paginated_snippet.is_some(),
+            op.paginated.is_some(),
+            "{id}"
+        );
+        if let (Some(snippet), Some(pages)) = (&operation.paginated_snippet, &operation.paginators)
+        {
+            assert!(snippet.contains(&format!("client.{}(", pages[0])), "{id}");
+            assert!(snippet.contains(&format!("\npublic class {}PagesExample {{\n", op.name())));
+        }
+        // Every model a snippet imports is one the package declares.
+        for snippet in std::iter::once(&operation.snippet).chain(&operation.paginated_snippet) {
+            for line in snippet
+                .lines()
+                .filter(|line| line.starts_with(&format!("import {qualifier}")))
+            {
+                let model = &line["import ".len() + qualifier.len()..line.len() - 1];
+                assert!(
+                    files
+                        .iter()
+                        .any(|file| file.path.ends_with(&format!("/model/{model}.java"))),
+                    "{id}: {model}"
+                );
+            }
+        }
         let asynchronous = operation.async_method.as_deref().unwrap();
         let body = method(&client, &format!(" {asynchronous}({parameter}) {{\n"));
         assert!(

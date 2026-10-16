@@ -8,6 +8,7 @@ pub fn clients() -> Vec<(&'static str, Client)> {
         (
             "rust",
             Client::Rust(crucible_codegen::RustOptions {
+                content_sha256: false,
                 package_name: Some("hostile-sdk".into()),
                 package_version: "1.0.0".into(),
                 runtime: crucible_codegen::RuntimeDependency::Git {
@@ -33,6 +34,7 @@ pub fn clients() -> Vec<(&'static str, Client)> {
         (
             "python",
             Client::Python(crucible_codegen::PythonOptions {
+                metadata: Default::default(),
                 package_name: "hostile".into(),
                 module_name: "hostile".into(),
                 package_version: "1.0.0".into(),
@@ -42,6 +44,7 @@ pub fn clients() -> Vec<(&'static str, Client)> {
         (
             "go",
             Client::Go(crucible_codegen::GoOptions {
+                metadata: Default::default(),
                 module_path: "example.test/hostile".into(),
                 package_name: "hostile".into(),
                 endpoint: endpoint.clone(),
@@ -50,6 +53,7 @@ pub fn clients() -> Vec<(&'static str, Client)> {
         (
             "java",
             Client::Java(crucible_codegen::JavaOptions {
+                metadata: Default::default(),
                 group_id: "example.hostile".into(),
                 artifact_id: "hostile-sdk".into(),
                 package_name: "hostile".into(),
@@ -60,6 +64,7 @@ pub fn clients() -> Vec<(&'static str, Client)> {
         (
             "csharp",
             Client::Csharp(crucible_codegen::CsharpOptions {
+                metadata: Default::default(),
                 namespace: "Hostile".into(),
                 package_id: "Example.Hostile".into(),
                 package_version: "1.0.0".into(),
@@ -69,6 +74,7 @@ pub fn clients() -> Vec<(&'static str, Client)> {
         (
             "kotlin",
             Client::Kotlin(crucible_codegen::KotlinOptions {
+                metadata: Default::default(),
                 group_id: "example.hostile".into(),
                 artifact_id: "hostile-sdk".into(),
                 package_name: "hostile".into(),
@@ -79,6 +85,7 @@ pub fn clients() -> Vec<(&'static str, Client)> {
         (
             "swift",
             Client::Swift(crucible_codegen::SwiftOptions {
+                metadata: Default::default(),
                 package_name: "hostile".into(),
                 module_name: "Hostile".into(),
                 package_version: "1.0.0".into(),
@@ -88,6 +95,7 @@ pub fn clients() -> Vec<(&'static str, Client)> {
         (
             "dart",
             Client::Dart(crucible_codegen::DartOptions {
+                metadata: Default::default(),
                 package_name: "hostile".into(),
                 package_version: "1.0.0".into(),
                 endpoint: endpoint.clone(),
@@ -96,6 +104,7 @@ pub fn clients() -> Vec<(&'static str, Client)> {
         (
             "php",
             Client::Php(crucible_codegen::PhpOptions {
+                metadata: Default::default(),
                 package_name: "example/hostile".into(),
                 namespace: "Hostile".into(),
                 package_version: "1.0.0".into(),
@@ -105,6 +114,7 @@ pub fn clients() -> Vec<(&'static str, Client)> {
         (
             "ruby",
             Client::Ruby(crucible_codegen::RubyOptions {
+                metadata: Default::default(),
                 package_name: "hostile".into(),
                 module_name: "Hostile".into(),
                 package_version: "1.0.0".into(),
@@ -114,6 +124,7 @@ pub fn clients() -> Vec<(&'static str, Client)> {
         (
             "cpp",
             Client::Cpp(crucible_codegen::CppOptions {
+                metadata: Default::default(),
                 package_name: "hostile".into(),
                 namespace: "Hostile".into(),
                 package_version: "1.0.0".into(),
@@ -123,6 +134,7 @@ pub fn clients() -> Vec<(&'static str, Client)> {
         (
             "c",
             Client::C(crucible_codegen::COptions {
+                metadata: Default::default(),
                 package_name: "hostile".into(),
                 prefix: "hostile".into(),
                 package_version: "1.0.0".into(),
@@ -132,6 +144,7 @@ pub fn clients() -> Vec<(&'static str, Client)> {
         (
             "r",
             Client::R(crucible_codegen::ROptions {
+                metadata: Default::default(),
                 package_name: "hostile".into(),
                 package_version: "1.0.0".into(),
                 endpoint,

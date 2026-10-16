@@ -44,6 +44,16 @@ and string and integer enums accept unknown values.
 Unknown union variants preserve their name and JSON value. Generated codecs
 dispatch directly to constructors without model reflection.
 
+The package root also carries a generated `README.md` (the Gradle dependency,
+building the client with its token, one complete call, pagination, errors and
+retries) and `AGENTS.md`, the same facts tersely for coding agents; neither is
+packed into the artifacts. Their code is the `snippet` and `paginatedSnippet` of the [`crucible.sdks/1`](../docs.md#the-cruciblesdks1-contract) document: a complete program per operation, built from the operation's first example input (or generated sample values), that reads its token from `<SERVICE>_TOKEN` (and its endpoint from `<SERVICE>_ENDPOINT` when none is generated in). See [generated package documentation](../clients.md#generated-package-documentation). Each snippet is a JVM file with
+`suspend fun main()`: the input built with the models' DSL blocks, the call,
+and one modelled error caught; one using timestamps opts in to
+`kotlin.time.ExperimentalTime` itself. `tools/test-kotlin.py` compiles every
+Weather and Samples snippet against the installed jars, each in a package of
+its own since each declares `main`.
+
 ## Calling operations
 
 ```kotlin

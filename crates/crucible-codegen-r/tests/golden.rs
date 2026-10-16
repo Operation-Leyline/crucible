@@ -2,6 +2,7 @@ use crucible_codegen_r::{Options, emit};
 
 fn options() -> Options {
     Options {
+        metadata: Default::default(),
         package_name: "leyline.client".into(),
         package_version: "0.0.0".into(),
         endpoint: None,

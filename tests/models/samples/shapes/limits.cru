@@ -22,3 +22,12 @@ list Blanks: Blank { length 2..3 unique }
 
 /// A control character, valid in a body and not in a header.
 string Bell { pattern "^[\\x01]$" }
+
+/// A map that reaches itself through its values, whose entries may be null.
+sparse map Tree: string -> Branch
+
+structure Branch {
+    children?: Tree
+}
+
+sparse list SparseLabels: string

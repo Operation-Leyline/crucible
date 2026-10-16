@@ -5,6 +5,7 @@ use std::{fs, path::Path};
 
 fn options() -> Options {
     Options {
+        metadata: Default::default(),
         package_name: "weather_client".into(),
         namespace: "example::weather".into(),
         package_version: "0.0.0".into(),

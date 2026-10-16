@@ -4,6 +4,7 @@ use std::{fs, path::Path};
 
 fn options() -> Options {
     Options {
+        metadata: Default::default(),
         package_name: "weather_client".into(),
         prefix: "weather".into(),
         package_version: "0.0.0".into(),
@@ -93,6 +94,9 @@ fn weather_output_is_deterministic_and_native_fixture() {
                     | "src/client.c"
                     | "CMakeLists.txt"
                     | "cmake/Config.cmake.in"
+                    | "README.md"
+                    | "AGENTS.md"
+                    | "Doxyfile"
                     | "crucible.json"
                     | "schema.json"
             ) || file.path.ends_with("/models.h")

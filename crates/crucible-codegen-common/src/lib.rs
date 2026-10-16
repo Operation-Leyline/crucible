@@ -3,14 +3,16 @@ pub mod describe;
 pub mod doc_links;
 pub mod docs;
 pub mod documentation;
+pub mod guide;
 pub mod json_schema;
 pub mod mcp;
 pub mod metadata;
 pub mod permissions;
 pub mod sample;
+pub mod snippet;
 pub mod surface;
 
-pub use metadata::{PackageMetadata, Registry};
+pub use metadata::{GitRelease, PackageMetadata, Registry};
 
 use crucible_ir::ir::{
     Bindings, DocNotes, Fault, Member, Service, Shape, SimpleKind, TimestampFormat,

@@ -40,6 +40,7 @@ fn service_exception_is_exported_with_go_type_spelling() {
     let files = emit(
         &service,
         &Options {
+            metadata: Default::default(),
             module_path: "example.com/weather".into(),
             package_name: "weather".into(),
             endpoint: None,
@@ -62,6 +63,7 @@ fn service_client_and_constructor_names_cannot_collide_with_models() {
         let diagnostics = emit(
             &service,
             &Options {
+                metadata: Default::default(),
                 module_path: "example.com/weather".into(),
                 package_name: "weather".into(),
                 endpoint: None,
@@ -81,6 +83,7 @@ fn service_client_and_constructor_names_cannot_collide_with_models() {
 fn weather_output_is_deterministic() {
     let service = weather();
     let options = Options {
+        metadata: Default::default(),
         module_path: "example.com/weather".into(),
         package_name: "weather".into(),
         endpoint: Some("https://weather.example".into()),
@@ -105,6 +108,7 @@ fn invalid_package_configuration_is_collected() {
     let errors = emit(
         &service,
         &Options {
+            metadata: Default::default(),
             module_path: "bad\nmodule".into(),
             package_name: "type".into(),
             endpoint: None,
@@ -129,6 +133,7 @@ fn accessor_names_do_not_collide_with_fields_or_other_accessors() {
     let files = emit(
         &service,
         &Options {
+            metadata: Default::default(),
             module_path: "example.com/weather".into(),
             package_name: "weather".into(),
             endpoint: None,
@@ -151,6 +156,7 @@ fn weather_matches_goldens() {
     let files = emit(
         &service,
         &Options {
+            metadata: Default::default(),
             module_path: "example.com/weather".into(),
             package_name: "weather".into(),
             endpoint: Some("https://weather.example".into()),
@@ -184,6 +190,7 @@ fn weather_matches_goldens() {
 
 fn policy_options() -> Options {
     Options {
+        metadata: Default::default(),
         module_path: "example.com/policy".into(),
         package_name: "policy".into(),
         endpoint: None,
@@ -196,6 +203,7 @@ fn policy_models_generate_with_the_policy_runtime() {
     let files = emit(
         &service,
         &Options {
+            metadata: Default::default(),
             module_path: "example.com/policy".into(),
             package_name: "policy".into(),
             endpoint: None,
@@ -232,6 +240,7 @@ fn documentation_and_formatting_use_the_lowered_contract() {
     let files = emit(
         &service,
         &Options {
+            metadata: Default::default(),
             module_path: "example.com/docs".into(),
             package_name: "docs".into(),
             endpoint: None,
@@ -262,6 +271,7 @@ fn representation_method_collisions_are_diagnosed() {
     let diagnostics = emit(
         &service,
         &Options {
+            metadata: Default::default(),
             module_path: "example.com/docs".into(),
             package_name: "docs".into(),
             endpoint: None,
@@ -317,6 +327,7 @@ fn permissions_match_goldens() {
     for file in emit(
         &service,
         &Options {
+            metadata: Default::default(),
             module_path: "example.com/leyline".into(),
             package_name: "leyline".into(),
             endpoint: None,
@@ -411,6 +422,7 @@ fn permissions_with(symbol: &str) -> crucible_ir::ir::Service {
 #[test]
 fn permission_constants_that_go_spells_alike_are_diagnosed() {
     let options = Options {
+        metadata: Default::default(),
         module_path: "example.com/leyline".into(),
         package_name: "leyline".into(),
         endpoint: None,
@@ -454,6 +466,7 @@ fn hyphenated_permission_symbols_spell_words() {
     let files = emit(
         &service,
         &Options {
+            metadata: Default::default(),
             module_path: "example.com/leyline".into(),
             package_name: "leyline".into(),
             endpoint: None,

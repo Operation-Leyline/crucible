@@ -3,6 +3,7 @@ mod links;
 mod models;
 mod names;
 mod permissions;
+mod snippet;
 mod surface;
 
 use crucible_codegen_common::docs;
@@ -114,6 +115,10 @@ pub struct Options {
     pub module_name: String,
     pub package_version: String,
     pub endpoint: Option<String>,
+    /// Description, URLs, license, authors, README, AGENTS.md, keywords,
+    /// `private` and the release channel: the generated README and
+    /// AGENTS.md use the README, AGENTS.md, URLs, `private` and channel.
+    pub metadata: crucible_codegen_common::PackageMetadata,
 }
 pub struct File {
     pub path: String,
@@ -253,11 +258,12 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
         }))
         .expect("provenance"),
     });
-    files.push(File {path:format!("{package}.gemspec"), contents:format!("# frozen_string_literal: true\nGem::Specification.new do |spec|\n  spec.name = {}\n  spec.version = {}\n  spec.summary = {}\n  spec.authors = ['Package maintainers']\n  spec.required_ruby_version = '>= 3.3', '< 5'\n  spec.files = Dir['lib/**/*', 'sig/**/*', 'crucible.json', '.yardopts']\n  spec.require_paths = ['lib']\n  spec.add_dependency 'json', '>= 2.7', '< 3'\n  spec.add_dependency 'net-http', '>= 0.4', '< 1'\n  spec.add_dependency 'base64', '>= 0.2', '< 1'\n  spec.add_dependency 'date', '>= 3.3', '< 4'\n  spec.add_dependency 'time', '>= 0.3', '< 1'\n  spec.add_dependency 'securerandom', '>= 0.3', '< 1'\n  spec.add_dependency 'openssl', '>= 3.0', '< 5'\n  spec.add_dependency 'bigdecimal', '>= 3.1', '< 5'\nend\n",literal(package),literal(&options.package_version),literal(&format!("Generated {} client",service.name_of(&service.id))))});
-    // The doc comments are Markdown (model documentation is CommonMark).
+    files.push(File {path:format!("{package}.gemspec"), contents:format!("# frozen_string_literal: true\nGem::Specification.new do |spec|\n  spec.name = {}\n  spec.version = {}\n  spec.summary = {}\n  spec.authors = ['Package maintainers']\n  spec.required_ruby_version = '>= 3.3', '< 5'\n  spec.files = Dir['lib/**/*', 'sig/**/*', 'crucible.json', '.yardopts', 'README.md', 'AGENTS.md']\n  spec.require_paths = ['lib']\n  spec.add_dependency 'json', '>= 2.7', '< 3'\n  spec.add_dependency 'net-http', '>= 0.4', '< 1'\n  spec.add_dependency 'base64', '>= 0.2', '< 1'\n  spec.add_dependency 'date', '>= 3.3', '< 4'\n  spec.add_dependency 'time', '>= 0.3', '< 1'\n  spec.add_dependency 'securerandom', '>= 0.3', '< 1'\n  spec.add_dependency 'openssl', '>= 3.0', '< 5'\n  spec.add_dependency 'bigdecimal', '>= 3.1', '< 5'\nend\n",literal(package),literal(&options.package_version),literal(&format!("Generated {} client",service.name_of(&service.id))))});
+    // The doc comments are Markdown (model documentation is CommonMark);
+    // the generated README is the reference's front page.
     files.push(File {
         path: ".yardopts".into(),
-        contents: "--markup markdown\n--no-private\nlib/**/*.rb\n".into(),
+        contents: "--markup markdown\n--no-private\n--readme README.md\nlib/**/*.rb\n".into(),
     });
     let mut entry = String::from("# frozen_string_literal: true\n");
     for (name, source) in [
@@ -380,6 +386,24 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
         path: format!("lib/{package}.rb"),
         contents: entry,
     });
+    files.extend(package_docs(service, options));
     files.sort_by(|a, b| a.path.cmp(&b.path));
     Ok(files)
+}
+
+/// The gem's generated `README.md` and `AGENTS.md`.
+fn package_docs(service: &Service, options: &Options) -> [File; 2] {
+    use crucible_codegen_common::guide;
+    let surface = surface::surface(service, options);
+    let facts = snippet::guide(service, options);
+    [
+        File {
+            path: guide::README.to_owned(),
+            contents: guide::readme(service, &surface, &facts),
+        },
+        File {
+            path: guide::AGENTS.to_owned(),
+            contents: guide::agents(service, &surface, &facts),
+        },
+    ]
 }

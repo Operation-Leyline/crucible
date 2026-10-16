@@ -23,6 +23,20 @@ version with `--package-version`. `crucible.json` records the generator and
 service versions and SHA-256 of the lowered wire schema. That hash identifies
 the generated wire description, not the original `.cru` source.
 
+The package also carries a generated `README.md`, its PyPI description
+(`readme` in `pyproject.toml`): installing, building the client with its
+token, one complete call, pagination, errors and retries. `AGENTS.md` says
+the same tersely for coding agents, with the exact distribution, module and
+method names; it sits beside `pyproject.toml` and, as package data, inside
+the installed module, so a project that depends on the package finds it in
+`site-packages/<module>/AGENTS.md`. Their code is the `snippet` and
+`paginatedSnippet` of the [`crucible.sdks/1`](../docs.md#the-cruciblesdks1-contract)
+document: a complete script per operation, built from the operation's first
+example input (or generated sample values), that reads its token from
+`<SERVICE>_TOKEN` (and its endpoint from `<SERVICE>_ENDPOINT` when none is
+generated in). `tools/test-python.py` type-checks every Weather and Samples
+snippet with mypy against the generated package.
+
 The public client name comes from the service: `WeatherClient` for
 `Weather`, or `LeylineClient` for `Leyline`. Regenerate and replace earlier
 `Client` imports and construction sites with the service-specific name.

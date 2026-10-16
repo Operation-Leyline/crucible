@@ -3,6 +3,7 @@ mod client;
 mod links;
 mod models;
 mod permissions;
+mod snippet;
 mod surface;
 
 use crucible_ir::ir::{Operation, Service, Shape, SimpleKind};
@@ -16,6 +17,10 @@ pub struct Options {
     pub module_name: String,
     pub package_version: String,
     pub endpoint: Option<String>,
+    /// Description, URLs, license, authors, README, AGENTS.md, keywords,
+    /// `private` and the release channel: the generated README and
+    /// AGENTS.md use the README, AGENTS.md, URLs, `private` and channel.
+    pub metadata: crucible_codegen_common::PackageMetadata,
 }
 pub struct File {
     pub path: String,
@@ -578,6 +583,30 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
                 .replace("\r\n", "\n"),
         });
     }
+    files.extend(package_docs(service, options));
     files.push(File { path: "Package.swift".into(), contents: format!("// swift-tools-version: 6.0\nimport PackageDescription\n\nlet package = Package(\n    name: {},\n    platforms: [.macOS(.v12), .iOS(.v15)],\n    products: [.library(name: {}, targets: [{}])],\n    targets: [.target(name: {}, resources: [.process(\"Resources\")])]\n)\n", literal(&options.package_name), literal(&options.module_name), literal(&options.module_name), literal(&options.module_name)) });
     Ok(files)
+}
+
+/// The package's README, its `AGENTS.md`, and the DocC catalog's landing
+/// page, which SwiftPM finds beside the module's sources.
+fn package_docs(service: &Service, options: &Options) -> Vec<File> {
+    use crucible_codegen_common::guide;
+    let surface = surface::surface(service, options);
+    let facts = snippet::guide(service, options);
+    let module = &options.module_name;
+    vec![
+        File {
+            path: guide::README.to_owned(),
+            contents: guide::readme(service, &surface, &facts),
+        },
+        File {
+            path: guide::AGENTS.to_owned(),
+            contents: guide::agents(service, &surface, &facts),
+        },
+        File {
+            path: format!("Sources/{module}/{module}.docc/{module}.md"),
+            contents: snippet::catalog(service, options),
+        },
+    ]
 }

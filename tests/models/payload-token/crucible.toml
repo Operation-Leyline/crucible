@@ -1,0 +1,10 @@
+schema_version = 1
+
+# An idempotency token bound as an operation's whole payload, with an
+# example that sets it: the raw request (`sdks.json`'s `http`) leaves it
+# out, so a copied command never replays one write.
+[model]
+namespace = "example.tokens"
+language = 1
+sources = ["."]
+imports = []

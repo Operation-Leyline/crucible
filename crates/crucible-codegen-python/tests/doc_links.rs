@@ -12,6 +12,7 @@ fn doc_links_are_python_names() {
     )
     .unwrap();
     let options = Options {
+        metadata: Default::default(),
         package_name: "links-client".into(),
         module_name: "links_client".into(),
         package_version: "0.0.0.dev0".into(),

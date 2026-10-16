@@ -139,13 +139,24 @@ fn notes(item: &Value) -> String {
     }
     if let Some(links) = n["externalDocs"].as_object() {
         for (name, url) in links {
-            out.push_str(&documentation::html(&format!("[{name}]({})", string(url))));
+            out.push_str(&documentation::html(&external_link(name, string(url))));
         }
         if !links.is_empty() {
             out.push('\n');
         }
     }
     out
+}
+/// An `@externalDocs` link as Markdown: its name is model text, escaped so
+/// it opens no link, tag or heading of its own, and its URL a web or mail
+/// address with what would end the link percent-encoded; a name alone
+/// where the URL is neither.
+fn external_link(name: &str, url: &str) -> String {
+    use crucible_codegen_common::guide::{markdown_text, markdown_url};
+    match markdown_url(url) {
+        Some(url) => format!("[{}](<{url}>)", markdown_text(name)),
+        None => markdown_text(name),
+    }
 }
 fn operation_path(item: &Value) -> String {
     format!("operations/API_{}.md", string(&item["name"]))
@@ -850,7 +861,7 @@ fn cell_docs(item: &Value, prefix: &str) -> String {
     value.push_str(&history_cell(&item["history"], prefix));
     if let Some(links) = item["notes"]["externalDocs"].as_object() {
         for (name, url) in links {
-            value.push_str(&documentation::html(&format!("[{name}]({})", string(url))));
+            value.push_str(&documentation::html(&external_link(name, string(url))));
         }
     }
     value.replace('|', "&#124;").replace('\n', " ")

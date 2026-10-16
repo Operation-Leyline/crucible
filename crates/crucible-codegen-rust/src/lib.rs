@@ -34,6 +34,7 @@ mod permissions;
 mod runtime_dependency;
 mod scaffold;
 mod server_api;
+mod snippet;
 mod surface;
 mod types;
 mod versions;

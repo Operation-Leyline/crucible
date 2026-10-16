@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <TargetFramework>net8.0</TargetFramework><GenerateDocumentationFile>true</GenerateDocumentationFile><Nullable>enable</Nullable><ImplicitUsings>enable</ImplicitUsings><LangVersion>12</LangVersion>
-    <PackageId>Example.Weather</PackageId><Version>0.0.0-dev</Version><AssemblyName>Example.Weather</AssemblyName><RootNamespace>Example.Weather</RootNamespace><IsTrimmable>false</IsTrimmable>
+    <PackageId>Example.Weather</PackageId><Version>0.0.0-dev</Version><AssemblyName>Example.Weather</AssemblyName><RootNamespace>Example.Weather</RootNamespace><IsTrimmable>false</IsTrimmable><PackageReadmeFile>README.md</PackageReadmeFile>
   </PropertyGroup>
-  <ItemGroup><EmbeddedResource Include="schema.json" LogicalName="crucible.schema.json"/><EmbeddedResource Include="crucible.json" LogicalName="crucible.provenance.json"/></ItemGroup>
+  <ItemGroup><EmbeddedResource Include="schema.json" LogicalName="crucible.schema.json"/><EmbeddedResource Include="crucible.json" LogicalName="crucible.provenance.json"/><None Include="README.md" Pack="true" PackagePath="\"/><None Include="AGENTS.md" Pack="true" PackagePath="\"/></ItemGroup>
 </Project>

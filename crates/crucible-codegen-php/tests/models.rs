@@ -37,6 +37,7 @@ fn weather() -> crucible_ir::ir::Service {
 fn weather_models_generate() {
     let service = weather();
     let options = Options {
+        metadata: Default::default(),
         package_name: "example/weather-client".into(),
         namespace: "Example\\Weather".into(),
         package_version: "0.0.0".into(),
@@ -76,6 +77,7 @@ fn weather_models_generate() {
 
 fn options() -> Options {
     Options {
+        metadata: Default::default(),
         package_name: "example/weather-client".into(),
         namespace: "Example\\Weather".into(),
         package_version: "0.0.0".into(),
@@ -157,6 +159,7 @@ fn reserved_enum_constants_are_escaped_with_collision_checks() {
 fn vault() -> (crucible_ir::ir::Service, Options) {
     let service = load("client-docs-vault");
     let options = Options {
+        metadata: Default::default(),
         package_name: "example/vault".into(),
         namespace: "VaultSdk".into(),
         package_version: "0.0.0".into(),

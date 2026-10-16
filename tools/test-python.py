@@ -6,7 +6,7 @@ import subprocess
 import sys
 import tempfile
 import threading
-from sdk_test_support import generator_command
+from sdk_test_support import describe_sdk, generator_command, snippets
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -59,6 +59,7 @@ def qualify(package):
     run(sys.executable, "-m", "mypy", str(payload / "src"))
     run(sys.executable, "-m", "mypy", str(policy / "src"))
     run(sys.executable, "-m", "mypy", str(permissions / "src"))
+    check_snippets(package, package.parent / "samples")
     if not os.environ.get("WEATHER_BIN"):
         run("cargo", "build", "--locked", "-q", "--manifest-path", "e2e/Cargo.toml", "-p", "weather-service")
     target = Path(os.environ.get("CARGO_TARGET_DIR", "e2e/target"))
@@ -89,6 +90,33 @@ def qualify(package):
         run(sys.executable, "-m", "pip", "install", "--no-deps", "--target", installed, str(wheel))
         run(sys.executable, "-c", "from weather_client import WeatherClient, AsyncWeatherClient, CreateCityInput; from importlib.resources import files; assert files('weather_client').joinpath('py.typed').is_file(); assert files('weather_client').joinpath('crucible.json').is_file()",
             env=dict(os.environ, PYTHONPATH=installed))
+
+
+def check_snippets(weather, samples):
+    """The crucible.sdks/1 snippets (docs/docs.md) type-check against the
+    packages they describe: each is described with the options its package
+    was generated with, so every name in it is one the package declares."""
+    run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "generate", "python",
+        "tests/models/samples", "--out", str(samples),
+        "--package-name", "samples-client", "--module-name", "samples_client")
+    for name, package, model, options in (
+        ("weather", weather, "tests/models/weather",
+         ['package = "weather-client"', 'module_name = "weather_client"',
+          'endpoint = "https://weather.example"']),
+        ("samples", samples, "tests/models/samples",
+         ['package = "samples-client"', 'module_name = "samples_client"']),
+    ):
+        table = "\n".join(['[sdk.python]', 'out = "generated/python"', *options, ""])
+        document = describe_sdk(table, ROOT / model)
+        with tempfile.TemporaryDirectory(prefix=f"crucible-python-snippets-{name}-") as directory:
+            count = 0
+            for _, operation, variant, text in snippets(document):
+                (Path(directory) / f"{operation}_{variant}.py").write_text(text, encoding="utf-8")
+                count += 1
+            if count == 0:
+                raise RuntimeError(f"no Python snippets for {name}")
+            run(sys.executable, "-m", "mypy", directory,
+                env=dict(os.environ, MYPYPATH=str(package / "src")))
 
 
 if __name__ == "__main__":

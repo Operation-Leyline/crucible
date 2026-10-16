@@ -9,6 +9,7 @@ use crucible_ir::ir::Service;
 
 fn options() -> Options {
     Options {
+        metadata: Default::default(),
         package_name: "weather_client".into(),
         namespace: "weather".into(),
         package_version: "0.0.0".into(),
@@ -137,6 +138,17 @@ fn assert_declared(service: &Service, options: &Options) -> Surface {
             block(source, &definition, "\n}\n").contains(&call),
             "{definition}"
         );
+        assert_snippet(models, &surface, entry, &entry.snippet, &entry.method);
+        match (&entry.paginators, &entry.paginated_snippet) {
+            (Some(paginators), Some(snippet)) => {
+                assert_snippet(models, &surface, entry, snippet, &paginators[0]);
+            }
+            (None, None) => {}
+            _ => panic!(
+                "{}: a paginated snippet exactly when paginated",
+                operation.id
+            ),
+        }
         assert_eq!(entry.paginators.is_some(), operation.paginated.is_some());
         for paginator in entry.paginators.iter().flatten() {
             let declaration = format!(
@@ -204,6 +216,53 @@ fn assert_declared(service: &Service, options: &Options) -> Surface {
     surface
 }
 
+/// A snippet is a program over the package: it includes the client's
+/// header, defines `main`, calls `method`, builds the operation's input
+/// type, and every model or `known_` factory it names is declared.
+fn assert_snippet(
+    models: &str,
+    surface: &Surface,
+    entry: &crucible_codegen_common::surface::Operation,
+    snippet: &str,
+    method: &str,
+) {
+    assert!(
+        snippet.starts_with(&format!("{}\n", surface.package.imports[0])),
+        "{snippet}"
+    );
+    assert!(snippet.contains("\nint main() {\n"), "{snippet}");
+    assert!(snippet.contains(&format!("client.{method}(")), "{snippet}");
+    let class = surface.client.name.rsplit("::").next().unwrap();
+    assert!(snippet.contains(&format!("::{class} client")), "{snippet}");
+    if let Some(input) = &entry.input {
+        let name = input.type_name.rsplit("::").next().unwrap();
+        assert!(
+            snippet.contains(&format!("models::{name} input")),
+            "{snippet}"
+        );
+    }
+    let identifier = |text: &str| -> String {
+        text.chars()
+            .take_while(|c| c.is_ascii_alphanumeric() || *c == '_')
+            .collect()
+    };
+    for (at, _) in snippet.match_indices("models::") {
+        let rest = &snippet[at + "models::".len()..];
+        let name = identifier(rest);
+        assert!(
+            models.contains(&format!("struct {name} ")),
+            "{name} is not declared: {snippet}"
+        );
+        if let Some(factory) = rest[name.len()..].strip_prefix("::known_") {
+            let factory = identifier(factory);
+            assert!(
+                models.contains(&format!("static {name} known_{factory}()")),
+                "{name}::known_{factory} is not declared: {snippet}"
+            );
+        }
+    }
+}
+
 #[test]
 fn weather_surface_names_the_generated_declarations() {
     let service = load("weather");
@@ -249,6 +308,7 @@ fn weather_surface_names_the_generated_declarations() {
 #[test]
 fn a_nested_namespace_qualifies_every_name() {
     let options = Options {
+        metadata: Default::default(),
         package_name: "forecast".into(),
         namespace: "example::weather".into(),
         package_version: "0.0.0".into(),
@@ -345,5 +405,56 @@ fn defaulted_members_are_as_optional_as_the_emitted_code_says() {
     assert_eq!(
         optional(configure.output.as_ref().unwrap()),
         [("name", false), ("count", false), ("note", true)]
+    );
+}
+
+/// Every kind of value (tests/models/samples): unions with unit arms,
+/// recursion through boxes, big numbers, blobs, documents and enums, in
+/// snippets under a nested namespace's `sdk` alias.
+#[test]
+fn samples_snippets_name_the_generated_declarations() {
+    let options = Options {
+        metadata: Default::default(),
+        package_name: "samples_client".into(),
+        namespace: "example::samples".into(),
+        package_version: "0.0.0".into(),
+        endpoint: None,
+    };
+    let surface = assert_declared(&load("samples"), &options);
+    let put = &surface.operations["example.samples#PutGraph"].snippet;
+    assert!(
+        put.contains("\nnamespace sdk = example::samples;\n"),
+        "{put}"
+    );
+    assert!(put.contains("sdk::models::Tier::known_small()"), "{put}");
+    assert!(put.contains("sdk::runtime::BigDecimal(\"10.5\")"), "{put}");
+    assert!(
+        put.contains("catch (const sdk::models::GraphNotFound& error)"),
+        "{put}"
+    );
+}
+
+/// The package ships its README, `AGENTS.md` and Doxygen configuration,
+/// and installs the first two under `share/doc/<package>`, as C does.
+#[test]
+fn the_package_ships_its_guides() {
+    let files = emit(&load("weather"), &options()).unwrap();
+    let readme = file(&files, "README.md");
+    assert!(readme.starts_with("# weather_client\n"), "{readme}");
+    assert!(readme.contains("find_package(weather_client 0.0.0 CONFIG REQUIRED)"));
+    assert!(readme.contains("client.list_cities_pages(input)"));
+    let agents = file(&files, "AGENTS.md");
+    assert!(
+        agents.contains("`#include \"weather_client/client.hpp\"`"),
+        "{agents}"
+    );
+    let doxyfile = file(&files, "Doxyfile");
+    assert!(
+        doxyfile.contains("INPUT = include README.md\n"),
+        "{doxyfile}"
+    );
+    assert!(
+        file(&files, "CMakeLists.txt")
+            .contains("install(FILES README.md AGENTS.md DESTINATION ${CMAKE_INSTALL_DOCDIR})")
     );
 }

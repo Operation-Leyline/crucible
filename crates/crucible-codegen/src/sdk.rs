@@ -119,6 +119,8 @@ pub struct Metadata {
     pub license_file: Option<String>,
     pub authors: Vec<String>,
     pub readme: Option<String>,
+    /// A file copied in as `AGENTS.md` in place of the generated one.
+    pub agents: Option<String>,
     pub keywords: Vec<String>,
     pub private: bool,
     pub provenance: Provenance,
@@ -426,6 +428,7 @@ impl Sdk {
             ("license", &metadata.license),
             ("license_file", &metadata.license_file),
             ("readme", &metadata.readme),
+            ("agents", &metadata.agents),
         ] {
             set(key, json!(value));
         }

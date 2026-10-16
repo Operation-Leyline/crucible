@@ -37,6 +37,7 @@ fn weather_renamed(shape: &str, name: &str) -> Service {
 }
 fn options() -> Options {
     Options {
+        metadata: Default::default(),
         package_name: "weather_client".into(),
         package_version: "0.0.0-dev".into(),
         endpoint: Some("https://weather.example".into()),
@@ -123,7 +124,7 @@ fn package_matches_goldens_and_repeated_emission() {
         );
         snapshots += 1;
     }
-    assert_eq!(snapshots, 5);
+    assert_eq!(snapshots, 8);
 }
 
 #[test]

@@ -1,5 +1,6 @@
 //! Java 17 models and synchronous/asynchronous HTTP clients packaged for Gradle and Maven.
 mod permissions;
+mod snippet;
 mod surface;
 use crucible_codegen_common::documentation as docs;
 use crucible_ir::ir::{DocNotes, Operation, Service, Shape, SimpleKind};
@@ -35,12 +36,16 @@ pub struct Options {
     pub package_name: String,
     pub package_version: String,
     pub endpoint: Option<String>,
+    /// Description, URLs, license, authors, README, AGENTS.md, keywords,
+    /// `private` and the release channel: the generated README and
+    /// AGENTS.md use the README, AGENTS.md, URLs, `private` and channel.
+    pub metadata: crucible_codegen_common::PackageMetadata,
 }
 pub struct File {
     pub path: String,
     pub contents: String,
 }
-fn literal(text: &str) -> String {
+pub(crate) fn literal(text: &str) -> String {
     crucible_codegen_common::quoted(text)
 }
 // Package metadata must not become Kotlin string interpolation.
@@ -116,7 +121,7 @@ fn identifier(text: &str) -> bool {
         && text.starts_with(|c: char| c.is_ascii_alphabetic() || c == '_')
         && text.chars().all(|c| c.is_ascii_alphanumeric() || c == '_')
 }
-fn field(text: &str) -> String {
+pub(crate) fn field(text: &str) -> String {
     if keyword(text) {
         format!("{text}_")
     } else {
@@ -203,7 +208,7 @@ pub(crate) fn ty(service: &Service, id: &ShapeId, package: &str) -> String {
         _ => format!("{package}.model.{}", service.name_of(id)),
     }
 }
-fn xml(text: &str) -> String {
+pub(crate) fn xml(text: &str) -> String {
     text.replace('&', "&amp;")
         .replace('<', "&lt;")
         .replace('>', "&gt;")
@@ -1204,6 +1209,19 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
     ];
     files.extend(model_files);
     files.extend(permissions::files(service, package, &source));
+    {
+        use crucible_codegen_common::guide;
+        let surface = surface::surface(service, options);
+        let facts = snippet::guide(service, options);
+        files.push(file(
+            guide::README.into(),
+            guide::readme(service, &surface, &facts),
+        ));
+        files.push(file(
+            guide::AGENTS.into(),
+            guide::agents(service, &surface, &facts),
+        ));
+    }
     for (name, body) in [
         (
             "ClientRuntime",
@@ -1238,7 +1256,7 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
 }
 
 // Recursive collection aliases require a nominal JVM type to break the cycle.
-fn recursive_collection(
+pub(crate) fn recursive_collection(
     service: &Service,
     start: &ShapeId,
     current: &ShapeId,

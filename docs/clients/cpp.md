@@ -38,6 +38,19 @@ a default endpoint; otherwise each client must supply one.
 The public client type follows the service name: `WeatherClient` for Weather
 and `LeylineClient` for Leyline. Package and module names remain configurable.
 
+The package also ships a generated `README.md` (install, client
+construction, one complete call, pagination, errors and retries) and
+`AGENTS.md` (the same facts, tersely, for coding agents), which CMake
+installs under `share/doc/<package>` as the C package does, and a `Doxyfile`: `doxygen` in the package
+directory writes the API reference to `docs/html` with the README as its
+front page. Their programs are the operations' `crucible.sdks/1` snippets
+([docs/docs.md](../docs.md#the-cruciblesdks1-contract)): each is a complete
+`int main()` that builds the input with the models' constructors from the
+operation's first example (or a generated sample), reads the endpoint and
+token from `<SERVICE>_ENDPOINT` and `<SERVICE>_TOKEN`, prints each output
+field with `runtime::debug_value`, and catches one modelled error. On MSVC,
+define `_CRT_SECURE_NO_WARNINGS` for their `std::getenv`.
+
 ## Calling operations
 
 ```cpp
@@ -184,7 +197,10 @@ Call `close()` after outstanding calls finish.
 
 `python tools/test-cpp.py` generates and installs a CMake package, compiles a
 separate consumer, runs shared retry/header fixtures, and exercises the weather
-service and transport edge cases over loopback HTTP. Set `CPP_SANITIZE=1` for
+service and transport edge cases over loopback HTTP. It compiles every
+Weather and Samples snippet against its package with warnings as errors, and
+runs Doxygen over the headers with the package's `Doxyfile` when Doxygen is
+installed. Set `CPP_SANITIZE=1` for
 Linux address and undefined-behavior sanitizers. Windows dependency configuration
 uses `CMAKE_TOOLCHAIN_FILE` and `VCPKG_INSTALLED_DIR`.
 

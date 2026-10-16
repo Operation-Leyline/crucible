@@ -2,6 +2,7 @@
 mod links;
 mod markdown;
 mod permissions;
+mod snippet;
 mod surface;
 
 pub use surface::surface;
@@ -18,6 +19,10 @@ pub struct Options {
     pub package_name: String,
     pub package_version: String,
     pub endpoint: Option<String>,
+    /// Description, URLs, license, authors, README, AGENTS.md, keywords,
+    /// `private` and the release channel: the generated README and
+    /// AGENTS.md use the README, AGENTS.md, URLs, `private` and channel.
+    pub metadata: crucible_codegen_common::PackageMetadata,
 }
 pub struct File {
     pub path: String,
@@ -619,6 +624,27 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
     files.push(File{path:"man/client.Rd".into(),contents:format!("\\name{{{package}-client}}\n{aliases}\\title{{Generated Crucible Client}}\n\\description{{Native model constructors and an HTTP client for the generated service.}}\n\\details{{Use {client_name}(client_config(endpoint = URL)) to construct a client. Model constructors accept named members. long() accepts a decimal string to preserve signed 64-bit integers. timestamp() accepts exact seconds and nanoseconds. UNSET omits an optional member; NULL represents JSON null. A page method returns a lazy function; call it until it returns NULL. Call client$close() to release client resources.}}\n")});
     files.push(File { path: "man/operations.Rd".into(), contents: format!("\\name{{operations}}\n\\alias{{operations}}\n\\title{{Operation contracts}}\n\\description{{{}}}\n", links::rd(service, &operation_notes)) });
     files.push(File { path: "man/runtime.Rd".into(), contents: format!("\\name{{runtime}}\n\\alias{{runtime}}\n\\title{{Runtime entry points}}\n\\description{{{}}}\n", markdown::render("UNSET: Sentinel omitting an optional model member; NULL represents explicit JSON null.\nlong: Constructs an exact signed 64-bit integer from a decimal string; numeric inputs beyond exact double precision are rejected.\nbig_integer: Constructs an exact arbitrary precision integer from a decimal string.\nbig_decimal: Constructs an exact arbitrary precision decimal from a decimal string.\njson_number: Preserves a JSON numeric token without double rounding.\njson_parse: Parses a UTF-8 JSON string, preserving exact numeric tokens.\njson_encode: Encodes a native JSON value into UTF-8 text.\njson_object: Constructs a JSON object distinct from an unnamed array.\ncancellation_token: Constructs a cancellation environment with cancel and check methods; an optional predicate is polled by check.\ntimestamp: Constructs an exact seconds and nanoseconds timestamp; nanoseconds must be in [0, 1000000000).\n\nclient_config settings:\nendpoint: HTTP endpoint override; absent uses the generated endpoint.\ntoken: Bearer token provider invoked for each authenticated attempt.\ntransport: Custom HTTP transport; callbacks must respect the supplied deadline and cancellation scope.\ntimeout: Total call budget in seconds, including credentials, retries, backoff, and response reads.\nmax_attempts: Maximum attempts including the first request (default 3).\nbase_delay: Initial full-jitter exponential backoff bound in seconds.\nmax_delay: Maximum backoff bound in seconds; Retry-After can override it.\nheaders: Default request headers applied to every attempt.\nmiddleware: Request transformations applied on every attempt after authentication.")) });
+    files.extend(package_docs(service, options));
     files.sort_by(|a, b| a.path.cmp(&b.path));
     Ok(files)
+}
+
+/// The package's generated `README.md`, at the top level where R expects
+/// it, and its `AGENTS.md` under `inst/`: R installs `inst/`'s files into
+/// the installed package's directory, and a top-level `AGENTS.md` would be
+/// a non-standard file to `R CMD check`.
+fn package_docs(service: &Service, options: &Options) -> [File; 2] {
+    use crucible_codegen_common::guide;
+    let surface = surface::surface(service, options);
+    let facts = snippet::guide(service, options);
+    [
+        File {
+            path: guide::README.to_owned(),
+            contents: guide::readme(service, &surface, &facts),
+        },
+        File {
+            path: format!("inst/{}", guide::AGENTS),
+            contents: guide::agents(service, &surface, &facts),
+        },
+    ]
 }
