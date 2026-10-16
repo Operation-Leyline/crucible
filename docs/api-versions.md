@@ -101,7 +101,8 @@ older shape and member name of a `require`, the older enum of an `add ..
 downgrade`, the older route of a `move`, the members a `reshape` replaced
 and the one they became. A `retype` without `by hook` lowers as a hooked
 one does, `Hook::Retype` with `by: RetypeBy::Conversion`. Each step keeps
-its `///` documentation. `snapshot::write` clears `versions`, so none of
+its `///` documentation, whose `[Name]` links resolve in the current model
+as any other documentation's do. `snapshot::write` clears `versions`, so none of
 it reaches a release. Generators that do not serve versions ignore
 `versions`; the semantics are settled once, here.
 

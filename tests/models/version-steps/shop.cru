@@ -54,9 +54,9 @@ idempotent operation PutItem {
 }
 
 /// v2 names an item's title, measures its size as an area, and counts
-/// items in ListItems.
+/// items in [ListItems].
 migration "v2" from "v1" {
-    /// An item's name is its title.
+    /// An item's name is its [GetItem.title].
     rename GetItem.output.name -> title
     /// The page size is `limit`.
     rename ListItems.input.max -> limit

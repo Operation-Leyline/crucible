@@ -1395,11 +1395,18 @@ fn every_step_kind_lowers_with_both_sides_and_its_documentation() {
     assert_eq!(
         v1.docs.as_deref(),
         Some(
-            "v2 names an item's title, measures its size as an area, and counts\nitems in ListItems."
+            "v2 names an item's title, measures its size as an area, and counts\nitems in [ListItems]."
         )
     );
 
     let id = |name: &str| format!("example.steps#{name}").parse::<ShapeId>().unwrap();
+    // Their doc links resolve in the current model, as any other's do.
+    let links = &compiled.service.as_ref().unwrap().doc_links;
+    assert_eq!(links.get("ListItems"), Some(&id("ListItems")));
+    assert_eq!(
+        links.get("GetItem.title"),
+        Some(&id("GetItemOutput").with_member("title"))
+    );
     let docs = |text: &str| Some(text.to_owned());
     let steps = &v1.steps;
     // One step each, in declaration order; `sunset` is the release's.
@@ -1411,7 +1418,7 @@ fn every_step_kind_lowers_with_both_sides_and_its_documentation() {
             new: id("GetItemOutput"),
             from: "name".into(),
             to: "title".into(),
-            docs: docs("An item's name is its title."),
+            docs: docs("An item's name is its [GetItem.title]."),
         }
     );
     assert_eq!(
@@ -1640,4 +1647,26 @@ fn a_hooked_requirement_on_a_retyped_member_is_refused_at_the_requirement() {
         rules(&checked),
         problems(&checked)
     );
+}
+
+#[test]
+fn a_dangling_doc_link_in_a_migration_is_an_error() {
+    for (name, migration) in [
+        (
+            "doc-link-migration",
+            "/// See [Gone].\nmigration \"v2\" from \"v1\" {}\n",
+        ),
+        (
+            "doc-link-step",
+            "migration \"v2\" from \"v1\" {\n    /// See [Gone].\n    sunset \"2027-01-01\"\n}\n",
+        ),
+    ] {
+        let dir = package(name, V1, migration);
+        let compiled = compile(&load_package(&dir).unwrap(), None);
+        let rendered = compiled.render();
+        assert!(
+            compiled.service.is_none() && rendered.contains("[Gone]"),
+            "{name}: {rendered}"
+        );
+    }
 }

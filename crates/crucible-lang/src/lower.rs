@@ -723,8 +723,16 @@ impl<'a> Lowerer<'a> {
             let ns = namespaces.get(file).map_or(self.ns, String::as_str);
             for item in &parsed.file.items {
                 match &item.decl {
-                    // Migrations are checked against the baseline by `guard`.
-                    Decl::Migration(_) => continue,
+                    // Migrations are checked against the baseline by `guard`,
+                    // but their documentation and their steps' link into the
+                    // current model like any other (decision 80).
+                    Decl::Migration(migration) => {
+                        self.doc(file, item.doc.as_ref());
+                        for step in &migration.steps {
+                            self.doc(file, step.doc.as_ref());
+                        }
+                        continue;
+                    }
                     // Checked and run apart from the model (`crate::rules`).
                     Decl::Rule(rule) => {
                         self.rule_names.insert(rule.name.name.clone());
