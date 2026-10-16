@@ -12,6 +12,9 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
+mod projection;
+pub use projection::{Projection, current_permission, projections, undo};
+
 use crate::ShapeId;
 use crate::ir::{ApiVersion, Hook, Service, Shape, VersionStep};
 

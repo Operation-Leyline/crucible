@@ -1,0 +1,1006 @@
+{
+  "format": 5,
+  "compiler": "crucible 0.7.0",
+  "service": {
+    "internal": false,
+    "recursive_groups": [],
+    "protocol": "crucibleJson",
+    "errors": [],
+    "protocol_settings": {
+      "http": [
+        "http/1.1"
+      ]
+    },
+    "requirements": [],
+    "id": "example.projection#Shop",
+    "version": "v2",
+    "title": null,
+    "docs": "A shop's items, across three releases.",
+    "notes": {
+      "deprecated": null,
+      "since": null,
+      "unstable": false,
+      "external_docs": {}
+    },
+    "auth": [],
+    "auth_schemes": {},
+    "operations": [
+      {
+        "protocol_headers": {},
+        "response_protocol_headers": {
+          "Content-Type": "application/json"
+        },
+        "internal": false,
+        "id": "example.projection#GetItem",
+        "auth": [],
+        "resource": null,
+        "docs": "Reads one item.",
+        "notes": {
+          "deprecated": null,
+          "since": null,
+          "unstable": false,
+          "external_docs": {}
+        },
+        "method": "GET",
+        "uri": {
+          "segments": [
+            {
+              "Literal": "items"
+            },
+            {
+              "Label": "id"
+            }
+          ],
+          "query": [],
+          "greedy_labels": []
+        },
+        "status": 200,
+        "input": "example.projection#GetItemInput",
+        "output": "example.projection#GetItemOutput",
+        "errors": [
+          "example.projection#ItemNotFound"
+        ],
+        "readonly": true,
+        "idempotent": false,
+        "idempotency_token": null,
+        "paginated": null,
+        "examples": [
+          {
+            "title": "Read an item",
+            "docs": null,
+            "input": {
+              "id": "a-1"
+            },
+            "output": {
+              "title": "Anvil",
+              "kind": "SMALL",
+              "size": {
+                "area": 6
+              }
+            },
+            "error": null,
+            "allow_constraint_errors": false
+          }
+        ],
+        "request": {
+          "timestamp_formats": {},
+          "header_encodings": {},
+          "labels": [
+            "id"
+          ],
+          "query": [],
+          "headers": [],
+          "body": [],
+          "payload": null
+        },
+        "response": {
+          "timestamp_formats": {},
+          "header_encodings": {},
+          "labels": [],
+          "query": [],
+          "headers": [],
+          "body": [
+            "title",
+            "kind",
+            "size",
+            "tag"
+          ],
+          "payload": null
+        },
+        "traits": {}
+      },
+      {
+        "protocol_headers": {},
+        "response_protocol_headers": {
+          "Content-Type": "application/json"
+        },
+        "internal": false,
+        "id": "example.projection#ListItems",
+        "auth": [],
+        "resource": null,
+        "docs": "Lists item names, a page at a time.",
+        "notes": {
+          "deprecated": null,
+          "since": null,
+          "unstable": false,
+          "external_docs": {}
+        },
+        "method": "GET",
+        "uri": {
+          "segments": [
+            {
+              "Literal": "items"
+            }
+          ],
+          "query": [],
+          "greedy_labels": []
+        },
+        "status": 200,
+        "input": "example.projection#ListItemsInput",
+        "output": "example.projection#ListItemsOutput",
+        "errors": [],
+        "readonly": true,
+        "idempotent": false,
+        "idempotency_token": null,
+        "paginated": {
+          "input_token": "cursor",
+          "output_token": "nextCursor",
+          "items": "names",
+          "page_size": "limit"
+        },
+        "examples": [],
+        "request": {
+          "timestamp_formats": {},
+          "header_encodings": {},
+          "labels": [],
+          "query": [
+            {
+              "member": "cursor",
+              "name": "cursor"
+            },
+            {
+              "member": "limit",
+              "name": "limit"
+            }
+          ],
+          "headers": [],
+          "body": [],
+          "payload": null
+        },
+        "response": {
+          "timestamp_formats": {},
+          "header_encodings": {},
+          "labels": [],
+          "query": [],
+          "headers": [],
+          "body": [
+            "names",
+            "nextCursor"
+          ],
+          "payload": null
+        },
+        "traits": {}
+      },
+      {
+        "protocol_headers": {
+          "Content-Type": "application/json"
+        },
+        "response_protocol_headers": {
+          "Content-Type": "application/json"
+        },
+        "internal": false,
+        "id": "example.projection#PutItem",
+        "auth": [],
+        "resource": null,
+        "docs": "Stores an item.",
+        "notes": {
+          "deprecated": null,
+          "since": null,
+          "unstable": false,
+          "external_docs": {}
+        },
+        "method": "PUT",
+        "uri": {
+          "segments": [
+            {
+              "Literal": "items"
+            },
+            {
+              "Label": "id"
+            }
+          ],
+          "query": [],
+          "greedy_labels": []
+        },
+        "status": 200,
+        "input": "example.projection#PutItemInput",
+        "output": "example.projection#PutItemOutput",
+        "errors": [],
+        "readonly": false,
+        "idempotent": true,
+        "idempotency_token": null,
+        "paginated": null,
+        "examples": [],
+        "request": {
+          "timestamp_formats": {},
+          "header_encodings": {},
+          "labels": [
+            "id"
+          ],
+          "query": [],
+          "headers": [],
+          "body": [
+            "notes"
+          ],
+          "payload": null
+        },
+        "response": {
+          "timestamp_formats": {},
+          "header_encodings": {},
+          "labels": [],
+          "query": [],
+          "headers": [],
+          "body": [
+            "stored"
+          ],
+          "payload": null
+        },
+        "traits": {}
+      }
+    ],
+    "resources": {},
+    "resource_roots": [],
+    "resource_references": {},
+    "shapes": {
+      "crucible.api#Boolean": {
+        "Simple": {
+          "internal": false,
+          "sensitive": false,
+          "kind": "Boolean",
+          "constraints": {
+            "length": null,
+            "range": null,
+            "pattern": null,
+            "unique_items": false
+          },
+          "timestamp_format": null,
+          "docs": null,
+          "notes": {
+            "deprecated": null,
+            "since": null,
+            "unstable": false,
+            "external_docs": {}
+          },
+          "traits": {}
+        }
+      },
+      "crucible.api#Integer": {
+        "Simple": {
+          "internal": false,
+          "sensitive": false,
+          "kind": "Integer",
+          "constraints": {
+            "length": null,
+            "range": null,
+            "pattern": null,
+            "unique_items": false
+          },
+          "timestamp_format": null,
+          "docs": null,
+          "notes": {
+            "deprecated": null,
+            "since": null,
+            "unstable": false,
+            "external_docs": {}
+          },
+          "traits": {}
+        }
+      },
+      "crucible.api#String": {
+        "Simple": {
+          "internal": false,
+          "sensitive": false,
+          "kind": "String",
+          "constraints": {
+            "length": null,
+            "range": null,
+            "pattern": null,
+            "unique_items": false
+          },
+          "timestamp_format": null,
+          "docs": null,
+          "notes": {
+            "deprecated": null,
+            "since": null,
+            "unstable": false,
+            "external_docs": {}
+          },
+          "traits": {}
+        }
+      },
+      "example.projection#GetItemInput": {
+        "Structure": {
+          "internal": false,
+          "sensitive": false,
+          "strict": false,
+          "input": true,
+          "members": [
+            {
+              "internal": false,
+              "sensitive": false,
+              "name": "id",
+              "target": "crucible.api#String",
+              "required": true,
+              "default": null,
+              "wire_default": null,
+              "idempotency_token": false,
+              "mutability": null,
+              "constraints": {
+                "length": null,
+                "range": null,
+                "pattern": null,
+                "unique_items": false
+              },
+              "timestamp_format": null,
+              "wire_timestamp_format": "date-time",
+              "docs": null,
+              "notes": {
+                "deprecated": null,
+                "since": null,
+                "unstable": false,
+                "external_docs": {}
+              },
+              "traits": {}
+            }
+          ],
+          "error": null,
+          "docs": null,
+          "notes": {
+            "deprecated": null,
+            "since": null,
+            "unstable": false,
+            "external_docs": {}
+          },
+          "traits": {}
+        }
+      },
+      "example.projection#GetItemOutput": {
+        "Structure": {
+          "internal": false,
+          "sensitive": false,
+          "strict": false,
+          "input": false,
+          "members": [
+            {
+              "internal": false,
+              "sensitive": false,
+              "name": "title",
+              "target": "crucible.api#String",
+              "required": true,
+              "default": null,
+              "wire_default": null,
+              "idempotency_token": false,
+              "mutability": null,
+              "constraints": {
+                "length": null,
+                "range": null,
+                "pattern": null,
+                "unique_items": false
+              },
+              "timestamp_format": null,
+              "wire_timestamp_format": "date-time",
+              "docs": "The item's title.",
+              "notes": {
+                "deprecated": null,
+                "since": null,
+                "unstable": false,
+                "external_docs": {}
+              },
+              "traits": {}
+            },
+            {
+              "internal": false,
+              "sensitive": false,
+              "name": "kind",
+              "target": "example.projection#Kind",
+              "required": true,
+              "default": null,
+              "wire_default": null,
+              "idempotency_token": false,
+              "mutability": null,
+              "constraints": {
+                "length": null,
+                "range": null,
+                "pattern": null,
+                "unique_items": false
+              },
+              "timestamp_format": null,
+              "wire_timestamp_format": "date-time",
+              "docs": null,
+              "notes": {
+                "deprecated": null,
+                "since": null,
+                "unstable": false,
+                "external_docs": {}
+              },
+              "traits": {}
+            },
+            {
+              "internal": false,
+              "sensitive": false,
+              "name": "size",
+              "target": "example.projection#Size",
+              "required": true,
+              "default": null,
+              "wire_default": null,
+              "idempotency_token": false,
+              "mutability": null,
+              "constraints": {
+                "length": null,
+                "range": null,
+                "pattern": null,
+                "unique_items": false
+              },
+              "timestamp_format": null,
+              "wire_timestamp_format": "date-time",
+              "docs": null,
+              "notes": {
+                "deprecated": null,
+                "since": null,
+                "unstable": false,
+                "external_docs": {}
+              },
+              "traits": {}
+            },
+            {
+              "internal": false,
+              "sensitive": false,
+              "name": "tag",
+              "target": "example.projection#Tag",
+              "required": false,
+              "default": null,
+              "wire_default": null,
+              "idempotency_token": false,
+              "mutability": null,
+              "constraints": {
+                "length": null,
+                "range": null,
+                "pattern": null,
+                "unique_items": false
+              },
+              "timestamp_format": null,
+              "wire_timestamp_format": "date-time",
+              "docs": "The item's tag, if it has one.",
+              "notes": {
+                "deprecated": null,
+                "since": null,
+                "unstable": false,
+                "external_docs": {}
+              },
+              "traits": {}
+            }
+          ],
+          "error": null,
+          "docs": null,
+          "notes": {
+            "deprecated": null,
+            "since": null,
+            "unstable": false,
+            "external_docs": {}
+          },
+          "traits": {}
+        }
+      },
+      "example.projection#ItemNotFound": {
+        "Structure": {
+          "internal": false,
+          "sensitive": false,
+          "strict": false,
+          "input": false,
+          "members": [
+            {
+              "internal": false,
+              "sensitive": false,
+              "name": "message",
+              "target": "crucible.api#String",
+              "required": true,
+              "default": null,
+              "wire_default": null,
+              "idempotency_token": false,
+              "mutability": null,
+              "constraints": {
+                "length": null,
+                "range": null,
+                "pattern": null,
+                "unique_items": false
+              },
+              "timestamp_format": null,
+              "wire_timestamp_format": "date-time",
+              "docs": null,
+              "notes": {
+                "deprecated": null,
+                "since": null,
+                "unstable": false,
+                "external_docs": {}
+              },
+              "traits": {}
+            }
+          ],
+          "error": {
+            "protocol_headers": {
+              "Content-Type": "application/json"
+            },
+            "body_discriminator": "ItemNotFound",
+            "discriminator_header": "X-Crucible-Error",
+            "timestamp_formats": {},
+            "wire_code": "ItemNotFound",
+            "payload": null,
+            "header_encodings": {},
+            "fault": "Client",
+            "status": 404,
+            "retryable": null,
+            "headers": []
+          },
+          "docs": "No item has that id.",
+          "notes": {
+            "deprecated": null,
+            "since": null,
+            "unstable": false,
+            "external_docs": {}
+          },
+          "traits": {}
+        }
+      },
+      "example.projection#Kind": {
+        "Enum": {
+          "internal": false,
+          "sensitive": false,
+          "values": [
+            {
+              "internal": false,
+              "name": "SMALL",
+              "value": "SMALL",
+              "docs": null,
+              "notes": {
+                "deprecated": null,
+                "since": null,
+                "unstable": false,
+                "external_docs": {}
+              },
+              "traits": {}
+            },
+            {
+              "internal": false,
+              "name": "LARGE",
+              "value": "LARGE",
+              "docs": null,
+              "notes": {
+                "deprecated": null,
+                "since": null,
+                "unstable": false,
+                "external_docs": {}
+              },
+              "traits": {}
+            }
+          ],
+          "docs": "How big an item is.",
+          "notes": {
+            "deprecated": null,
+            "since": null,
+            "unstable": false,
+            "external_docs": {}
+          },
+          "traits": {}
+        }
+      },
+      "example.projection#ListItemsInput": {
+        "Structure": {
+          "internal": false,
+          "sensitive": false,
+          "strict": false,
+          "input": true,
+          "members": [
+            {
+              "internal": false,
+              "sensitive": false,
+              "name": "cursor",
+              "target": "crucible.api#String",
+              "required": false,
+              "default": null,
+              "wire_default": null,
+              "idempotency_token": false,
+              "mutability": null,
+              "constraints": {
+                "length": null,
+                "range": null,
+                "pattern": null,
+                "unique_items": false
+              },
+              "timestamp_format": null,
+              "wire_timestamp_format": "date-time",
+              "docs": null,
+              "notes": {
+                "deprecated": null,
+                "since": null,
+                "unstable": false,
+                "external_docs": {}
+              },
+              "traits": {}
+            },
+            {
+              "internal": false,
+              "sensitive": false,
+              "name": "limit",
+              "target": "crucible.api#Integer",
+              "required": false,
+              "default": null,
+              "wire_default": null,
+              "idempotency_token": false,
+              "mutability": null,
+              "constraints": {
+                "length": null,
+                "range": null,
+                "pattern": null,
+                "unique_items": false
+              },
+              "timestamp_format": null,
+              "wire_timestamp_format": "date-time",
+              "docs": null,
+              "notes": {
+                "deprecated": null,
+                "since": null,
+                "unstable": false,
+                "external_docs": {}
+              },
+              "traits": {}
+            }
+          ],
+          "error": null,
+          "docs": null,
+          "notes": {
+            "deprecated": null,
+            "since": null,
+            "unstable": false,
+            "external_docs": {}
+          },
+          "traits": {}
+        }
+      },
+      "example.projection#ListItemsOutput": {
+        "Structure": {
+          "internal": false,
+          "sensitive": false,
+          "strict": false,
+          "input": false,
+          "members": [
+            {
+              "internal": false,
+              "sensitive": false,
+              "name": "names",
+              "target": "example.projection#Names",
+              "required": true,
+              "default": null,
+              "wire_default": null,
+              "idempotency_token": false,
+              "mutability": null,
+              "constraints": {
+                "length": null,
+                "range": null,
+                "pattern": null,
+                "unique_items": false
+              },
+              "timestamp_format": null,
+              "wire_timestamp_format": "date-time",
+              "docs": null,
+              "notes": {
+                "deprecated": null,
+                "since": null,
+                "unstable": false,
+                "external_docs": {}
+              },
+              "traits": {}
+            },
+            {
+              "internal": false,
+              "sensitive": false,
+              "name": "nextCursor",
+              "target": "crucible.api#String",
+              "required": false,
+              "default": null,
+              "wire_default": null,
+              "idempotency_token": false,
+              "mutability": null,
+              "constraints": {
+                "length": null,
+                "range": null,
+                "pattern": null,
+                "unique_items": false
+              },
+              "timestamp_format": null,
+              "wire_timestamp_format": "date-time",
+              "docs": null,
+              "notes": {
+                "deprecated": null,
+                "since": null,
+                "unstable": false,
+                "external_docs": {}
+              },
+              "traits": {}
+            }
+          ],
+          "error": null,
+          "docs": null,
+          "notes": {
+            "deprecated": null,
+            "since": null,
+            "unstable": false,
+            "external_docs": {}
+          },
+          "traits": {}
+        }
+      },
+      "example.projection#Names": {
+        "List": {
+          "internal": false,
+          "sensitive": false,
+          "sparse": false,
+          "member": {
+            "internal": false,
+            "sensitive": false,
+            "name": "member",
+            "target": "crucible.api#String",
+            "required": false,
+            "default": null,
+            "wire_default": null,
+            "idempotency_token": false,
+            "mutability": null,
+            "constraints": {
+              "length": null,
+              "range": null,
+              "pattern": null,
+              "unique_items": false
+            },
+            "timestamp_format": null,
+            "wire_timestamp_format": "date-time",
+            "docs": null,
+            "notes": {
+              "deprecated": null,
+              "since": null,
+              "unstable": false,
+              "external_docs": {}
+            },
+            "traits": {}
+          },
+          "constraints": {
+            "length": null,
+            "range": null,
+            "pattern": null,
+            "unique_items": false
+          },
+          "docs": null,
+          "notes": {
+            "deprecated": null,
+            "since": null,
+            "unstable": false,
+            "external_docs": {}
+          },
+          "traits": {}
+        }
+      },
+      "example.projection#PutItemInput": {
+        "Structure": {
+          "internal": false,
+          "sensitive": false,
+          "strict": false,
+          "input": true,
+          "members": [
+            {
+              "internal": false,
+              "sensitive": false,
+              "name": "id",
+              "target": "crucible.api#String",
+              "required": true,
+              "default": null,
+              "wire_default": null,
+              "idempotency_token": false,
+              "mutability": null,
+              "constraints": {
+                "length": null,
+                "range": null,
+                "pattern": null,
+                "unique_items": false
+              },
+              "timestamp_format": null,
+              "wire_timestamp_format": "date-time",
+              "docs": null,
+              "notes": {
+                "deprecated": null,
+                "since": null,
+                "unstable": false,
+                "external_docs": {}
+              },
+              "traits": {}
+            },
+            {
+              "internal": false,
+              "sensitive": false,
+              "name": "notes",
+              "target": "crucible.api#String",
+              "required": true,
+              "default": null,
+              "wire_default": null,
+              "idempotency_token": false,
+              "mutability": null,
+              "constraints": {
+                "length": null,
+                "range": null,
+                "pattern": null,
+                "unique_items": false
+              },
+              "timestamp_format": null,
+              "wire_timestamp_format": "date-time",
+              "docs": "Notes about the item.",
+              "notes": {
+                "deprecated": null,
+                "since": null,
+                "unstable": false,
+                "external_docs": {}
+              },
+              "traits": {}
+            }
+          ],
+          "error": null,
+          "docs": null,
+          "notes": {
+            "deprecated": null,
+            "since": null,
+            "unstable": false,
+            "external_docs": {}
+          },
+          "traits": {}
+        }
+      },
+      "example.projection#PutItemOutput": {
+        "Structure": {
+          "internal": false,
+          "sensitive": false,
+          "strict": false,
+          "input": false,
+          "members": [
+            {
+              "internal": false,
+              "sensitive": false,
+              "name": "stored",
+              "target": "crucible.api#Boolean",
+              "required": true,
+              "default": null,
+              "wire_default": null,
+              "idempotency_token": false,
+              "mutability": null,
+              "constraints": {
+                "length": null,
+                "range": null,
+                "pattern": null,
+                "unique_items": false
+              },
+              "timestamp_format": null,
+              "wire_timestamp_format": "date-time",
+              "docs": null,
+              "notes": {
+                "deprecated": null,
+                "since": null,
+                "unstable": false,
+                "external_docs": {}
+              },
+              "traits": {}
+            }
+          ],
+          "error": null,
+          "docs": null,
+          "notes": {
+            "deprecated": null,
+            "since": null,
+            "unstable": false,
+            "external_docs": {}
+          },
+          "traits": {}
+        }
+      },
+      "example.projection#Size": {
+        "Structure": {
+          "internal": false,
+          "sensitive": false,
+          "strict": false,
+          "input": false,
+          "members": [
+            {
+              "internal": false,
+              "sensitive": false,
+              "name": "area",
+              "target": "crucible.api#Integer",
+              "required": true,
+              "default": null,
+              "wire_default": null,
+              "idempotency_token": false,
+              "mutability": null,
+              "constraints": {
+                "length": null,
+                "range": null,
+                "pattern": null,
+                "unique_items": false
+              },
+              "timestamp_format": null,
+              "wire_timestamp_format": "date-time",
+              "docs": "Its area.",
+              "notes": {
+                "deprecated": null,
+                "since": null,
+                "unstable": false,
+                "external_docs": {}
+              },
+              "traits": {}
+            }
+          ],
+          "error": null,
+          "docs": "An item's dimensions.",
+          "notes": {
+            "deprecated": null,
+            "since": null,
+            "unstable": false,
+            "external_docs": {}
+          },
+          "traits": {}
+        }
+      },
+      "example.projection#Tag": {
+        "Structure": {
+          "internal": false,
+          "sensitive": false,
+          "strict": false,
+          "input": false,
+          "members": [
+            {
+              "internal": false,
+              "sensitive": false,
+              "name": "name",
+              "target": "crucible.api#String",
+              "required": true,
+              "default": null,
+              "wire_default": null,
+              "idempotency_token": false,
+              "mutability": null,
+              "constraints": {
+                "length": null,
+                "range": null,
+                "pattern": null,
+                "unique_items": false
+              },
+              "timestamp_format": null,
+              "wire_timestamp_format": "date-time",
+              "docs": null,
+              "notes": {
+                "deprecated": null,
+                "since": null,
+                "unstable": false,
+                "external_docs": {}
+              },
+              "traits": {}
+            }
+          ],
+          "error": null,
+          "docs": "A label items share.",
+          "notes": {
+            "deprecated": null,
+            "since": null,
+            "unstable": false,
+            "external_docs": {}
+          },
+          "traits": {}
+        }
+      }
+    },
+    "traits": {},
+    "versions": [],
+    "api_version": "v2"
+  }
+}

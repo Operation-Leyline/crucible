@@ -328,83 +328,14 @@ fn older_requirements(
     kept
 }
 
-fn identifier_list(identifiers: &[String]) -> String {
-    format!(
-        "`({})`",
-        identifiers
-            .iter()
-            .map(String::as_str)
-            .collect::<Vec<_>>()
-            .join(", ")
-    )
-}
-
-/// The current model's resource and primary symbol for an older clause,
-/// matched by authorization name and stored value.
+/// The current permission an older requirement names, as the projection
+/// maps a restored operation's (`crucible_ir::versions::current_permission`).
 fn current_permission(
     current: &Service,
     old: &BTreeMap<ShapeId, crucible_ir::ir::ResourcePermissions>,
     clause: &crucible_ir::ir::Requirement,
 ) -> Result<(ShapeId, String), String> {
-    let resource = old
-        .get(&clause.resource)
-        .ok_or_else(|| format!("permissions of `{}`, which declares none", clause.resource))?;
-    let permission = resource
-        .permission(&clause.permission)
-        .map(|p| crucible_codegen_common::permissions::primary(resource, p))
-        .ok_or_else(|| format!("`{}` on `{}`", clause.permission, resource.name))?;
-    let gone = || {
-        format!(
-            "`{}` on `{}`, which the current model no longer declares",
-            permission.value, resource.name
-        )
-    };
-    let (id, now) = current
-        .permissions
-        .iter()
-        .find(|(_, now)| now.name == resource.name)
-        .ok_or_else(gone)?;
-    let symbol = now
-        .permissions
-        .iter()
-        .find(|p| p.value == permission.value)
-        .map(|p| {
-            crucible_codegen_common::permissions::primary(now, p)
-                .symbol
-                .clone()
-        })
-        .ok_or_else(gone)?;
-    // A binding is positional: the old input's members bind the release's
-    // identifiers in order, and the check names the current description.
-    // Unless both list the same identifiers in the same order, a member would
-    // bind the wrong one (a resource moved from one parent to another keeps
-    // its count), so anything but an unchanged list is refused. A move to a
-    // parent whose identifier has the same name (or none) keeps the list, so
-    // the parents are compared too, when the release recorded them (one
-    // frozen before they were has none, and is compared by identifiers
-    // alone).
-    if clause.mode != crucible_ir::ir::Mode::Handler && now.identifiers != resource.identifiers {
-        return Err(format!(
-            "`{}` on `{}`, whose identifiers have changed since ({} then, {} now)",
-            permission.value,
-            resource.name,
-            identifier_list(&resource.identifiers),
-            identifier_list(&now.identifiers)
-        ));
-    }
-    if clause.mode != crucible_ir::ir::Mode::Handler
-        && let Some(then) = &resource.parents
-        && now.parents.as_ref() != Some(then)
-    {
-        return Err(format!(
-            "`{}` on `{}`, whose parent resources have changed since ({} then, {} now)",
-            permission.value,
-            resource.name,
-            identifier_list(then),
-            identifier_list(now.parents.as_deref().unwrap_or_default())
-        ));
-    }
-    Ok((id.clone(), symbol))
+    crucible_ir::versions::current_permission(&current.permissions, old, clause)
 }
 
 /// The `Migrations` trait every hook adds up to, and the builder methods

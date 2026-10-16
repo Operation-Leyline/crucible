@@ -134,6 +134,27 @@ version's section when it is prepared.
   `AGENTS.md`; only `description`, `license`, `authors` and `keywords`
   still wait for the other languages' manifests.
 
+- Each older release as the current model sees it (API versions phase 5b,
+  PR 4; decisions 68-75 in [docs/idl/decisions.md](docs/idl/decisions.md)):
+  `crucible_ir::versions::projections` builds every supported release's
+  projection, newest first, by `undo`ing each migration on the projection
+  of the release after it and taking from the frozen release only what a
+  step says it had. Additions reach every release, except inside a
+  structure a later `reshape` restores or a removed operation's own input
+  and output; steps compose regardless of declaration order; restored
+  definitions keep the projection's targets, and their bindings,
+  pagination and examples are the release's; an operation the release had
+  keeps its authentication, one added since takes the current model's, and
+  a restored operation's requirements name today's permissions
+  (`versions::current_permission`, which the Rust server generator now
+  shares). Reachable shapes, recursion groups and feature uses are
+  recomputed, every projection passes `validate::service`, and an example
+  of an operation added since that does not hold at a release is left out
+  with a warning (`Projection::warnings`). Nothing reads a projection yet:
+  the compiler's checks against projections and serving them follow
+  ([docs/api-versions-clients.md](docs/api-versions-clients.md#order)).
+  crucible-ir internals, outside the stable surface.
+
 - `describe.json` (`crucible.describe/1`, additive): each operation has a
   `sample` and each error's metadata a `sample`, generated from the model
   alone and labelled `generated: true`: wire messages in the examples' form

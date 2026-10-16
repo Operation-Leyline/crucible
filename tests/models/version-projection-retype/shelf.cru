@@ -1,0 +1,28 @@
+/// Items on a shelf.
+service Shelf {
+    version "v2"
+    protocol json
+    operations [GetItem]
+}
+
+/// Reads one item.
+readonly operation GetItem {
+    http GET "/items/{id}"
+    input {
+        id: string
+        /// Only an item changed since then, as the client writes it.
+        @header("X-Since")
+        since?: string
+    }
+    output {
+        /// Whether the item has a code.
+        code: boolean
+    }
+}
+
+migration "v2" from "v1" {
+    /// The code is a flag now.
+    retype GetItem.output.code -> boolean by hook
+    /// The client's own words for when.
+    retype GetItem.input.since -> string by hook
+}

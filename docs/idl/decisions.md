@@ -1119,7 +1119,8 @@ pass in `reports/`.
     services, with the version carried in a header (57); see
     [api-versions.md](../api-versions.md). Clients send their release
     (57, phase 5a). Projections and SDK lines per release (57a) are
-    settled in decisions 68-79 and not built; declared `conversion`s and
+    settled in decisions 68-79; the projections are computed in
+    crucible-ir, not yet checked or served; declared `conversion`s and
     example replay (59) are not built yet.)* **The source is always the latest model; history is a chain of frozen
     artifacts plus declared changes.** Each released version's compiled
     artifact is checked in under `releases/` and never edited. A

@@ -531,7 +531,7 @@ fn check_target(
 
 /// Keeps the resource bindings whose paths still resolve from `root`, and
 /// the collections whose members do, each relative to its elements.
-fn retain_resource_bindings(
+pub(crate) fn retain_resource_bindings(
     shapes: &BTreeMap<ShapeId, Shape>,
     root: Option<&ShapeId>,
     bindings: &mut crate::ir::ResourceMemberBindings,

@@ -722,6 +722,21 @@ fn example(
     example: &Example,
     diagnostics: &mut Diagnostics,
 ) {
+    for problem in example_problems(service, operation, example) {
+        diagnostics.push(
+            &operation.id,
+            format!("example {} {:?}: {problem}", index + 1, example.title),
+        );
+    }
+}
+
+/// Why `example` does not hold for `operation` in `service`, if it does
+/// not: what [`operation`] reports about it, without its position.
+pub(crate) fn example_problems(
+    service: &Service,
+    operation: &Operation,
+    example: &Example,
+) -> Vec<String> {
     let mut check = Check {
         shapes: &service.shapes,
         allow_constraint_errors: example.allow_constraint_errors,
@@ -753,10 +768,5 @@ fn example(
             ));
         }
     }
-    for problem in check.problems {
-        diagnostics.push(
-            &operation.id,
-            format!("example {} {:?}: {problem}", index + 1, example.title),
-        );
-    }
+    check.problems
 }
