@@ -1622,6 +1622,7 @@ pub fn versions_in(
         out.push(ApiVersion {
             name: link.migration.from.value.clone(),
             service: Box::new((*link.old).clone()),
+            release: Box::new((*link.old).clone()),
             steps,
             sunset,
             sunset_docs,

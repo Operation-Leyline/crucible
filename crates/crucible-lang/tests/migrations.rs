@@ -862,7 +862,7 @@ fn the_versions_served_are_the_chain_of_frozen_releases() {
     let names: Vec<&str> = versions.iter().map(|v| v.name.as_str()).collect();
     assert_eq!(names, ["v1", "v2"]);
     assert_eq!(versions[0].sunset.as_deref(), Some("2027-01-01"));
-    assert_eq!(versions[0].service.version, "v1");
+    assert_eq!(versions[0].release.version, "v1");
     assert!(matches!(
         &versions[0].steps[..],
         [VersionStep::Rename { from, to, .. }] if from == "name" && to == "title"

@@ -71,7 +71,7 @@ pub fn history(service: &Service) -> Histories {
     let versions = visible(service);
     let mut chain: Vec<(&str, &Service)> = versions
         .iter()
-        .map(|version| (version.name.as_str(), &*version.service))
+        .map(|version| (version.name.as_str(), &*version.release))
         .collect();
     chain.push((current_name(service), service));
     let steps: Vec<&[VersionStep]> = versions
@@ -92,7 +92,7 @@ pub fn history_at(service: &Service, release: usize) -> Histories {
     };
     let chain: Vec<(&str, &Service)> = versions
         .iter()
-        .map(|version| (version.name.as_str(), &*version.service))
+        .map(|version| (version.name.as_str(), &*version.release))
         .collect();
     let steps: Vec<&[VersionStep]> = versions[..release]
         .iter()
@@ -367,7 +367,7 @@ pub fn visible(service: &Service) -> std::borrow::Cow<'_, [ApiVersion]> {
     }
     let models: Vec<Service> = versions
         .iter()
-        .map(|version| crate::audience::lenient_external(&version.service))
+        .map(|version| crate::audience::lenient_external(&version.release))
         .collect();
     let mut out = Vec::with_capacity(versions.len());
     for (index, (version, model)) in versions.iter().zip(&models).enumerate() {
@@ -390,7 +390,8 @@ pub fn visible(service: &Service) -> std::borrow::Cow<'_, [ApiVersion]> {
             .collect();
         out.push(ApiVersion {
             name: version.name.clone(),
-            service: Box::new(model.clone()),
+            service: Box::new(crate::audience::lenient_external(&version.service)),
+            release: Box::new(model.clone()),
             steps,
             sunset: version.sunset.clone(),
             sunset_docs: version.sunset_docs.clone(),

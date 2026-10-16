@@ -790,7 +790,7 @@ fn an_older_operation_names_no_member_its_release_hid() {
     use crucible_ir::ir::Shape;
     let dir = package_dir("version-history");
     let mut service = crucible_lang::load_versioned_service(&dir).unwrap();
-    let v2 = &mut service.versions[1].service;
+    let v2 = &mut service.versions[1].release;
     let output: ShapeId = "example.history#CountItemsOutput".parse().unwrap();
     let ledger: ShapeId = "example.history#Ledger".parse().unwrap();
     let mut hidden = v2.shapes[&output].clone();

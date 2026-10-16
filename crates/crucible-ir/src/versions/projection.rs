@@ -78,7 +78,7 @@ pub fn projections(service: &Service) -> Result<Vec<Projection>, Diagnostics> {
 }
 
 /// The release `version` as `newer` sees it: `newer` with the steps of the
-/// migration from `version` to it undone, taking from `version.service`, the
+/// migration from `version` to it undone, taking from `version.release`, the
 /// frozen release, only what each step says the release had. `newer` is the
 /// projection of the release after `version`, or the current model.
 ///
@@ -102,7 +102,7 @@ pub fn undo(
     errors: &mut Diagnostics,
     warnings: &mut Diagnostics,
 ) -> Service {
-    let frozen: &Service = &version.service;
+    let frozen: &Service = &version.release;
     let mut undo = Undo {
         frozen,
         frozen_operations: frozen
