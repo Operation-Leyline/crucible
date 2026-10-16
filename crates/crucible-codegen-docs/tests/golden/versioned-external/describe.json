@@ -24,12 +24,15 @@
       "input": "example.shop#DeleteItemInput",
       "inputSchema": {
         "$defs": {
+          "crucible.api.String": {
+            "type": "string"
+          },
           "example.shop.DeleteItemInput": {
             "properties": {
               "force": {
                 "anyOf": [
                   {
-                    "$ref": "#/$defs/smithy.api.String"
+                    "$ref": "#/$defs/crucible.api.String"
                   },
                   {
                     "type": "null"
@@ -37,23 +40,20 @@
                 ]
               },
               "id": {
-                "$ref": "#/$defs/smithy.api.String"
+                "$ref": "#/$defs/crucible.api.String"
               }
             },
             "required": [
               "id"
             ],
             "type": "object"
-          },
-          "smithy.api.String": {
-            "type": "string"
           }
         },
         "properties": {
           "force": {
             "anyOf": [
               {
-                "$ref": "#/$defs/smithy.api.String"
+                "$ref": "#/$defs/crucible.api.String"
               },
               {
                 "type": "null"
@@ -61,7 +61,7 @@
             ]
           },
           "id": {
-            "$ref": "#/$defs/smithy.api.String"
+            "$ref": "#/$defs/crucible.api.String"
           }
         },
         "required": [
@@ -81,24 +81,24 @@
       "output": "example.shop#DeleteItemOutput",
       "outputSchema": {
         "$defs": {
+          "crucible.api.String": {
+            "type": "string"
+          },
           "example.shop.DeleteItemOutput": {
             "properties": {
               "deleted": {
-                "$ref": "#/$defs/smithy.api.String"
+                "$ref": "#/$defs/crucible.api.String"
               }
             },
             "required": [
               "deleted"
             ],
             "type": "object"
-          },
-          "smithy.api.String": {
-            "type": "string"
           }
         },
         "properties": {
           "deleted": {
-            "$ref": "#/$defs/smithy.api.String"
+            "$ref": "#/$defs/crucible.api.String"
           }
         },
         "required": [
@@ -213,24 +213,24 @@
       "input": "example.shop#GetItemInput",
       "inputSchema": {
         "$defs": {
+          "crucible.api.String": {
+            "type": "string"
+          },
           "example.shop.GetItemInput": {
             "properties": {
               "id": {
-                "$ref": "#/$defs/smithy.api.String"
+                "$ref": "#/$defs/crucible.api.String"
               }
             },
             "required": [
               "id"
             ],
             "type": "object"
-          },
-          "smithy.api.String": {
-            "type": "string"
           }
         },
         "properties": {
           "id": {
-            "$ref": "#/$defs/smithy.api.String"
+            "$ref": "#/$defs/crucible.api.String"
           }
         },
         "required": [
@@ -250,6 +250,15 @@
       "output": "example.shop#GetItemOutput",
       "outputSchema": {
         "$defs": {
+          "crucible.api.Integer": {
+            "format": "int32",
+            "maximum": 2147483647,
+            "minimum": -2147483648,
+            "type": "integer"
+          },
+          "crucible.api.String": {
+            "type": "string"
+          },
           "example.shop.GetItemOutput": {
             "properties": {
               "kind": {
@@ -278,7 +287,7 @@
               "size": {
                 "anyOf": [
                   {
-                    "$ref": "#/$defs/smithy.api.Integer"
+                    "$ref": "#/$defs/crucible.api.Integer"
                   },
                   {
                     "type": "null"
@@ -286,22 +295,13 @@
                 ]
               },
               "title": {
-                "$ref": "#/$defs/smithy.api.String"
+                "$ref": "#/$defs/crucible.api.String"
               }
             },
             "required": [
               "title"
             ],
             "type": "object"
-          },
-          "smithy.api.Integer": {
-            "format": "int32",
-            "maximum": 2147483647,
-            "minimum": -2147483648,
-            "type": "integer"
-          },
-          "smithy.api.String": {
-            "type": "string"
           }
         },
         "properties": {
@@ -416,13 +416,22 @@
       "input": "example.shop#ListItemsInput",
       "inputSchema": {
         "$defs": {
+          "crucible.api.Integer": {
+            "format": "int32",
+            "maximum": 2147483647,
+            "minimum": -2147483648,
+            "type": "integer"
+          },
+          "crucible.api.String": {
+            "type": "string"
+          },
           "example.shop.ListItemsInput": {
             "properties": {
               "limit": {
-                "$ref": "#/$defs/smithy.api.Integer"
+                "$ref": "#/$defs/crucible.api.Integer"
               },
               "sort": {
-                "$ref": "#/$defs/smithy.api.String"
+                "$ref": "#/$defs/crucible.api.String"
               }
             },
             "required": [
@@ -430,23 +439,14 @@
               "sort"
             ],
             "type": "object"
-          },
-          "smithy.api.Integer": {
-            "format": "int32",
-            "maximum": 2147483647,
-            "minimum": -2147483648,
-            "type": "integer"
-          },
-          "smithy.api.String": {
-            "type": "string"
           }
         },
         "properties": {
           "limit": {
-            "$ref": "#/$defs/smithy.api.Integer"
+            "$ref": "#/$defs/crucible.api.Integer"
           },
           "sort": {
-            "$ref": "#/$defs/smithy.api.String"
+            "$ref": "#/$defs/crucible.api.String"
           }
         },
         "required": [
@@ -467,6 +467,9 @@
       "output": "example.shop#ListItemsOutput",
       "outputSchema": {
         "$defs": {
+          "crucible.api.String": {
+            "type": "string"
+          },
           "example.shop.Kind": {
             "enum": [
               "SMALL",
@@ -499,13 +502,10 @@
           },
           "example.shop.Names": {
             "items": {
-              "$ref": "#/$defs/smithy.api.String"
+              "$ref": "#/$defs/crucible.api.String"
             },
             "type": "array",
             "uniqueItems": false
-          },
-          "smithy.api.String": {
-            "type": "string"
           }
         },
         "properties": {
@@ -648,6 +648,66 @@
     "version": "v3"
   },
   "shapes": {
+    "crucible.api#Integer": {
+      "constraints": {
+        "length": null,
+        "pattern": null,
+        "range": null,
+        "uniqueItems": false
+      },
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
+      "id": "crucible.api#Integer",
+      "internal": false,
+      "kind": "integer",
+      "members": [],
+      "name": "Integer",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false
+    },
+    "crucible.api#String": {
+      "constraints": {
+        "length": null,
+        "pattern": null,
+        "range": null,
+        "uniqueItems": false
+      },
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
+      "id": "crucible.api#String",
+      "internal": false,
+      "kind": "string",
+      "members": [],
+      "name": "String",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false
+    },
     "crucible.errors#InternalServerException": {
       "documentation": {
         "html": "<p>An unexpected server failure. Its message never exposes the underlying cause.</p>\n",
@@ -741,7 +801,7 @@
           "nullable": false,
           "required": true,
           "sensitive": false,
-          "target": "smithy.api#String",
+          "target": "crucible.api#String",
           "targetName": "String",
           "targetType": "string",
           "timestampFormat": "date-time",
@@ -778,7 +838,7 @@
           "nullable": true,
           "required": false,
           "sensitive": false,
-          "target": "smithy.api#Integer",
+          "target": "crucible.api#Integer",
           "targetName": "Integer",
           "targetType": "integer",
           "timestampFormat": "date-time",
@@ -889,7 +949,7 @@
           "nullable": false,
           "required": true,
           "sensitive": false,
-          "target": "smithy.api#String",
+          "target": "crucible.api#String",
           "targetName": "String",
           "targetType": "string",
           "timestampFormat": "date-time",
@@ -1026,7 +1086,7 @@
           "nullable": false,
           "required": true,
           "sensitive": false,
-          "target": "smithy.api#String",
+          "target": "crucible.api#String",
           "targetName": "String",
           "targetType": "string",
           "timestampFormat": "date-time",
@@ -1063,7 +1123,7 @@
           "nullable": false,
           "required": true,
           "sensitive": false,
-          "target": "smithy.api#String",
+          "target": "crucible.api#String",
           "targetName": "String",
           "targetType": "string",
           "timestampFormat": "date-time",
@@ -1306,7 +1366,7 @@
           "nullable": false,
           "required": true,
           "sensitive": false,
-          "target": "smithy.api#String",
+          "target": "crucible.api#String",
           "targetName": "String",
           "targetType": "string",
           "timestampFormat": "date-time",
@@ -1345,7 +1405,7 @@
           "nullable": true,
           "required": false,
           "sensitive": false,
-          "target": "smithy.api#String",
+          "target": "crucible.api#String",
           "targetName": "String",
           "targetType": "string",
           "timestampFormat": "date-time",
@@ -1410,7 +1470,7 @@
           "nullable": false,
           "required": true,
           "sensitive": false,
-          "target": "smithy.api#String",
+          "target": "crucible.api#String",
           "targetName": "String",
           "targetType": "string",
           "timestampFormat": "date-time",
@@ -1473,7 +1533,7 @@
           "nullable": false,
           "required": true,
           "sensitive": false,
-          "target": "smithy.api#String",
+          "target": "crucible.api#String",
           "targetName": "String",
           "targetType": "string",
           "timestampFormat": "date-time",
@@ -1680,7 +1740,7 @@
           "nullable": false,
           "required": true,
           "sensitive": false,
-          "target": "smithy.api#String",
+          "target": "crucible.api#String",
           "targetName": "String",
           "targetType": "string",
           "timestampFormat": "date-time",
@@ -1782,7 +1842,7 @@
           "nullable": false,
           "required": true,
           "sensitive": false,
-          "target": "smithy.api#String",
+          "target": "crucible.api#String",
           "targetName": "String",
           "targetType": "string",
           "timestampFormat": "date-time",
@@ -2006,7 +2066,7 @@
           "nullable": false,
           "required": true,
           "sensitive": false,
-          "target": "smithy.api#String",
+          "target": "crucible.api#String",
           "targetName": "String",
           "targetType": "string",
           "timestampFormat": "date-time",
@@ -2043,7 +2103,7 @@
           "nullable": true,
           "required": false,
           "sensitive": false,
-          "target": "smithy.api#Integer",
+          "target": "crucible.api#Integer",
           "targetName": "Integer",
           "targetType": "integer",
           "timestampFormat": "date-time",
@@ -2109,7 +2169,7 @@
           "nullable": false,
           "required": true,
           "sensitive": false,
-          "target": "smithy.api#Integer",
+          "target": "crucible.api#Integer",
           "targetName": "Integer",
           "targetType": "integer",
           "timestampFormat": "date-time",
@@ -2148,7 +2208,7 @@
           "nullable": false,
           "required": true,
           "sensitive": false,
-          "target": "smithy.api#String",
+          "target": "crucible.api#String",
           "targetName": "String",
           "targetType": "string",
           "timestampFormat": "date-time",
@@ -2316,7 +2376,7 @@
           "nullable": true,
           "required": false,
           "sensitive": false,
-          "target": "smithy.api#String",
+          "target": "crucible.api#String",
           "targetName": "String",
           "targetType": "string",
           "timestampFormat": "date-time",
@@ -2334,66 +2394,6 @@
       "sensitive": false,
       "set": false,
       "sparse": false
-    },
-    "smithy.api#Integer": {
-      "constraints": {
-        "length": null,
-        "pattern": null,
-        "range": null,
-        "uniqueItems": false
-      },
-      "documentation": {
-        "html": "",
-        "markdown": "",
-        "text": ""
-      },
-      "history": {
-        "added": null,
-        "changed": [],
-        "missing": []
-      },
-      "id": "smithy.api#Integer",
-      "internal": false,
-      "kind": "integer",
-      "members": [],
-      "name": "Integer",
-      "notes": {
-        "deprecated": null,
-        "externalDocs": {},
-        "since": null,
-        "unstable": false
-      },
-      "sensitive": false
-    },
-    "smithy.api#String": {
-      "constraints": {
-        "length": null,
-        "pattern": null,
-        "range": null,
-        "uniqueItems": false
-      },
-      "documentation": {
-        "html": "",
-        "markdown": "",
-        "text": ""
-      },
-      "history": {
-        "added": null,
-        "changed": [],
-        "missing": []
-      },
-      "id": "smithy.api#String",
-      "internal": false,
-      "kind": "string",
-      "members": [],
-      "name": "String",
-      "notes": {
-        "deprecated": null,
-        "externalDocs": {},
-        "since": null,
-        "unstable": false
-      },
-      "sensitive": false
     }
   },
   "versions": {
@@ -2577,7 +2577,7 @@
                       "nullable": false,
                       "required": true,
                       "sensitive": false,
-                      "target": "smithy.api#String",
+                      "target": "crucible.api#String",
                       "targetName": "String",
                       "targetType": "string",
                       "timestampFormat": "date-time",
@@ -2614,7 +2614,7 @@
                       "nullable": true,
                       "required": false,
                       "sensitive": false,
-                      "target": "smithy.api#Integer",
+                      "target": "crucible.api#Integer",
                       "targetName": "Integer",
                       "targetType": "integer",
                       "timestampFormat": "date-time",
@@ -2842,7 +2842,7 @@
                 "nullable": true,
                 "required": false,
                 "sensitive": false,
-                "target": "smithy.api#Boolean",
+                "target": "crucible.api#Boolean",
                 "targetName": "Boolean",
                 "targetType": "boolean",
                 "timestampFormat": "date-time",
@@ -2855,7 +2855,7 @@
             "subjects": [
               "example.shop#DeleteItemInput$force"
             ],
-            "target": "smithy.api#String"
+            "target": "crucible.api#String"
           },
           {
             "by": "hook",
@@ -2897,7 +2897,7 @@
                 "nullable": false,
                 "required": true,
                 "sensitive": false,
-                "target": "smithy.api#Boolean",
+                "target": "crucible.api#Boolean",
                 "targetName": "Boolean",
                 "targetType": "boolean",
                 "timestampFormat": "date-time",
@@ -2910,7 +2910,7 @@
             "subjects": [
               "example.shop#DeleteItemOutput$deleted"
             ],
-            "target": "smithy.api#String"
+            "target": "crucible.api#String"
           },
           {
             "documentation": {
@@ -2944,12 +2944,15 @@
                 "input": "example.shop#CountItemsInput",
                 "inputSchema": {
                   "$defs": {
+                    "crucible.api.String": {
+                      "type": "string"
+                    },
                     "example.shop.CountItemsInput": {
                       "properties": {
                         "shelf": {
                           "anyOf": [
                             {
-                              "$ref": "#/$defs/smithy.api.String"
+                              "$ref": "#/$defs/crucible.api.String"
                             },
                             {
                               "type": "null"
@@ -2958,16 +2961,13 @@
                         }
                       },
                       "type": "object"
-                    },
-                    "smithy.api.String": {
-                      "type": "string"
                     }
                   },
                   "properties": {
                     "shelf": {
                       "anyOf": [
                         {
-                          "$ref": "#/$defs/smithy.api.String"
+                          "$ref": "#/$defs/crucible.api.String"
                         },
                         {
                           "type": "null"
@@ -2989,27 +2989,27 @@
                 "output": "example.shop#CountItemsOutput",
                 "outputSchema": {
                   "$defs": {
+                    "crucible.api.Integer": {
+                      "format": "int32",
+                      "maximum": 2147483647,
+                      "minimum": -2147483648,
+                      "type": "integer"
+                    },
                     "example.shop.CountItemsOutput": {
                       "properties": {
                         "count": {
-                          "$ref": "#/$defs/smithy.api.Integer"
+                          "$ref": "#/$defs/crucible.api.Integer"
                         }
                       },
                       "required": [
                         "count"
                       ],
                       "type": "object"
-                    },
-                    "smithy.api.Integer": {
-                      "format": "int32",
-                      "maximum": 2147483647,
-                      "minimum": -2147483648,
-                      "type": "integer"
                     }
                   },
                   "properties": {
                     "count": {
-                      "$ref": "#/$defs/smithy.api.Integer"
+                      "$ref": "#/$defs/crucible.api.Integer"
                     }
                   },
                   "required": [
@@ -3138,7 +3138,7 @@
                       "nullable": true,
                       "required": false,
                       "sensitive": false,
-                      "target": "smithy.api#String",
+                      "target": "crucible.api#String",
                       "targetName": "String",
                       "targetType": "string",
                       "timestampFormat": "date-time",
@@ -3201,7 +3201,7 @@
                       "nullable": false,
                       "required": true,
                       "sensitive": false,
-                      "target": "smithy.api#Integer",
+                      "target": "crucible.api#Integer",
                       "targetName": "Integer",
                       "targetType": "integer",
                       "timestampFormat": "date-time",
@@ -3303,7 +3303,7 @@
                       "nullable": false,
                       "required": true,
                       "sensitive": false,
-                      "target": "smithy.api#String",
+                      "target": "crucible.api#String",
                       "targetName": "String",
                       "targetType": "string",
                       "timestampFormat": "date-time",

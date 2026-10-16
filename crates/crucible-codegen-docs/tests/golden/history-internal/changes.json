@@ -162,7 +162,7 @@
                       "nullable": false,
                       "required": true,
                       "sensitive": false,
-                      "target": "smithy.api#Integer",
+                      "target": "crucible.api#Integer",
                       "targetName": "Integer",
                       "targetType": "integer",
                       "timestampFormat": "date-time",
@@ -199,7 +199,7 @@
                       "nullable": false,
                       "required": true,
                       "sensitive": false,
-                      "target": "smithy.api#Integer",
+                      "target": "crucible.api#Integer",
                       "targetName": "Integer",
                       "targetType": "integer",
                       "timestampFormat": "date-time",
@@ -236,7 +236,7 @@
                       "nullable": true,
                       "required": false,
                       "sensitive": false,
-                      "target": "smithy.api#Integer",
+                      "target": "crucible.api#Integer",
                       "targetName": "Integer",
                       "targetType": "integer",
                       "timestampFormat": "date-time",
@@ -300,7 +300,7 @@
                 "nullable": true,
                 "required": false,
                 "sensitive": false,
-                "target": "smithy.api#Integer",
+                "target": "crucible.api#Integer",
                 "targetName": "Integer",
                 "targetType": "integer",
                 "timestampFormat": "date-time",
@@ -313,7 +313,7 @@
             "subjects": [
               "example.history#PutItemInput$count"
             ],
-            "target": "smithy.api#String"
+            "target": "crucible.api#String"
           },
           {
             "by": "hook",
@@ -355,7 +355,7 @@
                 "nullable": true,
                 "required": false,
                 "sensitive": false,
-                "target": "smithy.api#Integer",
+                "target": "crucible.api#Integer",
                 "targetName": "Integer",
                 "targetType": "integer",
                 "timestampFormat": "date-time",
@@ -368,7 +368,7 @@
             "subjects": [
               "example.history#PutItemInput$priority"
             ],
-            "target": "smithy.api#String"
+            "target": "crucible.api#String"
           },
           {
             "documentation": {
@@ -578,7 +578,7 @@
                 "nullable": false,
                 "required": true,
                 "sensitive": false,
-                "target": "smithy.api#Integer",
+                "target": "crucible.api#Integer",
                 "targetName": "Integer",
                 "targetType": "integer",
                 "timestampFormat": "date-time",
@@ -591,7 +591,7 @@
             "subjects": [
               "example.history#PutItemOutput$total"
             ],
-            "target": "smithy.api#String"
+            "target": "crucible.api#String"
           },
           {
             "documentation": {
@@ -636,27 +636,27 @@
                 "output": "example.history#CountItemsOutput",
                 "outputSchema": {
                   "$defs": {
+                    "crucible.api.Integer": {
+                      "format": "int32",
+                      "maximum": 2147483647,
+                      "minimum": -2147483648,
+                      "type": "integer"
+                    },
                     "example.history.CountItemsOutput": {
                       "properties": {
                         "count": {
-                          "$ref": "#/$defs/smithy.api.Integer"
+                          "$ref": "#/$defs/crucible.api.Integer"
                         }
                       },
                       "required": [
                         "count"
                       ],
                       "type": "object"
-                    },
-                    "smithy.api.Integer": {
-                      "format": "int32",
-                      "maximum": 2147483647,
-                      "minimum": -2147483648,
-                      "type": "integer"
                     }
                   },
                   "properties": {
                     "count": {
-                      "$ref": "#/$defs/smithy.api.Integer"
+                      "$ref": "#/$defs/crucible.api.Integer"
                     }
                   },
                   "required": [
@@ -775,7 +775,7 @@
                       "nullable": false,
                       "required": true,
                       "sensitive": false,
-                      "target": "smithy.api#Integer",
+                      "target": "crucible.api#Integer",
                       "targetName": "Integer",
                       "targetType": "integer",
                       "timestampFormat": "date-time",

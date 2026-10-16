@@ -105,6 +105,11 @@
           "title": "Create a duplicate city"
         }
       ],
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
       "id": "example.weather#CreateCity",
       "idempotencyToken": "clientToken",
       "idempotent": true,
@@ -574,6 +579,11 @@
           "title": "Read a missing city"
         }
       ],
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
       "id": "example.weather#GetCity",
       "idempotencyToken": null,
       "idempotent": false,
@@ -910,6 +920,11 @@
         "example.weather#ValidationError"
       ],
       "examples": [],
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
       "id": "example.weather#GetCityPhoto",
       "idempotencyToken": null,
       "idempotent": false,
@@ -1180,6 +1195,11 @@
           "title": "List the first page"
         }
       ],
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
       "id": "example.weather#ListCities",
       "idempotencyToken": null,
       "idempotent": false,
@@ -1543,6 +1563,11 @@
         "example.weather#ValidationError"
       ],
       "examples": [],
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
       "id": "example.weather#Ping",
       "idempotencyToken": null,
       "idempotent": false,
@@ -1641,6 +1666,11 @@
         "example.weather#ValidationError"
       ],
       "examples": [],
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
       "id": "example.weather#PutCityPhoto",
       "idempotencyToken": null,
       "idempotent": true,
@@ -2014,6 +2044,11 @@
         "markdown": "",
         "text": ""
       },
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
       "id": "crucible.api#Document",
       "internal": false,
       "kind": "document",
@@ -2038,6 +2073,11 @@
         "html": "",
         "markdown": "",
         "text": ""
+      },
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
       },
       "id": "crucible.api#Double",
       "internal": false,
@@ -2064,6 +2104,11 @@
         "markdown": "",
         "text": ""
       },
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
       "id": "crucible.api#Integer",
       "internal": false,
       "kind": "integer",
@@ -2088,6 +2133,11 @@
         "html": "",
         "markdown": "",
         "text": ""
+      },
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
       },
       "id": "crucible.api#Long",
       "internal": false,
@@ -2114,6 +2164,11 @@
         "markdown": "",
         "text": ""
       },
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
       "id": "crucible.api#String",
       "internal": false,
       "kind": "string",
@@ -2139,6 +2194,11 @@
         "markdown": "",
         "text": ""
       },
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
       "id": "crucible.api#Timestamp",
       "internal": false,
       "kind": "timestamp",
@@ -2157,6 +2217,11 @@
         "html": "",
         "markdown": "",
         "text": ""
+      },
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
       },
       "id": "crucible.api#Unit",
       "internal": false,
@@ -2182,6 +2247,11 @@
         "html": "",
         "markdown": "",
         "text": ""
+      },
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
       },
       "id": "example.weather#CityId",
       "internal": false,
@@ -2211,6 +2281,11 @@
         "markdown": "",
         "text": ""
       },
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
       "id": "example.weather#CityName",
       "internal": false,
       "kind": "string",
@@ -2236,6 +2311,11 @@
         "markdown": "",
         "text": ""
       },
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
       "id": "example.weather#CitySummaries",
       "internal": false,
       "kind": "list",
@@ -2253,6 +2333,11 @@
             "html": "",
             "markdown": "",
             "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
           },
           "internal": false,
           "name": "member",
@@ -2291,6 +2376,11 @@
         "text": ""
       },
       "error": null,
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
       "id": "example.weather#CitySummary",
       "internal": false,
       "kind": "structure",
@@ -2308,6 +2398,11 @@
             "html": "",
             "markdown": "",
             "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
           },
           "internal": false,
           "name": "id",
@@ -2344,6 +2439,11 @@
             "markdown": "",
             "text": ""
           },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
           "internal": false,
           "name": "name",
           "notes": {
@@ -2375,6 +2475,11 @@
             "html": "",
             "markdown": "",
             "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
           },
           "internal": false,
           "name": "population",
@@ -2408,6 +2513,11 @@
             "markdown": "",
             "text": ""
           },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
           "internal": false,
           "name": "updatedAt",
           "notes": {
@@ -2439,6 +2549,11 @@
             "html": "",
             "markdown": "",
             "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
           },
           "internal": false,
           "name": "createdAt",
@@ -2517,6 +2632,11 @@
         "status": 409,
         "wireCode": "ConflictError"
       },
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
       "id": "example.weather#ConflictError",
       "internal": false,
       "kind": "structure",
@@ -2534,6 +2654,11 @@
             "html": "",
             "markdown": "",
             "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
           },
           "internal": false,
           "name": "message",
@@ -2570,6 +2695,11 @@
         "text": ""
       },
       "error": null,
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
       "id": "example.weather#Coordinates",
       "internal": false,
       "kind": "structure",
@@ -2587,6 +2717,11 @@
             "html": "",
             "markdown": "",
             "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
           },
           "internal": false,
           "name": "latitude",
@@ -2619,6 +2754,11 @@
             "html": "",
             "markdown": "",
             "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
           },
           "internal": false,
           "name": "longitude",
@@ -2655,6 +2795,11 @@
         "text": ""
       },
       "error": null,
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
       "id": "example.weather#CreateCityInput",
       "internal": false,
       "kind": "structure",
@@ -2675,6 +2820,11 @@
             "html": "",
             "markdown": "",
             "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
           },
           "internal": false,
           "name": "name",
@@ -2708,6 +2858,11 @@
             "markdown": "",
             "text": ""
           },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
           "internal": false,
           "name": "location",
           "notes": {
@@ -2740,6 +2895,11 @@
             "markdown": "",
             "text": ""
           },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
           "internal": false,
           "name": "clientToken",
           "notes": {
@@ -2771,6 +2931,11 @@
             "html": "",
             "markdown": "",
             "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
           },
           "internal": false,
           "name": "expectedRevision",
@@ -2807,6 +2972,11 @@
         "text": ""
       },
       "error": null,
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
       "id": "example.weather#CreateCityOutput",
       "internal": false,
       "kind": "structure",
@@ -2824,6 +2994,11 @@
             "html": "",
             "markdown": "",
             "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
           },
           "internal": false,
           "name": "city",
@@ -2865,6 +3040,11 @@
         "markdown": "",
         "text": ""
       },
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
       "id": "example.weather#DateTime",
       "internal": false,
       "kind": "timestamp",
@@ -2890,6 +3070,11 @@
         "markdown": "",
         "text": ""
       },
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
       "id": "example.weather#Forecast",
       "internal": false,
       "kind": "map",
@@ -2907,6 +3092,11 @@
             "html": "",
             "markdown": "",
             "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
           },
           "internal": false,
           "name": "key",
@@ -2939,6 +3129,11 @@
             "html": "",
             "markdown": "",
             "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
           },
           "internal": false,
           "name": "value",
@@ -2976,6 +3171,11 @@
         "text": ""
       },
       "error": null,
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
       "id": "example.weather#GetCityInput",
       "internal": false,
       "kind": "structure",
@@ -2993,6 +3193,11 @@
             "html": "",
             "markdown": "",
             "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
           },
           "internal": false,
           "name": "cityId",
@@ -3025,6 +3230,11 @@
             "html": "",
             "markdown": "",
             "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
           },
           "internal": false,
           "name": "at",
@@ -3061,6 +3271,11 @@
         "text": ""
       },
       "error": null,
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
       "id": "example.weather#GetCityOutput",
       "internal": false,
       "kind": "structure",
@@ -3078,6 +3293,11 @@
             "html": "",
             "markdown": "",
             "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
           },
           "internal": false,
           "name": "city",
@@ -3111,6 +3331,11 @@
             "markdown": "",
             "text": ""
           },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
           "internal": false,
           "name": "forecast",
           "notes": {
@@ -3142,6 +3367,11 @@
             "html": "",
             "markdown": "",
             "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
           },
           "internal": false,
           "name": "requestId",
@@ -3178,6 +3408,11 @@
         "text": ""
       },
       "error": null,
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
       "id": "example.weather#GetCityPhotoInput",
       "internal": false,
       "kind": "structure",
@@ -3195,6 +3430,11 @@
             "html": "",
             "markdown": "",
             "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
           },
           "internal": false,
           "name": "cityId",
@@ -3231,6 +3471,11 @@
         "text": ""
       },
       "error": null,
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
       "id": "example.weather#GetCityPhotoOutput",
       "internal": false,
       "kind": "structure",
@@ -3248,6 +3493,11 @@
             "html": "",
             "markdown": "",
             "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
           },
           "internal": false,
           "name": "caption",
@@ -3284,6 +3534,11 @@
             "markdown": "",
             "text": ""
           },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
           "internal": false,
           "name": "photo",
           "notes": {
@@ -3319,6 +3574,11 @@
         "text": ""
       },
       "error": null,
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
       "id": "example.weather#ListCitiesInput",
       "internal": false,
       "kind": "structure",
@@ -3336,6 +3596,11 @@
             "html": "",
             "markdown": "",
             "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
           },
           "internal": false,
           "name": "nextToken",
@@ -3372,6 +3637,11 @@
             "markdown": "",
             "text": ""
           },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
           "internal": false,
           "name": "maxResults",
           "notes": {
@@ -3406,6 +3676,11 @@
             "html": "",
             "markdown": "",
             "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
           },
           "internal": false,
           "name": "tags",
@@ -3442,6 +3717,11 @@
         "text": ""
       },
       "error": null,
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
       "id": "example.weather#ListCitiesOutput",
       "internal": false,
       "kind": "structure",
@@ -3459,6 +3739,11 @@
             "html": "",
             "markdown": "",
             "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
           },
           "internal": false,
           "name": "cities",
@@ -3491,6 +3776,11 @@
             "html": "",
             "markdown": "",
             "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
           },
           "internal": false,
           "name": "nextToken",
@@ -3527,6 +3817,11 @@
         "text": ""
       },
       "error": null,
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
       "id": "example.weather#Location",
       "internal": false,
       "kind": "union",
@@ -3544,6 +3839,11 @@
             "html": "",
             "markdown": "",
             "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
           },
           "internal": false,
           "name": "coordinates",
@@ -3576,6 +3876,11 @@
             "html": "",
             "markdown": "",
             "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
           },
           "internal": false,
           "name": "unknown",
@@ -3653,6 +3958,11 @@
         "status": 404,
         "wireCode": "NotFoundError"
       },
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
       "id": "example.weather#NotFoundError",
       "internal": false,
       "kind": "structure",
@@ -3670,6 +3980,11 @@
             "html": "",
             "markdown": "",
             "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
           },
           "internal": false,
           "name": "message",
@@ -3702,6 +4017,11 @@
             "html": "",
             "markdown": "",
             "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
           },
           "internal": false,
           "name": "resourceId",
@@ -3746,6 +4066,11 @@
         "markdown": "A photo, carried unparsed.",
         "text": "A photo, carried unparsed."
       },
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
       "id": "example.weather#Photo",
       "internal": false,
       "kind": "blob",
@@ -3766,6 +4091,11 @@
         "text": ""
       },
       "error": null,
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
       "id": "example.weather#PhotoSummary",
       "internal": false,
       "kind": "structure",
@@ -3783,6 +4113,11 @@
             "html": "",
             "markdown": "",
             "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
           },
           "internal": false,
           "name": "size",
@@ -3819,6 +4154,11 @@
             "markdown": "",
             "text": ""
           },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
           "internal": false,
           "name": "thumbnail",
           "notes": {
@@ -3850,6 +4190,11 @@
             "html": "",
             "markdown": "",
             "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
           },
           "internal": false,
           "name": "caption",
@@ -3889,6 +4234,11 @@
         "text": ""
       },
       "error": null,
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
       "id": "example.weather#PutCityPhotoInput",
       "internal": false,
       "kind": "structure",
@@ -3906,6 +4256,11 @@
             "html": "",
             "markdown": "",
             "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
           },
           "internal": false,
           "name": "cityId",
@@ -3938,6 +4293,11 @@
             "html": "",
             "markdown": "",
             "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
           },
           "internal": false,
           "name": "caption",
@@ -3974,6 +4334,11 @@
             "markdown": "",
             "text": ""
           },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
           "internal": false,
           "name": "photo",
           "notes": {
@@ -4009,6 +4374,11 @@
         "text": ""
       },
       "error": null,
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
       "id": "example.weather#PutCityPhotoOutput",
       "internal": false,
       "kind": "structure",
@@ -4026,6 +4396,11 @@
             "html": "",
             "markdown": "",
             "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
           },
           "internal": false,
           "name": "photo",
@@ -4061,6 +4436,11 @@
         "markdown": "",
         "text": ""
       },
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
       "id": "example.weather#Sky",
       "internal": false,
       "kind": "enum",
@@ -4080,6 +4460,11 @@
             "markdown": "",
             "text": ""
           },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
           "internal": false,
           "name": "CLEAR",
           "notes": {
@@ -4095,6 +4480,11 @@
             "html": "",
             "markdown": "",
             "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
           },
           "internal": false,
           "name": "CLOUDY",
@@ -4126,6 +4516,11 @@
         "markdown": "",
         "text": ""
       },
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
       "id": "example.weather#Tags",
       "internal": false,
       "kind": "list",
@@ -4143,6 +4538,11 @@
             "html": "",
             "markdown": "",
             "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
           },
           "internal": false,
           "name": "member",
@@ -4228,6 +4628,11 @@
         "status": 429,
         "wireCode": "ThrottlingError"
       },
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
       "id": "example.weather#ThrottlingError",
       "internal": false,
       "kind": "structure",
@@ -4245,6 +4650,11 @@
             "html": "",
             "markdown": "",
             "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
           },
           "internal": false,
           "name": "message",
@@ -4277,6 +4687,11 @@
             "html": "",
             "markdown": "",
             "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
           },
           "internal": false,
           "name": "retryAfter",
@@ -4320,6 +4735,11 @@
         "html": "<p>The photo's first bytes: base64 in JSON.</p>\n",
         "markdown": "The photo's first bytes: base64 in JSON.",
         "text": "The photo's first bytes: base64 in JSON."
+      },
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
       },
       "id": "example.weather#Thumbnail",
       "internal": false,
@@ -4391,6 +4811,11 @@
         "status": 400,
         "wireCode": "ValidationError"
       },
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
       "id": "example.weather#ValidationError",
       "internal": false,
       "kind": "structure",
@@ -4408,6 +4833,11 @@
             "html": "",
             "markdown": "",
             "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
           },
           "internal": false,
           "name": "message",
@@ -4441,6 +4871,11 @@
             "markdown": "",
             "text": ""
           },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
           "internal": false,
           "name": "reason",
           "notes": {
@@ -4473,6 +4908,11 @@
             "markdown": "",
             "text": ""
           },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
           "internal": false,
           "name": "fieldList",
           "notes": {
@@ -4504,6 +4944,11 @@
             "html": "",
             "markdown": "",
             "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
           },
           "internal": false,
           "name": "requestId",
@@ -4540,6 +4985,11 @@
         "text": ""
       },
       "error": null,
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
       "id": "example.weather#ValidationField",
       "internal": false,
       "kind": "structure",
@@ -4557,6 +5007,11 @@
             "html": "",
             "markdown": "",
             "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
           },
           "internal": false,
           "name": "path",
@@ -4589,6 +5044,11 @@
             "html": "",
             "markdown": "",
             "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
           },
           "internal": false,
           "name": "message",
@@ -4630,6 +5090,11 @@
         "markdown": "",
         "text": ""
       },
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
       "id": "example.weather#ValidationFieldList",
       "internal": false,
       "kind": "list",
@@ -4647,6 +5112,11 @@
             "html": "",
             "markdown": "",
             "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
           },
           "internal": false,
           "name": "member",
@@ -4684,6 +5154,11 @@
         "markdown": "",
         "text": ""
       },
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
       "id": "example.weather#ValidationReason",
       "internal": false,
       "kind": "enum",
@@ -4703,6 +5178,11 @@
             "markdown": "",
             "text": ""
           },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
           "internal": false,
           "name": "UNKNOWN_OPERATION",
           "notes": {
@@ -4718,6 +5198,11 @@
             "html": "",
             "markdown": "",
             "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
           },
           "internal": false,
           "name": "CANNOT_PARSE",
@@ -4735,6 +5220,11 @@
             "markdown": "",
             "text": ""
           },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
           "internal": false,
           "name": "FIELD_VALIDATION_FAILED",
           "notes": {
@@ -4751,6 +5241,11 @@
             "markdown": "",
             "text": ""
           },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
           "internal": false,
           "name": "OTHER",
           "notes": {
@@ -4763,5 +5258,32 @@
         }
       ]
     }
+  },
+  "versions": {
+    "carrier": {
+      "kind": "header",
+      "name": "Crucible-Version"
+    },
+    "current": "2026-10-01",
+    "releases": [
+      {
+        "changes": [],
+        "current": true,
+        "documentation": {
+          "html": "",
+          "markdown": "",
+          "text": ""
+        },
+        "from": null,
+        "name": "2026-10-01",
+        "retired": [],
+        "sunset": null,
+        "sunsetDocumentation": {
+          "html": "",
+          "markdown": "",
+          "text": ""
+        }
+      }
+    ]
   }
 }

@@ -10,6 +10,11 @@
       },
       "errors": [],
       "examples": [],
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
       "id": "example.samples#Bulk",
       "idempotencyToken": null,
       "idempotent": false,
@@ -773,6 +778,11 @@
       },
       "errors": [],
       "examples": [],
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
       "id": "example.samples#Check",
       "idempotencyToken": null,
       "idempotent": false,
@@ -917,6 +927,11 @@
         "example.samples#GraphNotFound"
       ],
       "examples": [],
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
       "id": "example.samples#GetGraph",
       "idempotencyToken": null,
       "idempotent": false,
@@ -1104,6 +1119,11 @@
         "example.samples#Busy"
       ],
       "examples": [],
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
       "id": "example.samples#PutGraph",
       "idempotencyToken": "clientToken",
       "idempotent": true,
@@ -2057,6 +2077,11 @@
       },
       "errors": [],
       "examples": [],
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
       "id": "example.samples#Walk",
       "idempotencyToken": null,
       "idempotent": false,
@@ -2380,6 +2405,11 @@
         "markdown": "",
         "text": ""
       },
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
       "id": "crucible.api#Boolean",
       "internal": false,
       "kind": "boolean",
@@ -2404,6 +2434,11 @@
         "html": "",
         "markdown": "",
         "text": ""
+      },
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
       },
       "id": "crucible.api#Document",
       "internal": false,
@@ -2430,6 +2465,11 @@
         "markdown": "",
         "text": ""
       },
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
       "id": "crucible.api#Integer",
       "internal": false,
       "kind": "integer",
@@ -2454,6 +2494,11 @@
         "html": "",
         "markdown": "",
         "text": ""
+      },
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
       },
       "id": "crucible.api#Long",
       "internal": false,
@@ -2480,6 +2525,11 @@
         "markdown": "",
         "text": ""
       },
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
       "id": "crucible.api#String",
       "internal": false,
       "kind": "string",
@@ -2505,6 +2555,11 @@
         "markdown": "",
         "text": ""
       },
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
       "id": "crucible.api#Timestamp",
       "internal": false,
       "kind": "timestamp",
@@ -2523,6 +2578,11 @@
         "html": "",
         "markdown": "",
         "text": ""
+      },
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
       },
       "id": "crucible.api#Unit",
       "internal": false,
@@ -2552,6 +2612,11 @@
         "markdown": "",
         "text": ""
       },
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
       "id": "example.samples#Archive",
       "internal": false,
       "kind": "blob",
@@ -2577,6 +2642,11 @@
         "markdown": "A control character, valid in a body and not in a header.",
         "text": "A control character, valid in a body and not in a header."
       },
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
       "id": "example.samples#Bell",
       "internal": false,
       "kind": "string",
@@ -2601,6 +2671,11 @@
         "html": "<p>White space only: list items differ by length.</p>\n",
         "markdown": "White space only: list items differ by length.",
         "text": "White space only: list items differ by length."
+      },
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
       },
       "id": "example.samples#Blank",
       "internal": false,
@@ -2630,6 +2705,11 @@
         "markdown": "",
         "text": ""
       },
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
       "id": "example.samples#Blanks",
       "internal": false,
       "kind": "list",
@@ -2647,6 +2727,11 @@
             "html": "",
             "markdown": "",
             "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
           },
           "internal": false,
           "name": "member",
@@ -2690,6 +2775,11 @@
         "markdown": "Outside the generator's subset: a word boundary.",
         "text": "Outside the generator's subset: a word boundary."
       },
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
       "id": "example.samples#Bounded",
       "internal": false,
       "kind": "string",
@@ -2710,6 +2800,11 @@
         "text": ""
       },
       "error": null,
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
       "id": "example.samples#BulkInput",
       "internal": false,
       "kind": "structure",
@@ -2730,6 +2825,11 @@
             "html": "",
             "markdown": "",
             "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
           },
           "internal": false,
           "name": "labels",
@@ -2766,6 +2866,11 @@
             "markdown": "",
             "text": ""
           },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
           "internal": false,
           "name": "limits",
           "notes": {
@@ -2800,6 +2905,11 @@
             "html": "",
             "markdown": "",
             "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
           },
           "internal": false,
           "name": "huge",
@@ -2836,6 +2946,11 @@
             "markdown": "",
             "text": ""
           },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
           "internal": false,
           "name": "tight",
           "notes": {
@@ -2870,6 +2985,11 @@
             "html": "",
             "markdown": "",
             "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
           },
           "internal": false,
           "name": "essay",
@@ -2906,6 +3026,11 @@
             "markdown": "",
             "text": ""
           },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
           "internal": false,
           "name": "archive",
           "notes": {
@@ -2941,6 +3066,11 @@
             "markdown": "",
             "text": ""
           },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
           "internal": false,
           "name": "blanks",
           "notes": {
@@ -2972,6 +3102,11 @@
             "html": "",
             "markdown": "",
             "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
           },
           "internal": false,
           "name": "bell",
@@ -3005,6 +3140,11 @@
             "markdown": "",
             "text": ""
           },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
           "internal": false,
           "name": "headerBell",
           "notes": {
@@ -3036,6 +3176,11 @@
             "html": "",
             "markdown": "",
             "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
           },
           "internal": false,
           "name": "headerBlank",
@@ -3119,6 +3264,11 @@
         "status": 503,
         "wireCode": "Busy"
       },
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
       "id": "example.samples#Busy",
       "internal": false,
       "kind": "structure",
@@ -3136,6 +3286,11 @@
             "html": "",
             "markdown": "",
             "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
           },
           "internal": false,
           "name": "message",
@@ -3168,6 +3323,11 @@
             "html": "",
             "markdown": "",
             "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
           },
           "internal": false,
           "name": "retryAfter",
@@ -3204,6 +3364,11 @@
         "text": ""
       },
       "error": null,
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
       "id": "example.samples#CheckInput",
       "internal": false,
       "kind": "structure",
@@ -3221,6 +3386,11 @@
             "html": "",
             "markdown": "",
             "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
           },
           "internal": false,
           "name": "bounded",
@@ -3262,6 +3432,11 @@
         "markdown": "",
         "text": ""
       },
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
       "id": "example.samples#EpochTime",
       "internal": false,
       "kind": "timestamp",
@@ -3290,6 +3465,11 @@
         "markdown": "Longer than a sample shows.",
         "text": "Longer than a sample shows."
       },
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
       "id": "example.samples#Essay",
       "internal": false,
       "kind": "string",
@@ -3310,6 +3490,11 @@
         "text": "Recursion through a union whose first arm leads back."
       },
       "error": null,
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
       "id": "example.samples#Expression",
       "internal": false,
       "kind": "union",
@@ -3327,6 +3512,11 @@
             "html": "",
             "markdown": "",
             "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
           },
           "internal": false,
           "name": "not",
@@ -3359,6 +3549,11 @@
             "html": "",
             "markdown": "",
             "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
           },
           "internal": false,
           "name": "value",
@@ -3395,6 +3590,11 @@
         "text": ""
       },
       "error": null,
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
       "id": "example.samples#GetGraphInput",
       "internal": false,
       "kind": "structure",
@@ -3412,6 +3612,11 @@
             "html": "",
             "markdown": "",
             "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
           },
           "internal": false,
           "name": "graphId",
@@ -3448,6 +3653,11 @@
         "text": ""
       },
       "error": null,
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
       "id": "example.samples#GetGraphOutput",
       "internal": false,
       "kind": "structure",
@@ -3468,6 +3678,11 @@
             "html": "",
             "markdown": "",
             "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
           },
           "internal": false,
           "name": "thumbnail",
@@ -3509,6 +3724,11 @@
         "markdown": "A graph id: a type prefix and 26 Crockford base-32 characters.",
         "text": "A graph id: a type prefix and 26 Crockford base-32 characters."
       },
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
       "id": "example.samples#GraphId",
       "internal": false,
       "kind": "string",
@@ -3536,6 +3756,11 @@
         "html": "<p>A DNS-style name.</p>\n",
         "markdown": "A DNS-style name.",
         "text": "A DNS-style name."
+      },
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
       },
       "id": "example.samples#GraphName",
       "internal": false,
@@ -3598,6 +3823,11 @@
         "status": 404,
         "wireCode": "GraphNotFound"
       },
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
       "id": "example.samples#GraphNotFound",
       "internal": false,
       "kind": "structure",
@@ -3615,6 +3845,11 @@
             "html": "",
             "markdown": "",
             "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
           },
           "internal": false,
           "name": "message",
@@ -3647,6 +3882,11 @@
             "html": "",
             "markdown": "",
             "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
           },
           "internal": false,
           "name": "graphId",
@@ -3691,6 +3931,11 @@
         "markdown": "Above every 64-bit integer.",
         "text": "Above every 64-bit integer."
       },
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
       "id": "example.samples#Huge",
       "internal": false,
       "kind": "bigInteger",
@@ -3718,6 +3963,11 @@
         "html": "",
         "markdown": "",
         "text": ""
+      },
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
       },
       "id": "example.samples#Label",
       "internal": false,
@@ -3747,6 +3997,11 @@
         "markdown": "",
         "text": ""
       },
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
       "id": "example.samples#Limits",
       "internal": false,
       "kind": "map",
@@ -3767,6 +4022,11 @@
             "html": "",
             "markdown": "",
             "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
           },
           "internal": false,
           "name": "key",
@@ -3802,6 +4062,11 @@
             "html": "",
             "markdown": "",
             "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
           },
           "internal": false,
           "name": "value",
@@ -3847,6 +4112,11 @@
         "markdown": "More labels than a sample shows.",
         "text": "More labels than a sample shows."
       },
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
       "id": "example.samples#ManyLabels",
       "internal": false,
       "kind": "list",
@@ -3867,6 +4137,11 @@
             "html": "",
             "markdown": "",
             "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
           },
           "internal": false,
           "name": "member",
@@ -3913,6 +4188,11 @@
         "markdown": "More entries than a sample shows.",
         "text": "More entries than a sample shows."
       },
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
       "id": "example.samples#ManyLimits",
       "internal": false,
       "kind": "map",
@@ -3933,6 +4213,11 @@
             "html": "",
             "markdown": "",
             "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
           },
           "internal": false,
           "name": "key",
@@ -3968,6 +4253,11 @@
             "html": "",
             "markdown": "",
             "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
           },
           "internal": false,
           "name": "value",
@@ -4013,6 +4303,11 @@
         "markdown": "",
         "text": ""
       },
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
       "id": "example.samples#Negative",
       "internal": false,
       "kind": "integer",
@@ -4033,6 +4328,11 @@
         "text": "A tree: recursion through an optional list."
       },
       "error": null,
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
       "id": "example.samples#Node",
       "internal": false,
       "kind": "structure",
@@ -4053,6 +4353,11 @@
             "html": "",
             "markdown": "",
             "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
           },
           "internal": false,
           "name": "name",
@@ -4085,6 +4390,11 @@
             "html": "",
             "markdown": "",
             "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
           },
           "internal": false,
           "name": "children",
@@ -4126,6 +4436,11 @@
         "markdown": "",
         "text": ""
       },
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
       "id": "example.samples#Nodes",
       "internal": false,
       "kind": "list",
@@ -4143,6 +4458,11 @@
             "html": "",
             "markdown": "",
             "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
           },
           "internal": false,
           "name": "member",
@@ -4189,6 +4509,11 @@
         "markdown": "",
         "text": ""
       },
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
       "id": "example.samples#Port",
       "internal": false,
       "kind": "integer",
@@ -4217,6 +4542,11 @@
         "markdown": "",
         "text": ""
       },
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
       "id": "example.samples#Price",
       "internal": false,
       "kind": "bigDecimal",
@@ -4242,6 +4572,11 @@
         "markdown": "",
         "text": ""
       },
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
       "id": "example.samples#Printable",
       "internal": false,
       "kind": "string",
@@ -4260,6 +4595,11 @@
         "html": "",
         "markdown": "",
         "text": ""
+      },
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
       },
       "id": "example.samples#Priority",
       "internal": false,
@@ -4280,6 +4620,11 @@
             "markdown": "",
             "text": ""
           },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
           "internal": false,
           "name": "LOW",
           "notes": {
@@ -4295,6 +4640,11 @@
             "html": "",
             "markdown": "",
             "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
           },
           "internal": false,
           "name": "HIGH",
@@ -4315,6 +4665,11 @@
         "text": ""
       },
       "error": null,
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
       "id": "example.samples#PutGraphInput",
       "internal": false,
       "kind": "structure",
@@ -4332,6 +4687,11 @@
             "html": "",
             "markdown": "",
             "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
           },
           "internal": false,
           "name": "graphId",
@@ -4365,6 +4725,11 @@
             "markdown": "",
             "text": ""
           },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
           "internal": false,
           "name": "clientToken",
           "notes": {
@@ -4396,6 +4761,11 @@
             "html": "",
             "markdown": "",
             "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
           },
           "internal": false,
           "name": "region",
@@ -4429,6 +4799,11 @@
             "markdown": "",
             "text": ""
           },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
           "internal": false,
           "name": "since",
           "notes": {
@@ -4460,6 +4835,11 @@
             "html": "",
             "markdown": "",
             "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
           },
           "internal": false,
           "name": "modifiedSince",
@@ -4496,6 +4876,11 @@
             "markdown": "",
             "text": ""
           },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
           "internal": false,
           "name": "name",
           "notes": {
@@ -4528,6 +4913,11 @@
             "markdown": "",
             "text": ""
           },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
           "internal": false,
           "name": "tier",
           "notes": {
@@ -4559,6 +4949,11 @@
             "html": "",
             "markdown": "",
             "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
           },
           "internal": false,
           "name": "priority",
@@ -4595,6 +4990,11 @@
             "markdown": "",
             "text": ""
           },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
           "internal": false,
           "name": "port",
           "notes": {
@@ -4629,6 +5029,11 @@
             "html": "",
             "markdown": "",
             "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
           },
           "internal": false,
           "name": "negative",
@@ -4665,6 +5070,11 @@
             "markdown": "",
             "text": ""
           },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
           "internal": false,
           "name": "ratio",
           "notes": {
@@ -4700,6 +5110,11 @@
             "markdown": "",
             "text": ""
           },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
           "internal": false,
           "name": "price",
           "notes": {
@@ -4731,6 +5146,11 @@
             "html": "",
             "markdown": "",
             "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
           },
           "internal": false,
           "name": "enabled",
@@ -4764,6 +5184,11 @@
             "markdown": "",
             "text": ""
           },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
           "internal": false,
           "name": "created",
           "notes": {
@@ -4795,6 +5220,11 @@
             "html": "",
             "markdown": "",
             "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
           },
           "internal": false,
           "name": "updated",
@@ -4831,6 +5261,11 @@
             "markdown": "",
             "text": ""
           },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
           "internal": false,
           "name": "thumbnail",
           "notes": {
@@ -4862,6 +5297,11 @@
             "html": "",
             "markdown": "",
             "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
           },
           "internal": false,
           "name": "settings",
@@ -4898,6 +5338,11 @@
             "markdown": "",
             "text": ""
           },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
           "internal": false,
           "name": "tags",
           "notes": {
@@ -4929,6 +5374,11 @@
             "html": "",
             "markdown": "",
             "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
           },
           "internal": false,
           "name": "regions",
@@ -4965,6 +5415,11 @@
             "markdown": "",
             "text": ""
           },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
           "internal": false,
           "name": "limits",
           "notes": {
@@ -4996,6 +5451,11 @@
             "html": "",
             "markdown": "",
             "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
           },
           "internal": false,
           "name": "source",
@@ -5029,6 +5489,11 @@
             "markdown": "",
             "text": ""
           },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
           "internal": false,
           "name": "description",
           "notes": {
@@ -5060,6 +5525,11 @@
             "html": "",
             "markdown": "",
             "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
           },
           "internal": false,
           "name": "count",
@@ -5096,6 +5566,11 @@
         "text": ""
       },
       "error": null,
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
       "id": "example.samples#PutGraphOutput",
       "internal": false,
       "kind": "structure",
@@ -5113,6 +5588,11 @@
             "html": "",
             "markdown": "",
             "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
           },
           "internal": false,
           "name": "graphId",
@@ -5149,6 +5629,11 @@
             "markdown": "",
             "text": ""
           },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
           "internal": false,
           "name": "name",
           "notes": {
@@ -5180,6 +5665,11 @@
             "html": "",
             "markdown": "",
             "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
           },
           "internal": false,
           "name": "lastModified",
@@ -5224,6 +5714,11 @@
         "markdown": "",
         "text": ""
       },
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
       "id": "example.samples#Ratio",
       "internal": false,
       "kind": "double",
@@ -5248,6 +5743,11 @@
         "html": "",
         "markdown": "",
         "text": ""
+      },
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
       },
       "id": "example.samples#Region",
       "internal": false,
@@ -5274,6 +5774,11 @@
         "markdown": "",
         "text": ""
       },
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
       "id": "example.samples#Regions",
       "internal": false,
       "kind": "list",
@@ -5291,6 +5796,11 @@
             "html": "",
             "markdown": "",
             "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
           },
           "internal": false,
           "name": "member",
@@ -5334,6 +5844,11 @@
         "markdown": "",
         "text": ""
       },
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
       "id": "example.samples#Sha",
       "internal": false,
       "kind": "string",
@@ -5354,6 +5869,11 @@
         "text": ""
       },
       "error": null,
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
       "id": "example.samples#Source",
       "internal": false,
       "kind": "union",
@@ -5371,6 +5891,11 @@
             "html": "",
             "markdown": "",
             "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
           },
           "internal": false,
           "name": "snapshot",
@@ -5403,6 +5928,11 @@
             "html": "",
             "markdown": "",
             "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
           },
           "internal": false,
           "name": "empty",
@@ -5447,6 +5977,11 @@
         "markdown": "",
         "text": ""
       },
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
       "id": "example.samples#Tags",
       "internal": false,
       "kind": "list",
@@ -5467,6 +6002,11 @@
             "html": "",
             "markdown": "",
             "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
           },
           "internal": false,
           "name": "member",
@@ -5513,6 +6053,11 @@
         "markdown": "",
         "text": ""
       },
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
       "id": "example.samples#Thumbnail",
       "internal": false,
       "kind": "blob",
@@ -5531,6 +6076,11 @@
         "html": "",
         "markdown": "",
         "text": ""
+      },
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
       },
       "id": "example.samples#Tier",
       "internal": false,
@@ -5551,6 +6101,11 @@
             "markdown": "",
             "text": ""
           },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
           "internal": false,
           "name": "SMALL",
           "notes": {
@@ -5566,6 +6121,11 @@
             "html": "",
             "markdown": "",
             "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
           },
           "internal": false,
           "name": "LARGE",
@@ -5594,6 +6154,11 @@
         "markdown": "Just below 0.3, which a double would round onto.",
         "text": "Just below 0.3, which a double would round onto."
       },
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
       "id": "example.samples#Tight",
       "internal": false,
       "kind": "bigDecimal",
@@ -5614,6 +6179,11 @@
         "text": ""
       },
       "error": null,
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
       "id": "example.samples#WalkInput",
       "internal": false,
       "kind": "structure",
@@ -5631,6 +6201,11 @@
             "html": "",
             "markdown": "",
             "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
           },
           "internal": false,
           "name": "root",
@@ -5663,6 +6238,11 @@
             "html": "",
             "markdown": "",
             "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
           },
           "internal": false,
           "name": "expression",
@@ -5699,6 +6279,11 @@
         "text": ""
       },
       "error": null,
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
       "id": "example.samples#WalkOutput",
       "internal": false,
       "kind": "structure",
@@ -5716,6 +6301,11 @@
             "html": "",
             "markdown": "",
             "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
           },
           "internal": false,
           "name": "root",
@@ -5745,5 +6335,32 @@
       },
       "sensitive": false
     }
+  },
+  "versions": {
+    "carrier": {
+      "kind": "header",
+      "name": "Crucible-Version"
+    },
+    "current": "1",
+    "releases": [
+      {
+        "changes": [],
+        "current": true,
+        "documentation": {
+          "html": "",
+          "markdown": "",
+          "text": ""
+        },
+        "from": null,
+        "name": "1",
+        "retired": [],
+        "sunset": null,
+        "sunsetDocumentation": {
+          "html": "",
+          "markdown": "",
+          "text": ""
+        }
+      }
+    ]
   }
 }

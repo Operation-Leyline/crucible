@@ -1,5 +1,5 @@
 {
-  "format": 4,
+  "format": 5,
   "compiler": "crucible 0.7.0",
   "service": {
     "internal": false,
@@ -406,6 +406,72 @@
     "resource_roots": [],
     "resource_references": {},
     "shapes": {
+      "crucible.api#Boolean": {
+        "Simple": {
+          "internal": false,
+          "sensitive": false,
+          "kind": "Boolean",
+          "constraints": {
+            "length": null,
+            "range": null,
+            "pattern": null,
+            "unique_items": false
+          },
+          "timestamp_format": null,
+          "docs": null,
+          "notes": {
+            "deprecated": null,
+            "since": null,
+            "unstable": false,
+            "external_docs": {}
+          },
+          "traits": {}
+        }
+      },
+      "crucible.api#Integer": {
+        "Simple": {
+          "internal": false,
+          "sensitive": false,
+          "kind": "Integer",
+          "constraints": {
+            "length": null,
+            "range": null,
+            "pattern": null,
+            "unique_items": false
+          },
+          "timestamp_format": null,
+          "docs": null,
+          "notes": {
+            "deprecated": null,
+            "since": null,
+            "unstable": false,
+            "external_docs": {}
+          },
+          "traits": {}
+        }
+      },
+      "crucible.api#String": {
+        "Simple": {
+          "internal": false,
+          "sensitive": false,
+          "kind": "String",
+          "constraints": {
+            "length": null,
+            "range": null,
+            "pattern": null,
+            "unique_items": false
+          },
+          "timestamp_format": null,
+          "docs": null,
+          "notes": {
+            "deprecated": null,
+            "since": null,
+            "unstable": false,
+            "external_docs": {}
+          },
+          "traits": {}
+        }
+      },
       "example.history#AuditInput": {
         "Structure": {
           "internal": false,
@@ -417,11 +483,10 @@
               "internal": false,
               "sensitive": false,
               "name": "entry",
-              "target": "smithy.api#String",
+              "target": "crucible.api#String",
               "required": true,
               "default": null,
               "wire_default": null,
-              "client_optional": false,
               "idempotency_token": false,
               "mutability": null,
               "constraints": {
@@ -464,11 +529,10 @@
               "internal": false,
               "sensitive": false,
               "name": "recorded",
-              "target": "smithy.api#Boolean",
+              "target": "crucible.api#Boolean",
               "required": true,
               "default": null,
               "wire_default": null,
-              "client_optional": false,
               "idempotency_token": false,
               "mutability": null,
               "constraints": {
@@ -511,11 +575,10 @@
               "internal": false,
               "sensitive": false,
               "name": "count",
-              "target": "smithy.api#Integer",
+              "target": "crucible.api#Integer",
               "required": true,
               "default": null,
               "wire_default": null,
-              "client_optional": false,
               "idempotency_token": false,
               "mutability": null,
               "constraints": {
@@ -558,11 +621,10 @@
               "internal": false,
               "sensitive": false,
               "name": "id",
-              "target": "smithy.api#String",
+              "target": "crucible.api#String",
               "required": true,
               "default": null,
               "wire_default": null,
-              "client_optional": false,
               "idempotency_token": false,
               "mutability": null,
               "constraints": {
@@ -605,11 +667,10 @@
               "internal": false,
               "sensitive": false,
               "name": "name",
-              "target": "smithy.api#String",
+              "target": "crucible.api#String",
               "required": true,
               "default": null,
               "wire_default": null,
-              "client_optional": false,
               "idempotency_token": false,
               "mutability": null,
               "constraints": {
@@ -637,7 +698,6 @@
               "required": true,
               "default": null,
               "wire_default": null,
-              "client_optional": false,
               "idempotency_token": false,
               "mutability": null,
               "constraints": {
@@ -665,7 +725,6 @@
               "required": true,
               "default": null,
               "wire_default": null,
-              "client_optional": false,
               "idempotency_token": false,
               "mutability": null,
               "constraints": {
@@ -689,11 +748,10 @@
               "internal": true,
               "sensitive": false,
               "name": "secretCode",
-              "target": "smithy.api#String",
+              "target": "crucible.api#String",
               "required": false,
               "default": null,
               "wire_default": null,
-              "client_optional": false,
               "idempotency_token": false,
               "mutability": null,
               "constraints": {
@@ -717,11 +775,10 @@
               "internal": true,
               "sensitive": false,
               "name": "hint",
-              "target": "smithy.api#String",
+              "target": "crucible.api#String",
               "required": false,
               "default": null,
               "wire_default": null,
-              "client_optional": false,
               "idempotency_token": false,
               "mutability": null,
               "constraints": {
@@ -764,11 +821,10 @@
               "internal": false,
               "sensitive": false,
               "name": "message",
-              "target": "smithy.api#String",
+              "target": "crucible.api#String",
               "required": true,
               "default": null,
               "wire_default": null,
-              "client_optional": false,
               "idempotency_token": false,
               "mutability": null,
               "constraints": {
@@ -867,11 +923,10 @@
               "internal": false,
               "sensitive": false,
               "name": "max",
-              "target": "smithy.api#Integer",
+              "target": "crucible.api#Integer",
               "required": false,
               "default": null,
               "wire_default": null,
-              "client_optional": false,
               "idempotency_token": false,
               "mutability": null,
               "constraints": {
@@ -895,11 +950,10 @@
               "internal": false,
               "sensitive": false,
               "name": "sort",
-              "target": "smithy.api#String",
+              "target": "crucible.api#String",
               "required": false,
               "default": null,
               "wire_default": null,
-              "client_optional": false,
               "idempotency_token": false,
               "mutability": null,
               "constraints": {
@@ -946,7 +1000,6 @@
               "required": true,
               "default": null,
               "wire_default": null,
-              "client_optional": false,
               "idempotency_token": false,
               "mutability": null,
               "constraints": {
@@ -987,11 +1040,10 @@
             "internal": false,
             "sensitive": false,
             "name": "member",
-            "target": "smithy.api#String",
+            "target": "crucible.api#String",
             "required": false,
             "default": null,
             "wire_default": null,
-            "client_optional": false,
             "idempotency_token": false,
             "mutability": null,
             "constraints": {
@@ -1038,11 +1090,10 @@
               "internal": false,
               "sensitive": false,
               "name": "ok",
-              "target": "smithy.api#Boolean",
+              "target": "crucible.api#Boolean",
               "required": true,
               "default": null,
               "wire_default": null,
-              "client_optional": false,
               "idempotency_token": false,
               "mutability": null,
               "constraints": {
@@ -1085,11 +1136,10 @@
               "internal": false,
               "sensitive": false,
               "name": "id",
-              "target": "smithy.api#String",
+              "target": "crucible.api#String",
               "required": true,
               "default": null,
               "wire_default": null,
-              "client_optional": false,
               "idempotency_token": false,
               "mutability": null,
               "constraints": {
@@ -1113,11 +1163,10 @@
               "internal": false,
               "sensitive": false,
               "name": "count",
-              "target": "smithy.api#Integer",
+              "target": "crucible.api#Integer",
               "required": false,
               "default": null,
               "wire_default": null,
-              "client_optional": false,
               "idempotency_token": false,
               "mutability": null,
               "constraints": {
@@ -1141,11 +1190,10 @@
               "internal": true,
               "sensitive": false,
               "name": "priority",
-              "target": "smithy.api#Integer",
+              "target": "crucible.api#Integer",
               "required": false,
               "default": null,
               "wire_default": null,
-              "client_optional": false,
               "idempotency_token": false,
               "mutability": null,
               "constraints": {
@@ -1188,11 +1236,10 @@
               "internal": false,
               "sensitive": false,
               "name": "total",
-              "target": "smithy.api#Integer",
+              "target": "crucible.api#Integer",
               "required": true,
               "default": null,
               "wire_default": null,
-              "client_optional": false,
               "idempotency_token": false,
               "mutability": null,
               "constraints": {
@@ -1235,11 +1282,10 @@
               "internal": false,
               "sensitive": false,
               "name": "width",
-              "target": "smithy.api#Integer",
+              "target": "crucible.api#Integer",
               "required": true,
               "default": null,
               "wire_default": null,
-              "client_optional": false,
               "idempotency_token": false,
               "mutability": null,
               "constraints": {
@@ -1263,11 +1309,10 @@
               "internal": false,
               "sensitive": false,
               "name": "height",
-              "target": "smithy.api#Integer",
+              "target": "crucible.api#Integer",
               "required": true,
               "default": null,
               "wire_default": null,
-              "client_optional": false,
               "idempotency_token": false,
               "mutability": null,
               "constraints": {
@@ -1291,11 +1336,10 @@
               "internal": true,
               "sensitive": false,
               "name": "depth",
-              "target": "smithy.api#Integer",
+              "target": "crucible.api#Integer",
               "required": false,
               "default": null,
               "wire_default": null,
-              "client_optional": false,
               "idempotency_token": false,
               "mutability": null,
               "constraints": {
@@ -1326,76 +1370,9 @@
           },
           "traits": {}
         }
-      },
-      "smithy.api#Boolean": {
-        "Simple": {
-          "internal": false,
-          "sensitive": false,
-          "kind": "Boolean",
-          "constraints": {
-            "length": null,
-            "range": null,
-            "pattern": null,
-            "unique_items": false
-          },
-          "timestamp_format": null,
-          "docs": null,
-          "notes": {
-            "deprecated": null,
-            "since": null,
-            "unstable": false,
-            "external_docs": {}
-          },
-          "traits": {}
-        }
-      },
-      "smithy.api#Integer": {
-        "Simple": {
-          "internal": false,
-          "sensitive": false,
-          "kind": "Integer",
-          "constraints": {
-            "length": null,
-            "range": null,
-            "pattern": null,
-            "unique_items": false
-          },
-          "timestamp_format": null,
-          "docs": null,
-          "notes": {
-            "deprecated": null,
-            "since": null,
-            "unstable": false,
-            "external_docs": {}
-          },
-          "traits": {}
-        }
-      },
-      "smithy.api#String": {
-        "Simple": {
-          "internal": false,
-          "sensitive": false,
-          "kind": "String",
-          "constraints": {
-            "length": null,
-            "range": null,
-            "pattern": null,
-            "unique_items": false
-          },
-          "timestamp_format": null,
-          "docs": null,
-          "notes": {
-            "deprecated": null,
-            "since": null,
-            "unstable": false,
-            "external_docs": {}
-          },
-          "traits": {}
-        }
       }
     },
     "traits": {},
-    "renames": {},
     "versions": [],
     "api_version": "v1"
   }

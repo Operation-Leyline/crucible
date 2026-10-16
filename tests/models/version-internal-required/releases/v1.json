@@ -1,5 +1,5 @@
 {
-  "format": 4,
+  "format": 5,
   "compiler": "crucible 0.7.0",
   "service": {
     "internal": false,
@@ -93,6 +93,28 @@
     "resource_roots": [],
     "resource_references": {},
     "shapes": {
+      "crucible.api#String": {
+        "Simple": {
+          "internal": false,
+          "sensitive": false,
+          "kind": "String",
+          "constraints": {
+            "length": null,
+            "range": null,
+            "pattern": null,
+            "unique_items": false
+          },
+          "timestamp_format": null,
+          "docs": null,
+          "notes": {
+            "deprecated": null,
+            "since": null,
+            "unstable": false,
+            "external_docs": {}
+          },
+          "traits": {}
+        }
+      },
       "example.required#GetItemInput": {
         "Structure": {
           "internal": false,
@@ -104,11 +126,10 @@
               "internal": false,
               "sensitive": false,
               "name": "id",
-              "target": "smithy.api#String",
+              "target": "crucible.api#String",
               "required": true,
               "default": null,
               "wire_default": null,
-              "client_optional": false,
               "idempotency_token": false,
               "mutability": null,
               "constraints": {
@@ -151,11 +172,10 @@
               "internal": false,
               "sensitive": false,
               "name": "name",
-              "target": "smithy.api#String",
+              "target": "crucible.api#String",
               "required": true,
               "default": null,
               "wire_default": null,
-              "client_optional": false,
               "idempotency_token": false,
               "mutability": null,
               "constraints": {
@@ -179,11 +199,10 @@
               "internal": true,
               "sensitive": false,
               "name": "token",
-              "target": "smithy.api#String",
+              "target": "crucible.api#String",
               "required": true,
               "default": null,
               "wire_default": null,
-              "client_optional": false,
               "idempotency_token": false,
               "mutability": null,
               "constraints": {
@@ -214,32 +233,9 @@
           },
           "traits": {}
         }
-      },
-      "smithy.api#String": {
-        "Simple": {
-          "internal": false,
-          "sensitive": false,
-          "kind": "String",
-          "constraints": {
-            "length": null,
-            "range": null,
-            "pattern": null,
-            "unique_items": false
-          },
-          "timestamp_format": null,
-          "docs": null,
-          "notes": {
-            "deprecated": null,
-            "since": null,
-            "unstable": false,
-            "external_docs": {}
-          },
-          "traits": {}
-        }
       }
     },
     "traits": {},
-    "renames": {},
     "versions": [],
     "api_version": "v1"
   }
