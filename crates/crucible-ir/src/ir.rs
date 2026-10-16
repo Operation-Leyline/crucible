@@ -126,6 +126,11 @@ pub struct PolicyException {
 
 /// An older API version: its release's model, and how a request or a
 /// response crosses to the next version.
+///
+/// Never part of a release snapshot: `snapshot::write` clears
+/// `Service::versions`, so the steps are no on-disk format. A field with a
+/// natural empty value still takes `#[serde(default)]`; a shape id or a
+/// route has none.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct ApiVersion {
     /// The release's `version`, such as `2026-09-04`.
@@ -136,10 +141,20 @@ pub struct ApiVersion {
     pub steps: Vec<VersionStep>,
     /// After this date the version may be refused (`YYYY-MM-DD`).
     pub sunset: Option<String>,
+    /// The `///` documentation of the `sunset` step: why and how the
+    /// version ends, for the reference and upgrade guides.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub sunset_docs: Option<String>,
+    /// The `///` documentation of the migration from this version to the
+    /// next: what changed, for the reference and upgrade guides.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub docs: Option<String>,
 }
 
 /// One checked migration step, its paths resolved to shape ids. `old`
-/// names a shape in this version's model, `new` in the next version's.
+/// names a shape in this version's model, `new` in the next version's;
+/// each step carries both sides, so neither needs looking up by the
+/// other's id. `docs` is the step's `///` documentation.
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum VersionStep {
     /// A member renamed: `old.from` became `new.to`.
@@ -148,19 +163,33 @@ pub enum VersionStep {
         new: ShapeId,
         from: String,
         to: String,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        docs: Option<String>,
     },
     /// An optional input member became required; an older request that
     /// omits it gets `default`.
     Require {
+        /// The structure as this version declares it.
+        old: ShapeId,
         new: ShapeId,
         member: String,
+        /// The member's name in this version, when the same migration
+        /// renamed it; empty when it kept `member`.
+        #[serde(default, skip_serializing_if = "String::is_empty")]
+        from: String,
         default: Value,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        docs: Option<String>,
     },
     /// An enum value added; older responses see `downgrade` instead.
     AddEnumValue {
+        /// The enum as this version declares it, which has `downgrade`.
+        old: ShapeId,
         new: ShapeId,
         value: String,
         downgrade: String,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        docs: Option<String>,
     },
     /// An error added to an operation; older clients get `downgrade`, its
     /// members filled from the new error's (`downgrade member <- new member`).
@@ -169,14 +198,27 @@ pub enum VersionStep {
         error: ShapeId,
         downgrade: ShapeId,
         members: Vec<(String, String)>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        docs: Option<String>,
     },
-    /// An operation moved; this version reaches it at its old route, which
-    /// this version's model already holds.
-    Move { operation: ShapeId },
+    /// An operation moved; this version reaches it at `old_method`
+    /// `old_uri`, the route `move Op from ..` names.
+    Move {
+        operation: ShapeId,
+        old_method: String,
+        old_uri: Uri,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        docs: Option<String>,
+    },
     /// A behaviour change the handler branches on (`behavior Op.name`).
-    Behavior { operation: ShapeId, name: String },
-    /// A step a hook the service writes serves (`reshape`, `retype`,
-    /// `require .. by hook`, `remove operation`).
+    Behavior {
+        operation: ShapeId,
+        name: String,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        docs: Option<String>,
+    },
+    /// A step a hook the service writes, or a declared `conversion`, serves
+    /// (`reshape`, `retype`, `require .. by hook`, `remove operation`).
     Hooked {
         /// The step's verb, for messages.
         kind: String,
@@ -185,16 +227,43 @@ pub enum VersionStep {
         hook: Hook,
         /// `by async hook`: the hook may do I/O.
         is_async: bool,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        docs: Option<String>,
     },
+}
+
+impl VersionStep {
+    /// The step's `///` documentation, if it has any.
+    pub fn docs(&self) -> Option<&str> {
+        match self {
+            Self::Rename { docs, .. }
+            | Self::Require { docs, .. }
+            | Self::AddEnumValue { docs, .. }
+            | Self::AddError { docs, .. }
+            | Self::Move { docs, .. }
+            | Self::Behavior { docs, .. }
+            | Self::Hooked { docs, .. } => docs.as_deref(),
+        }
+    }
 }
 
 /// What a hook converts. `old` names a shape in the older version's model,
 /// `new` in the next version's.
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum Hook {
-    /// `reshape S { .. } -> m`: the whole structure, each way it travels.
-    Reshape { old: ShapeId, new: ShapeId },
-    /// `retype S.m -> T`: the member's value, each way it travels.
+    /// `reshape S { a, b } -> m`: the whole structure, each way it travels.
+    Reshape {
+        old: ShapeId,
+        new: ShapeId,
+        /// The members of `old` the step replaced, as written.
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        members: Vec<String>,
+        /// The member of `new` they became.
+        #[serde(default, skip_serializing_if = "String::is_empty")]
+        into: String,
+    },
+    /// `retype S.m -> T`: the member's value, each way it travels, by the
+    /// service's hook or by a declared `conversion`.
     Retype {
         old: ShapeId,
         new: ShapeId,
@@ -203,6 +272,9 @@ pub enum Hook {
         /// renamed it; empty when it kept `member`.
         #[serde(default, skip_serializing_if = "String::is_empty")]
         from: String,
+        /// What converts the value.
+        #[serde(default, skip_serializing_if = "RetypeBy::is_hook")]
+        by: RetypeBy,
     },
     /// `require S.m by hook`: the value an older request could not send,
     /// computed from the rest of it.
@@ -210,12 +282,30 @@ pub enum Hook {
         old: ShapeId,
         new: ShapeId,
         member: String,
+        /// The member's name in the older version, when the same migration
+        /// renamed it; empty when it kept `member`. Always empty while the
+        /// compiler refuses a hooked requirement on a renamed member.
+        #[serde(default, skip_serializing_if = "String::is_empty")]
+        from: String,
     },
     /// `remove operation Op`: the older versions' own handler.
     RemoveOperation { operation: ShapeId },
-    /// `retype S.m -> T` without `by hook`, served by a declared
-    /// `conversion`.
+}
+
+/// What converts a retyped member's value between two versions.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub enum RetypeBy {
+    /// `retype S.m -> T by hook`: a method the service writes.
+    #[default]
+    Hook,
+    /// `retype S.m -> T` without `by hook`: a declared `conversion`.
     Conversion,
+}
+
+impl RetypeBy {
+    fn is_hook(&self) -> bool {
+        *self == Self::Hook
+    }
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]

@@ -1360,3 +1360,323 @@ fn a_renamed_member_is_compared_with_its_new_self_wherever_it_is_bound() {
         rules(&required)
     );
 }
+
+/// The shared test package `tests/models/<name>`.
+fn model(name: &str) -> PathBuf {
+    Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../tests/models")
+        .join(name)
+}
+
+#[test]
+fn every_step_kind_lowers_with_both_sides_and_its_documentation() {
+    use crucible_ir::ShapeId;
+    use crucible_ir::ir::{Hook, RetypeBy, VersionStep};
+
+    let loaded = load_package(&model("version-steps")).unwrap();
+    let own = loaded.files.len();
+    let compiled = compile(&loaded, None);
+    assert!(compiled.service.is_some(), "{}", compiled.render());
+    let checked = guard(&loaded, &compiled, own, &Config::default())
+        .unwrap()
+        .unwrap();
+    assert!(
+        !checked.has_errors(),
+        "{:?} {:?}",
+        rules(&checked),
+        problems(&checked)
+    );
+    let versions = crucible_lang::versions(&loaded, &compiled, own).unwrap();
+    let [v1] = &versions[..] else {
+        panic!("one older release: {versions:?}");
+    };
+    assert_eq!(v1.name, "v1");
+    assert_eq!(v1.sunset.as_deref(), Some("2027-01-01"));
+    assert_eq!(
+        v1.sunset_docs.as_deref(),
+        Some("v1 is served until the end of 2026.")
+    );
+    assert_eq!(
+        v1.docs.as_deref(),
+        Some(
+            "v2 names an item's title, measures its size as an area, and counts\nitems in [ListItems]."
+        )
+    );
+
+    let id = |name: &str| format!("example.steps#{name}").parse::<ShapeId>().unwrap();
+    // Their doc links resolve in the current model, as any other's do.
+    let links = &compiled.service.as_ref().unwrap().doc_links;
+    assert_eq!(links.get("ListItems"), Some(&id("ListItems")));
+    assert_eq!(
+        links.get("GetItem.title"),
+        Some(&id("GetItemOutput").with_member("title"))
+    );
+    // What only the release the migration comes from has, a member's older
+    // name and a removed operation, is accepted as text: it links nothing.
+    assert_eq!(links.get("GetItem.name"), None);
+    assert_eq!(links.get("CountItems"), None);
+    let docs = |text: &str| Some(text.to_owned());
+    let steps = &v1.steps;
+    // One step each, in declaration order; `sunset` is the release's.
+    assert_eq!(steps.len(), 13, "{steps:#?}");
+    assert_eq!(
+        steps[0],
+        VersionStep::Rename {
+            old: id("GetItemOutput"),
+            new: id("GetItemOutput"),
+            from: "name".into(),
+            to: "title".into(),
+            docs: docs("An item's name, [GetItem.name] in v1, is its [GetItem.title]."),
+        }
+    );
+    assert_eq!(
+        steps[1],
+        VersionStep::Rename {
+            old: id("ListItemsInput"),
+            new: id("ListItemsInput"),
+            from: "max".into(),
+            to: "limit".into(),
+            docs: docs("The page size is `limit`."),
+        }
+    );
+    // Named as it is now, `limit`; v1 called it `max`.
+    assert_eq!(
+        steps[2],
+        VersionStep::Require {
+            old: id("ListItemsInput"),
+            new: id("ListItemsInput"),
+            member: "limit".into(),
+            from: "max".into(),
+            default: serde_json::json!(20),
+            docs: docs("An older request without a page size gets 20."),
+        }
+    );
+    assert_eq!(
+        steps[3],
+        VersionStep::Hooked {
+            kind: "require".into(),
+            operations: vec![id("ListItems")],
+            hook: Hook::Require {
+                old: id("ListItemsInput"),
+                new: id("ListItemsInput"),
+                member: "sort".into(),
+                from: String::new(),
+            },
+            is_async: true,
+            docs: docs("An older request's sort order is the account's."),
+        }
+    );
+    assert_eq!(
+        steps[4],
+        VersionStep::AddEnumValue {
+            old: id("Kind"),
+            new: id("Kind"),
+            value: "HUGE".into(),
+            downgrade: "LARGE".into(),
+            docs: docs("Older clients see a huge item as large."),
+        }
+    );
+    assert_eq!(
+        steps[5],
+        VersionStep::AddError {
+            operation: id("GetItem"),
+            error: id("ItemGone"),
+            downgrade: id("ItemNotFound"),
+            members: vec![("message".into(), "message".into())],
+            docs: docs("Older clients see a deleted item as not found."),
+        }
+    );
+    // The older route, which v1 has and v2 does not.
+    assert!(
+        matches!(
+            &steps[6],
+            VersionStep::Move { operation, old_method, old_uri, docs }
+                if operation == &id("GetItem")
+                    && old_method == "GET"
+                    && old_uri.to_string() == "/items/{id}"
+                    && docs.as_deref() == Some("Items are things now.")
+        ),
+        "{:#?}",
+        steps[6]
+    );
+    assert_eq!(
+        steps[7],
+        VersionStep::Hooked {
+            kind: "reshape".into(),
+            operations: vec![id("GetItem")],
+            hook: Hook::Reshape {
+                old: id("Size"),
+                new: id("Size"),
+                members: vec!["width".into(), "height".into()],
+                into: "area".into(),
+            },
+            is_async: false,
+            docs: docs("A size is its area."),
+        }
+    );
+    assert_eq!(
+        steps[8].docs(),
+        Some("The count is a quantity, and a string.")
+    );
+    // Named as it is now, `quantity`; v1 called it `count`. The documentation
+    // above the rename is the rename's, so the retype has none.
+    assert_eq!(
+        steps[9],
+        VersionStep::Hooked {
+            kind: "retype".into(),
+            operations: vec![id("PutItem")],
+            hook: Hook::Retype {
+                old: id("PutItemInput"),
+                new: id("PutItemInput"),
+                member: "quantity".into(),
+                from: "count".into(),
+                by: RetypeBy::Hook,
+            },
+            is_async: false,
+            docs: None,
+        }
+    );
+    // Without `by hook`: the same two sides, converted by a declared
+    // `conversion`.
+    assert_eq!(
+        steps[10],
+        VersionStep::Hooked {
+            kind: "retype".into(),
+            operations: vec![id("PutItem")],
+            hook: Hook::Retype {
+                old: id("PutItemOutput"),
+                new: id("PutItemOutput"),
+                member: "total".into(),
+                from: String::new(),
+                by: RetypeBy::Conversion,
+            },
+            is_async: false,
+            docs: docs("The total is a string, by a declared conversion."),
+        }
+    );
+    assert_eq!(
+        steps[11],
+        VersionStep::Hooked {
+            kind: "remove operation".into(),
+            operations: vec![id("CountItems")],
+            hook: Hook::RemoveOperation {
+                operation: id("CountItems"),
+            },
+            is_async: true,
+            docs: docs("[CountItems] is gone: ListItems counts items now."),
+        }
+    );
+    assert_eq!(
+        steps[12],
+        VersionStep::Behavior {
+            operation: id("ListItems"),
+            name: "ordering".into(),
+            docs: docs("ListItems sorts by name."),
+        }
+    );
+
+    // The steps read back as they were written: every field a step leaves
+    // out when empty (`from`, `by: Hook`, `docs`) has a default.
+    let written = serde_json::to_value(&v1.steps).unwrap();
+    let read: Vec<VersionStep> = serde_json::from_value(written).unwrap();
+    assert_eq!(&read, steps);
+
+    // Steps never reach a release: a service's snapshot is the same with its
+    // versions as without them, so carrying both sides changes no format.
+    let mut service = compiled.service.clone().unwrap();
+    let plain = crucible_ir::snapshot::write(&service, "test");
+    service.versions = versions.clone();
+    assert_eq!(crucible_ir::snapshot::write(&service, "test"), plain);
+}
+
+#[test]
+fn a_hooked_requirement_on_a_retyped_member_is_refused_at_the_requirement() {
+    let loaded = load_package(&model("version-require-retyped")).unwrap();
+    let own = loaded.files.len();
+    let compiled = compile(&loaded, None);
+    assert!(compiled.service.is_some(), "{}", compiled.render());
+    let checked = guard(&loaded, &compiled, own, &Config::default())
+        .unwrap()
+        .unwrap();
+    assert!(checked.has_errors());
+    let [problem] = &checked.problems[..] else {
+        panic!("one problem: {:?}", problems(&checked));
+    };
+    assert_eq!(
+        problem.diagnostic.message,
+        "`PutItemInput.note` is both required by hook and retyped in this migration; declare one step for it"
+    );
+    // At the requirement's path.
+    let file = &compiled.files[problem.file.expect("a problem with a line")];
+    let span = problem.diagnostic.span;
+    assert_eq!(
+        &file.text[span.start as usize..span.end as usize],
+        "PutItemInput.note"
+    );
+    let lines = crucible_lang::span::LineIndex::new(&file.text);
+    assert_eq!(lines.line_col(&file.text, span.start), (21, 13));
+    // The server's versions are refused too, before any generator sees them.
+    let error = crucible_lang::versions(&loaded, &compiled, own).unwrap_err();
+    assert!(
+        error.contains("both required by hook and retyped"),
+        "{error}"
+    );
+
+    // Only a hook is refused: the same member required by a default, which
+    // runs after the retype, is accepted.
+    let dir = Path::new(env!("CARGO_TARGET_TMPDIR")).join("migrations-require-retyped-default");
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(dir.join("releases")).unwrap();
+    let source = model("version-require-retyped");
+    for file in [
+        "crucible.toml",
+        "releases/v1.json",
+        "releases/crucible.lock",
+    ] {
+        std::fs::copy(source.join(file), dir.join(file)).unwrap();
+    }
+    let text = std::fs::read_to_string(source.join("shop.cru")).unwrap();
+    std::fs::write(
+        dir.join("shop.cru"),
+        text.replace(
+            "require PutItemInput.note by hook",
+            "require PutItemInput.note default \"\"",
+        ),
+    )
+    .unwrap();
+    let loaded = load_package(&dir).unwrap();
+    let compiled = compile(&loaded, None);
+    let checked = guard(&loaded, &compiled, loaded.files.len(), &Config::default())
+        .unwrap()
+        .unwrap();
+    assert!(
+        !checked.has_errors(),
+        "{:?} {:?}",
+        rules(&checked),
+        problems(&checked)
+    );
+}
+
+#[test]
+fn a_dangling_doc_link_in_a_migration_is_an_error() {
+    for (name, migration) in [
+        (
+            "doc-link-migration",
+            "/// See [Gone].\nmigration \"v2\" from \"v1\" {}\n",
+        ),
+        (
+            "doc-link-step",
+            "migration \"v2\" from \"v1\" {\n    /// See [Gone].\n    sunset \"2027-01-01\"\n}\n",
+        ),
+    ] {
+        let dir = package(name, V1, migration);
+        let compiled = compile(&load_package(&dir).unwrap(), None);
+        let rendered = compiled.render();
+        assert!(
+            compiled.service.is_none()
+                && rendered.contains("the doc link `[Gone]` names nothing")
+                && rendered.contains("nor in release \"v1\", which this migration comes from"),
+            "{name}: {rendered}"
+        );
+    }
+}

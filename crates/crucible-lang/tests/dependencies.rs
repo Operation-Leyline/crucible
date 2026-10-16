@@ -422,3 +422,51 @@ fn two_dependencies_cannot_share_a_rule_name() {
         "is declared by both `org.standards` and `org.other`",
     );
 }
+
+/// A package whose migration's documentation names its own older release.
+const NOTES: &str = r#"
+string Note
+
+/// v2 drops [Gone], which only this package's v1 had.
+migration "v2" from "v1" {
+    /// [Gone] is retired.
+    sunset "2027-01-01"
+}
+"#;
+
+#[test]
+fn an_imported_packages_migration_docs_are_its_own() {
+    let dir = scratch("imported-migration-docs");
+    write(
+        &dir,
+        &[
+            (
+                "notes/crucible.toml",
+                "[model]\nnamespace = \"org.notes\"\n",
+            ),
+            ("notes/notes.cru", NOTES),
+            (
+                "shop/crucible.toml",
+                "[model]\nnamespace = \"example.shop\"\nimports = [\"org.notes\"]\n\n[model.dependencies]\n\"org.notes\" = { path = \"../notes\" }\n",
+            ),
+            ("shop/shop.cru", SHOP.replace("@owned\n", "").as_str()),
+        ],
+    );
+    // The consumer has neither `Gone` nor the import's releases: the
+    // import's migration is not checked against them.
+    let shop = compiled(&dir);
+    assert!(shop.service.is_some(), "{}", shop.render());
+    assert!(
+        !shop.service.unwrap().doc_links.contains_key("Gone"),
+        "an imported migration's link reaches no table"
+    );
+    // Its own compile checks it.
+    let notes = compile(&load_package(&dir.join("notes")).unwrap(), None);
+    assert!(
+        notes
+            .render()
+            .contains("the doc link `[Gone]` names nothing"),
+        "{}",
+        notes.render()
+    );
+}

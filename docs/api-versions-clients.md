@@ -169,8 +169,9 @@ references to the code as of this design.
 
 ### Steps carry both sides
 
-Undo and the server need each step's older and newer side. The IR has
-gaps (`crucible-ir/src/ir.rs:113-205`):
+Built in PR 1 (*Order*, below); the references here are to the code
+before it. Undo and the server need each step's older and newer side. The
+IR had gaps (`crucible-ir/src/ir.rs:113-205`):
 
 - `VersionStep::Require` holds the new side only (`ir.rs:140-144`), so
   undo has nowhere to find the frozen member, and `conversion()` looks the
@@ -627,19 +628,23 @@ symbol to its own.
 ## Order
 
 Each line is one pull request, in this order unless it says otherwise. 5a
-is built.
+is built, and so is PR 1.
 
-1. **Steps carry both sides.** `VersionStep::Require` gains `old` and
-   `from`, `Hook::Require` gains `from`, `AddEnumValue` gains `old`, `Move`
-   its older route, `Reshape` its members; `Hook::Conversion` becomes
-   `Hook::Retype { by: Conversion }`; steps and migrations keep their
+1. **Steps carry both sides.** *Built.* `VersionStep::Require` gains `old`
+   and `from`, `Hook::Require` gains `from`, `AddEnumValue` gains `old`,
+   `Move` its older route (`old_method`, `old_uri`), `Reshape` its members
+   (`members`, `into`); `Hook::Conversion` becomes
+   `Hook::Retype { by: RetypeBy::Conversion }`; steps (`docs`,
+   `VersionStep::docs()`) and migrations (`ApiVersion::docs`) keep their
    documentation; the generator's refusal of a hooked requirement that a
    `rename` or `retype` also names moves into the compiler. *Crates:*
    crucible-ir, crucible-lang (`guard.rs` lowering), crucible-codegen-rust
-   (matches; the requirement's places use `old`). *Tests:*
-   `crucible-lang/tests/migrations.rs` asserts each lowered kind, its sides
-   and documentation, and the moved refusal with its span; generator
-   goldens do not change.
+   (matches; the requirement's places and an enum's downgrade use `old`).
+   *Tests:* `crucible-lang/tests/migrations.rs` asserts each lowered kind,
+   its sides and documentation, from `tests/models/version-steps`, and the
+   moved refusal with its span, from `tests/models/version-require-retyped`;
+   a snapshot is the same with the steps as without; generator goldens do
+   not change.
 2. **No silent skips in conversions.** The six bare `continue`s become
    diagnostics, one per operation and step. *Crate:*
    crucible-codegen-rust. *Tests:* `crucible-codegen-rust/tests/versions.rs`,

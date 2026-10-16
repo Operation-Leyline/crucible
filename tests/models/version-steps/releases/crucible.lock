@@ -1,0 +1,5 @@
+# Written by `crucible freeze`: each frozen release's digest. A release
+# is never edited; the build refuses one that no longer matches.
+
+[releases]
+"v1.json" = "sha256:95d19e1d6e4a1d949c0c9ae2c6164e8b94e1d15cef62e5d254ba4fd010325b48"

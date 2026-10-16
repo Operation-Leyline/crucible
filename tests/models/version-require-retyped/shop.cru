@@ -1,0 +1,23 @@
+service Shop {
+    version "v2"
+    protocol json
+    operations [PutItem]
+}
+
+idempotent operation PutItem {
+    http PUT "/items/{id}"
+    input {
+        id: string
+        note: string
+    }
+    output { done: boolean }
+}
+
+// Refused: the hook fills `note` with v2's value before the retype
+// converts it, so the retype would convert it again. The requirement comes
+// first and names the structure, the retype the operation's input: the
+// refusal depends on neither order nor spelling.
+migration "v2" from "v1" {
+    require PutItemInput.note by hook
+    retype PutItem.input.note -> string by hook
+}
