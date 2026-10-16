@@ -591,7 +591,10 @@ impl ServerOutput {
             check_policy(&service, policy)?;
         }
         let service = if self.side == Side::Client {
-            crucible_ir::project(&service, self.audience).map_err(|e| e.to_string())?
+            // A client never calls a sender-signed operation (decision 81).
+            crucible_ir::client_view(
+                &crucible_ir::project(&service, self.audience).map_err(|e| e.to_string())?,
+            )
         } else {
             service
         };

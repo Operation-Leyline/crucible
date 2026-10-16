@@ -638,6 +638,18 @@ const KEYWORDS: &[Row] = &[
         "operation CreateCity {\n    input {\n        @token clientToken?: string\n    }\n}",
     ),
     (
+        "@sender",
+        ANYWHERE,
+        "Declares a sender-signed operation (a webhook receiver): a third party calls it and proves itself with a signature it computes, carried in the named input member's request header. The operation is `public`; the reference says who calls it, and clients, the service CLI and MCP leave it out.",
+        "@sender(\"Stripe\", signature: signature)
+public operation RecordStripeEvent {
+    http POST \"/stripe-events\"
+    input {
+        @header(\"Stripe-Signature\") signature: string
+    }
+}",
+    ),
+    (
         "@since",
         ANYWHERE,
         "The version that added it.",

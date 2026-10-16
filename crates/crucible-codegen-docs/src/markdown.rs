@@ -432,14 +432,25 @@ fn llms(d: &Description, pages: &[File]) -> [File; 2] {
     }
     out.push_str("\n## Operations\n\n");
     for op in d.operations.values() {
+        let mut facts = format!("{} {}.", string(&op["method"]), string(&op["uri"]));
+        if let Some(sender) = op["sender"].as_object() {
+            facts.push_str(&format!(
+                " Called by {}, which signs it in the `{}` header.",
+                sender
+                    .get("name")
+                    .and_then(Value::as_str)
+                    .unwrap_or_default(),
+                sender
+                    .get("header")
+                    .and_then(Value::as_str)
+                    .unwrap_or_default()
+            ));
+        }
         out.push_str(&format!(
             "- [{}](src/{}): {}\n",
             string(&op["name"]),
             operation_path(op),
-            described(
-                &format!("{} {}.", string(&op["method"]), string(&op["uri"])),
-                op
-            )
+            described(&facts, op)
         ));
     }
     out.push_str("\n## Data types\n\n");
@@ -815,7 +826,8 @@ fn message(d: &Description, op: &Value, request: bool) -> String {
                 http.push_str(&format!("\n{header}"));
             }
         }
-        if let Some(header) = version_header(d) {
+        // A third party's request names no release of this API.
+        if let Some(header) = version_header(d).filter(|_| op["sender"].is_null()) {
             http.push_str(&format!("\n{header}"));
         }
     }
@@ -837,7 +849,7 @@ fn message(d: &Description, op: &Value, request: bool) -> String {
         http.push_str(&format!("\n\n{{{}}}", string(&b["payload"]["member"])));
     }
     out.push_str(&fence("http", &http));
-    if request && version_header(d).is_some() {
+    if request && version_header(d).is_some() && op["sender"].is_null() {
         out.push_str(&format!(
             "{} names the release this page describes. {}\n\n",
             code(string(&d.versions["carrier"]["name"])),
@@ -1039,9 +1051,32 @@ fn table_cell(html: &str) -> String {
     html.trim().replace('|', "&#124;").replace('\n', " ")
 }
 
+/// Who calls a sender-signed operation (decision 81) and where its
+/// signature travels, or nothing for an operation clients call.
+fn sender(op: &Value) -> Option<String> {
+    let sender = op["sender"].as_object()?;
+    let name = literal(
+        sender
+            .get("name")
+            .and_then(Value::as_str)
+            .unwrap_or_default(),
+    );
+    let header = sender
+        .get("header")
+        .and_then(Value::as_str)
+        .unwrap_or_default();
+    Some(format!(
+        "Called by {name}, not by clients of this API. It takes no credential: {name} signs each request, and the service verifies the signature in the {} header.",
+        code(header)
+    ))
+}
+
 /// How the caller authenticates: each effective scheme as the header it
 /// sends, or that the operation takes no credential.
 fn authentication(d: &Description, op: &Value) -> String {
+    if let Some(sender) = sender(op) {
+        return format!("{sender}\n\n");
+    }
     let schemes = list(&op["auth"]);
     if schemes.is_empty() {
         return "None: this operation takes no credential.\n\n".into();

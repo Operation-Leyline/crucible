@@ -1,0 +1,15 @@
+schema_version = 1
+
+# Sender-signed operations (decision 81): webhook receivers a third party
+# calls, signing each request instead of holding a credential. The
+# reference says who calls each and where its signature travels; clients,
+# the service CLI and MCP leave them out.
+[model]
+namespace = "example.hooks"
+language = 1
+sources = ["."]
+imports = []
+
+[model.naming]
+input = "{Operation}Input"
+output = "{Operation}Output"

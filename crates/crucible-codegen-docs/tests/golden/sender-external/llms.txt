@@ -1,0 +1,35 @@
+# Hooks
+
+> Accounts, paid for through a payment processor that reports payments to RecordPaymentEvent.
+
+Every page below is Markdown. Requests are JSON over HTTP; each operation's page gives its method and URI, its headers, its request and response with an example, its errors and its pagination. Send `Authorization: Bearer <token>` unless an operation's page says it takes no credential. Send `Crucible-Version: 2026-10-01` on every request. `describe.json` holds the whole reference as data (`crucible.describe/1`).
+
+## Overview
+
+- [Service overview](src/index.md): protocol, authentication, service errors, and the operations of each resource
+
+## Operations
+
+- [GetAccount](src/operations/API_GetAccount.md): GET /accounts/{accountId}. Read an account.
+- [RecordPaymentEvent](src/operations/API_RecordPaymentEvent.md): POST /payment-events. Called by Payments Inc., which signs it in the `Payment-Signature` header. Receive an event from the payment processor.
+- [ReportLeakedKeys](src/operations/API_ReportLeakedKeys.md): POST /leaked-keys. Called by CodeHost, which signs it in the `Scanner-Signature` header. Receive a report of leaked keys from a code host's secret scanner.
+
+## Data types
+
+- [AccessDenied](src/shapes/AccessDenied.md): error, HTTP 403. A request that is not signed, or not signed by the sender.
+- [AccountId](src/shapes/AccountId.md): string.
+- [GetAccountInput](src/shapes/GetAccountInput.md): structure.
+- [GetAccountOutput](src/shapes/GetAccountOutput.md): structure.
+- [LeakedKey](src/shapes/LeakedKey.md): structure. A key the scanner found in public.
+- [LeakedKeys](src/shapes/LeakedKeys.md): list.
+- [PaymentEventBody](src/shapes/PaymentEventBody.md): blob. The event as the processor sent it, unparsed, so the signature is checked over exactly those bytes.
+- [PaymentSignature](src/shapes/PaymentSignature.md): string. The processor's signature: a timestamp and an HMAC of the exact body.
+- [RecordPaymentEventInput](src/shapes/RecordPaymentEventInput.md): structure.
+- [RecordPaymentEventOutput](src/shapes/RecordPaymentEventOutput.md): structure.
+- [ReportLeakedKeysInput](src/shapes/ReportLeakedKeysInput.md): structure.
+
+## Optional
+
+- [llms-full.txt](llms-full.txt): every page above in one file
+- [describe.json](describe.json): the whole reference as JSON (`crucible.describe/1`)
+- [changes.json](changes.json): the release chain alone (`crucible.changes/1`)

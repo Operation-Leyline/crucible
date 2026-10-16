@@ -559,6 +559,12 @@ fn operation(service: &Service, op: &Operation, explorer: bool) -> Value {
                     "message":error_message(service,&e.shape,info,&e.content)})
             })})).collect::<Vec<_>>(),
         "sample":sample(service,op)});
+    // A third party calls it and signs each request (decision 81): who, and
+    // the member and header the signature travels in. Absent otherwise.
+    if let Some(sender) = &op.sender {
+        value["sender"] = json!({"name": sender.name, "member": sender.signature,
+            "header": op.signature_header()});
+    }
     // What the caller must hold: the clauses as data, and the sentences
     // every generated client's documentation carries.
     if let Some(mut requirements) = crate::permissions::requirements(service, op) {

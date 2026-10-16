@@ -25,6 +25,7 @@ const REFUSED: &[&str] = &[
     "patterns-unsupported",
     "recursive-output",
     "resource-entry-refusals",
+    "sender-signed-refusals",
 ];
 
 /// Every fallback a package's samples report, as `package: shape: path`.

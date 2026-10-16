@@ -736,7 +736,21 @@
     const out = [
       pageHeader(m, op.name, op, h("span", { class: "cx-method", "data-method": op.method }, op.method)),
       panels,
-      h("section", { id: sectionId("overview") }, h("p", {}, "Protocol ", code(op.protocol), ". Authentication: ", list(op.auth).length ? list(op.auth).map((a) => code(a)) : "none", ".")),
+      h(
+        "section",
+        { id: sectionId("overview") },
+        h("p", {}, "Protocol ", code(op.protocol), ". Authentication: ", list(op.auth).length ? list(op.auth).map((a) => code(a)) : "none", "."),
+        // A third party calls it and signs each request (decision 81).
+        op.sender
+          ? h(
+              "p",
+              { class: "cx-sender" },
+              `Called by ${op.sender.name}, not by clients of this API. It takes no credential: ${op.sender.name} signs each request, and the service verifies the signature in the `,
+              code(op.sender.header || ""),
+              " header.",
+            )
+          : null,
+      ),
       authorizationSection(m, op),
       messageSection(m, op, true),
       messageSection(m, op, false),

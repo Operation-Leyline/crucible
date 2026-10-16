@@ -660,6 +660,11 @@ pub fn complete(context: Context, index: &Index, snippets: bool) -> Vec<Completi
             items.keyword("payload", "the whole HTTP body");
             items.keyword("token", "idempotency token, filled by clients");
             items.snippet(
+                "sender",
+                "called and signed by a third party",
+                "sender(\"${1:Sender}\", signature: ${2:signature})",
+            );
+            items.snippet(
                 "mutability",
                 "resource property lifecycle",
                 "mutability(${1|full,create,createAndRead,read,write|})",

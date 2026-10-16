@@ -15,8 +15,8 @@ use crucible_ir::ir::{
     AuthScheme, Binding, Bindings, Bounds, Constraints, Deprecation, DocNotes, Enum,
     EnumValue as IrEnumValue, ErrorInfo, Example as IrExample, ExampleError, Fault, HeaderEncoding,
     IntEnum, IntEnumValue, List, Map, Member as IrMember, Mutability, Operation as IrOperation,
-    Paginated, Payload, PayloadKind, Retryable, Segment, Service, Shape, Simple, SimpleKind,
-    Structure as IrStructure, TimestampFormat, Traits, Uri,
+    Paginated, Payload, PayloadKind, Retryable, Segment, Sender, Service, Shape, Simple,
+    SimpleKind, Structure as IrStructure, TimestampFormat, Traits, Uri,
 };
 use crucible_ir::{Feature, FeatureUse, Protocol, ProtocolSettings, ShapeId};
 use serde_json::{Map as JsonMap, Number, Value as Json};
@@ -241,6 +241,8 @@ struct Annotations {
     token: bool,
     /// `@mutability(..)`: an explicit override of the derived mutability.
     mutability: Option<Mutability>,
+    /// `@sender("Name", signature: member)` on an operation (decision 81).
+    sender: Option<Sender>,
 }
 
 /// A resource entry `$name` resolved to, and whether it is the resource's
@@ -1925,6 +1927,48 @@ impl<'a> Lowerer<'a> {
                     self.no_args(file, annotation);
                     out.token = true;
                 }
+                // Decision 81; `crucible_ir::validate` checks the operation
+                // is public and the member a request header.
+                "sender" => {
+                    if position != Position::Operation {
+                        self.error(
+                            file,
+                            annotation.span,
+                            format!(
+                                "`@sender` applies to an operation, not to a {}",
+                                position.target()
+                            ),
+                        );
+                        continue;
+                    }
+                    const FORM: &str = "`@sender` takes who sends the request and the input member that carries its signature: `@sender(\"Stripe\", signature: signature)`";
+                    let mut name = None;
+                    let mut signature = None;
+                    let mut wrong = false;
+                    for arg in &annotation.args {
+                        match (&arg.key, &arg.value) {
+                            (None, Value::Str(text)) if name.is_none() => {
+                                name = Some(text.value.clone());
+                            }
+                            (Some(Key::Name(key)), Value::Ident(member))
+                                if key.name == "signature" && signature.is_none() =>
+                            {
+                                signature = Some(member.name.clone());
+                            }
+                            _ => {
+                                wrong = true;
+                                self.error(file, arg.value.span(), FORM);
+                            }
+                        }
+                    }
+                    match (name, signature) {
+                        (Some(name), Some(signature)) => {
+                            out.sender = Some(Sender { name, signature });
+                        }
+                        _ if !wrong => self.error(file, annotation.span, FORM),
+                        _ => {}
+                    }
+                }
                 // Its arguments are read with the service's permissions.
                 "permissionTypes" => {
                     if position != Position::Shape("enum") {
@@ -2074,6 +2118,7 @@ impl<'a> Lowerer<'a> {
             "payload",
             "token",
             "mutability",
+            "sender",
             "permissionTypes",
             "authorizationName",
             "permissionOnly",
@@ -5087,6 +5132,7 @@ impl<'a> Lowerer<'a> {
             response,
             traits,
             requirements,
+            sender: annotations.sender,
         })
     }
 

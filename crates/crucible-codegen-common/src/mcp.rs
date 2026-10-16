@@ -21,6 +21,11 @@ pub fn emit(
     let mut operations: Vec<_> = service.operations.iter().collect();
     operations.sort_by(|a, b| a.name().cmp(b.name()));
     for op in operations {
+        // A third party calls it and signs the exact request (decision
+        // 81): an agent has no signature to send.
+        if op.sender.is_some() {
+            continue;
+        }
         if op.name().len() > 128 {
             diagnostics.push(&op.id,"mcp.invalid_tool_name: tool names must contain 1-128 ASCII letters, digits, underscore, hyphen, or dot");
             continue;

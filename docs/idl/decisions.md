@@ -1670,6 +1670,44 @@ references are to the code as of the design.
     their meaning. One table per service, keyed by label, since a name
     resolves the same everywhere in a package.
 
+## Sender-signed operations
+
+81. **`@sender("Name", signature: member)` declares an operation a third
+    party calls and authenticates with a signature it computes: a webhook
+    receiver.** The operation is `public` (it holds no credential of this
+    service), and `signature` names the input member, bound with
+    `@header`, that carries the signature; the member may be optional, so
+    a request without one is refused like a wrong one. Lowering records
+    `Operation::sender` (`Sender { name, signature }`, `serde(default)`
+    and omitted when absent, so every older snapshot reads and a model
+    without it freezes unchanged), and `Operation::signature_header` reads
+    the header from the member's binding. `crucible_ir::validate` refuses
+    it on an operation that is not `public` (`sender.public`), a
+    `signature` that names no `@header` input member (`sender.signature`)
+    and a blank name (`sender.name`); lowering refuses any other argument
+    form and any position but an operation. `describe.json` gives the
+    operation `sender: {name, member, header}`, and the references say
+    "Called by Stripe, not by clients of this API", where the signature
+    travels, and send no `Authorization` or `Crucible-Version` header,
+    which a third party does not send. Clients never call it, so
+    `crucible_ir::client_view` drops it, with what only it reached and
+    the doc links to it, for every client generator, the service CLI, the
+    in-build Rust client and `sdks.json`; MCP leaves it out too, since an
+    agent has no signature to send. The server implements it as any
+    `public` operation: the handler verifies the signature, over the raw
+    body when the input is a `@payload`. *Replaces:* inferring "called by
+    another host" from an empty `auth` list, which also describes a
+    public health check, and the prose every webhook repeated. *Why:*
+    Leyline's two webhook receivers (`RecordStripeEvent`,
+    `CreateGitHubSecretScanningReport`) are `public` operations whose
+    documentation says who calls them and how they are signed, and their
+    methods sat in every SDK beside the calls clients make. An
+    annotation, not a keyword, because it carries values (decision 27a);
+    the signature is a member rather than a header name, so the header is
+    declared once and documented with the other request parameters. The
+    verification scheme (HMAC, ECDSA, a key id) stays the handler's and
+    the documentation's: senders differ, and no generator acts on it.
+
 ## Settled in the syntax pass
 
 - Annotations versus keywords: decision 27a. Optionality is `name?:`.

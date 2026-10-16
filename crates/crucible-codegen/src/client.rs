@@ -139,7 +139,8 @@ impl Client {
         service: &Service,
         audience: crate::Audience,
     ) -> Result<crucible_codegen_common::surface::Surface, Diagnostics> {
-        let service = crucible_ir::project(service, audience)?;
+        // What a client calls: no sender-signed operation (decision 81).
+        let service = crucible_ir::client_view(&crucible_ir::project(service, audience)?);
         match *self {
             // The whole package is checked, manifest included, but an
             // automatic runtime dependency is resolved to a stand-in: which
@@ -233,6 +234,9 @@ impl Client {
         audience: crate::Audience,
         stamp: &crate::provenance::Stamp,
     ) -> Result<Vec<File>, Diagnostics> {
+        // A third party calls a sender-signed operation and signs it, so
+        // no client has it (decision 81).
+        let service = &crucible_ir::client_view(service);
         let mut files = self.emit_files(service)?;
         if let Some((name, version)) = self.package(service) {
             let package = crate::provenance::Package {

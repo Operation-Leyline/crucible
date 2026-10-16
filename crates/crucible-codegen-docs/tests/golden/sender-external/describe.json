@@ -1,0 +1,1616 @@
+{
+  "format": "crucible.describe/1",
+  "operations": {
+    "example.hooks#GetAccount": {
+      "auth": [
+        "crucible.api#httpBearerAuth"
+      ],
+      "documentation": {
+        "html": "<p>Read an account. Called by clients with a bearer token.</p>\n",
+        "markdown": "Read an account. Called by clients with a bearer token.",
+        "text": "Read an account. Called by clients with a bearer token."
+      },
+      "errors": [
+        "example.hooks#AccessDenied"
+      ],
+      "examples": [],
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
+      "id": "example.hooks#GetAccount",
+      "idempotencyToken": null,
+      "idempotent": false,
+      "input": "example.hooks#GetAccountInput",
+      "inputSchema": {
+        "$defs": {
+          "example.hooks.AccountId": {
+            "pattern": "^a-[0-9a-z]{8}$",
+            "type": "string"
+          },
+          "example.hooks.GetAccountInput": {
+            "properties": {
+              "accountId": {
+                "pattern": "^a-[0-9a-z]{8}$",
+                "type": "string"
+              }
+            },
+            "required": [
+              "accountId"
+            ],
+            "type": "object"
+          }
+        },
+        "properties": {
+          "accountId": {
+            "pattern": "^a-[0-9a-z]{8}$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "accountId"
+        ],
+        "type": "object"
+      },
+      "internal": false,
+      "method": "GET",
+      "name": "GetAccount",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "output": "example.hooks#GetAccountOutput",
+      "outputSchema": {
+        "$defs": {
+          "crucible.api.Long": {
+            "format": "int64",
+            "maximum": 9223372036854775807,
+            "minimum": -9223372036854775808,
+            "type": "integer"
+          },
+          "example.hooks.AccountId": {
+            "pattern": "^a-[0-9a-z]{8}$",
+            "type": "string"
+          },
+          "example.hooks.GetAccountOutput": {
+            "properties": {
+              "accountId": {
+                "pattern": "^a-[0-9a-z]{8}$",
+                "type": "string"
+              },
+              "credit": {
+                "$ref": "#/$defs/crucible.api.Long",
+                "description": "What only payment events change."
+              }
+            },
+            "required": [
+              "accountId",
+              "credit"
+            ],
+            "type": "object"
+          }
+        },
+        "properties": {
+          "accountId": {
+            "pattern": "^a-[0-9a-z]{8}$",
+            "type": "string"
+          },
+          "credit": {
+            "$ref": "#/$defs/crucible.api.Long",
+            "description": "What only payment events change."
+          }
+        },
+        "required": [
+          "accountId",
+          "credit"
+        ],
+        "type": "object"
+      },
+      "pagination": null,
+      "protocol": "crucibleJson",
+      "protocolHeaders": {},
+      "readonly": true,
+      "request": {
+        "body": [],
+        "headerEncodings": {},
+        "headers": [],
+        "labels": [
+          "accountId"
+        ],
+        "payload": null,
+        "query": [],
+        "timestampFormats": {}
+      },
+      "resources": [],
+      "response": {
+        "body": [
+          "accountId",
+          "credit"
+        ],
+        "headerEncodings": {},
+        "headers": [],
+        "labels": [],
+        "payload": null,
+        "query": [],
+        "timestampFormats": {}
+      },
+      "responseProtocolHeaders": {
+        "Content-Type": "application/json"
+      },
+      "sample": {
+        "fallbacks": [],
+        "generated": true,
+        "input": {
+          "body": null,
+          "headers": {},
+          "labels": {
+            "accountId": "a-3lfnxyzj"
+          },
+          "method": "GET",
+          "payload": null,
+          "query": [],
+          "uri": "/accounts/a-3lfnxyzj"
+        },
+        "minimalInput": {
+          "body": null,
+          "headers": {},
+          "labels": {
+            "accountId": "a-3lfnxyzj"
+          },
+          "method": "GET",
+          "payload": null,
+          "query": [],
+          "uri": "/accounts/a-3lfnxyzj"
+        },
+        "output": {
+          "body": {
+            "accountId": "a-3lfnxyzj",
+            "credit": 1
+          },
+          "headers": {
+            "Content-Type": "application/json"
+          },
+          "labels": {},
+          "payload": null,
+          "query": []
+        }
+      },
+      "status": 200,
+      "uri": "/accounts/{accountId}"
+    },
+    "example.hooks#RecordPaymentEvent": {
+      "auth": [],
+      "documentation": {
+        "html": "<p>Receive an event from the payment processor. A request whose signature\ndoes not verify is refused with <a data-crucible-ref=\"example.hooks#AccessDenied\">AccessDenied</a>.</p>\n",
+        "markdown": "Receive an event from the payment processor. A request whose signature\ndoes not verify is refused with [AccessDenied].",
+        "text": "Receive an event from the payment processor. A request whose signature\ndoes not verify is refused with AccessDenied."
+      },
+      "errors": [
+        "example.hooks#AccessDenied"
+      ],
+      "examples": [],
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
+      "id": "example.hooks#RecordPaymentEvent",
+      "idempotencyToken": null,
+      "idempotent": false,
+      "input": "example.hooks#RecordPaymentEventInput",
+      "inputSchema": {
+        "$defs": {
+          "example.hooks.PaymentEventBody": {
+            "contentEncoding": "base64",
+            "description": "The event as the processor sent it, unparsed, so the signature is\nchecked over exactly those bytes.",
+            "type": "string"
+          },
+          "example.hooks.PaymentSignature": {
+            "description": "The processor's signature: a timestamp and an HMAC of the exact body.",
+            "maxLength": 1024,
+            "minLength": 1,
+            "pattern": "^[ -~]+$",
+            "type": "string"
+          },
+          "example.hooks.RecordPaymentEventInput": {
+            "properties": {
+              "event": {
+                "$ref": "#/$defs/example.hooks.PaymentEventBody"
+              },
+              "signature": {
+                "description": "The processor's signature: a timestamp and an HMAC of the exact body.",
+                "maxLength": 1024,
+                "minLength": 1,
+                "pattern": "^[ -~]+$",
+                "type": "string"
+              }
+            },
+            "required": [
+              "signature",
+              "event"
+            ],
+            "type": "object"
+          }
+        },
+        "properties": {
+          "event": {
+            "$ref": "#/$defs/example.hooks.PaymentEventBody"
+          },
+          "signature": {
+            "description": "The processor's signature: a timestamp and an HMAC of the exact body.",
+            "maxLength": 1024,
+            "minLength": 1,
+            "pattern": "^[ -~]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "signature",
+          "event"
+        ],
+        "type": "object"
+      },
+      "internal": false,
+      "method": "POST",
+      "name": "RecordPaymentEvent",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "output": "example.hooks#RecordPaymentEventOutput",
+      "outputSchema": {
+        "$defs": {
+          "crucible.api.Boolean": {
+            "type": "boolean"
+          },
+          "example.hooks.RecordPaymentEventOutput": {
+            "properties": {
+              "received": {
+                "$ref": "#/$defs/crucible.api.Boolean"
+              }
+            },
+            "required": [
+              "received"
+            ],
+            "type": "object"
+          }
+        },
+        "properties": {
+          "received": {
+            "$ref": "#/$defs/crucible.api.Boolean"
+          }
+        },
+        "required": [
+          "received"
+        ],
+        "type": "object"
+      },
+      "pagination": null,
+      "protocol": "crucibleJson",
+      "protocolHeaders": {
+        "Content-Type": "application/json"
+      },
+      "readonly": false,
+      "request": {
+        "body": [],
+        "headerEncodings": {},
+        "headers": [
+          {
+            "member": "signature",
+            "name": "Payment-Signature"
+          }
+        ],
+        "labels": [],
+        "payload": {
+          "kind": "blob",
+          "mediaType": "application/json",
+          "member": "event"
+        },
+        "query": [],
+        "timestampFormats": {}
+      },
+      "resources": [],
+      "response": {
+        "body": [
+          "received"
+        ],
+        "headerEncodings": {},
+        "headers": [],
+        "labels": [],
+        "payload": null,
+        "query": [],
+        "timestampFormats": {}
+      },
+      "responseProtocolHeaders": {
+        "Content-Type": "application/json"
+      },
+      "sample": {
+        "fallbacks": [],
+        "generated": true,
+        "input": {
+          "body": null,
+          "headers": {
+            "Content-Type": "application/json",
+            "Payment-Signature": "signature"
+          },
+          "labels": {},
+          "method": "POST",
+          "payload": {
+            "encoding": "base64",
+            "kind": "blob",
+            "mediaType": "application/json",
+            "value": "ZXZlbnQ="
+          },
+          "query": [],
+          "uri": "/payment-events"
+        },
+        "minimalInput": {
+          "body": null,
+          "headers": {
+            "Content-Type": "application/json",
+            "Payment-Signature": "signature"
+          },
+          "labels": {},
+          "method": "POST",
+          "payload": {
+            "encoding": "base64",
+            "kind": "blob",
+            "mediaType": "application/json",
+            "value": "ZXZlbnQ="
+          },
+          "query": [],
+          "uri": "/payment-events"
+        },
+        "output": {
+          "body": {
+            "received": false
+          },
+          "headers": {
+            "Content-Type": "application/json"
+          },
+          "labels": {},
+          "payload": null,
+          "query": []
+        }
+      },
+      "sender": {
+        "header": "Payment-Signature",
+        "member": "signature",
+        "name": "Payments Inc."
+      },
+      "status": 200,
+      "uri": "/payment-events"
+    },
+    "example.hooks#ReportLeakedKeys": {
+      "auth": [],
+      "documentation": {
+        "html": "<p>Receive a report of leaked keys from a code host's secret scanner. Its\nsignature header is optional in the model, so that a request without one\nis refused like a wrong one, with <a data-crucible-ref=\"example.hooks#AccessDenied\">AccessDenied</a>.</p>\n",
+        "markdown": "Receive a report of leaked keys from a code host's secret scanner. Its\nsignature header is optional in the model, so that a request without one\nis refused like a wrong one, with [AccessDenied].",
+        "text": "Receive a report of leaked keys from a code host's secret scanner. Its\nsignature header is optional in the model, so that a request without one\nis refused like a wrong one, with AccessDenied."
+      },
+      "errors": [
+        "example.hooks#AccessDenied"
+      ],
+      "examples": [],
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
+      "id": "example.hooks#ReportLeakedKeys",
+      "idempotencyToken": null,
+      "idempotent": false,
+      "input": "example.hooks#ReportLeakedKeysInput",
+      "inputSchema": {
+        "$defs": {
+          "crucible.api.String": {
+            "type": "string"
+          },
+          "example.hooks.LeakedKey": {
+            "description": "A key the scanner found in public.",
+            "properties": {
+              "token": {
+                "$ref": "#/$defs/crucible.api.String"
+              },
+              "url": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/crucible.api.String"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "token"
+            ],
+            "type": "object"
+          },
+          "example.hooks.LeakedKeys": {
+            "items": {
+              "$ref": "#/$defs/example.hooks.LeakedKey"
+            },
+            "maxItems": 100,
+            "minItems": 1,
+            "type": "array",
+            "uniqueItems": false
+          },
+          "example.hooks.ReportLeakedKeysInput": {
+            "properties": {
+              "keyIdentifier": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/crucible.api.String"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "keys": {
+                "items": {
+                  "$ref": "#/$defs/example.hooks.LeakedKey"
+                },
+                "maxItems": 100,
+                "minItems": 1,
+                "type": "array",
+                "uniqueItems": false
+              },
+              "signature": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/crucible.api.String"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "keys"
+            ],
+            "type": "object"
+          }
+        },
+        "properties": {
+          "keyIdentifier": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/crucible.api.String"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "keys": {
+            "items": {
+              "$ref": "#/$defs/example.hooks.LeakedKey"
+            },
+            "maxItems": 100,
+            "minItems": 1,
+            "type": "array",
+            "uniqueItems": false
+          },
+          "signature": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/crucible.api.String"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "keys"
+        ],
+        "type": "object"
+      },
+      "internal": false,
+      "method": "POST",
+      "name": "ReportLeakedKeys",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "output": null,
+      "outputSchema": {
+        "$defs": {},
+        "maxProperties": 0,
+        "type": "object"
+      },
+      "pagination": null,
+      "protocol": "crucibleJson",
+      "protocolHeaders": {
+        "Content-Type": "application/json"
+      },
+      "readonly": false,
+      "request": {
+        "body": [
+          "keys"
+        ],
+        "headerEncodings": {},
+        "headers": [
+          {
+            "member": "keyIdentifier",
+            "name": "Scanner-Key-Identifier"
+          },
+          {
+            "member": "signature",
+            "name": "Scanner-Signature"
+          }
+        ],
+        "labels": [],
+        "payload": null,
+        "query": [],
+        "timestampFormats": {}
+      },
+      "resources": [],
+      "response": {
+        "body": [],
+        "headerEncodings": {},
+        "headers": [],
+        "labels": [],
+        "payload": null,
+        "query": [],
+        "timestampFormats": {}
+      },
+      "responseProtocolHeaders": {},
+      "sample": {
+        "fallbacks": [],
+        "generated": true,
+        "input": {
+          "body": {
+            "keys": [
+              {
+                "token": "token",
+                "url": "url"
+              }
+            ]
+          },
+          "headers": {
+            "Content-Type": "application/json",
+            "Scanner-Key-Identifier": "keyIdentifier",
+            "Scanner-Signature": "signature"
+          },
+          "labels": {},
+          "method": "POST",
+          "payload": null,
+          "query": [],
+          "uri": "/leaked-keys"
+        },
+        "minimalInput": {
+          "body": {
+            "keys": [
+              {
+                "token": "token"
+              }
+            ]
+          },
+          "headers": {
+            "Content-Type": "application/json"
+          },
+          "labels": {},
+          "method": "POST",
+          "payload": null,
+          "query": [],
+          "uri": "/leaked-keys"
+        },
+        "output": {
+          "body": null,
+          "headers": {},
+          "labels": {},
+          "payload": null,
+          "query": []
+        }
+      },
+      "sender": {
+        "header": "Scanner-Signature",
+        "member": "signature",
+        "name": "CodeHost"
+      },
+      "status": 200,
+      "uri": "/leaked-keys"
+    }
+  },
+  "resources": {},
+  "service": {
+    "auth": [
+      "crucible.api#httpBearerAuth"
+    ],
+    "authSchemes": {
+      "crucible.api#httpBearerAuth": {
+        "kind": "bearer"
+      }
+    },
+    "documentation": {
+      "html": "<p>Accounts, paid for through a payment processor that reports payments to\n<a data-crucible-ref=\"example.hooks#RecordPaymentEvent\">RecordPaymentEvent</a>.</p>\n",
+      "markdown": "Accounts, paid for through a payment processor that reports payments to\n[RecordPaymentEvent].",
+      "text": "Accounts, paid for through a payment processor that reports payments to\nRecordPaymentEvent."
+    },
+    "errors": [
+      "example.hooks#AccessDenied"
+    ],
+    "id": "example.hooks#Hooks",
+    "internal": false,
+    "name": "Hooks",
+    "notes": {
+      "deprecated": null,
+      "externalDocs": {},
+      "since": null,
+      "unstable": false
+    },
+    "protocol": "crucibleJson",
+    "resourceRoots": [],
+    "title": "Hooks",
+    "version": "2026-10-01"
+  },
+  "shapes": {
+    "crucible.api#Boolean": {
+      "constraints": {
+        "length": null,
+        "pattern": null,
+        "range": null,
+        "uniqueItems": false
+      },
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
+      "id": "crucible.api#Boolean",
+      "internal": false,
+      "kind": "boolean",
+      "members": [],
+      "name": "Boolean",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false
+    },
+    "crucible.api#Long": {
+      "constraints": {
+        "length": null,
+        "pattern": null,
+        "range": null,
+        "uniqueItems": false
+      },
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
+      "id": "crucible.api#Long",
+      "internal": false,
+      "kind": "long",
+      "members": [],
+      "name": "Long",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false
+    },
+    "crucible.api#String": {
+      "constraints": {
+        "length": null,
+        "pattern": null,
+        "range": null,
+        "uniqueItems": false
+      },
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
+      "id": "crucible.api#String",
+      "internal": false,
+      "kind": "string",
+      "members": [],
+      "name": "String",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false
+    },
+    "example.hooks#AccessDenied": {
+      "documentation": {
+        "html": "<p>A request that is not signed, or not signed by the sender.</p>\n",
+        "markdown": "A request that is not signed, or not signed by the sender.",
+        "text": "A request that is not signed, or not signed by the sender."
+      },
+      "error": {
+        "bindings": {
+          "body": [
+            "message"
+          ],
+          "headerEncodings": {},
+          "headers": [],
+          "labels": [],
+          "payload": null,
+          "query": [],
+          "timestampFormats": {}
+        },
+        "bodyDiscriminator": "AccessDenied",
+        "discriminatorHeader": "X-Crucible-Error",
+        "fault": "client",
+        "protocolHeaders": {
+          "Content-Type": "application/json"
+        },
+        "retryable": null,
+        "sample": {
+          "fallbacks": [],
+          "generated": true,
+          "message": {
+            "body": {
+              "__type": "AccessDenied",
+              "message": "message"
+            },
+            "headers": {
+              "Content-Type": "application/json",
+              "X-Crucible-Error": "AccessDenied"
+            },
+            "labels": {},
+            "payload": null,
+            "query": []
+          }
+        },
+        "shape": "example.hooks#AccessDenied",
+        "status": 403,
+        "wireCode": "AccessDenied"
+      },
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
+      "id": "example.hooks#AccessDenied",
+      "internal": false,
+      "kind": "structure",
+      "members": [
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "message",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": false,
+          "required": true,
+          "sensitive": false,
+          "target": "crucible.api#String",
+          "targetName": "String",
+          "targetType": "string",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "message"
+        }
+      ],
+      "name": "AccessDenied",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false
+    },
+    "example.hooks#AccountId": {
+      "constraints": {
+        "length": null,
+        "pattern": "^a-[0-9a-z]{8}$",
+        "range": null,
+        "uniqueItems": false
+      },
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
+      "id": "example.hooks#AccountId",
+      "internal": false,
+      "kind": "string",
+      "members": [],
+      "name": "AccountId",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false
+    },
+    "example.hooks#GetAccountInput": {
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "error": null,
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
+      "id": "example.hooks#GetAccountInput",
+      "internal": false,
+      "kind": "structure",
+      "members": [
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": "^a-[0-9a-z]{8}$",
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "accountId",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": false,
+          "required": true,
+          "sensitive": false,
+          "target": "example.hooks#AccountId",
+          "targetName": "AccountId",
+          "targetType": "string",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "accountId"
+        }
+      ],
+      "name": "GetAccountInput",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false
+    },
+    "example.hooks#GetAccountOutput": {
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "error": null,
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
+      "id": "example.hooks#GetAccountOutput",
+      "internal": false,
+      "kind": "structure",
+      "members": [
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": "^a-[0-9a-z]{8}$",
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "accountId",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": false,
+          "required": true,
+          "sensitive": false,
+          "target": "example.hooks#AccountId",
+          "targetName": "AccountId",
+          "targetType": "string",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "accountId"
+        },
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "<p>What only payment events change.</p>\n",
+            "markdown": "What only payment events change.",
+            "text": "What only payment events change."
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "credit",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": false,
+          "required": true,
+          "sensitive": false,
+          "target": "crucible.api#Long",
+          "targetName": "Long",
+          "targetType": "long",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "credit"
+        }
+      ],
+      "name": "GetAccountOutput",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false
+    },
+    "example.hooks#LeakedKey": {
+      "documentation": {
+        "html": "<p>A key the scanner found in public.</p>\n",
+        "markdown": "A key the scanner found in public.",
+        "text": "A key the scanner found in public."
+      },
+      "error": null,
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
+      "id": "example.hooks#LeakedKey",
+      "internal": false,
+      "kind": "structure",
+      "members": [
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "token",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": false,
+          "required": true,
+          "sensitive": false,
+          "target": "crucible.api#String",
+          "targetName": "String",
+          "targetType": "string",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "token"
+        },
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "url",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": true,
+          "required": false,
+          "sensitive": false,
+          "target": "crucible.api#String",
+          "targetName": "String",
+          "targetType": "string",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "url"
+        }
+      ],
+      "name": "LeakedKey",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false
+    },
+    "example.hooks#LeakedKeys": {
+      "constraints": {
+        "length": {
+          "max": 100,
+          "min": 1
+        },
+        "pattern": null,
+        "range": null,
+        "uniqueItems": false
+      },
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
+      "id": "example.hooks#LeakedKeys",
+      "internal": false,
+      "kind": "list",
+      "members": [
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "member",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": true,
+          "required": false,
+          "sensitive": false,
+          "target": "example.hooks#LeakedKey",
+          "targetName": "LeakedKey",
+          "targetType": "structure",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "member"
+        }
+      ],
+      "name": "LeakedKeys",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false,
+      "set": false,
+      "sparse": false
+    },
+    "example.hooks#PaymentEventBody": {
+      "constraints": {
+        "length": null,
+        "pattern": null,
+        "range": null,
+        "uniqueItems": false
+      },
+      "documentation": {
+        "html": "<p>The event as the processor sent it, unparsed, so the signature is\nchecked over exactly those bytes.</p>\n",
+        "markdown": "The event as the processor sent it, unparsed, so the signature is\nchecked over exactly those bytes.",
+        "text": "The event as the processor sent it, unparsed, so the signature is\nchecked over exactly those bytes."
+      },
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
+      "id": "example.hooks#PaymentEventBody",
+      "internal": false,
+      "kind": "blob",
+      "members": [],
+      "name": "PaymentEventBody",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false
+    },
+    "example.hooks#PaymentSignature": {
+      "constraints": {
+        "length": {
+          "max": 1024,
+          "min": 1
+        },
+        "pattern": "^[ -~]+$",
+        "range": null,
+        "uniqueItems": false
+      },
+      "documentation": {
+        "html": "<p>The processor's signature: a timestamp and an HMAC of the exact body.</p>\n",
+        "markdown": "The processor's signature: a timestamp and an HMAC of the exact body.",
+        "text": "The processor's signature: a timestamp and an HMAC of the exact body."
+      },
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
+      "id": "example.hooks#PaymentSignature",
+      "internal": false,
+      "kind": "string",
+      "members": [],
+      "name": "PaymentSignature",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": true
+    },
+    "example.hooks#RecordPaymentEventInput": {
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "error": null,
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
+      "id": "example.hooks#RecordPaymentEventInput",
+      "internal": false,
+      "kind": "structure",
+      "members": [
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": {
+              "max": 1024,
+              "min": 1
+            },
+            "pattern": "^[ -~]+$",
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "signature",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": false,
+          "required": true,
+          "sensitive": true,
+          "target": "example.hooks#PaymentSignature",
+          "targetName": "PaymentSignature",
+          "targetType": "string",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "signature"
+        },
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "event",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": false,
+          "required": true,
+          "sensitive": false,
+          "target": "example.hooks#PaymentEventBody",
+          "targetName": "PaymentEventBody",
+          "targetType": "blob",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "event"
+        }
+      ],
+      "name": "RecordPaymentEventInput",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false
+    },
+    "example.hooks#RecordPaymentEventOutput": {
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "error": null,
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
+      "id": "example.hooks#RecordPaymentEventOutput",
+      "internal": false,
+      "kind": "structure",
+      "members": [
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "received",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": false,
+          "required": true,
+          "sensitive": false,
+          "target": "crucible.api#Boolean",
+          "targetName": "Boolean",
+          "targetType": "boolean",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "received"
+        }
+      ],
+      "name": "RecordPaymentEventOutput",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false
+    },
+    "example.hooks#ReportLeakedKeysInput": {
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "error": null,
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
+      "id": "example.hooks#ReportLeakedKeysInput",
+      "internal": false,
+      "kind": "structure",
+      "members": [
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "keyIdentifier",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": true,
+          "required": false,
+          "sensitive": false,
+          "target": "crucible.api#String",
+          "targetName": "String",
+          "targetType": "string",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "keyIdentifier"
+        },
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "signature",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": true,
+          "required": false,
+          "sensitive": false,
+          "target": "crucible.api#String",
+          "targetName": "String",
+          "targetType": "string",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "signature"
+        },
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": {
+              "max": 100,
+              "min": 1
+            },
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "keys",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": false,
+          "required": true,
+          "sensitive": false,
+          "target": "example.hooks#LeakedKeys",
+          "targetName": "LeakedKeys",
+          "targetType": "list",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "keys"
+        }
+      ],
+      "name": "ReportLeakedKeysInput",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false
+    }
+  },
+  "versions": {
+    "carrier": {
+      "kind": "header",
+      "name": "Crucible-Version"
+    },
+    "current": "2026-10-01",
+    "releases": [
+      {
+        "changes": [],
+        "current": true,
+        "documentation": {
+          "html": "",
+          "markdown": "",
+          "text": ""
+        },
+        "from": null,
+        "name": "2026-10-01",
+        "retired": [],
+        "sunset": null,
+        "sunsetDocumentation": {
+          "html": "",
+          "markdown": "",
+          "text": ""
+        }
+      }
+    ]
+  }
+}

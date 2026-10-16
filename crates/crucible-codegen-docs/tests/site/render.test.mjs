@@ -26,11 +26,12 @@ const LINKS_EXTERNAL = golden("links-external");
 const HISTORY = golden("history-internal");
 const HISTORY_EXTERNAL = golden("history-external");
 const VERSIONED = golden("versioned-external");
+const SENDER = golden("sender-external");
 // Weather's internal description with its schemas shared and omitted.
 const schemas = (name) => JSON.parse(readFileSync(join(crate, "tests", "golden", "schemas", `${name}.json`), "utf8"));
 const WEATHER_SHARED = schemas("weather-shared");
 const WEATHER_OMIT = schemas("weather-omit");
-const DESCRIPTIONS = { WEATHER, WEATHER_EXTERNAL, CATALOG, PERMISSIONS, PERMISSIONS_EXTERNAL, SAMPLES, LINKS, LINKS_EXTERNAL, HISTORY, HISTORY_EXTERNAL, VERSIONED, WEATHER_SHARED, WEATHER_OMIT };
+const DESCRIPTIONS = { WEATHER, WEATHER_EXTERNAL, CATALOG, PERMISSIONS, PERMISSIONS_EXTERNAL, SAMPLES, LINKS, LINKS_EXTERNAL, HISTORY, HISTORY_EXTERNAL, VERSIONED, WEATHER_SHARED, WEATHER_OMIT, SENDER };
 
 // ---- walking rendered nodes ----------------------------------------------
 
@@ -131,6 +132,14 @@ test("a shared schema rebuilds to the inline one, and an omitted one has no sect
     assert.ok(!textOf(omitted).includes("JSON Schemas"), `${id}: no schema section`);
     assert.ok(textOf(x.operationView(shared, id, null)).includes("JSON Schemas"), `${id}: shared schemas shown`);
   }
+});
+
+test("a sender-signed operation says who calls it and where its signature travels", () => {
+  const m = x.index(SENDER);
+  const text = textOf(x.operationView(m, "example.hooks#RecordPaymentEvent", null));
+  assert.match(text, /Called by Payments Inc\., not by clients of this API/);
+  assert.match(text, /Payment-Signature/);
+  assert.ok(!textOf(x.operationView(m, "example.hooks#GetAccount", null)).includes("Called by"));
 });
 
 test("request syntax places labels, query, headers and the raw payload", () => {
@@ -565,6 +574,7 @@ test("the test fixtures cover all goldens the generator ships", () => {
     "permissions-external",
     "permissions-internal",
     "samples-external",
+    "sender-external",
     "versioned-external",
     "weather-external",
     "weather-internal",

@@ -17,6 +17,21 @@ version's section when it is prepared.
 
 ### Added
 
+- Sender-signed operations (decision 81 in
+  [docs/idl/decisions.md](docs/idl/decisions.md)): `@sender("Stripe",
+  signature: signature)` on a `public` operation says a third party calls
+  it and signs each request in the named input member's header, such as a
+  webhook receiver. The IR carries `Operation::sender` (`ir::Sender`,
+  `serde(default)`) and `Operation::signature_header`; `describe.json`
+  (additive) gives the operation `sender: {name, member, header}`, and the
+  references say "Called by Stripe, not by clients of this API" and which
+  header carries the signature. `crucible_ir::client_view` leaves such
+  operations out, with what only they reach, and every client generator,
+  the service CLI, the in-build Rust client, `sdks.json` and MCP tools read
+  that view; servers implement them as before. The compiler refuses
+  `@sender` on an operation that is not `public` (`sender.public`) or with
+  a signature that is not an `@header` input member (`sender.signature`).
+
 - A schema mode for `describe.json`: `DocsOutput::schemas` and `crucible
   generate docs --schemas inline|shared|omit`. `Inline`, the default, is
   unchanged. `Shared` writes every JSON Schema definition once, in a root

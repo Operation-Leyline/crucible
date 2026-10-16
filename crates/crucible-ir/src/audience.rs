@@ -27,6 +27,89 @@ pub fn project(service: &Service, audience: Audience) -> Result<Service, Diagnos
     external(service, false)
 }
 
+/// What a client calls (decision 81): `service` without its sender-signed
+/// operations, which a third party calls and signs, and without what only
+/// they reached. Client generators and the service CLI read this view of a
+/// projected service, and MCP tools leave the same operations out;
+/// documentation and the server keep them.
+pub fn client_view(service: &Service) -> Service {
+    let removed: BTreeSet<ShapeId> = service
+        .operations
+        .iter()
+        .filter(|op| op.sender.is_some())
+        .map(|op| op.id.clone())
+        .collect();
+    if removed.is_empty() {
+        return service.clone();
+    }
+    let reached = |operations: &mut dyn Iterator<Item = &Operation>| {
+        let mut reached = BTreeSet::new();
+        let mut pending: Vec<ShapeId> = operations
+            .flat_map(|op| op.input.iter().chain(&op.output).chain(&op.errors))
+            .chain(&service.errors)
+            .cloned()
+            .collect();
+        while let Some(id) = pending.pop() {
+            if let Some(shape) = service.shape(&id)
+                && reached.insert(id)
+            {
+                pending.extend(shape.members().into_iter().map(|m| m.target.clone()));
+            }
+        }
+        reached
+    };
+    let before = reached(&mut service.operations.iter());
+    let after = reached(
+        &mut service
+            .operations
+            .iter()
+            .filter(|op| !removed.contains(&op.id)),
+    );
+    let mut result = service.clone();
+    result.operations.retain(|op| !removed.contains(&op.id));
+    // A shape no operation reached before stays: what reaches it is not
+    // this view's to judge. One only the removed operations reached goes.
+    result
+        .shapes
+        .retain(|id, _| !before.contains(id) || after.contains(id));
+    for resource in result.resources.values_mut() {
+        for slot in [
+            &mut resource.lifecycle.create,
+            &mut resource.lifecycle.put,
+            &mut resource.lifecycle.read,
+            &mut resource.lifecycle.update,
+            &mut resource.lifecycle.delete,
+            &mut resource.lifecycle.list,
+        ] {
+            if slot.as_ref().is_some_and(|id| removed.contains(id)) {
+                *slot = None;
+            }
+        }
+        resource.operations.retain(|id| !removed.contains(id));
+        resource
+            .collection_operations
+            .retain(|id| !removed.contains(id));
+        resource.bindings.retain(|id, _| !removed.contains(id));
+    }
+    let present: BTreeSet<ShapeId> = result.shapes.keys().cloned().collect();
+    result
+        .resource_references
+        .retain(|id, _| present.contains(id));
+    result.recursive_groups.retain_mut(|group| {
+        group.shapes.retain(|id| present.contains(id));
+        group.members.retain(|id| present.contains(&id.root()));
+        !group.shapes.is_empty()
+    });
+    // A capability a removed operation, or a shape only it reached, used.
+    result.requirements.retain(|usage| {
+        let root = usage.shape.root();
+        !removed.contains(&root) && (!service.shapes.contains_key(&root) || present.contains(&root))
+    });
+    // A doc link to a removed operation is its text.
+    result.retain_doc_links();
+    result
+}
+
 /// An older release as the external audience sees it, never refused: what
 /// [`project`] would refuse (an internal member that is required, an
 /// internal target, an example naming what it removes) is left out instead,

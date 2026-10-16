@@ -227,6 +227,9 @@ language's own checks include:
 - defaults fit the member's type and constraints; an enum default names a
   value's symbol;
 - enum value names, and integer enum values, are unique;
+- `@sender("Name", signature: member)` is on an operation, which is
+  `public`, and `member` is an input member bound with `@header`
+  (decision 81; checked in `crucible_ir::validate`);
 - a metadata declaration is checked once (targets, conflicts, retention,
   value type, no built-in annotation's name) and each use's value against
   its type;
@@ -407,6 +410,35 @@ The IR carries them as `Service::permissions`, `Service::permission_types`,
 permission or alias, changing a value or an authorization name, and moving
 a permission to `internal` are breaking changes to the release guard;
 adding a requirement is reported as an authorization change.
+
+## Sender-signed operations
+
+A webhook receiver is called by a third party, not by the service's
+clients, and the caller proves itself with a signature it computes over
+the request. `@sender` says so (decision 81):
+
+```
+@sender("Stripe", signature: signature)
+public operation RecordStripeEvent {
+    http POST "/v1/payment-events/stripe"
+    input {
+        @header("Stripe-Signature")
+        signature: StripeSignature
+        @payload
+        event: StripeEventBody
+    }
+}
+```
+
+The first argument names the sender as the documentation should;
+`signature` names the input member, bound with `@header`, that carries
+the signature. The operation must be `public`: the sender holds no
+credential of this service. The IR carries `Operation::sender`. The API
+reference says who calls the operation and which header to verify, and
+asks no `Authorization` or `Crucible-Version` header of it; client SDKs,
+the service CLI and MCP tools leave it out. The handler verifies the
+signature: how (HMAC, a published public key) is the sender's, and
+belongs in the operation's documentation.
 
 ## Role templates
 

@@ -1,0 +1,14 @@
+schema_version = 1
+
+# What the compiler refuses of `@sender` (decision 81): a sender-signed
+# operation that is not `public`, a signature that is not a request
+# header, an unnamed sender, the wrong arguments and the wrong position.
+[model]
+namespace = "example.refused"
+language = 1
+sources = ["."]
+imports = []
+
+[model.naming]
+input = "{Operation}Input"
+output = "{Operation}Output"

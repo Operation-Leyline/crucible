@@ -1,0 +1,55 @@
+service Refused {
+    version "1"
+    protocol json
+    auth bearer
+    operations [NotPublic, BodySignature, NoSuchMember, Unnamed, WrongArguments]
+}
+
+@sender("Stripe", signature: signature)
+operation NotPublic {
+    http POST "/not-public"
+    input {
+        @header("Stripe-Signature")
+        signature: string
+    }
+}
+
+@sender("Stripe", signature: signature)
+public operation BodySignature {
+    http POST "/body-signature"
+    input {
+        signature: string
+    }
+}
+
+@sender("Stripe", signature: missing)
+public operation NoSuchMember {
+    http POST "/no-such-member"
+    input {
+        @header("Stripe-Signature")
+        signature: string
+    }
+}
+
+@sender(" ", signature: signature)
+public operation Unnamed {
+    http POST "/unnamed"
+    input {
+        @header("Stripe-Signature")
+        signature: string
+    }
+}
+
+@sender(signature: "Stripe-Signature")
+public operation WrongArguments {
+    http POST "/wrong-arguments"
+    input {
+        @header("Stripe-Signature")
+        signature: string
+    }
+}
+
+@sender("Stripe", signature: value)
+structure Misplaced {
+    value: string
+}

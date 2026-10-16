@@ -1166,3 +1166,41 @@ fn shared_and_omitted_descriptions_match_reviewed_goldens() {
         );
     }
 }
+
+/// Sender-signed operations (decision 81): the reference says who calls
+/// each and which header carries its signature, and asks no credential or
+/// release header of it.
+#[test]
+fn sender_signed_operations_match_reviewed_goldens() {
+    golden("sender-external", "sender-signed", Audience::External);
+    let files = files("sender-signed", Audience::External);
+    let page = |path: &str| {
+        files
+            .iter()
+            .find(|f| f.path == path)
+            .unwrap_or_else(|| panic!("{path}"))
+            .contents
+            .clone()
+    };
+    let payment = page("src/operations/API_RecordPaymentEvent.md");
+    assert!(
+        payment.contains(r"Called by Payments Inc\., not by clients of this API. It takes no credential: Payments Inc\. signs each request, and the service verifies the signature in the <code>Payment-Signature</code> header."),
+        "{payment}"
+    );
+    assert!(!payment.contains("Authorization: Bearer"), "{payment}");
+    assert!(!payment.contains("Crucible-Version"), "{payment}");
+    assert!(page("src/operations/API_GetAccount.md").contains("Crucible-Version: 2026-10-01"));
+    assert!(page("llms.txt").contains(
+        "- [ReportLeakedKeys](src/operations/API_ReportLeakedKeys.md): POST /leaked-keys. Called by CodeHost, which signs it in the `Scanner-Signature` header."
+    ));
+    let describe: Value = serde_json::from_str(&page("describe.json")).unwrap();
+    assert_eq!(
+        describe["operations"]["example.hooks#RecordPaymentEvent"]["sender"],
+        serde_json::json!({"name": "Payments Inc.", "member": "signature", "header": "Payment-Signature"})
+    );
+    assert!(
+        describe["operations"]["example.hooks#GetAccount"]
+            .get("sender")
+            .is_none()
+    );
+}

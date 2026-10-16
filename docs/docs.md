@@ -347,6 +347,7 @@ provisioning member bindings or interpreting design-time resource references.
 | `examples` | Ordered example objects described below |
 | `sample` | A generated example, below: `{generated: true, input, minimalInput, output, fallbacks}` |
 | `requirements` | Absent when the operation declares nothing; else `{kind}`: `none`, `internal`, `pending` with `reason`, or `list` with `clauses` (`mode`, `permission`, `resourceType`, `tier`, and optional `bindings`, `when`, `documentation`) and `partial: true` when further clauses name internal permissions this audience does not see. A clause's `documentation` is the model's raw Markdown string, not a common documentation object; beside it, `renderedDocumentation` is the same text as a common documentation object (`markdown`, `html`, `text`) |
+| `sender` | Absent unless a third party calls the operation and signs each request (`@sender`, decision 81): `{name, member, header}`, who sends it, the input member that carries the signature and its request header. Such an operation is public; the renderers say who calls it and where the signature travels, and show no `Authorization` or `Crucible-Version` header for it |
 | `requirementSentences`, `requirementDocumentation` | Beside `requirements`: what the caller must hold, as Markdown strings and as common documentation objects (`markdown`, `html`, `text`), since they carry model text. The two arrays are index-aligned. An entry may hold several paragraphs (a handler clause's longer documentation follows the sentences as its own entry) |
 
 The JSON Schemas come from `crucible-codegen-common::json_schema`, also used by
@@ -648,7 +649,8 @@ version 1.
 A reference's `sdks.json` lists the SDKs its audience may see: an
 external reference lists the external SDKs, an internal one every SDK.
 Each SDK describes its own audience's operations, so an operation may be
-absent from an SDK that does not expose it. The document is refused when
+absent from an SDK that does not expose it; a sender-signed operation
+(`sender` in `describe.json`) is in no SDK. The document is refused when
 an SDK would not generate, naming every such SDK. Describing reads
 neither the environment nor the SDKs' README and license files.
 
