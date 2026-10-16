@@ -1,0 +1,122 @@
+/// A shop's items, across three releases.
+service Shop {
+    version "v3"
+    protocol json
+    operations [GetItem, ListItems, PutItem, DeleteItem, Audit]
+}
+
+/// Reads one item.
+readonly operation GetItem {
+    http GET "/things/{id}"
+    input { id: string }
+    errors [ItemNotFound, ItemGone]
+    output {
+        /// The item's title.
+        title: string
+        kind: Kind
+        size: Size
+        /// A code only the service reads.
+        internal secret?: string
+    }
+}
+
+/// How big an item is.
+enum Kind { SMALL, LARGE, HUGE }
+
+/// An item's dimensions.
+structure Size {
+    area: integer
+    /// The unit of the area, `m2` unless given.
+    unit?: string
+}
+
+/// No item has that id.
+error ItemNotFound {
+    status 404
+    message: string
+}
+
+/// The item was deleted.
+error ItemGone {
+    status 410
+    message: string
+}
+
+/// Lists item names.
+readonly operation ListItems {
+    http GET "/items"
+    input {
+        @query
+        limit: integer
+        @query
+        sort: string
+    }
+    output { names: Names }
+}
+
+list Names: string
+
+/// Stores an item.
+idempotent operation PutItem {
+    http PUT "/items/{id}"
+    input {
+        id: string
+        count?: string
+    }
+    output { total: string }
+}
+
+/// Deletes an item.
+idempotent operation DeleteItem {
+    http DELETE "/items/{id}"
+    input { id: string }
+}
+
+/// Records an audit entry.
+internal operation Audit {
+    http POST "/audit"
+    input { entry: string }
+    output { recorded: boolean }
+}
+
+/// v2 names an item's title, measures its size as an area, and pages
+/// [ListItems] by `limit`.
+migration "v2" from "v1" {
+    /// An item's name, `name` in v1, is its [GetItem.title].
+    rename GetItem.output.name -> title
+    /// The page size is `limit`.
+    rename ListItems.input.max -> limit
+    /// An older request without a page size gets 20.
+    require ListItems.input.limit default 20
+    /// Older clients see a huge item as large.
+    add Kind.HUGE downgrade LARGE
+    /// A size is its area.
+    reshape Size { width, height } -> area by hook
+    /// The count is a string.
+    retype PutItem.input.count -> string by hook
+    /// ListItems sorts by name.
+    behavior ListItems.ordering
+    /// The service's own code is its secret.
+    rename GetItem.output.secretCode -> secret
+    /// v1 is served until the end of 2026.
+    sunset "2027-01-01"
+}
+
+/// v3 moves [GetItem] to `/things`, reports a deleted item as gone, and
+/// retires [CountItems]: count the names [ListItems] returns.
+migration "v3" from "v2" {
+    /// Items are things now.
+    move GetItem from GET "/items/{id}"
+    /// Older clients see a deleted item as not found.
+    add GetItem.errors ItemGone downgrade ItemNotFound {
+        message <- message
+    }
+    /// An older request's sort order is the account's.
+    require ListItems.input.sort by hook
+    /// The total is a string, by a declared conversion.
+    retype PutItem.output.total -> string
+    /// [CountItems] is gone: count what [ListItems] returns.
+    remove operation CountItems
+    /// Audit entries are kept for a year.
+    behavior Audit.retention
+}

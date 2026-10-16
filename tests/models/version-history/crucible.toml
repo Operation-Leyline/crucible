@@ -1,0 +1,25 @@
+# Release history in the reference (docs/api-versions-clients.md, "API
+# documentation across releases"): three releases, every kind of migration
+# step across the two migrations, an operation retired under an exception,
+# and two steps that only the internal audience sees. v1 and v2 are frozen
+# under releases/; v3 is current.
+[model]
+namespace = "example.history"
+
+[model.baseline]
+path = "releases/v2.json"
+
+[[exceptions]]
+rule = "compatibility.operation"
+shape = "example.history#PingItems"
+reason = "PingItems is retired at every release"
+
+[[exceptions]]
+rule = "compatibility.sdk"
+shape = "example.history#PingItems"
+reason = "PingItems is retired at every release"
+
+[[exceptions]]
+rule = "compatibility.sdk"
+shape = "example.history#PingItemsOutput"
+reason = "PingItems is retired at every release"

@@ -21,3 +21,5 @@
   - [WidgetError](shapes/WidgetError.md)
   - [Widgets](shapes/Widgets.md)
   - [WidgetsByName](shapes/WidgetsByName.md)
+- [Releases](releases.md)
+  - [1](releases/1.md)

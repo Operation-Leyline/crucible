@@ -1,0 +1,87 @@
+# PutItem
+
+<p>Stores an item.</p>
+
+Protocol: <code>crucibleJson</code>.
+
+## Authentication
+
+Effective schemes: <code>[]</code>. Optional authentication: null.
+
+## Request syntax
+
+```http
+PUT /items/{id} HTTP/1.1
+Content-Type: application/json
+```
+
+### Request parameters
+
+| Member | Wire location | Type | Required | Default | Constraints | Description |
+|---|---|---|---|---|---|---|
+| <code>id</code> | <code>path: id</code> | <code>string</code> | Yes | — | — |  |
+
+### Request body
+
+```json
+{
+  "count": "<string>"
+}
+```
+
+| Member | Wire location | Type | Required | Default | Constraints | Description |
+|---|---|---|---|---|---|---|
+| <code>count</code> | <code>body: count</code> | <code>string</code> | No | — | — |  Changed in <code>v2</code>. |
+
+## Response syntax
+
+```http
+HTTP/1.1 200
+Content-Type: application/json
+```
+
+### Response body
+
+```json
+{
+  "total": "<string>"
+}
+```
+
+| Member | Wire location | Type | Required | Default | Constraints | Description |
+|---|---|---|---|---|---|---|
+| <code>total</code> | <code>body: total</code> | <code>string</code> | Yes | — | — |  Changed in <code>v3</code>. |
+
+## Errors
+
+No modeled errors.
+
+## Idempotency and retries
+
+Readonly: false. Idempotent: true.
+
+## Generated sample
+
+Generated from the model's types and constraints, not written by the API's authors. Nothing beyond those constraints was checked, so the service may still refuse a value (a query its parser rejects, an id that does not exist).
+
+Request:
+
+```http
+PUT /items/id HTTP/1.1
+Content-Type: application/json
+
+{
+  "count": "count"
+}
+```
+
+Response:
+
+```http
+HTTP/1.1 200
+Content-Type: application/json
+
+{
+  "total": "total"
+}
+```

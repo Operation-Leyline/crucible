@@ -48,3 +48,5 @@
   - [RestoreBackupOutput](shapes/RestoreBackupOutput.md)
   - [RewriteGraphInput](shapes/RewriteGraphInput.md)
   - [RewriteGraphOutput](shapes/RewriteGraphOutput.md)
+- [Releases](releases.md)
+  - [2026-10-01](releases/2026-10-01.md)

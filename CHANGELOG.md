@@ -17,6 +17,32 @@ version's section when it is prepared.
 
 ### Added
 
+- Release history in the API reference (decisions 77 and 78 in
+  [docs/idl/decisions.md](docs/idl/decisions.md)). `describe.json`
+  (`crucible.describe/1`, additive) gives every operation, shape, member
+  and enum value a `history`: `added`, the first supported release that
+  has it, following renames (`null` when the oldest supported release has
+  it); `changed`, the releases whose migration names it; and `missing`,
+  the releases that see an older definition without it because it sits
+  inside a later `reshape` or `remove operation`. Its root gains
+  `versions`, `null` for a service without an `api_version`: the current
+  release, the `Crucible-Version` carrier, and every supported release,
+  oldest first, with its sunset and the sunset's documentation, the
+  operations it retired, its migration's documentation and each step as a
+  change, with the step's documentation and what a client of the release
+  before it sees instead (`older`, self-contained through `older.shapes`).
+  The reference writes the same block to `changes.json`
+  (`crucible.changes/1`) beside `describe.json`, for a changelog or a feed.
+  The mdBook pages and the static reference date each element ("Added in",
+  "Changed in", linked to the release) and have a page per release; `@since`
+  is shown only for what predates every supported release.
+  `crucible_ir::versions` derives it all (`history`, `history_at`,
+  `subjects`), and an external projection projects each older release's
+  model as well and leaves out the steps on internal API, so no external
+  output names it. See [docs/docs.md](docs/docs.md#release-history).
+- `crucible_lang::load_versioned_service`: a package's service with the
+  older releases it serves, as a build lowers it.
+
 - `describe.json` (`crucible.describe/1`, additive): each operation has a
   `sample` and each error's metadata a `sample`, generated from the model
   alone and labelled `generated: true`: wire messages in the examples' form
@@ -557,6 +583,14 @@ version's section when it is prepared.
   `Prepare::operations()` is unchanged: each id once.
 
 ### Changed
+
+- `crucible check`, `generate` and `compile` load the chain of older
+  releases a package serves, as a build does, through one
+  `crucible_lang::Releases` for the guard and the versions: `generate docs`
+  documents them, and a chain the build refuses (an operation dropped
+  without `remove operation`, a missing frozen release) fails these
+  commands too. `generate rust` serves older releases as the build's
+  server does.
 
 - `.cru`: a migration that drops an operation without `remove operation`
   is an error at its `from` (`crucible check`, the build, the editor),

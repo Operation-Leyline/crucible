@@ -820,7 +820,10 @@ fn lower_cru(source: &Source, guarded: bool) -> Result<Service, String> {
         .map(|_| crucible_policy::Config::load(&manifest))
         .transpose()?
         .unwrap_or_default();
-    if let Some(guard) = crucible_lang::guard(&package, &compiled, package.files.len(), &config) {
+    // The frozen releases, read once for the guard and the versions.
+    let releases = crucible_lang::Releases::default();
+    let own = package.files.len();
+    if let Some(guard) = crucible_lang::guard_in(&package, &compiled, own, &config, &releases) {
         let guard = guard?;
         let rendered = guard.render(&compiled);
         if guard.has_errors() {
@@ -832,6 +835,10 @@ fn lower_cru(source: &Source, guarded: bool) -> Result<Service, String> {
         }
         eprint!("{rendered}");
     }
+    // The older releases the service still serves, as a build lowers them:
+    // the reference documents them, and a server generated here serves them.
+    let mut service = service;
+    service.versions = crucible_lang::versions_in(&package, &compiled, own, &config, &releases)?;
     Ok(service)
 }
 

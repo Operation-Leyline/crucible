@@ -19,6 +19,7 @@ mod shape_id;
 pub mod snapshot;
 mod timestamp_default;
 pub mod validate;
+pub mod versions;
 
 pub use audience::{Audience, project};
 pub use capabilities::{Capabilities, Feature, FeatureUse};

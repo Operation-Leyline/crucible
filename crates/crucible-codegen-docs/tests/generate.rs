@@ -139,6 +139,108 @@ fn doc_links_link_pages_and_internal_ones_are_text_externally() {
     );
 }
 
+/// A package's service with the older releases it serves, as a build
+/// lowers it (`crucible_lang::versions`), at `audience`.
+fn versioned_files(dir: &Path, audience: Audience) -> Vec<crucible_codegen_docs::File> {
+    let service = crucible_lang::load_versioned_service(dir).unwrap_or_else(|error| {
+        panic!(
+            "{}:
+{error}",
+            dir.display()
+        )
+    });
+    generate(&project(&service, audience).unwrap()).unwrap()
+}
+
+/// Release history (decisions 77 and 78): every step kind across three
+/// releases, two steps on internal API that only the internal reference
+/// lists.
+#[test]
+fn release_history_matches_reviewed_goldens() {
+    let dir = package_dir("version-history");
+    golden_files(
+        "history-external",
+        versioned_files(&dir, Audience::External),
+    );
+    golden_files(
+        "history-internal",
+        versioned_files(&dir, Audience::Internal),
+    );
+}
+
+/// The e2e versioned service's reference: renames, a reshape, a removal
+/// and a sunset, as its build serves them.
+#[test]
+fn the_versioned_service_reference_matches_reviewed_goldens() {
+    let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../e2e/weather-service/versioned");
+    golden_files(
+        "versioned-external",
+        versioned_files(&dir, Audience::External),
+    );
+}
+
+#[test]
+fn release_history_leaves_internal_steps_out_of_the_external_reference() {
+    let dir = package_dir("version-history");
+    let changes = |audience| -> Value {
+        let files = versioned_files(&dir, audience);
+        let file = files.iter().find(|f| f.path == "changes.json").unwrap();
+        serde_json::from_str(&file.contents).unwrap()
+    };
+    let kinds = |document: &Value| -> Vec<Vec<String>> {
+        document["versions"]["releases"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|release| {
+                release["changes"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .map(|change| change["kind"].as_str().unwrap().to_owned())
+                    .collect()
+            })
+            .collect()
+    };
+    let external = changes(Audience::External);
+    let internal = changes(Audience::Internal);
+    assert_eq!(external["format"], "crucible.changes/1");
+    assert_eq!(
+        kinds(&external),
+        [
+            vec![],
+            vec![
+                "rename",
+                "rename",
+                "require",
+                "addEnumValue",
+                "reshape",
+                "retype",
+                "behavior"
+            ],
+            vec!["move", "addError", "require", "retype", "removeOperation"],
+        ]
+    );
+    assert_eq!(kinds(&internal)[1].len(), 8);
+    assert_eq!(kinds(&internal)[2].len(), 6);
+    let text = external.to_string();
+    assert!(
+        !text.contains("Audit") && !text.contains("secret"),
+        "{text}"
+    );
+    // changes.json holds describe.json's `versions`.
+    let files = versioned_files(&dir, Audience::External);
+    let describe: Value = serde_json::from_str(
+        &files
+            .iter()
+            .find(|f| f.path == "describe.json")
+            .unwrap()
+            .contents,
+    )
+    .unwrap();
+    assert_eq!(describe["versions"], external["versions"]);
+}
+
 #[test]
 fn rpc_metadata_examples_and_shapes_match_reviewed_goldens() {
     golden("catalog-external", CATALOG, Audience::External);

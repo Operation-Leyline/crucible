@@ -227,6 +227,17 @@ pub fn project(service: &Service, audience: Audience) -> Result<Service, Diagnos
     // 80): the external contract names no internal id.
     result.retain_doc_links();
     strip_raw_traits(&mut result);
+    // The older releases too (decision 78): their models as this audience
+    // sees them, without the steps it cannot see, so no history or older
+    // definition in external output names internal API.
+    match crate::versions::project_external(&service.versions, &result) {
+        Ok(versions) => result.versions = versions,
+        Err(errors) => {
+            for error in errors.iter() {
+                diagnostics.push(&error.shape, &error.message);
+            }
+        }
+    }
     if diagnostics.is_empty() {
         Ok(result)
     } else {

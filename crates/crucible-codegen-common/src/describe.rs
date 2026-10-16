@@ -24,6 +24,10 @@ pub struct Description {
     pub resources: BTreeMap<String, Value>,
     pub operations: BTreeMap<String, Value>,
     pub shapes: BTreeMap<String, Value>,
+    /// The release chain (decision 78): `null` for a service without an
+    /// `api_version`. See [`versions`].
+    #[serde(default)]
+    pub versions: Value,
 }
 
 impl Description {
@@ -36,6 +40,12 @@ impl Description {
             serde_json::to_string_pretty(&value).expect("JSON data")
         )
     }
+}
+
+/// Sorts every object's keys, recursively, as the description's JSON is:
+/// for a document written beside it from its parts.
+pub fn sort_keys(value: &mut Value) {
+    sort_objects(value);
 }
 
 fn sort_objects(value: &mut Value) {
@@ -343,11 +353,26 @@ fn describe_inner(service: &Service, explorer: bool) -> Result<Description, Diag
             (op.id.to_string(), value)
         })
         .collect();
-    let shapes = service
+    let mut shapes: BTreeMap<String, Value> = service
         .shapes
         .iter()
         .map(|(id, s)| (id.to_string(), shape(service, id, s)))
         .collect();
+    // Older definitions are compared with the current ones before either
+    // carries its history.
+    let versions = versions(service, &shapes);
+    let mut operations: BTreeMap<String, Value> = operations;
+    let histories = crucible_ir::versions::history(service);
+    for op in &service.operations {
+        if let Some(value) = operations.get_mut(&op.id.to_string()) {
+            value["history"] = history(histories.get(&op.id));
+        }
+    }
+    for id in service.shapes.keys() {
+        if let Some(value) = shapes.get_mut(&id.to_string()) {
+            date_shape(value, id, &histories);
+        }
+    }
     let mut description = Description {
         format: "crucible.describe/1".into(),
         service: json!({"id":service.id.to_string(),"name":service.name_of(&service.id),
@@ -361,6 +386,7 @@ fn describe_inner(service: &Service, explorer: bool) -> Result<Description, Diag
         resources,
         operations,
         shapes,
+        versions,
     };
     // The permission registry (docs/permissions.md §6.3): internal entries
     // only when the caller described the server audience, whose IR keeps
@@ -381,6 +407,7 @@ fn describe_inner(service: &Service, explorer: bool) -> Result<Description, Diag
     {
         sort_objects(value);
     }
+    sort_objects(&mut description.versions);
     Ok(description)
 }
 
@@ -611,4 +638,229 @@ fn header(value: &Value, bindings: &Bindings, member: &str) -> String {
     } else {
         encode(value)
     }
+}
+
+/// An element's `history` (decision 77), as `crucible_ir::versions` dates it.
+fn history(history: &crucible_ir::versions::History) -> Value {
+    json!({"added":history.added,"changed":history.changed,"missing":history.missing})
+}
+
+/// A shape entry's `history`, and its members' and enum values'.
+fn date_shape(value: &mut Value, id: &ShapeId, histories: &crucible_ir::versions::Histories) {
+    value["history"] = history(histories.get(id));
+    for key in ["members", "values"] {
+        // `get_mut`: indexing would add the key to a shape without it.
+        for item in value
+            .get_mut(key)
+            .and_then(Value::as_array_mut)
+            .into_iter()
+            .flatten()
+        {
+            if let Some(name) = item["name"].as_str() {
+                item["history"] = history(histories.get(&id.with_member(name)));
+            }
+        }
+    }
+}
+
+/// The root `versions` block (decision 78; docs/docs.md): the current
+/// release, the header that carries a client's, and every supported
+/// release, oldest first, with the changes its migration made and what a
+/// client of the release before it sees instead. `null` for a service
+/// without an `api_version`. `current` holds the current shape entries,
+/// before they carry their history, which an older definition is compared
+/// with.
+pub fn versions(service: &Service, current: &BTreeMap<String, Value>) -> Value {
+    let Some(name) = &service.api_version else {
+        return Value::Null;
+    };
+    let chain = &service.versions;
+    let mut releases = Vec::with_capacity(chain.len() + 1);
+    for index in 0..=chain.len() {
+        let release = chain.get(index);
+        // The migration to this release: from the one before it.
+        let migration = index.checked_sub(1).map(|from| (from, &chain[from]));
+        let changes: Vec<Value> = migration
+            .map(|(from, version)| {
+                let older = crucible_ir::versions::history_at(service, from);
+                version
+                    .steps
+                    .iter()
+                    .map(|step| change(service, from, step, current, &older))
+                    .collect()
+            })
+            .unwrap_or_default();
+        releases.push(json!({
+            "name": release.map_or(name.as_str(), |r| r.name.as_str()),
+            "current": release.is_none(),
+            "sunset": release.and_then(|r| r.sunset.as_deref()),
+            "sunsetDocumentation": documentation(service, release.and_then(|r| r.sunset_docs.as_deref())),
+            "retired": release.map(|r| r.retired.iter().map(ToString::to_string).collect::<Vec<_>>()).unwrap_or_default(),
+            "from": migration.map(|(_, version)| version.name.as_str()),
+            "documentation": documentation(service, migration.and_then(|(_, version)| version.docs.as_deref())),
+            "changes": changes,
+        }));
+    }
+    json!({
+        "carrier": {"kind": "header", "name": crucible_ir::versions::VERSION_HEADER},
+        "current": name,
+        "releases": releases,
+    })
+}
+
+/// One step of the migration from `service.versions[from]`, with what a
+/// client of that release sees instead (`older`), rendered from its model.
+fn change(
+    service: &Service,
+    from: usize,
+    step: &crucible_ir::ir::VersionStep,
+    current: &BTreeMap<String, Value>,
+    histories: &crucible_ir::versions::Histories,
+) -> Value {
+    use crucible_ir::ir::{Hook, RetypeBy, VersionStep};
+    let older: &Service = &service.versions[from].service;
+    let newer: &Service = service
+        .versions
+        .get(from + 1)
+        .map_or(service, |version| &version.service);
+    let empty = || json!({});
+    let mut value = match step {
+        VersionStep::Rename { new, from, to, .. } => json!({"kind":"rename",
+            "shape":new.to_string(),"member":to,
+            "older":{"member":from,"shapes":empty()}}),
+        VersionStep::Require {
+            new,
+            member,
+            default,
+            ..
+        } => json!({"kind":"require","shape":new.to_string(),"member":member,
+            "older":{"required":false,"filled":"default","default":default,"shapes":empty()}}),
+        VersionStep::AddEnumValue {
+            new,
+            value,
+            downgrade,
+            ..
+        } => json!({"kind":"addEnumValue","shape":new.to_string(),"value":value,
+            "older":{"value":downgrade,"shapes":empty()}}),
+        VersionStep::AddError {
+            operation,
+            error,
+            downgrade,
+            members,
+            ..
+        } => json!({"kind":"addError","operation":operation.to_string(),"error":error.to_string(),
+            "older":{"error":downgrade.to_string(),
+                "members":members.iter().map(|(member, from)| json!({"member":member,"from":from})).collect::<Vec<_>>(),
+                "shapes":empty()}}),
+        VersionStep::Move {
+            operation,
+            old_method,
+            old_uri,
+            ..
+        } => {
+            let op = newer.operations.iter().find(|op| &op.id == operation);
+            json!({"kind":"move","operation":operation.to_string(),
+                "method":op.map(|op| op.method.as_str()),"uri":op.map(|op| op.uri.to_string()),
+                "older":{"method":old_method,"uri":old_uri.to_string(),"shapes":empty()}})
+        }
+        VersionStep::Behavior {
+            operation, name, ..
+        } => json!({"kind":"behavior","operation":operation.to_string(),"name":name,"older":null}),
+        VersionStep::Hooked { hook, .. } => match hook {
+            Hook::Require { new, member, .. } => {
+                json!({"kind":"require","shape":new.to_string(),"member":member,
+                "older":{"required":false,"filled":"service","default":null,"shapes":empty()}})
+            }
+            Hook::Reshape {
+                old,
+                new,
+                members,
+                into,
+            } => json!({"kind":"reshape","shape":new.to_string(),"members":members,"into":into,
+                "older":{"shape":old.to_string(),
+                    "shapes":older_shapes(older, [old.clone()], Some(old), current, histories)}}),
+            Hook::Retype {
+                old,
+                new,
+                member,
+                from,
+                by,
+            } => {
+                let target = newer
+                    .shapes
+                    .get(new)
+                    .and_then(|shape| shape.members().into_iter().find(|m| &m.name == member))
+                    .map(|m| m.target.to_string());
+                let name = if from.is_empty() { member } else { from };
+                let was = older
+                    .shapes
+                    .get(old)
+                    .and_then(|shape| shape.members().into_iter().find(|m| &m.name == name));
+                let member_value = was.map_or(Value::Null, |m| {
+                    let mut value = self::member(older, m);
+                    value["history"] = history(histories.get(&old.with_member(name)));
+                    value
+                });
+                json!({"kind":"retype","shape":new.to_string(),"member":member,"target":target,
+                    "by":match by { RetypeBy::Hook => "hook", RetypeBy::Conversion => "conversion" },
+                    "older":{"member":member_value,
+                        "shapes":older_shapes(older, was.map(|m| m.target.clone()), None, current, histories)}})
+            }
+            Hook::RemoveOperation { operation } => {
+                let op = older.operations.iter().find(|op| &op.id == operation);
+                let entry = op.map_or(Value::Null, |op| {
+                    let mut value = self::operation(older, op, false);
+                    value["history"] = history(histories.get(&op.id));
+                    value
+                });
+                let reached = op
+                    .into_iter()
+                    .flat_map(|op| op.input.iter().chain(&op.output).chain(&op.errors))
+                    .cloned();
+                json!({"kind":"removeOperation","operation":operation.to_string(),
+                    "older":{"operation":entry,
+                        "shapes":older_shapes(older, reached, None, current, histories)}})
+            }
+        },
+    };
+    value["subjects"] = json!(
+        crucible_ir::versions::subjects(step)
+            .iter()
+            .map(ToString::to_string)
+            .collect::<Vec<_>>()
+    );
+    value["documentation"] = documentation(service, step.docs());
+    value
+}
+
+/// Every shape the older definition reaches from `roots`, rendered from
+/// `older`, that the document's own `shapes` does not hold as the same
+/// definition, so the older side is self-contained; `always`, the older
+/// definition itself, is included whatever the current one is.
+fn older_shapes(
+    older: &Service,
+    roots: impl IntoIterator<Item = ShapeId>,
+    always: Option<&ShapeId>,
+    current: &BTreeMap<String, Value>,
+    histories: &crucible_ir::versions::Histories,
+) -> Value {
+    let mut out = Map::new();
+    let mut pending: Vec<ShapeId> = roots.into_iter().collect();
+    let mut seen = std::collections::BTreeSet::new();
+    while let Some(id) = pending.pop() {
+        if id.is_prelude() || !seen.insert(id.clone()) {
+            continue;
+        }
+        let Some(definition) = older.shapes.get(&id) else {
+            continue;
+        };
+        pending.extend(definition.members().into_iter().map(|m| m.target.clone()));
+        let mut value = shape(older, &id, definition);
+        if Some(&id) != always && current.get(&id.to_string()) == Some(&value) {
+            continue;
+        }
+        date_shape(&mut value, &id, histories);
+        out.insert(id.to_string(), value);
+    }
+    Value::Object(out)
 }

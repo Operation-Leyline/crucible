@@ -1,0 +1,3349 @@
+{
+  "format": "crucible.describe/1",
+  "operations": {
+    "example.shop#DeleteItem": {
+      "auth": [],
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "errors": [
+        "crucible.errors#ValidationException",
+        "crucible.errors#InternalServerException"
+      ],
+      "examples": [],
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
+      "id": "example.shop#DeleteItem",
+      "idempotencyToken": null,
+      "idempotent": true,
+      "input": "example.shop#DeleteItemInput",
+      "inputSchema": {
+        "$defs": {
+          "example.shop.DeleteItemInput": {
+            "properties": {
+              "force": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/smithy.api.String"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "id": {
+                "$ref": "#/$defs/smithy.api.String"
+              }
+            },
+            "required": [
+              "id"
+            ],
+            "type": "object"
+          },
+          "smithy.api.String": {
+            "type": "string"
+          }
+        },
+        "properties": {
+          "force": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/smithy.api.String"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "id": {
+            "$ref": "#/$defs/smithy.api.String"
+          }
+        },
+        "required": [
+          "id"
+        ],
+        "type": "object"
+      },
+      "internal": false,
+      "method": "DELETE",
+      "name": "DeleteItem",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "output": "example.shop#DeleteItemOutput",
+      "outputSchema": {
+        "$defs": {
+          "example.shop.DeleteItemOutput": {
+            "properties": {
+              "deleted": {
+                "$ref": "#/$defs/smithy.api.String"
+              }
+            },
+            "required": [
+              "deleted"
+            ],
+            "type": "object"
+          },
+          "smithy.api.String": {
+            "type": "string"
+          }
+        },
+        "properties": {
+          "deleted": {
+            "$ref": "#/$defs/smithy.api.String"
+          }
+        },
+        "required": [
+          "deleted"
+        ],
+        "type": "object"
+      },
+      "pagination": null,
+      "protocol": "crucibleJson",
+      "protocolHeaders": {},
+      "readonly": false,
+      "request": {
+        "body": [],
+        "headerEncodings": {},
+        "headers": [],
+        "labels": [
+          "id"
+        ],
+        "payload": null,
+        "query": [
+          {
+            "member": "force",
+            "name": "force"
+          }
+        ],
+        "timestampFormats": {}
+      },
+      "resources": [],
+      "response": {
+        "body": [
+          "deleted"
+        ],
+        "headerEncodings": {},
+        "headers": [],
+        "labels": [],
+        "payload": null,
+        "query": [],
+        "timestampFormats": {}
+      },
+      "responseProtocolHeaders": {
+        "Content-Type": "application/json"
+      },
+      "sample": {
+        "fallbacks": [],
+        "generated": true,
+        "input": {
+          "body": null,
+          "headers": {},
+          "labels": {
+            "id": "id"
+          },
+          "method": "DELETE",
+          "payload": null,
+          "query": [
+            {
+              "name": "force",
+              "value": "force"
+            }
+          ],
+          "uri": "/items/id?force=force"
+        },
+        "minimalInput": {
+          "body": null,
+          "headers": {},
+          "labels": {
+            "id": "id"
+          },
+          "method": "DELETE",
+          "payload": null,
+          "query": [],
+          "uri": "/items/id"
+        },
+        "output": {
+          "body": {
+            "deleted": "deleted"
+          },
+          "headers": {
+            "Content-Type": "application/json"
+          },
+          "labels": {},
+          "payload": null,
+          "query": []
+        }
+      },
+      "status": 200,
+      "uri": "/items/{id}"
+    },
+    "example.shop#GetItem": {
+      "auth": [],
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "errors": [
+        "example.shop#ItemNotFoundException",
+        "example.shop#ItemGoneException",
+        "crucible.errors#ValidationException",
+        "crucible.errors#InternalServerException"
+      ],
+      "examples": [],
+      "history": {
+        "added": null,
+        "changed": [
+          "v3"
+        ],
+        "missing": []
+      },
+      "id": "example.shop#GetItem",
+      "idempotencyToken": null,
+      "idempotent": false,
+      "input": "example.shop#GetItemInput",
+      "inputSchema": {
+        "$defs": {
+          "example.shop.GetItemInput": {
+            "properties": {
+              "id": {
+                "$ref": "#/$defs/smithy.api.String"
+              }
+            },
+            "required": [
+              "id"
+            ],
+            "type": "object"
+          },
+          "smithy.api.String": {
+            "type": "string"
+          }
+        },
+        "properties": {
+          "id": {
+            "$ref": "#/$defs/smithy.api.String"
+          }
+        },
+        "required": [
+          "id"
+        ],
+        "type": "object"
+      },
+      "internal": false,
+      "method": "GET",
+      "name": "GetItem",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "output": "example.shop#GetItemOutput",
+      "outputSchema": {
+        "$defs": {
+          "example.shop.GetItemOutput": {
+            "properties": {
+              "kind": {
+                "$ref": "#/$defs/example.shop.Kind"
+              },
+              "label": {
+                "$ref": "#/$defs/example.shop.Label"
+              }
+            },
+            "required": [
+              "label",
+              "kind"
+            ],
+            "type": "object"
+          },
+          "example.shop.Kind": {
+            "enum": [
+              "SMALL",
+              "LARGE",
+              "HUGE"
+            ],
+            "type": "string"
+          },
+          "example.shop.Label": {
+            "properties": {
+              "size": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/smithy.api.Integer"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "title": {
+                "$ref": "#/$defs/smithy.api.String"
+              }
+            },
+            "required": [
+              "title"
+            ],
+            "type": "object"
+          },
+          "smithy.api.Integer": {
+            "format": "int32",
+            "maximum": 2147483647,
+            "minimum": -2147483648,
+            "type": "integer"
+          },
+          "smithy.api.String": {
+            "type": "string"
+          }
+        },
+        "properties": {
+          "kind": {
+            "$ref": "#/$defs/example.shop.Kind"
+          },
+          "label": {
+            "$ref": "#/$defs/example.shop.Label"
+          }
+        },
+        "required": [
+          "label",
+          "kind"
+        ],
+        "type": "object"
+      },
+      "pagination": null,
+      "protocol": "crucibleJson",
+      "protocolHeaders": {},
+      "readonly": true,
+      "request": {
+        "body": [],
+        "headerEncodings": {},
+        "headers": [],
+        "labels": [
+          "id"
+        ],
+        "payload": null,
+        "query": [],
+        "timestampFormats": {}
+      },
+      "resources": [],
+      "response": {
+        "body": [
+          "label",
+          "kind"
+        ],
+        "headerEncodings": {},
+        "headers": [],
+        "labels": [],
+        "payload": null,
+        "query": [],
+        "timestampFormats": {}
+      },
+      "responseProtocolHeaders": {
+        "Content-Type": "application/json"
+      },
+      "sample": {
+        "fallbacks": [],
+        "generated": true,
+        "input": {
+          "body": null,
+          "headers": {},
+          "labels": {
+            "id": "id"
+          },
+          "method": "GET",
+          "payload": null,
+          "query": [],
+          "uri": "/things/id"
+        },
+        "minimalInput": {
+          "body": null,
+          "headers": {},
+          "labels": {
+            "id": "id"
+          },
+          "method": "GET",
+          "payload": null,
+          "query": [],
+          "uri": "/things/id"
+        },
+        "output": {
+          "body": {
+            "kind": "SMALL",
+            "label": {
+              "size": 1,
+              "title": "title"
+            }
+          },
+          "headers": {
+            "Content-Type": "application/json"
+          },
+          "labels": {},
+          "payload": null,
+          "query": []
+        }
+      },
+      "status": 200,
+      "uri": "/things/{id}"
+    },
+    "example.shop#ListItems": {
+      "auth": [],
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "errors": [
+        "crucible.errors#ValidationException",
+        "crucible.errors#InternalServerException"
+      ],
+      "examples": [],
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
+      "id": "example.shop#ListItems",
+      "idempotencyToken": null,
+      "idempotent": false,
+      "input": "example.shop#ListItemsInput",
+      "inputSchema": {
+        "$defs": {
+          "example.shop.ListItemsInput": {
+            "properties": {
+              "limit": {
+                "$ref": "#/$defs/smithy.api.Integer"
+              },
+              "sort": {
+                "$ref": "#/$defs/smithy.api.String"
+              }
+            },
+            "required": [
+              "limit",
+              "sort"
+            ],
+            "type": "object"
+          },
+          "smithy.api.Integer": {
+            "format": "int32",
+            "maximum": 2147483647,
+            "minimum": -2147483648,
+            "type": "integer"
+          },
+          "smithy.api.String": {
+            "type": "string"
+          }
+        },
+        "properties": {
+          "limit": {
+            "$ref": "#/$defs/smithy.api.Integer"
+          },
+          "sort": {
+            "$ref": "#/$defs/smithy.api.String"
+          }
+        },
+        "required": [
+          "limit",
+          "sort"
+        ],
+        "type": "object"
+      },
+      "internal": false,
+      "method": "GET",
+      "name": "ListItems",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "output": "example.shop#ListItemsOutput",
+      "outputSchema": {
+        "$defs": {
+          "example.shop.Kind": {
+            "enum": [
+              "SMALL",
+              "LARGE",
+              "HUGE"
+            ],
+            "type": "string"
+          },
+          "example.shop.Kinds": {
+            "items": {
+              "$ref": "#/$defs/example.shop.Kind"
+            },
+            "type": "array",
+            "uniqueItems": false
+          },
+          "example.shop.ListItemsOutput": {
+            "properties": {
+              "kinds": {
+                "$ref": "#/$defs/example.shop.Kinds"
+              },
+              "names": {
+                "$ref": "#/$defs/example.shop.Names"
+              }
+            },
+            "required": [
+              "names",
+              "kinds"
+            ],
+            "type": "object"
+          },
+          "example.shop.Names": {
+            "items": {
+              "$ref": "#/$defs/smithy.api.String"
+            },
+            "type": "array",
+            "uniqueItems": false
+          },
+          "smithy.api.String": {
+            "type": "string"
+          }
+        },
+        "properties": {
+          "kinds": {
+            "$ref": "#/$defs/example.shop.Kinds"
+          },
+          "names": {
+            "$ref": "#/$defs/example.shop.Names"
+          }
+        },
+        "required": [
+          "names",
+          "kinds"
+        ],
+        "type": "object"
+      },
+      "pagination": null,
+      "protocol": "crucibleJson",
+      "protocolHeaders": {},
+      "readonly": true,
+      "request": {
+        "body": [],
+        "headerEncodings": {},
+        "headers": [],
+        "labels": [],
+        "payload": null,
+        "query": [
+          {
+            "member": "limit",
+            "name": "limit"
+          },
+          {
+            "member": "sort",
+            "name": "sort"
+          }
+        ],
+        "timestampFormats": {}
+      },
+      "resources": [],
+      "response": {
+        "body": [
+          "names",
+          "kinds"
+        ],
+        "headerEncodings": {},
+        "headers": [],
+        "labels": [],
+        "payload": null,
+        "query": [],
+        "timestampFormats": {}
+      },
+      "responseProtocolHeaders": {
+        "Content-Type": "application/json"
+      },
+      "sample": {
+        "fallbacks": [],
+        "generated": true,
+        "input": {
+          "body": null,
+          "headers": {},
+          "labels": {},
+          "method": "GET",
+          "payload": null,
+          "query": [
+            {
+              "name": "limit",
+              "value": "1"
+            },
+            {
+              "name": "sort",
+              "value": "sort"
+            }
+          ],
+          "uri": "/items?limit=1&sort=sort"
+        },
+        "minimalInput": {
+          "body": null,
+          "headers": {},
+          "labels": {},
+          "method": "GET",
+          "payload": null,
+          "query": [
+            {
+              "name": "limit",
+              "value": "1"
+            },
+            {
+              "name": "sort",
+              "value": "sort"
+            }
+          ],
+          "uri": "/items?limit=1&sort=sort"
+        },
+        "output": {
+          "body": {
+            "kinds": [
+              "SMALL"
+            ],
+            "names": [
+              "names"
+            ]
+          },
+          "headers": {
+            "Content-Type": "application/json"
+          },
+          "labels": {},
+          "payload": null,
+          "query": []
+        }
+      },
+      "status": 200,
+      "uri": "/items"
+    }
+  },
+  "resources": {},
+  "service": {
+    "auth": [],
+    "authSchemes": {},
+    "documentation": {
+      "html": "",
+      "markdown": "",
+      "text": ""
+    },
+    "errors": [
+      "crucible.errors#ValidationException",
+      "crucible.errors#InternalServerException"
+    ],
+    "id": "example.shop#Shop",
+    "internal": false,
+    "name": "Shop",
+    "notes": {
+      "deprecated": null,
+      "externalDocs": {},
+      "since": null,
+      "unstable": false
+    },
+    "protocol": "crucibleJson",
+    "resourceRoots": [],
+    "title": "Shop",
+    "version": "v3"
+  },
+  "shapes": {
+    "crucible.errors#InternalServerException": {
+      "documentation": {
+        "html": "<p>An unexpected server failure. Its message never exposes the underlying cause.</p>\n",
+        "markdown": "An unexpected server failure. Its message never exposes the underlying cause.",
+        "text": "An unexpected server failure. Its message never exposes the underlying cause."
+      },
+      "error": {
+        "bindings": {
+          "body": [
+            "message"
+          ],
+          "headerEncodings": {},
+          "headers": [
+            {
+              "member": "retryAfterSeconds",
+              "name": "Retry-After"
+            }
+          ],
+          "labels": [],
+          "payload": null,
+          "query": [],
+          "timestampFormats": {}
+        },
+        "bodyDiscriminator": "InternalServerException",
+        "discriminatorHeader": "X-Crucible-Error",
+        "fault": "server",
+        "protocolHeaders": {
+          "Content-Type": "application/json"
+        },
+        "retryable": {
+          "throttling": false
+        },
+        "sample": {
+          "fallbacks": [],
+          "generated": true,
+          "message": {
+            "body": {
+              "__type": "InternalServerException",
+              "message": "message"
+            },
+            "headers": {
+              "Content-Type": "application/json",
+              "Retry-After": "1",
+              "X-Crucible-Error": "InternalServerException"
+            },
+            "labels": {},
+            "payload": null,
+            "query": []
+          }
+        },
+        "shape": "crucible.errors#InternalServerException",
+        "status": 500,
+        "wireCode": "InternalServerException"
+      },
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
+      "id": "crucible.errors#InternalServerException",
+      "internal": false,
+      "kind": "structure",
+      "members": [
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "message",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": false,
+          "required": true,
+          "sensitive": false,
+          "target": "smithy.api#String",
+          "targetName": "String",
+          "targetType": "string",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "message"
+        },
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "retryAfterSeconds",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": true,
+          "required": false,
+          "sensitive": false,
+          "target": "smithy.api#Integer",
+          "targetName": "Integer",
+          "targetType": "integer",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "retryAfterSeconds"
+        }
+      ],
+      "name": "InternalServerException",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false
+    },
+    "crucible.errors#ValidationException": {
+      "documentation": {
+        "html": "<p>A request cannot be parsed or does not satisfy the service's input model.</p>\n",
+        "markdown": "A request cannot be parsed or does not satisfy the service's input model.",
+        "text": "A request cannot be parsed or does not satisfy the service's input model."
+      },
+      "error": {
+        "bindings": {
+          "body": [
+            "message",
+            "reason",
+            "fieldList"
+          ],
+          "headerEncodings": {},
+          "headers": [],
+          "labels": [],
+          "payload": null,
+          "query": [],
+          "timestampFormats": {}
+        },
+        "bodyDiscriminator": "ValidationException",
+        "discriminatorHeader": "X-Crucible-Error",
+        "fault": "client",
+        "protocolHeaders": {
+          "Content-Type": "application/json"
+        },
+        "retryable": null,
+        "sample": {
+          "fallbacks": [],
+          "generated": true,
+          "message": {
+            "body": {
+              "__type": "ValidationException",
+              "fieldList": [
+                {
+                  "message": "message",
+                  "name": "name"
+                }
+              ],
+              "message": "message",
+              "reason": "unknownOperation"
+            },
+            "headers": {
+              "Content-Type": "application/json",
+              "X-Crucible-Error": "ValidationException"
+            },
+            "labels": {},
+            "payload": null,
+            "query": []
+          }
+        },
+        "shape": "crucible.errors#ValidationException",
+        "status": 400,
+        "wireCode": "ValidationException"
+      },
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
+      "id": "crucible.errors#ValidationException",
+      "internal": false,
+      "kind": "structure",
+      "members": [
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "message",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": false,
+          "required": true,
+          "sensitive": false,
+          "target": "smithy.api#String",
+          "targetName": "String",
+          "targetType": "string",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "message"
+        },
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "reason",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": false,
+          "required": true,
+          "sensitive": false,
+          "target": "crucible.errors#ValidationExceptionReason",
+          "targetName": "ValidationExceptionReason",
+          "targetType": "enum",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "reason"
+        },
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "fieldList",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": true,
+          "required": false,
+          "sensitive": false,
+          "target": "crucible.errors#ValidationExceptionFieldList",
+          "targetName": "ValidationExceptionFieldList",
+          "targetType": "list",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "fieldList"
+        }
+      ],
+      "name": "ValidationException",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false
+    },
+    "crucible.errors#ValidationExceptionField": {
+      "documentation": {
+        "html": "<p>A request field that failed validation.</p>\n",
+        "markdown": "A request field that failed validation.",
+        "text": "A request field that failed validation."
+      },
+      "error": null,
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
+      "id": "crucible.errors#ValidationExceptionField",
+      "internal": false,
+      "kind": "structure",
+      "members": [
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "name",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": false,
+          "required": true,
+          "sensitive": false,
+          "target": "smithy.api#String",
+          "targetName": "String",
+          "targetType": "string",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "name"
+        },
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "message",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": false,
+          "required": true,
+          "sensitive": false,
+          "target": "smithy.api#String",
+          "targetName": "String",
+          "targetType": "string",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "message"
+        }
+      ],
+      "name": "ValidationExceptionField",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false
+    },
+    "crucible.errors#ValidationExceptionFieldList": {
+      "constraints": {
+        "length": null,
+        "pattern": null,
+        "range": null,
+        "uniqueItems": false
+      },
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
+      "id": "crucible.errors#ValidationExceptionFieldList",
+      "internal": false,
+      "kind": "list",
+      "members": [
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "member",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": true,
+          "required": false,
+          "sensitive": false,
+          "target": "crucible.errors#ValidationExceptionField",
+          "targetName": "ValidationExceptionField",
+          "targetType": "structure",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "member"
+        }
+      ],
+      "name": "ValidationExceptionFieldList",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false,
+      "set": false,
+      "sparse": false
+    },
+    "crucible.errors#ValidationExceptionReason": {
+      "documentation": {
+        "html": "<p>A machine-readable reason; clients never need to parse message text.</p>\n",
+        "markdown": "A machine-readable reason; clients never need to parse message text.",
+        "text": "A machine-readable reason; clients never need to parse message text."
+      },
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
+      "id": "crucible.errors#ValidationExceptionReason",
+      "internal": false,
+      "kind": "enum",
+      "members": [],
+      "name": "ValidationExceptionReason",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false,
+      "values": [
+        {
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "UNKNOWN_OPERATION",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "value": "unknownOperation"
+        },
+        {
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "CANNOT_PARSE",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "value": "cannotParse"
+        },
+        {
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "FIELD_VALIDATION_FAILED",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "value": "fieldValidationFailed"
+        },
+        {
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "OTHER",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "value": "other"
+        }
+      ]
+    },
+    "example.shop#DeleteItemInput": {
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "error": null,
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
+      "id": "example.shop#DeleteItemInput",
+      "internal": false,
+      "kind": "structure",
+      "members": [
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "id",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": false,
+          "required": true,
+          "sensitive": false,
+          "target": "smithy.api#String",
+          "targetName": "String",
+          "targetType": "string",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "id"
+        },
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [
+              "v3"
+            ],
+            "missing": []
+          },
+          "internal": false,
+          "name": "force",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": true,
+          "required": false,
+          "sensitive": false,
+          "target": "smithy.api#String",
+          "targetName": "String",
+          "targetType": "string",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "force"
+        }
+      ],
+      "name": "DeleteItemInput",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false
+    },
+    "example.shop#DeleteItemOutput": {
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "error": null,
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
+      "id": "example.shop#DeleteItemOutput",
+      "internal": false,
+      "kind": "structure",
+      "members": [
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [
+              "v3"
+            ],
+            "missing": []
+          },
+          "internal": false,
+          "name": "deleted",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": false,
+          "required": true,
+          "sensitive": false,
+          "target": "smithy.api#String",
+          "targetName": "String",
+          "targetType": "string",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "deleted"
+        }
+      ],
+      "name": "DeleteItemOutput",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false
+    },
+    "example.shop#GetItemInput": {
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "error": null,
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
+      "id": "example.shop#GetItemInput",
+      "internal": false,
+      "kind": "structure",
+      "members": [
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "id",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": false,
+          "required": true,
+          "sensitive": false,
+          "target": "smithy.api#String",
+          "targetName": "String",
+          "targetType": "string",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "id"
+        }
+      ],
+      "name": "GetItemInput",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false
+    },
+    "example.shop#GetItemOutput": {
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "error": null,
+      "history": {
+        "added": null,
+        "changed": [
+          "v3"
+        ],
+        "missing": []
+      },
+      "id": "example.shop#GetItemOutput",
+      "internal": false,
+      "kind": "structure",
+      "members": [
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": "v3",
+            "changed": [],
+            "missing": [
+              "v1",
+              "v2"
+            ]
+          },
+          "internal": false,
+          "name": "label",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": false,
+          "required": true,
+          "sensitive": false,
+          "target": "example.shop#Label",
+          "targetName": "Label",
+          "targetType": "structure",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "label"
+        },
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "kind",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": false,
+          "required": true,
+          "sensitive": false,
+          "target": "example.shop#Kind",
+          "targetName": "Kind",
+          "targetType": "enum",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "kind"
+        }
+      ],
+      "name": "GetItemOutput",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false
+    },
+    "example.shop#ItemGoneException": {
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "error": {
+        "bindings": {
+          "body": [
+            "message"
+          ],
+          "headerEncodings": {},
+          "headers": [],
+          "labels": [],
+          "payload": null,
+          "query": [],
+          "timestampFormats": {}
+        },
+        "bodyDiscriminator": "ItemGoneException",
+        "discriminatorHeader": "X-Crucible-Error",
+        "fault": "client",
+        "protocolHeaders": {
+          "Content-Type": "application/json"
+        },
+        "retryable": null,
+        "sample": {
+          "fallbacks": [],
+          "generated": true,
+          "message": {
+            "body": {
+              "__type": "ItemGoneException",
+              "message": "message"
+            },
+            "headers": {
+              "Content-Type": "application/json",
+              "X-Crucible-Error": "ItemGoneException"
+            },
+            "labels": {},
+            "payload": null,
+            "query": []
+          }
+        },
+        "shape": "example.shop#ItemGoneException",
+        "status": 410,
+        "wireCode": "ItemGoneException"
+      },
+      "history": {
+        "added": "v3",
+        "changed": [],
+        "missing": []
+      },
+      "id": "example.shop#ItemGoneException",
+      "internal": false,
+      "kind": "structure",
+      "members": [
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": "v3",
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "message",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": false,
+          "required": true,
+          "sensitive": false,
+          "target": "smithy.api#String",
+          "targetName": "String",
+          "targetType": "string",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "message"
+        }
+      ],
+      "name": "ItemGoneException",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false
+    },
+    "example.shop#ItemNotFoundException": {
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "error": {
+        "bindings": {
+          "body": [
+            "message"
+          ],
+          "headerEncodings": {},
+          "headers": [],
+          "labels": [],
+          "payload": null,
+          "query": [],
+          "timestampFormats": {}
+        },
+        "bodyDiscriminator": "ItemNotFoundException",
+        "discriminatorHeader": "X-Crucible-Error",
+        "fault": "client",
+        "protocolHeaders": {
+          "Content-Type": "application/json"
+        },
+        "retryable": null,
+        "sample": {
+          "fallbacks": [],
+          "generated": true,
+          "message": {
+            "body": {
+              "__type": "ItemNotFoundException",
+              "message": "message"
+            },
+            "headers": {
+              "Content-Type": "application/json",
+              "X-Crucible-Error": "ItemNotFoundException"
+            },
+            "labels": {},
+            "payload": null,
+            "query": []
+          }
+        },
+        "shape": "example.shop#ItemNotFoundException",
+        "status": 404,
+        "wireCode": "ItemNotFoundException"
+      },
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
+      "id": "example.shop#ItemNotFoundException",
+      "internal": false,
+      "kind": "structure",
+      "members": [
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "message",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": false,
+          "required": true,
+          "sensitive": false,
+          "target": "smithy.api#String",
+          "targetName": "String",
+          "targetType": "string",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "message"
+        }
+      ],
+      "name": "ItemNotFoundException",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false
+    },
+    "example.shop#Kind": {
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "history": {
+        "added": null,
+        "changed": [
+          "v3"
+        ],
+        "missing": []
+      },
+      "id": "example.shop#Kind",
+      "internal": false,
+      "kind": "enum",
+      "members": [],
+      "name": "Kind",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false,
+      "values": [
+        {
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "SMALL",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "value": "SMALL"
+        },
+        {
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "LARGE",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "value": "LARGE"
+        },
+        {
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": "v3",
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "HUGE",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "value": "HUGE"
+        }
+      ]
+    },
+    "example.shop#Kinds": {
+      "constraints": {
+        "length": null,
+        "pattern": null,
+        "range": null,
+        "uniqueItems": false
+      },
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
+      "id": "example.shop#Kinds",
+      "internal": false,
+      "kind": "list",
+      "members": [
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "member",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": true,
+          "required": false,
+          "sensitive": false,
+          "target": "example.shop#Kind",
+          "targetName": "Kind",
+          "targetType": "enum",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "member"
+        }
+      ],
+      "name": "Kinds",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false,
+      "set": false,
+      "sparse": false
+    },
+    "example.shop#Label": {
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "error": null,
+      "history": {
+        "added": "v3",
+        "changed": [],
+        "missing": []
+      },
+      "id": "example.shop#Label",
+      "internal": false,
+      "kind": "structure",
+      "members": [
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": "v3",
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "title",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": false,
+          "required": true,
+          "sensitive": false,
+          "target": "smithy.api#String",
+          "targetName": "String",
+          "targetType": "string",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "title"
+        },
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": "v3",
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "size",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": true,
+          "required": false,
+          "sensitive": false,
+          "target": "smithy.api#Integer",
+          "targetName": "Integer",
+          "targetType": "integer",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "size"
+        }
+      ],
+      "name": "Label",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false
+    },
+    "example.shop#ListItemsInput": {
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "error": null,
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
+      "id": "example.shop#ListItemsInput",
+      "internal": false,
+      "kind": "structure",
+      "members": [
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [
+              "v2",
+              "v3"
+            ],
+            "missing": []
+          },
+          "internal": false,
+          "name": "limit",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": false,
+          "required": true,
+          "sensitive": false,
+          "target": "smithy.api#Integer",
+          "targetName": "Integer",
+          "targetType": "integer",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "limit"
+        },
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [
+              "v2"
+            ],
+            "missing": []
+          },
+          "internal": false,
+          "name": "sort",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": false,
+          "required": true,
+          "sensitive": false,
+          "target": "smithy.api#String",
+          "targetName": "String",
+          "targetType": "string",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "sort"
+        }
+      ],
+      "name": "ListItemsInput",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false
+    },
+    "example.shop#ListItemsOutput": {
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "error": null,
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
+      "id": "example.shop#ListItemsOutput",
+      "internal": false,
+      "kind": "structure",
+      "members": [
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "names",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": false,
+          "required": true,
+          "sensitive": false,
+          "target": "example.shop#Names",
+          "targetName": "Names",
+          "targetType": "list",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "names"
+        },
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "kinds",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": false,
+          "required": true,
+          "sensitive": false,
+          "target": "example.shop#Kinds",
+          "targetName": "Kinds",
+          "targetType": "list",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "kinds"
+        }
+      ],
+      "name": "ListItemsOutput",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false
+    },
+    "example.shop#Names": {
+      "constraints": {
+        "length": null,
+        "pattern": null,
+        "range": null,
+        "uniqueItems": false
+      },
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
+      "id": "example.shop#Names",
+      "internal": false,
+      "kind": "list",
+      "members": [
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "member",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": true,
+          "required": false,
+          "sensitive": false,
+          "target": "smithy.api#String",
+          "targetName": "String",
+          "targetType": "string",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "member"
+        }
+      ],
+      "name": "Names",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false,
+      "set": false,
+      "sparse": false
+    },
+    "smithy.api#Integer": {
+      "constraints": {
+        "length": null,
+        "pattern": null,
+        "range": null,
+        "uniqueItems": false
+      },
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
+      "id": "smithy.api#Integer",
+      "internal": false,
+      "kind": "integer",
+      "members": [],
+      "name": "Integer",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false
+    },
+    "smithy.api#String": {
+      "constraints": {
+        "length": null,
+        "pattern": null,
+        "range": null,
+        "uniqueItems": false
+      },
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
+      "id": "smithy.api#String",
+      "internal": false,
+      "kind": "string",
+      "members": [],
+      "name": "String",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false
+    }
+  },
+  "versions": {
+    "carrier": {
+      "kind": "header",
+      "name": "Crucible-Version"
+    },
+    "current": "v3",
+    "releases": [
+      {
+        "changes": [],
+        "current": false,
+        "documentation": {
+          "html": "",
+          "markdown": "",
+          "text": ""
+        },
+        "from": null,
+        "name": "v1",
+        "retired": [],
+        "sunset": "2027-01-01",
+        "sunsetDocumentation": {
+          "html": "",
+          "markdown": "",
+          "text": ""
+        }
+      },
+      {
+        "changes": [
+          {
+            "documentation": {
+              "html": "",
+              "markdown": "",
+              "text": ""
+            },
+            "kind": "rename",
+            "member": "title",
+            "older": {
+              "member": "name",
+              "shapes": {}
+            },
+            "shape": "example.shop#GetItemOutput",
+            "subjects": [
+              "example.shop#GetItemOutput$title"
+            ]
+          },
+          {
+            "documentation": {
+              "html": "",
+              "markdown": "",
+              "text": ""
+            },
+            "kind": "rename",
+            "member": "limit",
+            "older": {
+              "member": "max",
+              "shapes": {}
+            },
+            "shape": "example.shop#ListItemsInput",
+            "subjects": [
+              "example.shop#ListItemsInput$limit"
+            ]
+          },
+          {
+            "documentation": {
+              "html": "",
+              "markdown": "",
+              "text": ""
+            },
+            "kind": "require",
+            "member": "sort",
+            "older": {
+              "default": null,
+              "filled": "service",
+              "required": false,
+              "shapes": {}
+            },
+            "shape": "example.shop#ListItemsInput",
+            "subjects": [
+              "example.shop#ListItemsInput$sort"
+            ]
+          }
+        ],
+        "current": false,
+        "documentation": {
+          "html": "",
+          "markdown": "",
+          "text": ""
+        },
+        "from": "v1",
+        "name": "v2",
+        "retired": [],
+        "sunset": null,
+        "sunsetDocumentation": {
+          "html": "",
+          "markdown": "",
+          "text": ""
+        }
+      },
+      {
+        "changes": [
+          {
+            "documentation": {
+              "html": "",
+              "markdown": "",
+              "text": ""
+            },
+            "kind": "move",
+            "method": "GET",
+            "older": {
+              "method": "GET",
+              "shapes": {},
+              "uri": "/items/{id}"
+            },
+            "operation": "example.shop#GetItem",
+            "subjects": [
+              "example.shop#GetItem"
+            ],
+            "uri": "/things/{id}"
+          },
+          {
+            "documentation": {
+              "html": "",
+              "markdown": "",
+              "text": ""
+            },
+            "into": "label",
+            "kind": "reshape",
+            "members": [
+              "title",
+              "size"
+            ],
+            "older": {
+              "shape": "example.shop#GetItemOutput",
+              "shapes": {
+                "example.shop#GetItemOutput": {
+                  "documentation": {
+                    "html": "",
+                    "markdown": "",
+                    "text": ""
+                  },
+                  "error": null,
+                  "history": {
+                    "added": null,
+                    "changed": [],
+                    "missing": []
+                  },
+                  "id": "example.shop#GetItemOutput",
+                  "internal": false,
+                  "kind": "structure",
+                  "members": [
+                    {
+                      "clientOptional": false,
+                      "constraints": {
+                        "length": null,
+                        "pattern": null,
+                        "range": null,
+                        "uniqueItems": false
+                      },
+                      "default": null,
+                      "documentation": {
+                        "html": "",
+                        "markdown": "",
+                        "text": ""
+                      },
+                      "history": {
+                        "added": null,
+                        "changed": [
+                          "v2"
+                        ],
+                        "missing": []
+                      },
+                      "internal": false,
+                      "name": "title",
+                      "notes": {
+                        "deprecated": null,
+                        "externalDocs": {},
+                        "since": null,
+                        "unstable": false
+                      },
+                      "nullable": false,
+                      "required": true,
+                      "sensitive": false,
+                      "target": "smithy.api#String",
+                      "targetName": "String",
+                      "targetType": "string",
+                      "timestampFormat": "date-time",
+                      "wireDefault": null,
+                      "wireName": "title"
+                    },
+                    {
+                      "clientOptional": false,
+                      "constraints": {
+                        "length": null,
+                        "pattern": null,
+                        "range": null,
+                        "uniqueItems": false
+                      },
+                      "default": null,
+                      "documentation": {
+                        "html": "",
+                        "markdown": "",
+                        "text": ""
+                      },
+                      "history": {
+                        "added": null,
+                        "changed": [],
+                        "missing": []
+                      },
+                      "internal": false,
+                      "name": "size",
+                      "notes": {
+                        "deprecated": null,
+                        "externalDocs": {},
+                        "since": null,
+                        "unstable": false
+                      },
+                      "nullable": true,
+                      "required": false,
+                      "sensitive": false,
+                      "target": "smithy.api#Integer",
+                      "targetName": "Integer",
+                      "targetType": "integer",
+                      "timestampFormat": "date-time",
+                      "wireDefault": null,
+                      "wireName": "size"
+                    },
+                    {
+                      "clientOptional": false,
+                      "constraints": {
+                        "length": null,
+                        "pattern": null,
+                        "range": null,
+                        "uniqueItems": false
+                      },
+                      "default": null,
+                      "documentation": {
+                        "html": "",
+                        "markdown": "",
+                        "text": ""
+                      },
+                      "history": {
+                        "added": null,
+                        "changed": [],
+                        "missing": []
+                      },
+                      "internal": false,
+                      "name": "kind",
+                      "notes": {
+                        "deprecated": null,
+                        "externalDocs": {},
+                        "since": null,
+                        "unstable": false
+                      },
+                      "nullable": false,
+                      "required": true,
+                      "sensitive": false,
+                      "target": "example.shop#Kind",
+                      "targetName": "Kind",
+                      "targetType": "enum",
+                      "timestampFormat": "date-time",
+                      "wireDefault": null,
+                      "wireName": "kind"
+                    }
+                  ],
+                  "name": "GetItemOutput",
+                  "notes": {
+                    "deprecated": null,
+                    "externalDocs": {},
+                    "since": null,
+                    "unstable": false
+                  },
+                  "sensitive": false
+                },
+                "example.shop#Kind": {
+                  "documentation": {
+                    "html": "",
+                    "markdown": "",
+                    "text": ""
+                  },
+                  "history": {
+                    "added": null,
+                    "changed": [],
+                    "missing": []
+                  },
+                  "id": "example.shop#Kind",
+                  "internal": false,
+                  "kind": "enum",
+                  "members": [],
+                  "name": "Kind",
+                  "notes": {
+                    "deprecated": null,
+                    "externalDocs": {},
+                    "since": null,
+                    "unstable": false
+                  },
+                  "sensitive": false,
+                  "values": [
+                    {
+                      "documentation": {
+                        "html": "",
+                        "markdown": "",
+                        "text": ""
+                      },
+                      "history": {
+                        "added": null,
+                        "changed": [],
+                        "missing": []
+                      },
+                      "internal": false,
+                      "name": "SMALL",
+                      "notes": {
+                        "deprecated": null,
+                        "externalDocs": {},
+                        "since": null,
+                        "unstable": false
+                      },
+                      "value": "SMALL"
+                    },
+                    {
+                      "documentation": {
+                        "html": "",
+                        "markdown": "",
+                        "text": ""
+                      },
+                      "history": {
+                        "added": null,
+                        "changed": [],
+                        "missing": []
+                      },
+                      "internal": false,
+                      "name": "LARGE",
+                      "notes": {
+                        "deprecated": null,
+                        "externalDocs": {},
+                        "since": null,
+                        "unstable": false
+                      },
+                      "value": "LARGE"
+                    }
+                  ]
+                }
+              }
+            },
+            "shape": "example.shop#GetItemOutput",
+            "subjects": [
+              "example.shop#GetItemOutput"
+            ]
+          },
+          {
+            "documentation": {
+              "html": "",
+              "markdown": "",
+              "text": ""
+            },
+            "kind": "require",
+            "member": "limit",
+            "older": {
+              "default": 20,
+              "filled": "default",
+              "required": false,
+              "shapes": {}
+            },
+            "shape": "example.shop#ListItemsInput",
+            "subjects": [
+              "example.shop#ListItemsInput$limit"
+            ]
+          },
+          {
+            "documentation": {
+              "html": "",
+              "markdown": "",
+              "text": ""
+            },
+            "kind": "addEnumValue",
+            "older": {
+              "shapes": {},
+              "value": "LARGE"
+            },
+            "shape": "example.shop#Kind",
+            "subjects": [
+              "example.shop#Kind"
+            ],
+            "value": "HUGE"
+          },
+          {
+            "documentation": {
+              "html": "",
+              "markdown": "",
+              "text": ""
+            },
+            "error": "example.shop#ItemGoneException",
+            "kind": "addError",
+            "older": {
+              "error": "example.shop#ItemNotFoundException",
+              "members": [
+                {
+                  "from": "message",
+                  "member": "message"
+                }
+              ],
+              "shapes": {}
+            },
+            "operation": "example.shop#GetItem",
+            "subjects": [
+              "example.shop#GetItem"
+            ]
+          },
+          {
+            "by": "hook",
+            "documentation": {
+              "html": "",
+              "markdown": "",
+              "text": ""
+            },
+            "kind": "retype",
+            "member": "force",
+            "older": {
+              "member": {
+                "clientOptional": false,
+                "constraints": {
+                  "length": null,
+                  "pattern": null,
+                  "range": null,
+                  "uniqueItems": false
+                },
+                "default": null,
+                "documentation": {
+                  "html": "",
+                  "markdown": "",
+                  "text": ""
+                },
+                "history": {
+                  "added": null,
+                  "changed": [],
+                  "missing": []
+                },
+                "internal": false,
+                "name": "force",
+                "notes": {
+                  "deprecated": null,
+                  "externalDocs": {},
+                  "since": null,
+                  "unstable": false
+                },
+                "nullable": true,
+                "required": false,
+                "sensitive": false,
+                "target": "smithy.api#Boolean",
+                "targetName": "Boolean",
+                "targetType": "boolean",
+                "timestampFormat": "date-time",
+                "wireDefault": null,
+                "wireName": "force"
+              },
+              "shapes": {}
+            },
+            "shape": "example.shop#DeleteItemInput",
+            "subjects": [
+              "example.shop#DeleteItemInput$force"
+            ],
+            "target": "smithy.api#String"
+          },
+          {
+            "by": "hook",
+            "documentation": {
+              "html": "",
+              "markdown": "",
+              "text": ""
+            },
+            "kind": "retype",
+            "member": "deleted",
+            "older": {
+              "member": {
+                "clientOptional": false,
+                "constraints": {
+                  "length": null,
+                  "pattern": null,
+                  "range": null,
+                  "uniqueItems": false
+                },
+                "default": null,
+                "documentation": {
+                  "html": "",
+                  "markdown": "",
+                  "text": ""
+                },
+                "history": {
+                  "added": null,
+                  "changed": [],
+                  "missing": []
+                },
+                "internal": false,
+                "name": "deleted",
+                "notes": {
+                  "deprecated": null,
+                  "externalDocs": {},
+                  "since": null,
+                  "unstable": false
+                },
+                "nullable": false,
+                "required": true,
+                "sensitive": false,
+                "target": "smithy.api#Boolean",
+                "targetName": "Boolean",
+                "targetType": "boolean",
+                "timestampFormat": "date-time",
+                "wireDefault": null,
+                "wireName": "deleted"
+              },
+              "shapes": {}
+            },
+            "shape": "example.shop#DeleteItemOutput",
+            "subjects": [
+              "example.shop#DeleteItemOutput$deleted"
+            ],
+            "target": "smithy.api#String"
+          },
+          {
+            "documentation": {
+              "html": "",
+              "markdown": "",
+              "text": ""
+            },
+            "kind": "removeOperation",
+            "older": {
+              "operation": {
+                "auth": [],
+                "documentation": {
+                  "html": "",
+                  "markdown": "",
+                  "text": ""
+                },
+                "errors": [
+                  "example.shop#CountUnavailableException",
+                  "crucible.errors#ValidationException",
+                  "crucible.errors#InternalServerException"
+                ],
+                "examples": [],
+                "history": {
+                  "added": null,
+                  "changed": [],
+                  "missing": []
+                },
+                "id": "example.shop#CountItems",
+                "idempotencyToken": null,
+                "idempotent": false,
+                "input": "example.shop#CountItemsInput",
+                "inputSchema": {
+                  "$defs": {
+                    "example.shop.CountItemsInput": {
+                      "properties": {
+                        "shelf": {
+                          "anyOf": [
+                            {
+                              "$ref": "#/$defs/smithy.api.String"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        }
+                      },
+                      "type": "object"
+                    },
+                    "smithy.api.String": {
+                      "type": "string"
+                    }
+                  },
+                  "properties": {
+                    "shelf": {
+                      "anyOf": [
+                        {
+                          "$ref": "#/$defs/smithy.api.String"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  },
+                  "type": "object"
+                },
+                "internal": false,
+                "method": "GET",
+                "name": "CountItems",
+                "notes": {
+                  "deprecated": null,
+                  "externalDocs": {},
+                  "since": null,
+                  "unstable": false
+                },
+                "output": "example.shop#CountItemsOutput",
+                "outputSchema": {
+                  "$defs": {
+                    "example.shop.CountItemsOutput": {
+                      "properties": {
+                        "count": {
+                          "$ref": "#/$defs/smithy.api.Integer"
+                        }
+                      },
+                      "required": [
+                        "count"
+                      ],
+                      "type": "object"
+                    },
+                    "smithy.api.Integer": {
+                      "format": "int32",
+                      "maximum": 2147483647,
+                      "minimum": -2147483648,
+                      "type": "integer"
+                    }
+                  },
+                  "properties": {
+                    "count": {
+                      "$ref": "#/$defs/smithy.api.Integer"
+                    }
+                  },
+                  "required": [
+                    "count"
+                  ],
+                  "type": "object"
+                },
+                "pagination": null,
+                "protocol": "crucibleJson",
+                "protocolHeaders": {},
+                "readonly": true,
+                "request": {
+                  "body": [],
+                  "headerEncodings": {},
+                  "headers": [],
+                  "labels": [],
+                  "payload": null,
+                  "query": [
+                    {
+                      "member": "shelf",
+                      "name": "shelf"
+                    }
+                  ],
+                  "timestampFormats": {}
+                },
+                "resources": [],
+                "response": {
+                  "body": [
+                    "count"
+                  ],
+                  "headerEncodings": {},
+                  "headers": [],
+                  "labels": [],
+                  "payload": null,
+                  "query": [],
+                  "timestampFormats": {}
+                },
+                "responseProtocolHeaders": {
+                  "Content-Type": "application/json"
+                },
+                "sample": {
+                  "fallbacks": [],
+                  "generated": true,
+                  "input": {
+                    "body": null,
+                    "headers": {},
+                    "labels": {},
+                    "method": "GET",
+                    "payload": null,
+                    "query": [
+                      {
+                        "name": "shelf",
+                        "value": "shelf"
+                      }
+                    ],
+                    "uri": "/count?shelf=shelf"
+                  },
+                  "minimalInput": {
+                    "body": null,
+                    "headers": {},
+                    "labels": {},
+                    "method": "GET",
+                    "payload": null,
+                    "query": [],
+                    "uri": "/count"
+                  },
+                  "output": {
+                    "body": {
+                      "count": 1
+                    },
+                    "headers": {
+                      "Content-Type": "application/json"
+                    },
+                    "labels": {},
+                    "payload": null,
+                    "query": []
+                  }
+                },
+                "status": 200,
+                "uri": "/count"
+              },
+              "shapes": {
+                "example.shop#CountItemsInput": {
+                  "documentation": {
+                    "html": "",
+                    "markdown": "",
+                    "text": ""
+                  },
+                  "error": null,
+                  "history": {
+                    "added": null,
+                    "changed": [],
+                    "missing": []
+                  },
+                  "id": "example.shop#CountItemsInput",
+                  "internal": false,
+                  "kind": "structure",
+                  "members": [
+                    {
+                      "clientOptional": false,
+                      "constraints": {
+                        "length": null,
+                        "pattern": null,
+                        "range": null,
+                        "uniqueItems": false
+                      },
+                      "default": null,
+                      "documentation": {
+                        "html": "",
+                        "markdown": "",
+                        "text": ""
+                      },
+                      "history": {
+                        "added": null,
+                        "changed": [],
+                        "missing": []
+                      },
+                      "internal": false,
+                      "name": "shelf",
+                      "notes": {
+                        "deprecated": null,
+                        "externalDocs": {},
+                        "since": null,
+                        "unstable": false
+                      },
+                      "nullable": true,
+                      "required": false,
+                      "sensitive": false,
+                      "target": "smithy.api#String",
+                      "targetName": "String",
+                      "targetType": "string",
+                      "timestampFormat": "date-time",
+                      "wireDefault": null,
+                      "wireName": "shelf"
+                    }
+                  ],
+                  "name": "CountItemsInput",
+                  "notes": {
+                    "deprecated": null,
+                    "externalDocs": {},
+                    "since": null,
+                    "unstable": false
+                  },
+                  "sensitive": false
+                },
+                "example.shop#CountItemsOutput": {
+                  "documentation": {
+                    "html": "",
+                    "markdown": "",
+                    "text": ""
+                  },
+                  "error": null,
+                  "history": {
+                    "added": null,
+                    "changed": [],
+                    "missing": []
+                  },
+                  "id": "example.shop#CountItemsOutput",
+                  "internal": false,
+                  "kind": "structure",
+                  "members": [
+                    {
+                      "clientOptional": false,
+                      "constraints": {
+                        "length": null,
+                        "pattern": null,
+                        "range": null,
+                        "uniqueItems": false
+                      },
+                      "default": null,
+                      "documentation": {
+                        "html": "",
+                        "markdown": "",
+                        "text": ""
+                      },
+                      "history": {
+                        "added": null,
+                        "changed": [],
+                        "missing": []
+                      },
+                      "internal": false,
+                      "name": "count",
+                      "notes": {
+                        "deprecated": null,
+                        "externalDocs": {},
+                        "since": null,
+                        "unstable": false
+                      },
+                      "nullable": false,
+                      "required": true,
+                      "sensitive": false,
+                      "target": "smithy.api#Integer",
+                      "targetName": "Integer",
+                      "targetType": "integer",
+                      "timestampFormat": "date-time",
+                      "wireDefault": null,
+                      "wireName": "count"
+                    }
+                  ],
+                  "name": "CountItemsOutput",
+                  "notes": {
+                    "deprecated": null,
+                    "externalDocs": {},
+                    "since": null,
+                    "unstable": false
+                  },
+                  "sensitive": false
+                },
+                "example.shop#CountUnavailableException": {
+                  "documentation": {
+                    "html": "",
+                    "markdown": "",
+                    "text": ""
+                  },
+                  "error": {
+                    "bindings": {
+                      "body": [
+                        "message"
+                      ],
+                      "headerEncodings": {},
+                      "headers": [],
+                      "labels": [],
+                      "payload": null,
+                      "query": [],
+                      "timestampFormats": {}
+                    },
+                    "bodyDiscriminator": "CountUnavailableException",
+                    "discriminatorHeader": "X-Crucible-Error",
+                    "fault": "server",
+                    "protocolHeaders": {
+                      "Content-Type": "application/json"
+                    },
+                    "retryable": null,
+                    "sample": {
+                      "fallbacks": [],
+                      "generated": true,
+                      "message": {
+                        "body": {
+                          "__type": "CountUnavailableException",
+                          "message": "message"
+                        },
+                        "headers": {
+                          "Content-Type": "application/json",
+                          "X-Crucible-Error": "CountUnavailableException"
+                        },
+                        "labels": {},
+                        "payload": null,
+                        "query": []
+                      }
+                    },
+                    "shape": "example.shop#CountUnavailableException",
+                    "status": 503,
+                    "wireCode": "CountUnavailableException"
+                  },
+                  "history": {
+                    "added": null,
+                    "changed": [],
+                    "missing": []
+                  },
+                  "id": "example.shop#CountUnavailableException",
+                  "internal": false,
+                  "kind": "structure",
+                  "members": [
+                    {
+                      "clientOptional": false,
+                      "constraints": {
+                        "length": null,
+                        "pattern": null,
+                        "range": null,
+                        "uniqueItems": false
+                      },
+                      "default": null,
+                      "documentation": {
+                        "html": "",
+                        "markdown": "",
+                        "text": ""
+                      },
+                      "history": {
+                        "added": null,
+                        "changed": [],
+                        "missing": []
+                      },
+                      "internal": false,
+                      "name": "message",
+                      "notes": {
+                        "deprecated": null,
+                        "externalDocs": {},
+                        "since": null,
+                        "unstable": false
+                      },
+                      "nullable": false,
+                      "required": true,
+                      "sensitive": false,
+                      "target": "smithy.api#String",
+                      "targetName": "String",
+                      "targetType": "string",
+                      "timestampFormat": "date-time",
+                      "wireDefault": null,
+                      "wireName": "message"
+                    }
+                  ],
+                  "name": "CountUnavailableException",
+                  "notes": {
+                    "deprecated": null,
+                    "externalDocs": {},
+                    "since": null,
+                    "unstable": false
+                  },
+                  "sensitive": false
+                }
+              }
+            },
+            "operation": "example.shop#CountItems",
+            "subjects": [
+              "example.shop#CountItems"
+            ]
+          }
+        ],
+        "current": true,
+        "documentation": {
+          "html": "",
+          "markdown": "",
+          "text": ""
+        },
+        "from": "v2",
+        "name": "v3",
+        "retired": [],
+        "sunset": null,
+        "sunsetDocumentation": {
+          "html": "",
+          "markdown": "",
+          "text": ""
+        }
+      }
+    ]
+  }
+}

@@ -46,6 +46,27 @@ pub fn load_service(dir: &std::path::Path) -> Result<crucible_ir::ir::Service, S
     }
 }
 
+/// [`load_service`], with the older releases the service still serves in
+/// its `versions`, as a build lowers it: the chain of migrations back from
+/// its `version`, under the policy its `crucible.toml` declares beside
+/// `[model]`. For tools and tests that want what the reference documents.
+pub fn load_versioned_service(dir: &std::path::Path) -> Result<crucible_ir::ir::Service, String> {
+    let package = load_package(dir)?;
+    let compiled = compile(&package, None);
+    let Some(mut service) = compiled.service.clone() else {
+        return Err(compiled.render());
+    };
+    let manifest = dir.join("crucible.toml");
+    let config = match std::fs::read_to_string(&manifest) {
+        Ok(text) if crucible_policy::Config::declares_policy(&text) => {
+            crucible_policy::Config::load(&manifest)?
+        }
+        _ => crucible_policy::Config::default(),
+    };
+    service.versions = versions(&package, &compiled, package.files.len(), &config)?;
+    Ok(service)
+}
+
 /// One parsed file: its syntax tree, every token, and every problem found.
 #[derive(Debug, Clone)]
 pub struct Parsed {

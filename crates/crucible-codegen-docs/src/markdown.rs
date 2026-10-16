@@ -83,7 +83,11 @@ fn notes(item: &Value) -> String {
     if n["unstable"] == true {
         out.push_str("> **Unstable API.** This API may change.\n\n");
     }
-    if let Some(since) = n["since"].as_str() {
+    // `@since` is the author's fallback for what is older than every
+    // supported release (decision 77).
+    if let Some(since) = n["since"].as_str()
+        && item["history"]["added"].is_null()
+    {
         out.push_str(&format!("Since {}.\n\n", code(since)));
     }
     if let Some(links) = n["externalDocs"].as_object() {
@@ -116,6 +120,13 @@ pub(super) fn render(service: &Service, d: &Description) -> Vec<File> {
         code(string(&d.service["version"])),
         code(string(&d.service["protocol"]))
     );
+    if !d.versions.is_null() {
+        index.push_str(&format!(
+            "Clients name their release in the {} header; {} lists every supported release and what changed in each.\n\n",
+            code(string(&d.versions["carrier"]["name"])),
+            link("Releases", "releases.md")
+        ));
+    }
     index.push_str("## Authentication\n\n");
     if list(&d.service["auth"]).is_empty() {
         index.push_str("No default authentication schemes.\n\n");
@@ -224,6 +235,21 @@ pub(super) fn render(service: &Service, d: &Description) -> Vec<File> {
             path: format!("src/{}", shape_path(shape)),
             contents: shape_page(d, shape),
         });
+    }
+    if !d.versions.is_null() {
+        summary.push_str("- [Releases](releases.md)\n");
+        files.push(File {
+            path: "src/releases.md".into(),
+            contents: releases_page(d),
+        });
+        for release in list(&d.versions["releases"]) {
+            let name = string(&release["name"]);
+            summary.push_str(&format!("  - {}\n", link(name, &release_path(name))));
+            files.push(File {
+                path: format!("src/{}", release_path(name)),
+                contents: release_page(d, release),
+            });
+        }
     }
     files.push(File {
         path: "src/SUMMARY.md".into(),
@@ -380,9 +406,12 @@ fn cell_docs(item: &Value) -> String {
     if item["notes"]["unstable"] == true {
         value.push_str(" <strong>Unstable</strong>");
     }
-    if let Some(since) = item["notes"]["since"].as_str() {
+    if let Some(since) = item["notes"]["since"].as_str()
+        && item["history"]["added"].is_null()
+    {
         value.push_str(&format!(" Since {}.", code(since)));
     }
+    value.push_str(&history_cell(&item["history"]));
     if let Some(links) = item["notes"]["externalDocs"].as_object() {
         for (name, url) in links {
             value.push_str(&documentation::html(&format!("[{name}]({})", string(url))));
@@ -612,7 +641,13 @@ fn example_message(message: &Value, request: bool, status: &Value) -> String {
     fence("http", &wire)
 }
 fn operation(d: &Description, op: &Value) -> String {
-    let mut out = format!("# {}\n\n{}{}", string(&op["name"]), notes(op), docs(op));
+    let mut out = format!(
+        "# {}\n\n{}{}{}",
+        string(&op["name"]),
+        notes(op),
+        docs(op),
+        history_line(&op["history"], "../")
+    );
     out.push_str(&format!("Protocol: {}.\n\n## Authentication\n\nEffective schemes: {}. Optional authentication: {}.\n\n",
         code(string(&op["protocol"])),code(&op["auth"].to_string()),op["optionalAuth"]));
     out.push_str(&authorization(op));
@@ -833,10 +868,11 @@ fn permissions_page(service: &Service, d: &Description) -> Option<String> {
 
 fn shape_page(d: &Description, shape: &Value) -> String {
     let mut out = format!(
-        "# {}\n\n{}{}Type: {}.\n\n",
+        "# {}\n\n{}{}{}Type: {}.\n\n",
         string(&shape["name"]),
         notes(shape),
         docs(shape),
+        history_line(&shape["history"], "../"),
         code(string(&shape["kind"]))
     );
     if shape["sensitive"] == true {
@@ -866,6 +902,303 @@ fn shape_page(d: &Description, shape: &Value) -> String {
             "Constraints: {}.\n\n",
             constraint_text(&shape["constraints"])
         ));
+    }
+    out
+}
+
+/// A release's changelog page, relative to `src/`.
+fn release_path(name: &str) -> String {
+    format!("releases/{name}.md")
+}
+
+/// "Added in v2. Changed in v3." under a page's title (decision 77), each
+/// release linked to its changelog from a page at `prefix`; nothing for an
+/// element older than every supported release that no migration changed.
+fn history_line(history: &Value, prefix: &str) -> String {
+    let release = |name: &Value| {
+        let name = string(name);
+        link(name, &format!("{prefix}{}", release_path(name)))
+    };
+    let mut parts = Vec::new();
+    if !history["added"].is_null() {
+        parts.push(format!("Added in {}.", release(&history["added"])));
+    }
+    let changed: Vec<String> = list(&history["changed"]).iter().map(release).collect();
+    if !changed.is_empty() {
+        parts.push(format!("Changed in {}.", changed.join(", ")));
+    }
+    if parts.is_empty() {
+        String::new()
+    } else {
+        format!("{}\n\n", parts.join(" "))
+    }
+}
+
+/// A member's, value's or error's history inside a table cell, and the
+/// releases that cannot see it.
+fn history_cell(history: &Value) -> String {
+    let releases = |key: &str| {
+        list(&history[key])
+            .iter()
+            .map(|name| code(string(name)))
+            .collect::<Vec<_>>()
+            .join(", ")
+    };
+    let mut out = String::new();
+    if let Some(added) = history["added"].as_str() {
+        out.push_str(&format!(" Added in {}.", code(added)));
+    }
+    if !list(&history["changed"]).is_empty() {
+        out.push_str(&format!(" Changed in {}.", releases("changed")));
+    }
+    if !list(&history["missing"]).is_empty() {
+        out.push_str(&format!(
+            " Clients of {} do not see it.",
+            releases("missing")
+        ));
+    }
+    out
+}
+
+/// An id as the model names it: `Shape`, `Shape.member`, `Operation`.
+fn label(id: &str) -> String {
+    id.split_once('#')
+        .map_or(id, |(_, name)| name)
+        .replace('$', ".")
+}
+
+/// The element `id` in code, linked to its page from a release page when
+/// the description has one.
+fn element(d: &Description, id: &Value) -> String {
+    let id = string(id);
+    match page(d, id, None) {
+        Some(page) => format!("<a href=\"../{}\">{}</a>", escaped(&page), code(&label(id))),
+        None => code(&label(id)),
+    }
+}
+
+/// A type by id, as a member table shows it: linked to its page, or the
+/// kind of a prelude type.
+fn type_of(d: &Description, id: &Value) -> String {
+    let kind = d
+        .shapes
+        .get(string(id))
+        .map_or(Value::Null, |s| s["kind"].clone());
+    target(
+        d,
+        &serde_json::json!({"target": id, "targetName": label(string(id)), "targetType": kind}),
+    )
+}
+
+/// `releases.md`: every supported release, oldest first.
+fn releases_page(d: &Description) -> String {
+    let versions = &d.versions;
+    let mut out = format!(
+        "# Releases\n\nThe current release is {}. A client names the release it was built for in the {} header.\n\n| Release | Follows | Sunset | Changes |\n|---|---|---|---|\n",
+        code(string(&versions["current"])),
+        code(string(&versions["carrier"]["name"]))
+    );
+    for release in list(&versions["releases"]) {
+        let name = string(&release["name"]);
+        out.push_str(&format!(
+            "| {}{} | {} | {} | {} |\n",
+            link(name, &release_path(name)),
+            if release["current"] == true {
+                " **Current**"
+            } else {
+                ""
+            },
+            release["from"]
+                .as_str()
+                .map_or_else(|| "—".to_owned(), code),
+            release["sunset"]
+                .as_str()
+                .map_or_else(|| "—".to_owned(), code),
+            list(&release["changes"]).len()
+        ));
+    }
+    out.push('\n');
+    out
+}
+
+/// A release's changelog: its migration's documentation, and each change
+/// with what a client of the release before it sees instead.
+fn release_page(d: &Description, release: &Value) -> String {
+    let name = string(&release["name"]);
+    let mut out = format!("# Release {}\n\n", heading(name));
+    let mut facts = Vec::new();
+    if release["current"] == true {
+        facts.push("The current release.".to_owned());
+    }
+    match release["from"].as_str() {
+        Some(from) => facts.push(format!("Follows {}.", link(from, &format!("{from}.md")))),
+        None => facts.push("The oldest supported release.".to_owned()),
+    }
+    if let Some(sunset) = release["sunset"].as_str() {
+        facts.push(format!("Supported until {}.", code(sunset)));
+    }
+    out.push_str(&format!("{}\n\n", facts.join(" ")));
+    if !string(&release["documentation"]["html"]).is_empty() {
+        out.push_str(&docs(release));
+    }
+    if !string(&release["sunsetDocumentation"]["html"]).is_empty() {
+        out.push_str(&format!(
+            "## Sunset\n\n{}",
+            docs(&json_doc(&release["sunsetDocumentation"]))
+        ));
+    }
+    if !list(&release["retired"]).is_empty() {
+        let retired: Vec<String> = list(&release["retired"])
+            .iter()
+            .map(|id| code(&label(string(id))))
+            .collect();
+        out.push_str(&format!(
+            "## Retired operations\n\nThe release after this one dropped them, so this release and those before it no longer serve them: {}.\n\n",
+            retired.join(", ")
+        ));
+    }
+    let Some(from) = release["from"].as_str() else {
+        return out;
+    };
+    out.push_str("## Changes\n\n");
+    if list(&release["changes"]).is_empty() {
+        out.push_str("No change a client of the release before it would notice.\n\n");
+    }
+    for change in list(&release["changes"]) {
+        out.push_str(&change_section(d, change, from));
+    }
+    out
+}
+
+/// A documentation object as an item's `documentation`, for [`docs`].
+fn json_doc(documentation: &Value) -> Value {
+    serde_json::json!({ "documentation": documentation })
+}
+
+/// One change: what it did, its documentation, and what a client of
+/// `from`, the release before, sees instead.
+fn change_section(d: &Description, change: &Value, from: &str) -> String {
+    let clients = format!("Clients of {}", code(from));
+    let older = &change["older"];
+    let member = || {
+        let id = format!("{}${}", string(&change["shape"]), string(&change["member"]));
+        element(d, &Value::String(id))
+    };
+    let route = |method: &Value, uri: &Value| code(&format!("{} {}", string(method), string(uri)));
+    let (title, instead) = match string(&change["kind"]) {
+        "rename" => (
+            format!("Renamed {}", member()),
+            format!("{clients} call it {}.", code(string(&older["member"]))),
+        ),
+        "require" => (
+            format!("Required {}", member()),
+            if older["filled"] == "default" {
+                format!(
+                    "{clients} may leave it out: the service uses {}.",
+                    code(&older["default"].to_string())
+                )
+            } else {
+                format!("{clients} may leave it out: the service fills it in.")
+            },
+        ),
+        "addEnumValue" => (
+            format!(
+                "Added {} to {}",
+                code(string(&change["value"])),
+                element(d, &change["shape"])
+            ),
+            format!(
+                "{clients} receive {} instead.",
+                code(string(&older["value"]))
+            ),
+        ),
+        "addError" => {
+            let members: Vec<String> = list(&older["members"])
+                .iter()
+                .map(|m| {
+                    format!(
+                        "{} from {}",
+                        code(string(&m["member"])),
+                        code(string(&m["from"]))
+                    )
+                })
+                .collect();
+            (
+                format!(
+                    "{} can return {}",
+                    element(d, &change["operation"]),
+                    element(d, &change["error"])
+                ),
+                format!(
+                    "{clients} receive {} instead{}.",
+                    element(d, &older["error"]),
+                    if members.is_empty() {
+                        String::new()
+                    } else {
+                        format!(", with {}", members.join(", "))
+                    }
+                ),
+            )
+        }
+        "move" => (
+            format!(
+                "Moved {} to {}",
+                element(d, &change["operation"]),
+                route(&change["method"], &change["uri"])
+            ),
+            format!("{clients} call {}.", route(&older["method"], &older["uri"])),
+        ),
+        "reshape" => {
+            let replaced: Vec<String> = list(&change["members"])
+                .iter()
+                .map(|m| code(string(m)))
+                .collect();
+            let definition = &older["shapes"][string(&older["shape"])];
+            (
+                format!("Reshaped {}", element(d, &change["shape"])),
+                format!(
+                    "{} became {}. {clients} use the older definition:\n\n{}",
+                    replaced.join(", "),
+                    code(string(&change["into"])),
+                    members(d, list(&definition["members"]).iter().cloned(), None).trim_end()
+                ),
+            )
+        }
+        "retype" => (
+            format!("Retyped {} to {}", member(), type_of(d, &change["target"])),
+            format!(
+                "{clients} use {}, converted {}.",
+                target(d, &older["member"]),
+                if change["by"] == "hook" {
+                    "by the service's hook"
+                } else {
+                    "by a declared conversion"
+                }
+            ),
+        ),
+        "removeOperation" => (
+            format!("Removed {}", code(&label(string(&change["operation"])))),
+            format!(
+                "{clients} can still call it: {}.",
+                route(&older["operation"]["method"], &older["operation"]["uri"])
+            ),
+        ),
+        "behavior" => (
+            format!(
+                "Changed how {} behaves: {}",
+                element(d, &change["operation"]),
+                code(string(&change["name"]))
+            ),
+            String::new(),
+        ),
+        kind => (format!("Changed ({})", code(kind)), String::new()),
+    };
+    let mut out = format!("### {title}\n\n");
+    if !string(&change["documentation"]["html"]).is_empty() {
+        out.push_str(&docs(change));
+    }
+    if !instead.is_empty() {
+        out.push_str(&format!("{instead}\n\n"));
     }
     out
 }
