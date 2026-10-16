@@ -1,5 +1,6 @@
 //! Compact runtime descriptions of already-lowered wire semantics.
 pub mod describe;
+pub mod doc_links;
 pub mod docs;
 pub mod documentation;
 pub mod json_schema;

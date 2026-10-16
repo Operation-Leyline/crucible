@@ -1,0 +1,45 @@
+/// Widgets, linked. Make one with [CreateWidget] and read it back with
+/// [the read call][GetWidget]; a [Widget] has a [Widget.name] and a
+/// [Color], such as [Color.RED]. [Gadget] is a resource, [Links] is this
+/// service and [String] a prelude type. Internal: [Reveal] and [Secret].
+///
+/// `[NotALink]` in code, and [an ordinary link](https://example.com).
+service Links {
+    version "1"
+    protocol json
+    auth bearer
+    operations [CreateWidget, GetWidget, Reveal]
+    resources [Gadget]
+    errors [WidgetError]
+}
+
+/// A widget; [CreateWidget] makes one.
+structure Widget {
+    /// The name [CreateWidget.name] chose.
+    name: string
+    /// One of [Color]; [Color.BLUE] by default.
+    color?: Color
+}
+
+/// A colour. [Color.RED] is the first.
+enum Color {
+    /// Red, unlike [Color.BLUE].
+    RED
+    BLUE
+}
+
+/// Not part of the external contract; [Reveal] returns it.
+internal structure Secret {
+    value: string
+}
+
+/// Raised by [GetWidget] when [GetWidget.widgetId] names nothing.
+error WidgetError {
+    status 404
+    message: string
+}
+
+resource Gadget {
+    id gadgetId: string
+    readonly property label: string
+}

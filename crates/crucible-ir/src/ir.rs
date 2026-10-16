@@ -93,6 +93,15 @@ pub struct Service {
     /// model sees was accepted. Empty for a model with none.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub exceptions: Vec<PolicyException>,
+    /// What each `[Name]` doc link in this service's documentation names
+    /// (decision 80 in docs/idl/decisions.md), keyed by its label as written
+    /// (`CreateApiKey`, `City.name`): an operation, shape, member, enum
+    /// value, resource or the service, by id. `docs` keep the Markdown as
+    /// written; [`crate::doc_links::links`] finds the labels in it. A label
+    /// with no entry, such as a prelude type's or one whose target an
+    /// audience projection removed, is plain text.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub doc_links: BTreeMap<String, ShapeId>,
 }
 
 /// One `except Rule for Target because ".."` the compiler accepted: the rule

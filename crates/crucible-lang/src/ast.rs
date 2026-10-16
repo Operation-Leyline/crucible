@@ -24,6 +24,32 @@ pub struct Doc {
     /// The Markdown text: `///` and one following space removed per line.
     pub text: String,
     pub span: Span,
+    /// Where each line of `text` starts in the source, so a position in
+    /// the text (a doc link's) maps back to the file.
+    pub line_starts: Vec<u32>,
+}
+
+impl Doc {
+    /// The source span of `range`, a byte range of [`Doc::text`].
+    pub fn source_span(&self, range: std::ops::Range<usize>) -> Span {
+        let source = |offset: usize| {
+            let mut start = 0;
+            for (line, text) in self.text.split('\n').enumerate() {
+                let end = start + text.len();
+                if offset <= end {
+                    let line_start = self
+                        .line_starts
+                        .get(line)
+                        .copied()
+                        .unwrap_or(self.span.start);
+                    return line_start as usize + (offset - start);
+                }
+                start = end + 1;
+            }
+            self.span.end as usize
+        };
+        Span::new(source(range.start), source(range.end))
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

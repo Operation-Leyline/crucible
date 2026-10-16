@@ -1,0 +1,16 @@
+schema_version = 1
+
+# Doc links (decision 80): `[Name]`, `[Name.member]`, `[Name][]` and
+# `[text][Name]` resolve to operations, types, members, enum values, a
+# resource and the service; `[Reveal]` and `[Secret]` name internal API, so
+# external output renders them as plain text. Every client generator's
+# rendering is tested against this package.
+[model]
+namespace = "example.links"
+language = 1
+sources = ["."]
+imports = []
+
+[model.naming]
+input = "{Operation}Input"
+output = "{Operation}Output"

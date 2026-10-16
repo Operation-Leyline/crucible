@@ -1,0 +1,43 @@
+/// Makes a [Widget]; read it with [GetWidget].
+operation CreateWidget {
+    http POST "/widgets"
+    input {
+        /// What [Widget.name] becomes.
+        name: string
+        color?: Color
+    }
+    output {
+        widget: Widget
+    }
+}
+
+/// Reads the [Widget] that [CreateWidget] made, by [GetWidget.widgetId],
+/// and returns it as [GetWidget.widget]. Fails with [WidgetError].
+readonly operation GetWidget {
+    http GET "/widgets/{widgetId}"
+    input {
+        widgetId: string
+    }
+    output {
+        widget: Widget
+    }
+}
+
+/// Reads a [Secret]; internal, like [Secret.value].
+internal readonly operation Reveal {
+    http GET "/secrets"
+    output {
+        secret?: Secret
+    }
+}
+
+/// Reads a [Gadget].
+readonly operation GetGadget reads Gadget {
+    http GET "/gadgets/{gadgetId}"
+    input {
+        $gadgetId
+    }
+    output {
+        $label
+    }
+}

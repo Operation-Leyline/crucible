@@ -90,6 +90,7 @@ pub(crate) fn lower(
         requirement_sites: BTreeMap::new(),
         carried: BTreeMap::new(),
         resource_notes: BTreeMap::new(),
+        doc_link_sites: BTreeSet::new(),
     };
     lowerer.collect(parsed, namespaces);
     lowerer.check_resources();
@@ -498,6 +499,9 @@ struct Lowerer<'a> {
     /// Each resource's documentation notes, by name, lowered where the
     /// resource is checked so their problems are reported once.
     resource_notes: BTreeMap<String, DocNotes>,
+    /// Every `[Name]` doc link the lowered documentation holds: its label,
+    /// file and the label's span, resolved once every shape is lowered.
+    doc_link_sites: BTreeSet<(String, usize, u32, u32)>,
 }
 
 impl<'a> Lowerer<'a> {
@@ -554,20 +558,113 @@ impl<'a> Lowerer<'a> {
         }
     }
 
-    /// A doc comment's text, after warning about `[Name]` links that name
-    /// nothing: documentation generators would render them dangling.
+    /// A doc comment's text, its `[Name]` links (decision 80) recorded to
+    /// be resolved when every shape is lowered ([`Self::resolve_doc_links`]).
     fn doc(&mut self, file: usize, doc: Option<&Doc>) -> Option<String> {
         let doc = doc?;
-        for name in doc_links(&doc.text) {
-            if self.decl(name).is_none() && prelude(name).is_none() {
-                self.warning(
-                    file,
-                    doc.span,
-                    format!("the doc link `[{name}]` names nothing in this package"),
-                );
-            }
+        for link in crucible_ir::doc_links::links(&doc.text) {
+            let span = doc.source_span(link.label_span);
+            self.doc_link_sites
+                .insert((link.label, file, span.start, span.end));
         }
         Some(doc.text.clone())
+    }
+
+    /// What each doc link names (decision 80): a declaration of the package
+    /// or its imports, or a member, enum value or operation input or output
+    /// member of one, by id. A link that names nothing is an error. A
+    /// prelude type, and a declaration that is not an operation, type,
+    /// resource or service (a template, metadata, rule), is accepted with no
+    /// entry, so it renders as plain text.
+    fn resolve_doc_links(
+        &mut self,
+        service: &ShapeId,
+        operations: &[&IrOperation],
+        shapes: &BTreeMap<ShapeId, Shape>,
+    ) -> BTreeMap<String, ShapeId> {
+        let mut links = BTreeMap::new();
+        for (label, file, start, end) in std::mem::take(&mut self.doc_link_sites) {
+            match self.doc_link(&label, service, operations, shapes) {
+                Ok(Some(id)) => {
+                    links.insert(label, id);
+                }
+                Ok(None) => {}
+                Err(message) => self.error(file, Span { start, end }, message),
+            }
+        }
+        links
+    }
+
+    fn doc_link(
+        &self,
+        label: &str,
+        service: &ShapeId,
+        operations: &[&IrOperation],
+        shapes: &BTreeMap<ShapeId, Shape>,
+    ) -> Result<Option<ShapeId>, String> {
+        let (name, member) = crucible_ir::doc_links::split(label);
+        let Some(decl) = self.decl(name) else {
+            if prelude_kind(name).is_some() {
+                return match member {
+                    None => Ok(None),
+                    Some(_) => Err(format!(
+                        "the doc link `[{label}]` names nothing: `{name}` is a prelude type, with no members"
+                    )),
+                };
+            }
+            return Err(format!(
+                "the doc link `[{label}]` names nothing in this package or its imports"
+            ));
+        };
+        let id = self.ref_id(name);
+        let Some(member) = member else {
+            return Ok(match &decl.item.decl {
+                Decl::Service(_) => Some(service.clone()).filter(|s| s.name() == name),
+                Decl::Operation(_) | Decl::Resource(_) => Some(id),
+                decl if is_type(decl) => Some(id),
+                _ => None,
+            });
+        };
+        let no_member = |why: String| Err(format!("the doc link `[{label}]` names nothing: {why}"));
+        match &decl.item.decl {
+            Decl::Operation(_) => {
+                // The input's member first: what a caller sends is what
+                // operation documentation names most.
+                let op = operations.iter().find(|op| op.id == id);
+                let sides = op
+                    .into_iter()
+                    .flat_map(|op| op.input.iter().chain(&op.output));
+                for side in sides {
+                    if shapes
+                        .get(side)
+                        .is_some_and(|s| s.members().iter().any(|m| m.name == member))
+                    {
+                        return Ok(Some(side.with_member(member)));
+                    }
+                }
+                no_member(format!(
+                    "neither `{name}`'s input nor its output has a member `{member}`"
+                ))
+            }
+            Decl::Structure(_) | Decl::Union(_) | Decl::Error(_) | Decl::Enum(_) => {
+                let (found, what) = match shapes.get(&id) {
+                    Some(Shape::Structure(s) | Shape::Union(s)) => {
+                        (s.members.iter().any(|m| m.name == member), "member")
+                    }
+                    Some(Shape::Enum(e)) => (e.values.iter().any(|v| v.name == member), "value"),
+                    Some(Shape::IntEnum(e)) => (e.values.iter().any(|v| v.name == member), "value"),
+                    _ => (false, "member"),
+                };
+                if found {
+                    Ok(Some(id.with_member(member)))
+                } else {
+                    no_member(format!("`{name}` has no {what} `{member}`"))
+                }
+            }
+            _ => no_member(format!(
+                "`{name}` has no members to link; an operation, structure, union, error or enum does"
+            )),
+        }
     }
 
     fn id(&self, name: &str) -> ShapeId {
@@ -5220,6 +5317,7 @@ impl<'a> Lowerer<'a> {
             permission_types,
             not_found: self.not_found.clone(),
             exceptions: Vec::new(),
+            doc_links: BTreeMap::new(),
         };
         // A `.cru` service's version is a release its clients name in the
         // `Crucible-Version` header, when it can travel in one.
@@ -5263,6 +5361,13 @@ impl<'a> Lowerer<'a> {
         for issue in issues.iter() {
             self.error_at(&issue.shape, &issue.message);
         }
+        // Every shape and operation is lowered, so each doc link's member
+        // can be checked; links into what the service does not reach stay
+        // in the table and render as plain text, having no target in it.
+        let operations: Vec<&IrOperation> =
+            service.operations.iter().chain(&probe.operations).collect();
+        let doc_links = self.resolve_doc_links(&service.id, &operations, &probe.shapes);
+        service.doc_links = doc_links;
         service.project_metadata_only();
         Some(service)
     }
@@ -5368,38 +5473,6 @@ impl<'a> Lowerer<'a> {
             }
         }
     }
-}
-
-/// The `[Name]` shortcut links in Markdown text: a capitalised identifier in
-/// brackets, outside code spans, not part of an inline `[text](url)` or
-/// reference `[text][ref]` link or a `[ref]: url` definition.
-fn doc_links(text: &str) -> Vec<&str> {
-    let mut links = Vec::new();
-    for line in text.lines() {
-        let bytes = line.as_bytes();
-        let mut code = false;
-        let mut i = 0;
-        while i < bytes.len() {
-            match bytes[i] {
-                b'`' => code = !code,
-                b'[' if !code && (i == 0 || bytes[i - 1] != b']') => {
-                    if let Some(len) = line[i + 1..].find(']') {
-                        let name = &line[i + 1..i + 1 + len];
-                        let after = bytes.get(i + 2 + len).copied();
-                        let identifier = name.starts_with(|c: char| c.is_ascii_uppercase())
-                            && name.chars().all(|c| c.is_ascii_alphanumeric() || c == '_');
-                        if identifier && !matches!(after, Some(b'(' | b'[' | b':')) {
-                            links.push(name);
-                        }
-                        i += len + 1;
-                    }
-                }
-                _ => {}
-            }
-            i += 1;
-        }
-    }
-    links
 }
 
 /// What a constraint would constrain.

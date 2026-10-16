@@ -4,40 +4,119 @@
 //! raw HTML included, is escaped so it can neither break the markup nor close
 //! the surrounding comment. One CommonMark parser serves all of them.
 use crucible_ir::ir::{DocNotes, Operation, Service, Shape};
-use pulldown_cmark::{Event, Parser, Tag, TagEnd};
+use pulldown_cmark::{BrokenLink, CowStr, Event, Options, Parser, Tag, TagEnd};
 
 /// Build-time HTML rendering for API references. Raw HTML remains text, just as
 /// in the native doc dialects; active URL schemes never become links or images.
 pub fn html(markdown: &str) -> String {
-    let events = Parser::new(markdown).map(|event| match event {
-        Event::Html(value) | Event::InlineHtml(value) => Event::Text(value),
-        Event::Start(Tag::Link {
-            link_type,
-            dest_url,
-            title,
-            id,
-        }) => Event::Start(Tag::Link {
-            link_type,
-            dest_url: safe_url(dest_url),
-            title,
-            id,
-        }),
-        Event::Start(Tag::Image {
-            link_type,
-            dest_url,
-            title,
-            id,
-        }) => Event::Start(Tag::Image {
-            link_type,
-            dest_url: safe_url(dest_url),
-            title,
-            id,
-        }),
-        other => other,
+    render_html(markdown, None)
+}
+
+/// [`html`] with doc links (decision 80): a `[Name]` the service has a
+/// target for becomes `<a data-crucible-ref="<id>">Name</a>`, an anchor
+/// with no address that a reader maps to its own page for the id; any
+/// other doc link is its text. `[text][Name]` keeps its text.
+pub fn html_linked(service: &Service, markdown: &str) -> String {
+    render_html(markdown, Some(service))
+}
+
+/// The destination a doc link is parsed with: a noncharacter, which
+/// [`unforgeable`] removes from model text, then the target's id, or
+/// nothing for a link that renders as plain text.
+const DOC_LINK: char = '\u{fdd0}';
+
+/// Model Markdown without the character doc link destinations start with.
+fn unforgeable(markdown: &str) -> String {
+    markdown.chars().filter(|c| *c != DOC_LINK).collect()
+}
+
+/// A parser that resolves the service's doc links, or, without a service,
+/// leaves them literal.
+fn parser<'a>(
+    markdown: &'a str,
+    service: Option<&'a Service>,
+) -> Parser<'a, impl FnMut(BrokenLink<'a>) -> Option<(CowStr<'a>, CowStr<'a>)>> {
+    let callback = move |link: BrokenLink<'a>| {
+        let service = service?;
+        let doc = crucible_ir::doc_links::classify(markdown, &link)?;
+        let id = service
+            .doc_link(&doc.label)
+            .map(|target| target.id(service).to_string())
+            .unwrap_or_default();
+        Some((format!("{DOC_LINK}{id}").into(), "".into()))
+    };
+    Parser::new_with_broken_link_callback(markdown, Options::empty(), Some(callback))
+}
+
+/// The id a doc link was parsed with, empty for one that is plain text;
+/// `None` for an ordinary link.
+fn doc_link_id(dest: &str) -> Option<&str> {
+    dest.strip_prefix(DOC_LINK)
+}
+
+fn render_html(markdown: &str, service: Option<&Service>) -> String {
+    let markdown = unforgeable(markdown);
+    // Whether each open link is a doc link, and one rendered as an anchor.
+    let mut open: Vec<Option<bool>> = Vec::new();
+    let events = parser(&markdown, service).filter_map(|event| {
+        Some(match event {
+            Event::Html(value) | Event::InlineHtml(value) => Event::Text(value),
+            Event::Start(Tag::Link {
+                link_type,
+                dest_url,
+                title,
+                id,
+            }) => match doc_link_id(&dest_url) {
+                Some("") => {
+                    open.push(Some(false));
+                    return None;
+                }
+                Some(target) => {
+                    open.push(Some(true));
+                    Event::InlineHtml(
+                        format!("<a data-crucible-ref=\"{}\">", attribute(target)).into(),
+                    )
+                }
+                None => {
+                    open.push(None);
+                    Event::Start(Tag::Link {
+                        link_type,
+                        dest_url: safe_url(dest_url),
+                        title,
+                        id,
+                    })
+                }
+            },
+            Event::End(TagEnd::Link) => match open.pop().flatten() {
+                Some(true) => Event::InlineHtml("</a>".into()),
+                Some(false) => return None,
+                None => Event::End(TagEnd::Link),
+            },
+            Event::Start(Tag::Image {
+                link_type,
+                dest_url,
+                title,
+                id,
+            }) => Event::Start(Tag::Image {
+                link_type,
+                dest_url: safe_url(dest_url),
+                title,
+                id,
+            }),
+            other => other,
+        })
     });
     let mut out = String::new();
     pulldown_cmark::html::push_html(&mut out, events);
     out
+}
+
+/// Text for a double-quoted HTML attribute.
+fn attribute(text: &str) -> String {
+    text.replace('&', "&amp;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;")
+        .replace('"', "&quot;")
 }
 
 fn safe_url(url: pulldown_cmark::CowStr<'_>) -> pulldown_cmark::CowStr<'_> {
@@ -150,11 +229,20 @@ pub fn operation(service: &Service, op: &Operation) -> String {
 
 /// Preserve prose, links and code while removing Markdown-only delimiters.
 pub fn text(markdown: &str) -> String {
-    let markdown = &crate::docs::comment_text(markdown);
+    render_text(markdown, None)
+}
+
+/// [`text`] with doc links (decision 80) as their text, without brackets.
+pub fn text_linked(service: &Service, markdown: &str) -> String {
+    render_text(markdown, Some(service))
+}
+
+fn render_text(markdown: &str, service: Option<&Service>) -> String {
+    let markdown = &unforgeable(&crate::docs::comment_text(markdown));
     let mut out = String::new();
     let mut links = Vec::new();
     let mut code = false;
-    for event in Parser::new(markdown) {
+    for event in parser(markdown, service) {
         match event {
             Event::Text(value)
             | Event::Code(value)
@@ -170,9 +258,12 @@ pub fn text(markdown: &str) -> String {
                     out.push_str(&value);
                 }
             }
-            Event::Start(Tag::Link { dest_url, .. }) => links.push(dest_url.into_string()),
+            Event::Start(Tag::Link { dest_url, .. }) => links.push(
+                // A doc link is its text alone.
+                (doc_link_id(&dest_url).is_none()).then(|| dest_url.into_string()),
+            ),
             Event::End(TagEnd::Link) => {
-                if let Some(link) = links.pop() {
+                if let Some(Some(link)) = links.pop() {
                     out.push_str(&format!(" ({link})"));
                 }
             }

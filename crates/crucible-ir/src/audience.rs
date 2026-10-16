@@ -226,6 +226,9 @@ pub fn project(service: &Service, audience: Audience) -> Result<Service, Diagnos
     result
         .renames
         .retain(|id, _| reached.contains(id) || operations.contains(id) || resources.contains(id));
+    // A doc link to what the projection removed is plain text (decision
+    // 80): the external contract names no internal id.
+    result.retain_doc_links();
     strip_raw_traits(&mut result);
     if diagnostics.is_empty() {
         Ok(result)

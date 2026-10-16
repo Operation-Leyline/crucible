@@ -52,11 +52,14 @@ fn sort_objects(value: &mut Value) {
     }
 }
 
-/// Preserve CommonMark, safe build-time HTML, and searchable plain text together.
-pub fn documentation(docs: Option<&str>) -> Value {
+/// Preserve CommonMark, safe build-time HTML, and searchable plain text
+/// together. Doc links (decision 80) stay as written in `markdown`, are
+/// `<a data-crucible-ref="<id>">` anchors in `html` when the service has
+/// their target, and their text in `text`.
+pub fn documentation(service: &Service, docs: Option<&str>) -> Value {
     let markdown = docs.unwrap_or_default();
-    json!({"markdown": markdown, "html": documentation::html(markdown),
-        "text": documentation::text(markdown)})
+    json!({"markdown": markdown, "html": documentation::html_linked(service, markdown),
+        "text": documentation::text_linked(service, markdown)})
 }
 
 fn notes(notes: &DocNotes) -> Value {
@@ -105,7 +108,7 @@ fn member(service: &Service, m: &Member) -> Value {
         "required":m.required,"nullable":m.optional_on_server(),"clientOptional":m.client_optional,
         "default":m.default,"wireDefault":m.wire_default,"constraints":constraints(&m.constraints),
         "sensitive":service.sensitive(m),"internal":m.internal,
-        "documentation":documentation(m.docs.as_deref()),"notes":notes(&m.notes),
+        "documentation":documentation(service, m.docs.as_deref()),"notes":notes(&m.notes),
         "timestampFormat":m.wire_timestamp_format})
 }
 
@@ -242,7 +245,7 @@ fn sample(service: &Service, op: &Operation) -> Value {
 fn shape(service: &Service, id: &ShapeId, shape: &Shape) -> Value {
     let mut value = json!({"id":id.to_string(),"name":service.name_of(id),"kind":kind(shape),
         "internal":shape.internal(),"sensitive":shape.sensitive(),
-        "documentation":documentation(documentation::shape(shape)),
+        "documentation":documentation(service, documentation::shape(shape)),
         "notes":notes(&shape.notes().cloned().unwrap_or_default()),
         "members":shape.members().iter().map(|m|member(service,m)).collect::<Vec<_>>()});
     match shape {
@@ -258,9 +261,9 @@ fn shape(service: &Service, id: &ShapeId, shape: &Shape) -> Value {
             value["error"] = s.error.as_ref().map_or(Value::Null, |e| error(service,id,e));
         }
         Shape::Enum(s) => value["values"] = json!(s.values.iter().map(|v|json!({"name":v.name,"value":v.value,
-            "internal":v.internal,"documentation":documentation(v.docs.as_deref()),"notes":notes(&v.notes)})).collect::<Vec<_>>()),
+            "internal":v.internal,"documentation":documentation(service, v.docs.as_deref()),"notes":notes(&v.notes)})).collect::<Vec<_>>()),
         Shape::IntEnum(s) => value["values"] = json!(s.values.iter().map(|v|json!({"name":v.name,"value":v.value,
-            "internal":v.internal,"documentation":documentation(v.docs.as_deref()),"notes":notes(&v.notes)})).collect::<Vec<_>>()),
+            "internal":v.internal,"documentation":documentation(service, v.docs.as_deref()),"notes":notes(&v.notes)})).collect::<Vec<_>>()),
         Shape::Unit { .. } => {}
     }
     value
@@ -318,7 +321,7 @@ fn describe_inner(service: &Service, explorer: bool) -> Result<Description, Diag
             .into_iter().flatten().chain(&r.operations).chain(&r.collection_operations).map(ToString::to_string).collect();
         ops.sort(); ops.dedup();
         (id.to_string(),json!({"id":id.to_string(),"name":service.name_of(id),"internal":r.internal,
-            "documentation":documentation(r.docs.as_deref()),"notes":notes(&r.notes),
+            "documentation":documentation(service, r.docs.as_deref()),"notes":notes(&r.notes),
             "identifiers":r.identifiers.iter().map(|(n,t)|(n,t.to_string())).collect::<BTreeMap<_,_>>(),
             "properties":r.properties.iter().map(|(n,t)|(n,t.to_string())).collect::<BTreeMap<_,_>>(),
             "resources":r.resources.iter().map(ToString::to_string).collect::<Vec<_>>(),"operations":ops,
@@ -346,7 +349,7 @@ fn describe_inner(service: &Service, explorer: bool) -> Result<Description, Diag
         format: "crucible.describe/1".into(),
         service: json!({"id":service.id.to_string(),"name":service.name_of(&service.id),
             "title":service.title.as_deref().unwrap_or_else(||service.id.name()),"version":service.version,
-            "internal":service.internal,"documentation":documentation(service.docs.as_deref()),"notes":notes(&service.notes),
+            "internal":service.internal,"documentation":documentation(service, service.docs.as_deref()),"notes":notes(&service.notes),
             "protocol":service.protocol,
                         "auth":service.auth.iter().map(ToString::to_string).collect::<Vec<_>>(),
             "authSchemes":service.auth_schemes.iter().map(|(id,s)|(id.to_string(),s)).collect::<BTreeMap<_,_>>(),
@@ -400,7 +403,7 @@ fn operation(service: &Service, op: &Operation, explorer: bool) -> Value {
         .map(|(id, _)| id.to_string())
         .collect();
     let mut value = json!({"id":op.id.to_string(),"name":service.name_of(&op.id),"internal":op.internal,
-        "resources":resources,"documentation":documentation(op.docs.as_deref()),"notes":notes(&op.notes),
+        "resources":resources,"documentation":documentation(service, op.docs.as_deref()),"notes":notes(&op.notes),
         "protocol":service.protocol,"method":op.method,"uri":op.uri.to_string(),"status":op.status,
         "protocolHeaders":op.protocol_headers,"responseProtocolHeaders":op.response_protocol_headers,"request":bindings(&op.request),"response":bindings(&op.response),
         "input":op.input.as_ref().map(ToString::to_string),"output":op.output.as_ref().map(ToString::to_string),
@@ -409,7 +412,7 @@ fn operation(service: &Service, op: &Operation, explorer: bool) -> Value {
         "auth":op.auth.iter().map(ToString::to_string).collect::<Vec<_>>(),
         "readonly":op.readonly,"idempotent":op.idempotent,"idempotencyToken":op.idempotency_token,
         "pagination":op.paginated.as_ref().map(|p|json!({"inputToken":p.input_token,"outputToken":p.output_token,"items":p.items,"pageSize":p.page_size})),
-        "examples":op.examples.iter().map(|e|json!({"title":e.title,"documentation":documentation(e.docs.as_deref()),
+        "examples":op.examples.iter().map(|e|json!({"title":e.title,"documentation":documentation(service, e.docs.as_deref()),
             "allowConstraintErrors":e.allow_constraint_errors,
         "input":e.input.as_ref().map(|v|request_example(service,op,v)),
         "output":e.output.as_ref().map(|v| {
@@ -435,7 +438,7 @@ fn operation(service: &Service, op: &Operation, explorer: bool) -> Value {
             .and_then(Value::as_array_mut);
         for clause in clauses.into_iter().flatten() {
             if let Some(docs) = clause["documentation"].as_str() {
-                clause["renderedDocumentation"] = documentation(Some(docs));
+                clause["renderedDocumentation"] = documentation(service, Some(docs));
             }
         }
         value["requirements"] = requirements;
@@ -446,7 +449,7 @@ fn operation(service: &Service, op: &Operation, explorer: bool) -> Value {
         value["requirementDocumentation"] = json!(
             sentences
                 .iter()
-                .map(|sentence| documentation(Some(sentence)))
+                .map(|sentence| documentation(service, Some(sentence)))
                 .collect::<Vec<_>>()
         );
         value["requirementSentences"] = json!(sentences);

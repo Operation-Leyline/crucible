@@ -342,15 +342,17 @@ impl<'s> Parser<'s> {
     fn doc(&self) -> Option<Doc> {
         let &current = self.sig.get(self.pos)?;
         let mut lines = Vec::new();
+        let mut starts = Vec::new();
         let mut span: Option<Span> = None;
         for token in self.tokens[..current].iter().rev() {
             match token.kind {
                 TokenKind::Whitespace | TokenKind::LineComment => {}
                 TokenKind::DocComment => {
-                    let text = token.span.text(self.source);
-                    let text = text.strip_prefix("///").unwrap_or(text);
+                    let whole = token.span.text(self.source);
+                    let text = whole.strip_prefix("///").unwrap_or(whole);
                     let text = text.strip_prefix(' ').unwrap_or(text);
                     lines.push(text.trim_end_matches('\r'));
+                    starts.push(token.span.start + (whole.len() - text.len()) as u32);
                     span = Some(span.map_or(token.span, |s| s.to(token.span)));
                 }
                 _ => break,
@@ -358,9 +360,11 @@ impl<'s> Parser<'s> {
         }
         let span = span?;
         lines.reverse();
+        starts.reverse();
         Some(Doc {
             text: lines.join("\n"),
             span,
+            line_starts: starts,
         })
     }
 
