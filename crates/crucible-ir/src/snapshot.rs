@@ -210,6 +210,12 @@ pub fn read(text: &str) -> Result<Service, String> {
     // Whatever this compiler does not know would be dropped silently: a
     // newer compiler wrote it, and only a newer one reads it right.
     let read = serde_json::to_value(&snapshot).expect("the IR serializes");
+    if let Some(id) = merged(&value, &read) {
+        return Err(format!(
+            "the release snapshot names `{id}` in both the `{OLD_PRELUDE}` and the `{}` spelling in one map",
+            crate::PRELUDE
+        ));
+    }
     if let Some(path) = unknown(&value, &read, String::new()) {
         return Err(format!(
             "the release snapshot has `{path}`, which this compiler does not know; a newer Crucible wrote it: update Crucible"
@@ -428,18 +434,17 @@ fn drop_scopes_of(
 const OLD_PRELUDE: &str = "smithy.api";
 
 /// Readies a format 4 (or older, already migrated) snapshot for format 5:
-/// drops the fields a `.cru` model never set, and refuses a map that
-/// spells one id both ways. [`read`] then maps every id in the old prelude
+/// drops the fields a `.cru` model never set. [`read`] then maps every id in the old prelude
 /// namespace to its [`crate::PRELUDE`] id as it deserializes the IR, so
 /// exactly the positions the IR's types declare as ids move (a member's
 /// target, an auth scheme, a shape map's key) and free-form text (a
-/// version, a title, a default, documentation) never does.
+/// version, a title, a default, documentation) never does, and refuses a
+/// map keyed by id that held one id in both spellings.
 fn migrate_format_4(value: &mut serde_json::Value) -> Result<(), String> {
     use serde_json::Value;
     let Some(service) = value.get_mut("service") else {
         return Ok(());
     };
-    refuse_both_spellings(service)?;
     let Some(service) = service.as_object_mut() else {
         return Ok(());
     };
@@ -468,30 +473,6 @@ fn migrate_format_4(value: &mut serde_json::Value) -> Result<(), String> {
 fn current_spelling(key: &str) -> Option<String> {
     let id: crate::ShapeId = key.parse().ok()?;
     (id.namespace() == OLD_PRELUDE).then(|| id.with_current_prelude().to_string())
-}
-
-/// Refuses an object that has both an old prelude id and its current
-/// spelling as keys: mapped, the two would merge into one.
-fn refuse_both_spellings(value: &serde_json::Value) -> Result<(), String> {
-    use serde_json::Value;
-    match value {
-        Value::Array(items) => items.iter().try_for_each(refuse_both_spellings),
-        Value::Object(fields) => {
-            for (key, field) in fields {
-                if let Some(current) = current_spelling(key)
-                    && fields.contains_key(&current)
-                {
-                    return Err(format!(
-                        "the release snapshot names `{current}` in both the `{OLD_PRELUDE}` and the `{}` spelling",
-                        crate::PRELUDE
-                    ));
-                }
-                refuse_both_spellings(field)?;
-            }
-            Ok(())
-        }
-        _ => Ok(()),
-    }
 }
 
 /// The members of a serialized shape: a structure's or union's, a list's
@@ -560,6 +541,36 @@ fn unsupported(what: &str) -> String {
     format!(
         "the release snapshot uses {what}, which Crucible no longer supports (see the Migration entries in the changelog)"
     )
+}
+
+/// An id whose two spellings were keys of one map that the IR types as
+/// keyed by id, so that reading merged them: `read` (the snapshot as read
+/// and written back) has neither the old key, which became its current
+/// spelling, nor a second entry. A map the IR does not type by id, such as a
+/// raw trait's value, keeps both keys as written and is not one.
+fn merged(original: &serde_json::Value, read: &serde_json::Value) -> Option<String> {
+    use serde_json::Value;
+    match (original, read) {
+        (Value::Object(original), Value::Object(read)) => {
+            original
+                .iter()
+                .find_map(|(key, value)| match read.get(key) {
+                    Some(known) => merged(value, known),
+                    None => {
+                        let current = current_spelling(key)?;
+                        if original.contains_key(&current) {
+                            return Some(current);
+                        }
+                        merged(value, read.get(&current)?)
+                    }
+                })
+        }
+        (Value::Array(original), Value::Array(read)) => original
+            .iter()
+            .zip(read)
+            .find_map(|(value, known)| merged(value, known)),
+        _ => None,
+    }
 }
 
 /// The first field `original` has that `read`, the same snapshot read and

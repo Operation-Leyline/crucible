@@ -275,8 +275,10 @@ fn free_form_text_that_spells_an_old_id_is_kept() {
     assert!(count(&expected["service"]) > planted);
 }
 
+/// A map the IR keys by id (here the shapes) that holds one id in both
+/// spellings would merge two entries on read, and is refused.
 #[test]
-fn a_snapshot_with_both_spellings_of_an_id_is_refused() {
+fn a_shapes_map_with_both_spellings_of_an_id_is_refused() {
     let mut value = format_4(&weather());
     let shapes = value["service"]["shapes"].as_object_mut().unwrap();
     let (id, shape) = shapes
@@ -287,6 +289,18 @@ fn a_snapshot_with_both_spellings_of_an_id_is_refused() {
     shapes.insert(id, shape);
     let error = snapshot::read(&value.to_string()).unwrap_err();
     assert!(error.contains("both"), "{error}");
+}
+
+/// A raw trait's value is the author's JSON: it may hold both spellings as
+/// keys, and reads as written.
+#[test]
+fn a_trait_value_with_both_spellings_reads_unchanged() {
+    let mut value = format_4(&weather());
+    let both = serde_json::json!({"smithy.api#String": 1, "crucible.api#String": 2});
+    value["service"]["traits"]["example.weather#note"] = both.clone();
+    let read = snapshot::read(&value.to_string()).unwrap();
+    let note: crucible_ir::ShapeId = "example.weather#note".parse().unwrap();
+    assert_eq!(read.traits[&note], both);
 }
 
 #[test]
