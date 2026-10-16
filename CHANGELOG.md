@@ -751,10 +751,13 @@ version's section when it is prepared.
   (`crucible_sdk_release::Reason::ModelBreak`,
   `version::Inputs::model_breaks`): an excepted break is still a break
   (docs/sdk-packaging.md, "Evidence for the kind"). Before, every change
-  was a patch unless `--bump` said more; an SDK whose last release has no
-  model, or one this crucible cannot read (a warning), is planned as
-  before. The version-changed warning reads the SDK's own release, which
-  on an SDK line never changes.
+  was a patch unless `--bump` said more. A last release whose model this
+  crucible cannot read, or an SDK line's last release without one (every
+  language but Rust and TypeScript), needs `--bump <name>=<kind>`
+  (`VersionError::NeedsBump`, `version::Inputs::unjudged`); a
+  current-release SDK without a model is planned as before. The
+  version-changed warning reads the SDK's own release, which on an SDK
+  line never changes.
 
 - `.cru`: the compiler projects the current model back to every older
   release it serves and checks the projection against the frozen release
@@ -1770,6 +1773,18 @@ version's section when it is prepared.
   they named client text: see *Migration*.
 
 ### Migration
+
+- **An SDK release after an excepted break is a major.** `crucible sdk
+  plan` now compares the model each Rust or TypeScript SDK exposes with
+  its last release's `crucible-model.json`, and a compatibility finding is
+  a break even when a manifest exception lets the model build. So after
+  upgrading, the first release after any excepted guard finding moves the
+  major (below 1.0, the minor): Leyline's TypeScript SDK goes from 0.1.x
+  to 0.2.0 after leyline#401's excepted changes. Nothing to do but expect
+  it; to release it otherwise, the finding has to go. A last release whose
+  `crucible-model.json` this crucible cannot read, and an SDK line in a
+  language without one, now stop the plan until `--bump <name>=<kind>`
+  says how much the release moves.
 
 - **Older releases are checked as the current model sees them.** Once a
   package declares any migration, every finding against an older release

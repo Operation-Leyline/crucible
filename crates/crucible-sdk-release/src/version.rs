@@ -211,6 +211,12 @@ pub struct Inputs<'a> {
     /// finding is still a break. Empty when nothing breaks, or when the
     /// last release carries no model to compare.
     pub model_breaks: &'a [String],
+    /// Why the model could not be compared when it must be: the last
+    /// release's `crucible-model.json` cannot be read, or an SDK line's
+    /// last release has none (a line's `serviceVersion` never changes, so
+    /// nothing else would see a break that reaches it). A release then
+    /// needs `--bump`; it is never planned as a patch on its own.
+    pub unjudged: Option<&'a str>,
 }
 
 impl<'a> Inputs<'a> {
@@ -226,6 +232,7 @@ impl<'a> Inputs<'a> {
             first_release: false,
             cru_service_version: None,
             model_breaks: &[],
+            unjudged: None,
         }
     }
 }
@@ -247,6 +254,10 @@ pub enum VersionError {
         "{sdk}: the floor {floor} is a pre-release or carries build metadata; floors are x.y.z"
     )]
     InvalidFloor { sdk: String, floor: Version },
+    #[error(
+        "{sdk}: {reason}, so whether this release breaks it cannot be judged; say how much it moves: --bump {sdk}=patch|minor|major"
+    )]
+    NeedsBump { sdk: String, reason: String },
 }
 
 /// The first release takes the floor, or this.
@@ -343,6 +354,13 @@ pub fn choose(inputs: &Inputs<'_>) -> Result<Decision, VersionError> {
             });
         }
     };
+    // A release whose model cannot be compared is the publisher's to judge.
+    if let (Some(reason), None) = (inputs.unjudged, inputs.bump) {
+        return Err(VersionError::NeedsBump {
+            sdk,
+            reason: reason.to_owned(),
+        });
+    }
     if !inputs.model_breaks.is_empty() {
         reasons.push(Reason::ModelBreak {
             findings: inputs.model_breaks.to_vec(),
@@ -682,6 +700,28 @@ mod tests {
         assert_eq!(decide(inputs).warnings.len(), 1);
         inputs.model_breaks = &breaks;
         assert!(decide(inputs).warnings.is_empty());
+    }
+
+    /// A model that cannot be compared (an unreadable snapshot, or an SDK
+    /// line whose last release has none) is never planned as a patch on its
+    /// own: the release needs `--bump`. Unchanged content is still no
+    /// release.
+    #[test]
+    fn an_unjudged_model_needs_a_bump() {
+        let read = released("0.2.3", Some("d1"), "v1");
+        let mut inputs = Inputs::new("python-v1", &read);
+        inputs.current_digest = Some("d2");
+        inputs.unjudged = Some("the last release carries no crucible-model.json");
+        let error = choose(&inputs).unwrap_err();
+        assert!(matches!(error, VersionError::NeedsBump { .. }), "{error:?}");
+        let text = error.to_string();
+        assert!(text.contains("carries no crucible-model.json"), "{text}");
+        assert!(text.contains("--bump python-v1="), "{text}");
+        inputs.bump = Some(ChangeKind::Patch);
+        assert_eq!(decide(inputs).version, Some(v("0.2.4")));
+        inputs.bump = None;
+        inputs.current_digest = Some("d1");
+        assert_eq!(decide(inputs).version, None);
     }
 
     #[test]

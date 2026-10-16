@@ -304,13 +304,17 @@ model the SDK exposes is compared with the last release's
 `crucible-model.json`, with the compatibility guard's comparison at error
 for both families and no exception applied: a finding makes the release
 breaking, with a `model-break` reason that lists it (an excepted break is
-still a break). A release made before `crucible.json` schema 2 (Pigeon's `contractHash`
+still a break). A snapshot that cannot be read makes the plan ask for
+`--bump <name>=<kind>` instead of guessing. A release made before `crucible.json` schema 2 (Pigeon's `contractHash`
 tarballs and `sdk-release.json` tags) counts as changed once. An empty
 channel needs `--first-release <name>`, which takes the floor or `0.1.0`;
 a channel that cannot be read fails the plan. For a `.cru` service, a
 changed `serviceVersion` warns until `--bump <name>=major`; an SDK line
 (`api_version`) records its own release every time, so it never warns,
 and a break that reaches its release is found by the model comparison.
+A line whose last release carries no `crucible-model.json` (every
+language but Rust and TypeScript) has nothing to compare, so its next
+release needs `--bump <name>=<kind>`.
 
 **`build`** plans again, then, into a new or empty `--out`:
 

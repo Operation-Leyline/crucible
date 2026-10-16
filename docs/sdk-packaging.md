@@ -289,7 +289,9 @@ plan collects every signal, and the kind is the strongest one:
   *(Built: `crucible sdk plan` compares the last release's
   `crucible-model.json` with the SDK's model now, its line's for an SDK
   line, and a finding is a `model-break` reason that makes the release
-  breaking. A release without the snapshot is not compared yet.)*
+  breaking. A snapshot this crucible cannot read needs `--bump`, as a
+  release without one does where the plan must judge it (an SDK line,
+  below); a current-release SDK without one is not compared yet.)*
 - **Both models are seen as the SDK's audience sees them,** so a change to
   `@internal` API never moves an external SDK.
 - **The baseline is the snapshot the last release carries.** Every package
@@ -330,7 +332,11 @@ the current line should move npm's `latest`. Its `serviceVersion` is its
 release in every release it makes, so the "`version` changed" signal
 never fires on it, and its releases are classified by the other signals:
 an excepted break that reaches the release's projection is a major of
-that line, found by the model check above *(built)*.
+that line, found by the model check above *(built)*. Only Rust and
+TypeScript packages carry `crucible-model.json` today, so a line in any of
+the other twelve languages has nothing to compare: its next release is
+never planned on its own, but needs `--bump <name>=patch|minor|major`
+*(built)*.
 
 ### Planned state and published state *(built)*
 

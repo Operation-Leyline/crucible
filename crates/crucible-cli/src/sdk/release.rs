@@ -234,9 +234,9 @@ fn plan_one(
     // The release the SDK is a line of: never changes on an older one.
     let line = sdk.model(full)?;
     let service_version = line.version.clone();
-    let model_breaks = match read.last() {
+    let (model_breaks, unjudged) = match read.last() {
         Some(last) => model_breaks(sdk, &line, last.model.as_deref()),
-        None => Vec::new(),
+        None => (Vec::new(), None),
     };
     let decision = choose(&Inputs {
         sdk: name,
@@ -248,6 +248,7 @@ fn plan_one(
         first_release: options.first_release.contains(name),
         cru_service_version: cru.then_some(service_version.as_str()),
         model_breaks: &model_breaks,
+        unjudged: unjudged.as_deref(),
     })
     .map_err(|error| error.to_string())?;
     plan.last = LastSummary::of(&read);
@@ -261,36 +262,46 @@ fn plan_one(
 /// `crucible-model.json`, and the one `line` gives this SDK now, as the
 /// release rule judges it (docs/sdk-packaging.md, "Evidence for the
 /// kind"): the guard's comparison with both families at error and no
-/// exception, since an excepted finding is still a break. A release without
-/// a model compares nothing; one whose model this crucible cannot read is
-/// a warning, and compares nothing.
-fn model_breaks(sdk: &Sdk, line: &Service, last: Option<&str>) -> Vec<String> {
+/// exception, since an excepted finding is still a break. The second value
+/// is why the model could not be compared when the rule must not guess
+/// (`Inputs::unjudged`): a snapshot this crucible cannot read, or an SDK
+/// line whose last release carries none, which nothing else would catch
+/// since a line's `serviceVersion` never changes. A current-release SDK
+/// whose last release has no snapshot compares nothing, as before.
+fn model_breaks(sdk: &Sdk, line: &Service, last: Option<&str>) -> (Vec<String>, Option<String>) {
     let Some(text) = last else {
-        return Vec::new();
+        let unjudged = sdk.api_version.as_ref().map(|release| {
+            format!(
+                "this line of release {release:?} has a last release without crucible-model.json"
+            )
+        });
+        return (Vec::new(), unjudged);
     };
     let old = match crucible_ir::snapshot::read(text) {
         Ok(old) => old,
         Err(error) => {
-            eprintln!(
-                "warning: sdk.{}: the last release's crucible-model.json cannot be read ({error}), so its model is not compared",
-                sdk.name
+            return (
+                Vec::new(),
+                Some(format!(
+                    "the last release's crucible-model.json cannot be read ({error})"
+                )),
             );
-            return Vec::new();
         }
     };
-    // The model the package records, as `emit` stamps it: the audience's
-    // view, without what a client never calls. A projection that fails has
-    // failed the plan already, in `emit`.
+    // The model as its audience sees it. No client view: the comparison
+    // takes it for the SDK family itself, and the wire family must see the
+    // sender-signed operations the server still serves. A projection that
+    // fails has failed the plan already, in `emit`.
     let Ok(current) = crucible_ir::project(line, sdk.audience) else {
-        return Vec::new();
+        return (Vec::new(), None);
     };
-    let current = crucible_ir::client_view(&current);
-    crucible_policy::diff(&old, &current, &crucible_policy::Config::default())
+    let breaks = crucible_policy::diff(&old, &current, &crucible_policy::Config::default())
         .findings
         .into_iter()
         .filter(|finding| finding.severity == crucible_policy::Severity::Error)
         .map(|finding| format!("{}: {}: {}", finding.rule, finding.shape, finding.message))
-        .collect()
+        .collect();
+    (breaks, None)
 }
 
 /// Plans every selected SDK. Every SDK's error is reported in one run.

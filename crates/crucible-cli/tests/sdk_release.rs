@@ -697,3 +697,45 @@ fn an_sdk_line_is_released_and_classified_by_its_model() {
     let findings = decision["reasons"][1]["findings"].to_string();
     assert!(findings.contains("Label$color"), "{findings}");
 }
+
+/// An SDK line in a language whose package carries no
+/// `crucible-model.json` (Go, like the other eleven) cannot have its model
+/// compared, and its `serviceVersion` never changes: its next release is
+/// never planned on its own, but needs `--bump`.
+#[test]
+fn a_line_without_a_model_snapshot_needs_a_bump() {
+    let shop = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../e2e/weather-service/versioned");
+    let service = Service::of(
+        &shop,
+        "shop",
+        "[sdk.go-v1]\nlanguage = \"go\"\napi_version = \"v1\"\npackage = \"shop\"\nmodule_path = \"example.com/shop/v1\"\nout = \"generated/go-v1\"\nchannel = { git = \"{remote}\" }\n",
+    );
+    let repo = service.repo();
+    let release = service.release();
+    let release_arg = release.to_str().unwrap();
+    success(service.crucible(&[
+        "sdk",
+        "build",
+        "--out",
+        release_arg,
+        "--first-release",
+        "go-v1",
+    ]));
+    success(service.crucible(&["sdk", "publish", release_arg, "--execute"]));
+    // Any change since: the plan asks, rather than calling it a patch.
+    let source = repo.join("shop/shop.cru");
+    let text = fs::read_to_string(&source).unwrap().replace("\r\n", "\n");
+    fs::write(&source, text.replacen("    color?: string\n", "", 1)).unwrap();
+    service.commit("no color");
+    let error = failure(service.crucible(&["sdk", "plan", "--json"]));
+    assert!(error.contains("without crucible-model.json"), "{error}");
+    assert!(error.contains("--bump go-v1="), "{error}");
+    let plan = json(&success(service.crucible(&[
+        "sdk",
+        "plan",
+        "--json",
+        "--bump",
+        "go-v1=major",
+    ])));
+    assert_eq!(plan["sdks"]["go-v1"]["version"], "0.2.0", "{plan}");
+}
