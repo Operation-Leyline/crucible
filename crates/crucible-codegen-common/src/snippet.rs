@@ -235,10 +235,11 @@ fn simple_kind<'a>(
             text: match value {
                 Value::String(text) => text.clone(),
                 // A `bigInteger` may be written `1e2` or `100e-2`; its
-                // digits are what every language's big integer parses.
+                // digits, in full, are what every language's big integer
+                // parses.
                 Value::Number(n) if number == SimpleKind::BigInteger => Decimal::parse(n)
-                    .filter(Decimal::is_integer)
-                    .map_or_else(|| n.to_string(), |d| d.to_number().to_string()),
+                    .and_then(|d| d.integer_text())
+                    .unwrap_or_else(|| n.to_string()),
                 other => other.to_string(),
             },
         },

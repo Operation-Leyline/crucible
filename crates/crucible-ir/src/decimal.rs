@@ -18,6 +18,10 @@ use crate::ir::Bounds;
 /// materialize a billion digits. Comparison has no such limit.
 const MAX_SPAN: i64 = 1_000;
 
+/// The most digits a `bigInteger` has: the server's `BigInteger` reads no
+/// more (crucible-wire's `MAX_BIG_INTEGER_DIGITS`).
+pub const MAX_BIG_INTEGER_DIGITS: i64 = 10_000;
+
 /// An exact decimal value.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Decimal(BigDecimal);
@@ -138,6 +142,30 @@ impl Decimal {
         let digits = digits.magnitude().to_string();
         let fraction = &digits[digits.len() - scale as usize..];
         fraction.bytes().all(|digit| digit == b'0')
+    }
+
+    /// A whole number's digits, written out in full whatever its notation
+    /// (`1e2` is `100`, `-15.00` is `-15`), if it has at most
+    /// [`MAX_BIG_INTEGER_DIGITS`]: every language's big integer parses
+    /// these, where some refuse an exponent. Not bounded by the thousand
+    /// digits arithmetic stops at.
+    pub fn integer_text(&self) -> Option<String> {
+        if !self.is_integer() || self.integer_digits() > MAX_BIG_INTEGER_DIGITS {
+            return None;
+        }
+        if self.is_zero() {
+            return Some("0".to_owned());
+        }
+        let (digits, scale) = self.0.as_bigint_and_scale();
+        let sign = if self.is_negative() { "-" } else { "" };
+        let mut digits = digits.magnitude().to_string();
+        if scale <= 0 {
+            digits.push_str(&"0".repeat(scale.unsigned_abs() as usize));
+        } else {
+            // The fraction is all zeros: `is_integer` said so.
+            digits.truncate(digits.len() - scale as usize);
+        }
+        Some(format!("{sign}{digits}"))
     }
 
     /// The least integer at or above the value, if it fits an `i128`.
@@ -329,6 +357,30 @@ mod tests {
             let value = decimal(text);
             assert_eq!(value.is_integer(), integer, "{text}");
             assert_eq!(value.integer_digits(), digits, "{text}");
+        }
+    }
+
+    #[test]
+    fn integers_are_written_in_full_digits_up_to_the_big_integer_limit() {
+        let thousand_and_one = format!("1{}", "0".repeat(1000));
+        let ten_thousand = format!("1{}", "0".repeat(9999));
+        for (text, digits) in [
+            ("1e2", "100".to_owned()),
+            ("100e-2", "1".to_owned()),
+            ("-15.00", "-15".to_owned()),
+            ("-0", "0".to_owned()),
+            ("0e40", "0".to_owned()),
+            // Past the thousand-digit span arithmetic writes out.
+            ("1e1000", thousand_and_one.clone()),
+            (thousand_and_one.as_str(), thousand_and_one.clone()),
+            ("1e9999", ten_thousand.clone()),
+            ("-1e9999", format!("-{ten_thousand}")),
+        ] {
+            assert_eq!(decimal(text).integer_text(), Some(digits), "{text}");
+        }
+        assert!(decimal("1e1000").to_number().to_string().len() < 16);
+        for text in ["1e10000", "1.5", "1e-999999999", "1e999999999"] {
+            assert_eq!(decimal(text).integer_text(), None, "{text}");
         }
     }
 

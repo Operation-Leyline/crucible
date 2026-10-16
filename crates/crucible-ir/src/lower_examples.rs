@@ -7,11 +7,7 @@ use std::collections::BTreeMap;
 use base64::Engine as _;
 use serde_json::{Map, Number, Value};
 
-use crate::decimal::Decimal;
-
-/// The most digits the server's `BigInteger` reads (crucible-wire's
-/// `MAX_BIG_INTEGER_DIGITS`).
-const MAX_BIG_INTEGER_DIGITS: i64 = 10_000;
+use crate::decimal::{Decimal, MAX_BIG_INTEGER_DIGITS};
 use crate::ir::{
     Constraints, Member, Service, Shape, Simple, SimpleKind, Structure, TimestampFormat,
 };
@@ -384,6 +380,16 @@ impl Service {
             return value.clone();
         };
         match (shape, value) {
+            // A `bigInteger` may be written `1e2`; documents and requests
+            // carry its digits.
+            (Shape::Simple(simple), Value::Number(number))
+                if simple.kind == SimpleKind::BigInteger =>
+            {
+                Decimal::parse(number)
+                    .and_then(|integer| integer.integer_text())
+                    .and_then(|text| text.parse().ok())
+                    .map_or_else(|| value.clone(), Value::Number)
+            }
             (Shape::Simple(simple), _) if simple.kind == SimpleKind::Timestamp => {
                 let format = format.unwrap_or_else(|| self.document_timestamp_format(member));
                 crate::timestamp_default::wire_value(value, format).unwrap_or_else(|| value.clone())

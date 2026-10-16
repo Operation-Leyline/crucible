@@ -1038,7 +1038,8 @@ version's section when it is prepared.
   `float` or `double` past its type's range, and `"NaN"`, `"Infinity"` and
   `"-Infinity"`, which the server's JSON reader refuses. A `bigInteger`
   example is accepted in any notation the server reads (`1e2`, `100e-2`,
-  `1.0`), up to its 10,000 digits, and snippets write it in digits. The
+  `1.0`), up to its 10,000 digits, and is written as its digits in full
+  in snippets, `describe.json`, OpenAPI and the raw request. The
   compiler refuses a number literal whose exponent no decimal holds (such
   as `1e99999999999999999999`) where it is written. The generated server
   compares an integer kind against a fractional or exponent bound exactly

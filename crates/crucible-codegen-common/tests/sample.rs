@@ -472,6 +472,8 @@ fn a_big_integer_snippet_is_written_in_digits() {
         panic!("input")
     };
     let huge = input.member("huge").unwrap();
+    let thousand_and_one = format!("1{}", "0".repeat(1000));
+    let ten_thousand = format!("-1{}", "0".repeat(9999));
     for (written, digits) in [
         ("1e2", "100"),
         ("100e-2", "1"),
@@ -481,11 +483,16 @@ fn a_big_integer_snippet_is_written_in_digits() {
             "123456789012345678901234567890",
             "123456789012345678901234567890",
         ),
+        // Past the thousand-digit span arithmetic writes out, up to the
+        // server's 10,000 digits.
+        ("1e1000", thousand_and_one.as_str()),
+        (thousand_and_one.as_str(), thousand_and_one.as_str()),
+        ("-1e9999", ten_thousand.as_str()),
     ] {
         let value: Value = serde_json::from_str(written).unwrap();
         let Kind::Number { text, .. } = snippet::member(&service, huge, &value).kind else {
             panic!("{written}: not a number")
         };
-        assert_eq!(text, digits, "{written}");
+        assert_eq!(text, digits, "{}", &written[..written.len().min(20)]);
     }
 }

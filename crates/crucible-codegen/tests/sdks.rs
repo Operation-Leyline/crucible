@@ -623,3 +623,59 @@ fn epoch_examples_in_scientific_notation_are_timestamps() {
         assert!(!snippet.contains("1e-10"), "{language}: {snippet}");
     }
 }
+
+/// A `bigInteger` example past the thousand digits arithmetic writes out,
+/// up to the 10,000 the server reads, reaches every language's snippet and
+/// the raw request as its digits in full, whatever its notation: a
+/// TypeScript `BigInt` literal or Go's parser refuses an exponent.
+#[cfg(feature = "all-clients")]
+#[test]
+fn big_integer_examples_are_written_in_full_digits() {
+    let plain = format!("1{}", "0".repeat(1000));
+    let widest = format!("-1{}", "0".repeat(9999));
+    let edit = |text: &str| {
+        text.replace(
+            "huge: 123456789012345678901234567890",
+            &format!("huge: {plain}"),
+        )
+        .replace(
+            "negativeHuge: -123456789012345678901234567890",
+            "negativeHuge: -1e9999",
+        )
+    };
+    let service = common::load_with("samples", |package| {
+        for file in &mut package.files {
+            file.text = edit(&file.text);
+        }
+    });
+    for (language, client) in clients::clients() {
+        let surface = client.surface(&service, Audience::External).unwrap();
+        let edges = &surface.operations["example.samples#Edges"].snippet;
+        for digits in [&plain, &widest] {
+            assert!(
+                edges.contains(digits.as_str()),
+                "{language}: {} digits missing",
+                digits.len()
+            );
+        }
+        assert!(!edges.contains("e9999"), "{language}: an exponent");
+        assert!(!edges.contains("e+9999"), "{language}: an exponent");
+    }
+    let text = "schema_version = 1\nmodel = \"model\"\n\n[sdk.ts]\npackage = \"@example/samples\"\nout = \"generated/ts\"\n";
+    // The request is built from the edited model, as describe.json shows it.
+    let (_directory, path) = repository("samples", text);
+    let file = sdk::load(&path).unwrap();
+    let document = sdks::file(&file, &service, Audience::External).unwrap();
+    let document: serde_json::Value = serde_json::from_str(&document.contents).unwrap();
+    let body = document["http"]["operations"]["example.samples#Edges"]["body"]
+        .as_str()
+        .unwrap();
+    assert!(
+        body.contains(&format!("\"huge\":{plain}")),
+        "the plain digits"
+    );
+    assert!(
+        body.contains(&format!("\"negativeHuge\":{widest}")),
+        "the exponent's digits"
+    );
+}
