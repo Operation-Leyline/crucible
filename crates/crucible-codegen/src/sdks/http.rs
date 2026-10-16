@@ -161,7 +161,11 @@ pub(super) fn document(
     audience: Audience,
     middleware: &[(String, String)],
 ) -> Result<Value, String> {
-    let service = crucible_ir::project(service, audience).map_err(|d| d.to_string())?;
+    // As every client sees it: a sender-signed operation is called by a
+    // third party, never by a caller of the API, so it has no request here.
+    let service = crucible_ir::client_view(
+        &crucible_ir::project(service, audience).map_err(|d| d.to_string())?,
+    );
     let description =
         crucible_codegen_common::describe::describe(&service).map_err(|d| d.to_string())?;
     let endpoint = env_var(&service, "ENDPOINT");

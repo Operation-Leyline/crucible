@@ -499,3 +499,57 @@ fn instants_outside_the_calendar_are_built_from_seconds() {
         assert!(edges.contains(expected), "{language}: {expected}\n{edges}");
     }
 }
+
+/// A sender-signed operation is called by a third party, never through an
+/// SDK: it has no SDK method, snippet or raw request, and the packages'
+/// README.md and AGENTS.md never name it (`sender-signed`'s
+/// `RecordPaymentEvent` and `ReportLeakedKeys`).
+#[test]
+fn sender_operations_have_no_snippet_request_or_guide() {
+    let text = "schema_version = 1\nmodel = \"model\"\n\n[sdk.ts]\npackage = \"@example/hooks\"\nmiddleware = [\"content-sha256\"]\nout = \"generated/ts\"\n\n[sdk.rust]\npackage = \"hooks-sdk\"\nout = \"generated/rust\"\n";
+    let (_directory, path) = repository("sender-signed", text);
+    let text = describe(&path, "sender-signed", Audience::External).unwrap();
+    let senders = ["RecordPaymentEvent", "ReportLeakedKeys"];
+    for sender in senders {
+        assert!(!text.contains(sender), "{sender} in sdks.json");
+    }
+    let document: serde_json::Value = serde_json::from_str(&text).unwrap();
+    assert!(
+        document["http"]["operations"]
+            .as_object()
+            .unwrap()
+            .contains_key("example.hooks#GetAccount"),
+        "{}",
+        document["http"]
+    );
+    let file = sdk::load(&path).unwrap();
+    let service = common::load("sender-signed");
+    for sdk in file.sdks.values() {
+        let mut client = sdk.client(&file, Some("1.0.0")).unwrap();
+        if let crucible_codegen::Client::Rust(options) = &mut client {
+            options.runtime = crucible_codegen::RuntimeDependency::Git {
+                repository: "https://github.com/Operation-Leyline/crucible".into(),
+                revision: "a".repeat(40),
+                version_requirement: "*".into(),
+            };
+        }
+        let files = client.emit(&service).unwrap();
+        for guide in files
+            .iter()
+            .filter(|file| file.path.ends_with("README.md") || file.path.ends_with("AGENTS.md"))
+        {
+            for sender in senders {
+                let method = sender[..1].to_ascii_lowercase() + &sender[1..];
+                let snake = "record_payment_event";
+                assert!(
+                    !guide.contents.contains(sender)
+                        && !guide.contents.contains(&method)
+                        && !guide.contents.contains(snake),
+                    "{} {}: {sender}",
+                    sdk.name,
+                    guide.path
+                );
+            }
+        }
+    }
+}

@@ -794,7 +794,8 @@ package's `README.md` and `AGENTS.md` ([clients](clients.md#generated-package-do
 ### Raw HTTP requests
 
 `http` describes each operation's request for a caller without an SDK, at
-the widest audience among the listed SDKs. It is a fixed name beside
+the widest audience among the listed SDKs. Like every SDK, it leaves out a
+`@sender` operation, which a third party calls. It is a fixed name beside
 `sdks`, not an SDK entry, so it never collides with an `[sdk.<name>]`.
 
 | Field | Type and meaning |

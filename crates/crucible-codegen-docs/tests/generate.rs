@@ -1355,7 +1355,12 @@ fn model_text_cannot_inject_markup_into_llms_txt() {
     for destination in destinations(&full).into_iter().chain(hrefs(&full)) {
         let path = destination.split('#').next().unwrap();
         assert!(
-            generated(path) || destination == "https://live.example",
+            // The author's links: one in the documentation, and the
+            // model's `@externalDocs` URL, percent-encoded where it would
+            // end the link.
+            generated(path)
+                || destination == "https://live.example"
+                || destination == "https://x.example/a%3Eb%29%3Cc%5D%28https://evil.example",
             "{destination} in llms-full.txt"
         );
     }

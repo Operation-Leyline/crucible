@@ -111,7 +111,8 @@ version's section when it is prepared.
   `curl` command. A body with an unprintable character is sent through
   `base64 -d`, and a header value no request may carry is left out of the
   command and listed in `omitted`, so a pasted command cannot be
-  interrupted or end a bracketed paste. A structure or document payload
+  interrupted or end a bracketed paste. Like the SDKs, it leaves out
+  `@sender` operations, which a third party calls. A structure or document payload
   is the body, as JSON. Neither a snippet nor the raw request carries an
   example's idempotency token, and a defaulted member an example leaves
   out is written with its default. `crucible_codegen_common::snippet`
