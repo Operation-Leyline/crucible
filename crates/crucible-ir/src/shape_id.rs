@@ -59,6 +59,21 @@ impl ShapeId {
         Self::new(PRELUDE, name)
     }
 
+    /// The id as Crucible spells it now: one in the `smithy.api` namespace,
+    /// which release snapshots and infrastructure bindings written before
+    /// the prelude moved still use, becomes its [`PRELUDE`] id (decision 62c
+    /// in docs/idl/decisions.md). Every other id is unchanged.
+    pub fn with_current_prelude(self) -> Self {
+        if self.namespace == "smithy.api" {
+            Self {
+                namespace: PRELUDE.to_owned(),
+                ..self
+            }
+        } else {
+            self
+        }
+    }
+
     /// Whether the id is in the [`PRELUDE`], whose shapes no model file declares.
     pub fn is_prelude(&self) -> bool {
         self.namespace == PRELUDE

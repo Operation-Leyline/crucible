@@ -98,8 +98,12 @@ generated output and the code that reads it:
   `smithy.api#..` ids read as `crucible.api#..`, so the compatibility guard
   compares a `.cru`-frozen release with the current model as before. A
   release frozen from a Smithy model reads its `@input` and
-  `@clientOptional` members with the server's optionality, so guard and
-  `crucible diff` findings against it can change for those members. Committed release files
+  `@clientOptional` members with the server's optionality: against it the
+  guard and `crucible diff` no longer report the `compatibility.sdk`
+  client-side break for a required member that was client-optional there
+  (an SDK field that was optional becomes required), and may report
+  `compatibility.nullability` for a `@clientOptional` output member that
+  is optional now. Committed release files
   and their `crucible.lock` digests stay as they are; never rewrite them.
 - **Generated output.** Every id that names a built-in changes spelling:
   `target`s and JSON Schema `$defs` in `describe.json` (`crucible.api.Long`),
@@ -108,8 +112,8 @@ generated output and the code that reads it:
   bundled in native SDKs. A tool that recognised a built-in by the
   `smithy.api#` prefix matches `crucible.api#` instead.
 - **Infrastructure bindings.** A CDK provider `context` entry's `target`
-  names a built-in as `crucible.api#String` (and so on); `smithy.api#..` is
-  refused as not a scalar model type.
+  names a built-in as `crucible.api#String`; one written as
+  `smithy.api#String` reads as that.
 - **`describe.json`** stays `crucible.describe/1`: its fields mean what they
   meant, and only the spelling of built-in ids and extension names in its
   values changed.
@@ -130,7 +134,7 @@ generated output and the code that reads it:
   `Member::{client_default, client_wire_default}` are gone; read `default`
   and `wire_default`.
 - **Namespaces.** A package can no longer be in `crucible.api`, which is
-  reserved for the prelude; `smithy.api` is no longer reserved.
+  reserved for the prelude; `smithy.api` stays reserved.
 
 ### Only Crucible JSON remains
 

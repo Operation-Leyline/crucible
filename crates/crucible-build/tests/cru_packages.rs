@@ -88,6 +88,10 @@ fn a_cru_package_compiles_publishes_and_generates() {
         stdout.contains(&format!("cargo::rerun-if-changed={}", api.display())),
         "{stdout}"
     );
+    assert!(
+        !root.path().join("out/smithy").exists(),
+        "no intermediate compilation output is written"
+    );
 }
 
 #[test]

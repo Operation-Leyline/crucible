@@ -453,50 +453,69 @@ fn migrate_format_4(value: &mut serde_json::Value) -> Result<(), String> {
     Ok(())
 }
 
-/// Fields whose values are the model's data or prose, not ids: a default,
-/// an example, documentation, and an enum value. A raw trait's value is the
-/// author's too; only its key is an id.
-const DATA_FIELDS: &[&str] = &["default", "wire_default", "examples", "docs"];
+/// Fields of the serialized IR whose whole value is the model's data or
+/// prose, never an id: defaults, examples, documentation, external doc
+/// links.
+const DATA_FIELDS: &[&str] = &[
+    "default",
+    "wire_default",
+    "examples",
+    "docs",
+    "sunset_docs",
+    "external_docs",
+];
 
-/// Rewrites, in place, every string and object key of `value` that is an
-/// id in the old prelude namespace, outside the model's own data
-/// ([`DATA_FIELDS`], trait values, enum values). Prose that happens to
-/// mention one is not an id (it does not parse as one) and is left alone.
-/// A map holding both spellings of one id is refused rather than merged.
-fn map_prelude_ids(value: &mut serde_json::Value) -> Result<(), String> {
+/// Fields whose string value is the model's text, never an id: an enum
+/// value, a pattern, a deprecation message, an exception's reason, and a
+/// member, header or query parameter name.
+const TEXT_FIELDS: &[&str] = &["value", "pattern", "message", "reason", "name"];
+
+/// Maps whose keys are labels and whose values are ids.
+const LABEL_KEYED: &[&str] = &["doc_links", "doc_link_operations"];
+
+/// Rewrites, in place, every id in the serialized IR `value` that `map`
+/// renames: strings and map keys where the IR stores a shape, member,
+/// trait or auth scheme id, and not the model's own data ([`DATA_FIELDS`],
+/// [`TEXT_FIELDS`], raw trait values, doc link labels). A map that would
+/// hold one key twice afterwards is refused, with that key, rather than
+/// merged.
+pub(crate) fn rewrite_ids(
+    value: &mut serde_json::Value,
+    map: &dyn Fn(&str) -> Option<String>,
+) -> Result<(), String> {
     use serde_json::Value;
-    fn mapped(text: &str) -> Option<String> {
-        let rest = text.strip_prefix(OLD_PRELUDE)?.strip_prefix('#')?;
-        text.parse::<crate::ShapeId>()
-            .ok()
-            .map(|_| format!("{}#{rest}", crate::PRELUDE))
-    }
     match value {
         Value::String(text) => {
-            if let Some(new) = mapped(text) {
+            if let Some(new) = map(text) {
                 *text = new;
             }
         }
         Value::Array(items) => {
             for item in items {
-                map_prelude_ids(item)?;
+                rewrite_ids(item, map)?;
             }
         }
         Value::Object(fields) => {
             for (key, mut field) in std::mem::take(fields) {
-                let data =
-                    DATA_FIELDS.contains(&key.as_str()) || (key == "value" && field.is_string());
+                let data = DATA_FIELDS.contains(&key.as_str())
+                    || (TEXT_FIELDS.contains(&key.as_str()) && field.is_string());
                 if key == "traits" {
                     // Keys are trait ids; values are the author's.
                     if let Value::Object(traits) = &mut field {
                         for (id, application) in std::mem::take(traits) {
-                            insert(traits, mapped(&id).unwrap_or(id), application)?;
+                            insert(traits, map(&id).unwrap_or(id), application)?;
+                        }
+                    }
+                } else if LABEL_KEYED.contains(&key.as_str()) {
+                    if let Value::Object(links) = &mut field {
+                        for target in links.values_mut() {
+                            rewrite_ids(target, map)?;
                         }
                     }
                 } else if !data {
-                    map_prelude_ids(&mut field)?;
+                    rewrite_ids(&mut field, map)?;
                 }
-                insert(fields, mapped(&key).unwrap_or(key), field)?;
+                insert(fields, map(&key).unwrap_or(key), field)?;
             }
         }
         _ => {}
@@ -510,13 +529,28 @@ fn insert(
     value: serde_json::Value,
 ) -> Result<(), String> {
     if fields.contains_key(&key) {
-        return Err(format!(
-            "the release snapshot names `{key}` in both the `{OLD_PRELUDE}` and the `{}` spelling",
-            crate::PRELUDE
-        ));
+        return Err(key);
     }
     fields.insert(key, value);
     Ok(())
+}
+
+/// Rewrites every id in the old prelude namespace to its [`crate::PRELUDE`]
+/// id ([`rewrite_ids`]). Prose that happens to mention one is not an id
+/// (it does not parse as one) and is left alone.
+fn map_prelude_ids(value: &mut serde_json::Value) -> Result<(), String> {
+    let mapped = |text: &str| {
+        let rest = text.strip_prefix(OLD_PRELUDE)?.strip_prefix('#')?;
+        text.parse::<crate::ShapeId>()
+            .ok()
+            .map(|_| format!("{}#{rest}", crate::PRELUDE))
+    };
+    rewrite_ids(value, &mapped).map_err(|key| {
+        format!(
+            "the release snapshot names `{key}` in both the `{OLD_PRELUDE}` and the `{}` spelling",
+            crate::PRELUDE
+        )
+    })
 }
 
 /// The members of a serialized shape: a structure's or union's, a list's
@@ -630,5 +664,82 @@ fn is_zero(value: &serde_json::Value) -> bool {
         serde_json::Value::String(text) => text.is_empty(),
         serde_json::Value::Array(items) => items.is_empty(),
         serde_json::Value::Object(fields) => fields.is_empty(),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use serde_json::json;
+
+    /// Ids are mapped where the IR stores them; the model's own data that
+    /// happens to spell one is left as written.
+    #[test]
+    fn only_id_positions_are_mapped() {
+        let old = "smithy.api#String";
+        let mut service = json!({
+            "auth": ["smithy.api#httpBearerAuth"],
+            "auth_schemes": {"smithy.api#httpBearerAuth": {"kind": "bearer"}},
+            "internal_traits": ["smithy.api#internalNote"],
+            "doc_links": {"smithy.api#String": "smithy.api#String"},
+            "doc_link_operations": {"Op.member": "example#Op"},
+            "exceptions": [{"rule": "r", "reason": old}],
+            "shapes": {
+                "example#Name": {"Simple": {
+                    "kind": "String",
+                    "constraints": {"pattern": old},
+                    "notes": {"deprecated": {"message": old, "since": null}},
+                    "docs": old,
+                    "traits": {"smithy.api#documentation": old, "example#tag": old}
+                }},
+                "example#Kind": {"Enum": {"values": [{"name": "A", "value": old}]}},
+                "example#Shape": {"Structure": {"members": [{
+                    "name": "m",
+                    "target": old,
+                    "default": old,
+                    "wire_default": old
+                }]}}
+            },
+            "operations": [{
+                "id": "example#Op",
+                "examples": [{"input": {"m": old}}],
+                "request": {"headers": [{"member": "m", "name": old}]}
+            }]
+        });
+        super::map_prelude_ids(&mut service).unwrap();
+        // Mapped: ids, as values and as keys.
+        assert_eq!(service["auth"][0], "crucible.api#httpBearerAuth");
+        assert!(service["auth_schemes"]["crucible.api#httpBearerAuth"].is_object());
+        assert_eq!(service["internal_traits"][0], "crucible.api#internalNote");
+        assert!(
+            service["shapes"]["example#Name"]["Simple"]["traits"]["crucible.api#documentation"]
+                .is_string()
+        );
+        let member = &service["shapes"]["example#Shape"]["Structure"]["members"][0];
+        assert_eq!(member["target"], "crucible.api#String");
+        // A doc link's label is text; its target is an id.
+        assert_eq!(
+            service["doc_links"]["smithy.api#String"],
+            "crucible.api#String"
+        );
+        // Left alone: defaults, examples, docs, patterns, messages, reasons,
+        // enum values, names and raw trait values.
+        assert_eq!(member["default"], old);
+        assert_eq!(member["wire_default"], old);
+        assert_eq!(service["operations"][0]["examples"][0]["input"]["m"], old);
+        let simple = &service["shapes"]["example#Name"]["Simple"];
+        assert_eq!(simple["docs"], old);
+        assert_eq!(simple["constraints"]["pattern"], old);
+        assert_eq!(simple["notes"]["deprecated"]["message"], old);
+        assert_eq!(simple["traits"]["crucible.api#documentation"], old);
+        assert_eq!(simple["traits"]["example#tag"], old);
+        assert_eq!(
+            service["shapes"]["example#Kind"]["Enum"]["values"][0]["value"],
+            old
+        );
+        assert_eq!(service["exceptions"][0]["reason"], old);
+        assert_eq!(
+            service["operations"][0]["request"]["headers"][0]["name"],
+            old
+        );
     }
 }

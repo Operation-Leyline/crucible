@@ -475,43 +475,29 @@ impl Service {
 
     /// The service with the shape `id` called `name` (in its namespace)
     /// wherever the IR names it: test support for generators' name
-    /// diagnostics, which reach names a `.cru` model cannot spell. The
-    /// wire codes the IR settled are unchanged.
+    /// diagnostics, which reach names a `.cru` model cannot spell. Only ids
+    /// are rewritten, as a snapshot's are ([`crate::snapshot`]): the model's
+    /// own data and the wire codes the IR settled are unchanged.
     #[doc(hidden)]
     pub fn rename_shape(&mut self, id: &ShapeId, name: &str) {
-        fn walk(value: &mut Value, old: &str, new: &str) {
-            let renamed = |text: &str| {
-                if text == old {
-                    Some(new.to_owned())
-                } else {
-                    text.strip_prefix(old)
-                        .filter(|rest| rest.starts_with('$'))
-                        .map(|rest| format!("{new}{rest}"))
-                }
-            };
-            match value {
-                Value::String(text) => {
-                    if let Some(text_new) = renamed(text) {
-                        *text = text_new;
-                    }
-                }
-                Value::Array(items) => items.iter_mut().for_each(|item| walk(item, old, new)),
-                Value::Object(fields) => {
-                    for (key, mut field) in std::mem::take(fields) {
-                        walk(&mut field, old, new);
-                        fields.insert(renamed(&key).unwrap_or(key), field);
-                    }
-                }
-                _ => {}
-            }
-        }
         let new = ShapeId::new(id.namespace(), name);
         assert!(
             !self.shapes.contains_key(&new),
             "{new} exists; renaming {id} to it would merge two shapes"
         );
+        let (old, new) = (id.to_string(), new.to_string());
+        let renamed = |text: &str| {
+            if text == old {
+                Some(new.clone())
+            } else {
+                text.strip_prefix(old.as_str())
+                    .filter(|rest| rest.starts_with('$'))
+                    .map(|rest| format!("{new}{rest}"))
+            }
+        };
         let mut value = serde_json::to_value(&*self).expect("the IR serializes");
-        walk(&mut value, &id.to_string(), &new.to_string());
+        crate::snapshot::rewrite_ids(&mut value, &renamed)
+            .unwrap_or_else(|key| panic!("renaming {old} to {new} would merge two `{key}`"));
         *self = serde_json::from_value(value).expect("the renamed IR reads back");
     }
 

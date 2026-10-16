@@ -499,6 +499,7 @@ fn the_manifest_checks_cover_language_naming_and_namespaces() {
             .collect()
     };
     assert!(messages("[model]\nnamespace = \"crucible.api\"\n")[0].contains("reserved"));
+    assert!(messages("[model]\nnamespace = \"smithy.api\"\n")[0].contains("reserved"));
     assert!(messages("[model]\nnamespace = \"crucible.errors\"\n")[0].contains("reserved"));
     assert!(
         messages("[model]\nnamespace = \"a\"\nlanguage = 999\n")[0].contains("language version 1")

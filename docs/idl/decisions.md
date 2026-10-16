@@ -1310,22 +1310,25 @@ these are working choices, changed freely as implementation teaches.
     rename and a member's optionality is one fact for client and server
     (decision 20). `project_metadata_only` no longer treats `aws.*` and
     `smithy.test` as standard, since only Smithy models used them; a
-    package in such a namespace keeps its own traits. `crucible.api` is the
-    reserved namespace and `smithy.api` is not. Release snapshots move to
-    format 5: reading an older one maps each `smithy.api#..` id (a string or
-    a map key that parses as an id, so prose is untouched) to its
-    `crucible.api` id in memory and drops `client_optional` (a Smithy-era
-    release reads its client-optional members with the server's
-    optionality); the file, and
-    so its lock digest, is never rewritten, and the compatibility guard
-    compares the mapped release with the current model. OpenAPI and JSON
-    Schema extensions are `x-crucible-*`, and `describe.json` keeps
+    package in such a namespace keeps its own traits. `crucible.api` is
+    reserved, and so is `smithy.api`, which older snapshots, infrastructure
+    bindings (a provider context `target`, mapped on read) and the
+    `when_trait` shim still use. Release snapshots move to format 5:
+    reading an older one maps each `smithy.api#..` id to its `crucible.api`
+    id in memory, only where the IR stores ids (never in defaults, examples,
+    documentation, enum values, patterns or raw trait values), and drops
+    `client_optional` (a Smithy-era release reads its client-optional
+    members with the server's optionality); the file, and so its lock
+    digest, is never rewritten, and the compatibility guard compares the
+    mapped release with the current model. OpenAPI and JSON Schema
+    extensions are `x-crucible-*`, and `describe.json` keeps
     `clientOptional`, always `false`, for `crucible.describe/1`'s readers.
     The server runtime's `when_trait("smithy.api#readonly")` and
     `"smithy.api#idempotent"` (and their `crucible.api` spellings) keep
     working for one minor, deprecated in favour of `.when(|op| op.readonly)`
     and `.when(|op| op.idempotent)`; any other built-in id selects nothing,
-    with a warning.
+    with a warning. When the shim goes, a built-in id passed to `when_trait`
+    panics as the scope is built.
     *Why:* `.cru` is the only modelling language since the Smithy front end
     was removed, and its own vocabulary should not name another IDL. The
     lowering still keeps standard facts as raw `crucible.api` traits while it

@@ -159,6 +159,7 @@ mod tests {
             let package = crucible_lang::load_package(&model).unwrap();
             let compiled = crucible_lang::compile(&package, None);
             assert!(compiled.service.is_some(), "{}", compiled.render());
+            assert!(!root.path().join("smithy").exists());
         }
     }
 

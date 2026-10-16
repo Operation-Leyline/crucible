@@ -640,9 +640,15 @@ version's section when it is prepared.
   model as before (Leyline's and Pigeon's report the same findings). A
   release frozen from a Smithy model loses the client-only optionality of
   its `@input` and `@clientOptional` members, which read as the server
-  sees them, so a comparison with it changes for those members. The
-  prelude namespace reserved for packages is `crucible.api`; `smithy.api`
-  is no longer reserved. See [migrating](docs/migrating.md#the-built-in-vocabulary-is-crucibleapi).
+  sees them: against such a baseline the guard no longer reports the
+  `compatibility.sdk` client-side break for a required member that was
+  client-optional there (an SDK field that was `Option`/`Field` becomes
+  required), and it may report `compatibility.nullability` for a
+  `@clientOptional` output member that is optional now. The
+  prelude namespace reserved for packages is `crucible.api`; `smithy.api`,
+  which older snapshots and bindings and the `when_trait` shim still read,
+  stays reserved. Infrastructure bindings that name a provider context
+  type `smithy.api#String` read it as `crucible.api#String`. See [migrating](docs/migrating.md#the-built-in-vocabulary-is-crucibleapi).
 
 - **Generated output says Crucible, not Smithy.** OpenAPI and JSON Schema
   extensions are `x-crucible-*` (`x-crucible-traits`, `x-crucible-errors`,
@@ -732,14 +738,17 @@ version's section when it is prepared.
 
 ### Deprecated
 
-- `OperationMiddlewareExt`, `InterceptorExt` and `ProtocolExt::when_trait`
-  with `"smithy.api#readonly"` or `"smithy.api#idempotent"`: those ids name
-  no trait now that the prelude is `crucible.api`. They, and their
+- `{OperationMiddlewareExt, InterceptorExt, ProtocolExt}::when_trait` with
+  `"smithy.api#readonly"` or `"smithy.api#idempotent"`: those ids name no
+  trait now that the prelude is `crucible.api`. They, and their
   `crucible.api` spellings, still select the readonly or idempotent
   operations, logging a deprecation warning when the scope is built, until
   the next minor release. Use `.when(|op| op.readonly)` and
   `.when(|op| op.idempotent)`. Any other built-in id selects no operation,
   with a warning; `when_trait` with a model's own trait id is unchanged.
+  When the shim is removed, `when_trait` with any id in the `smithy.api` or
+  `crucible.api` namespace panics when the scope is built, rather than
+  scoping an extension (a cache, a retry policy) to no operation.
 
 ### Removed
 
@@ -1402,14 +1411,17 @@ version's section when it is prepared.
   generated output and recognised a built-in by the `smithy.api#` prefix
   (in `describe.json`, OpenAPI, MCP schemas or an SDK's bundled schema)
   matches `crucible.api#`, and one that read an `x-smithy-*` OpenAPI or JSON
-  Schema extension reads `x-crucible-*`. Client telemetry dashboards that
+  Schema extension reads `x-crucible-*`. Both appear as keys as well as
+  values: shape maps and `$defs`/`components.schemas` are keyed by the
+  built-in's id (`crucible.api#Long`, `crucible.api.Long`), and the
+  extensions are object keys inside the embedded schemas. Client telemetry dashboards that
   filter on `rpc.system = smithy` filter on `crucible`. A Rust service
   replaces `when_trait("smithy.api#readonly")` and
   `when_trait("smithy.api#idempotent")` with `.when(|op| op.readonly)` and
   `.when(|op| op.idempotent)` before the next minor release; until then the
-  old ids work with a warning. Infrastructure bindings files spell a
-  provider context `target` `crucible.api#String`, not `smithy.api#String`.
-  A package in the namespace `crucible.api`, now reserved for the prelude,
+  old ids work with a warning. Infrastructure bindings files may keep
+  `smithy.api#String` as a provider context `target`; it reads as
+  `crucible.api#String`. A package in the namespace `crucible.api`, now reserved for the prelude,
   moves to another. `describe.json` stays format 1: only the spelling of
   built-in ids and extension names in its values changed. Committed release
   snapshots need nothing: they read as before. See
