@@ -15,6 +15,7 @@ mod models;
 mod names;
 mod permissions;
 mod schemas;
+mod snippet;
 mod surface;
 
 use crucible_ir::Diagnostics;
@@ -303,13 +304,7 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
     ]
     .into_iter()
     .chain(permissions.map(|contents| file("src/permissions.ts", contents)))
-    .chain(
-        options
-            .metadata
-            .readme
-            .clone()
-            .map(|text| file("README.md", text)),
-    )
+    .chain(package_docs(service, options))
     .chain(
         options
             .metadata
@@ -318,6 +313,33 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
             .map(|text| file("LICENSE", text)),
     )
     .collect())
+}
+
+/// The package's README (the configured one, else generated), its
+/// `AGENTS.md`, and TypeDoc's configuration.
+fn package_docs(service: &Service, options: &Options) -> Vec<File> {
+    use crucible_codegen_common::guide;
+    let surface = surface::surface(service, options);
+    let facts = snippet::guide(service, options);
+    let readme = options
+        .metadata
+        .readme
+        .clone()
+        .unwrap_or_else(|| guide::readme(service, &surface, &facts));
+    vec![
+        File {
+            path: guide::README.to_owned(),
+            contents: readme,
+        },
+        File {
+            path: guide::AGENTS.to_owned(),
+            contents: guide::agents(service, &surface, &facts),
+        },
+        File {
+            path: "typedoc.json".to_owned(),
+            contents: snippet::TYPEDOC.to_owned(),
+        },
+    ]
 }
 
 /// `permissions`: `index_exports`' re-exports of `permissions.ts`, empty
@@ -386,10 +408,13 @@ fn package_json(service: &Service, options: &Options) -> String {
         "exports",
         json!({ ".": { "types": "./dist/index.d.ts", "default": "./dist/index.js" } }),
     );
-    let mut files = vec!["dist", "crucible.json", "crucible-model.json"];
-    if metadata.readme.is_some() {
-        files.push("README.md");
-    }
+    let files = vec![
+        "dist",
+        "crucible.json",
+        "crucible-model.json",
+        "README.md",
+        "AGENTS.md",
+    ];
     set("files", json!(files));
     set("sideEffects", json!(false));
     set("scripts", json!({ "build": "tsc -p ." }));

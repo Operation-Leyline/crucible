@@ -1,0 +1,18 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "lib": ["ES2022", "DOM"],
+    "types": [],
+    "strict": true,
+    "verbatimModuleSyntax": true,
+    "skipLibCheck": true,
+    "noEmit": true,
+    "paths": {
+      "@example/weather": ["../generated/src/index.ts"],
+      "@example/samples": ["../generated-samples/src/index.ts"]
+    }
+  },
+  "include": ["generated/**/*.ts", "env.d.ts"]
+}

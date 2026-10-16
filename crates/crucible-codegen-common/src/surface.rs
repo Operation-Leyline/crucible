@@ -159,6 +159,14 @@ pub struct Operation {
     pub input: Option<Structure>,
     /// `None` when the operation returns no modeled output.
     pub output: Option<Structure>,
+    /// A complete program calling the operation: imports, the client built
+    /// with its token, the input with its example's values (or the
+    /// generated sample's), the call, reading the output, and handling one
+    /// modelled error (docs/docs.md, "Snippets").
+    pub snippet: String,
+    /// The same program paging through the results, for a paginated
+    /// operation; `None` otherwise.
+    pub paginated_snippet: Option<String>,
 }
 
 impl Operation {

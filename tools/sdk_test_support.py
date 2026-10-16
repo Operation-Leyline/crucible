@@ -1,9 +1,12 @@
 """Shared native SDK qualification helpers; all services stay on loopback."""
 from contextlib import contextmanager
+import json
 import os
 from pathlib import Path
 import queue
+import shutil
 import subprocess
+import tempfile
 import threading
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -27,6 +30,36 @@ def run(*args, **kwargs):
         subprocess.run(args, cwd=kwargs.pop("cwd", ROOT), check=True, timeout=timeout, **kwargs)
     except subprocess.TimeoutExpired as error:
         raise RuntimeError(f"Qualification step timed out after {timeout}s: {args!r}") from error
+
+
+def describe_sdk(sdk, model=ROOT / "tests/models/weather"):
+    """The `crucible.sdks/1` document (docs/docs.md) for one SDK over `model`.
+
+    `sdk` is the TOML of a `[sdk.<name>]` table; describe it with the options
+    the caller generates its package with, so every name in its snippets is
+    one that package declares.
+    """
+    with tempfile.TemporaryDirectory() as directory:
+        directory = Path(directory)
+        shutil.copytree(model, directory / "model")
+        (directory / "crucible-sdk.toml").write_text(
+            f'schema_version = 1\nmodel = "model"\n\n{sdk}', encoding="utf-8")
+        out = directory / "sdks.json"
+        run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "sdk", "describe",
+            "--file", str(directory / "crucible-sdk.toml"), "--out", str(out))
+        return json.loads(out.read_text(encoding="utf-8"))
+
+
+def snippets(document):
+    """Every snippet in a `crucible.sdks/1` document, as (SDK, operation name,
+    variant, text): `call` for an operation's snippet, `pages` for its
+    paginated one."""
+    for name, sdk in sorted(document["sdks"].items()):
+        for operation, entry in sorted(sdk["operations"].items()):
+            short = operation.split("#", 1)[1]
+            yield name, short, "call", entry["snippet"]
+            if entry.get("paginatedSnippet"):
+                yield name, short, "pages", entry["paginatedSnippet"]
 
 
 @contextmanager
