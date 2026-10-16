@@ -689,15 +689,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "crucible-seshat"
-version = "0.7.0"
-dependencies = [
- "crucible-server-runtime-rust",
- "serde_json",
- "tracing",
-]
-
-[[package]]
 name = "crucible-wire"
 version = "0.7.0"
 dependencies = [
@@ -3125,7 +3116,6 @@ dependencies = [
  "crucible-build",
  "crucible-client-runtime-rust",
  "crucible-server-runtime-rust",
- "crucible-seshat",
  "flate2",
  "futures-util",
  "jsonschema",
