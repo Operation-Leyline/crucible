@@ -642,6 +642,20 @@ fn absolute(path: &Path) -> PathBuf {
     root.join(path)
 }
 
+/// Prints `line` as a Cargo warning, once per build script run. One build
+/// can lower its model several times (server or client bindings, named
+/// outputs, an export), and Cargo would show every repeat.
+pub(crate) fn warn(line: &str) {
+    static PRINTED: std::sync::Mutex<std::collections::BTreeSet<String>> =
+        std::sync::Mutex::new(std::collections::BTreeSet::new());
+    let mut printed = PRINTED
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    if printed.insert(line.to_owned()) {
+        println!("cargo::warning={line}");
+    }
+}
+
 /// Applies the policy at `policy`: an error finding fails the build, and
 /// with `show` each warning and excepted finding is a Cargo warning.
 fn check_policy(
@@ -654,21 +668,21 @@ fn check_policy(
     if show {
         for finding in &report.findings {
             if let Some(reason) = &finding.exception {
-                println!(
-                    "cargo::warning=excepted[{}] {}: {}",
+                warn(&format!(
+                    "excepted[{}] {}: {}",
                     finding.rule,
                     finding.shape,
                     reason.replace(['\n', '\r'], " ")
-                );
+                ));
             }
             if finding.severity == crucible_policy::Severity::Warning && finding.exception.is_none()
             {
-                println!(
-                    "cargo::warning=[{}] {}: {}",
+                warn(&format!(
+                    "[{}] {}: {}",
                     finding.rule,
                     finding.shape,
                     finding.message.replace(['\n', '\r'], " ")
-                );
+                ));
             }
         }
     }

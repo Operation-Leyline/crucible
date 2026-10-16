@@ -23,9 +23,9 @@ version's section when it is prepared.
   applies the model's policy) prints none of the model's
   `cargo::warning` lines (compiler warnings and advice, compatibility
   findings, policy warnings and excepted findings), so each prints once.
-  Errors still fail the build. The default is unchanged. A server build
-  that also exports the model (`model_output`, `CRUCIBLE_MODEL_OUT`) no
-  longer prints its warnings a second time. See
+  Errors still fail the build. The default is unchanged, and
+  `compile()` keeps the setting for the package's own `server()` and
+  `client()`. See
   [docs/api-policy.md](docs/api-policy.md#in-a-cru-packages-manifest).
 
 - Sender-signed operations (decision 81 in
@@ -1110,6 +1110,11 @@ version's section when it is prepared.
   request with a body, never a bodiless GET or DELETE. The wording lives
   once, in `crucible_codegen_common::surface::Middleware::content_sha256`
   (`sent_on`, not part of `crucible.sdks/1`).
+- A build script prints each of its model's warnings once. A build that
+  lowers the model more than once printed every warning and policy
+  finding again each time: server or client bindings beside named
+  outputs from the same `model(..)`, or a server build that also exports
+  the model (`model_output`, `CRUCIBLE_MODEL_OUT`).
 - The compatibility guard follows a migration's renames into permission
   requirements: a `requires .. when` condition or a binding that reads a
   renamed input member is the same clause by its new name, not a new

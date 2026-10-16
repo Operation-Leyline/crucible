@@ -67,7 +67,7 @@ pub(crate) fn lower(
             .lines()
             .filter(|line| line.contains(": warning: ") || line.contains(": advice: "))
         {
-            println!("cargo::warning={line}");
+            crate::warn(line);
         }
     }
     let config = match manifest_policy(path) {
@@ -155,7 +155,7 @@ fn check_baseline(
     }
     if report {
         for line in checked.render(compiled).lines() {
-            println!("cargo::warning={line}");
+            crate::warn(line);
         }
     }
     Ok(checked.versions.versions)

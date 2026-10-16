@@ -328,16 +328,25 @@ fn construct(surface: &Surface, guide: &Guide) -> String {
         // PHP's autoloader needs no import line.
         return guide.construct.clone();
     }
-    let statements: Vec<&str> = guide
-        .construct
-        .lines()
-        .filter(|line| !imports.iter().any(|import| import == line.trim_end()))
-        .collect();
-    format!(
-        "{}\n\n{}",
-        imports.join("\n"),
-        statements.join("\n").trim_start_matches('\n')
-    )
+    let mut statements: Vec<&str> = Vec::new();
+    let mut dropped = false;
+    for line in guide.construct.lines() {
+        if imports.iter().any(|import| import == line.trim_end()) {
+            dropped = true;
+            continue;
+        }
+        let blank = line.trim().is_empty();
+        // A dropped import leaves the blank lines around it: keep one
+        // between statements, and none at the top.
+        if blank && dropped && statements.last().is_none_or(|last| last.trim().is_empty()) {
+            continue;
+        }
+        if !blank {
+            dropped = false;
+        }
+        statements.push(line);
+    }
+    format!("{}\n\n{}", imports.join("\n"), statements.join("\n"))
 }
 
 /// What the package's install section shows: shell lines, a manifest
@@ -640,6 +649,12 @@ mod tests {
         assert_eq!(construct(&surface, &guide), expected);
         guide.construct = "let client = WeatherClient::new(config);".into();
         assert_eq!(construct(&surface, &guide), expected);
+        // A repeat between statements leaves one blank line, not two.
+        guide.construct = "let a = 1;\n\nuse weather_sdk::*;\n\nlet b = 2;".into();
+        assert_eq!(
+            construct(&surface, &guide),
+            "use weather_sdk::*;\n\nlet a = 1;\n\nlet b = 2;"
+        );
         // An import of something else stays.
         guide.construct = "use std::env;\n\nlet client = WeatherClient::new(config);".into();
         assert_eq!(

@@ -95,9 +95,10 @@ fn main() {
 policy makes warnings, and policy warnings and excepted findings. Errors
 still fail the build. Use it only where another build of the same Cargo
 invocation reports the model: Cargo shows a build script's warnings only
-for a package in the workspace, so a model crate fetched from a registry or
-Git reports nothing, and a model crate's `publish()` compiles the model only
-when it has a policy to apply.
+for a local package (a workspace member or a `path` dependency), so a model
+crate fetched from a registry or Git reports nothing, and a model crate's
+`publish()` compiles the model only when it has a policy to apply. Within
+one build each warning prints once, however many outputs lower the model.
 
 The language server applies the same policy as you type: a finding shows at
 the name it concerns, as an error or a warning, and a naming finding offers

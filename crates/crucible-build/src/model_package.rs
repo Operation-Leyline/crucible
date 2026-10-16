@@ -18,6 +18,10 @@ pub struct ModelPackage {
     pub(crate) artifacts: RefCell<BTreeMap<String, Artifact>>,
     #[cfg_attr(not(feature = "rust"), allow(dead_code))]
     policy: Option<PathBuf>,
+    /// Whether its bindings show the model's warnings
+    /// ([`crate::Model::report_warnings`]).
+    #[cfg_attr(not(feature = "rust"), allow(dead_code))]
+    report: bool,
 }
 
 impl ModelPackage {
@@ -26,6 +30,7 @@ impl ModelPackage {
         service: Service,
         output: PathBuf,
         policy: Option<PathBuf>,
+        report: bool,
     ) -> Result<Self, String> {
         let package = Self {
             source: model.clone(),
@@ -34,6 +39,7 @@ impl ModelPackage {
             output,
             artifacts: RefCell::new(BTreeMap::new()),
             policy,
+            report,
         };
         // OUT_DIR survives rebuilds: reset membership so removed generation
         // calls cannot leave previously published output variants discoverable.
@@ -52,6 +58,7 @@ impl ModelPackage {
         let mut output = crate::ServerOutput::new(&self.model).named(&self.service.id.to_string());
         output.options.require_rejection = true;
         output.policy = self.policy.clone();
+        output.report = self.report;
         output
     }
 

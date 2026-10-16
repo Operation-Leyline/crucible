@@ -62,6 +62,6 @@ impl ModelConfig {
             println!("cargo::rerun-if-changed={}", policy.display());
             crate::check_policy(&service, policy, self.report)?;
         }
-        ModelPackage::new(self.source, service, output, self.policy)
+        ModelPackage::new(self.source, service, output, self.policy, self.report)
     }
 }

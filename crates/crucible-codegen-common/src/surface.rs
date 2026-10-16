@@ -69,10 +69,11 @@ impl Middleware {
         }
     }
 
-    /// `content-sha256`, as every runtime implements it: the body's
-    /// SHA-256 in `x-amz-content-sha256` on every POST, PUT and PATCH (the
-    /// empty body's digest when there is none) and on any other request
-    /// with a body, never on a bodiless GET or DELETE.
+    /// `content-sha256`, as the Rust and TypeScript runtimes (the only
+    /// clients that offer it) implement it: the body's SHA-256 in
+    /// `x-amz-content-sha256` on every POST, PUT and PATCH (the empty
+    /// body's digest when there is none) and on any other request with a
+    /// body, never on a bodiless GET or DELETE.
     pub fn content_sha256() -> Self {
         Self {
             sent_on: Some(
