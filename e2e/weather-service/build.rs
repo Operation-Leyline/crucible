@@ -113,6 +113,7 @@ fn main() {
         ("before", "versioned_freeze/before"),
         ("after", "versioned_freeze/after"),
     ] {
+        println!("cargo::rerun-if-changed={dir}");
         std::fs::write(
             out.join(format!("versioned_freeze_{stage}.rs")),
             crucible_build::model(dir).server().render().unwrap(),
