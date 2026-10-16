@@ -414,7 +414,13 @@ async fn a_sender_signed_request_is_served_at_the_current_release() {
     let (status, _, _) = call(&service(Unversioned::Required), "GET", "/items/a", None).await;
     assert_eq!(status, StatusCode::BAD_REQUEST);
     // A release it names is honoured: v1 has no such operation.
-    let (status, _, _) = call(&service(Unversioned::Oldest), "POST", "/payments", Some("v1")).await;
+    let (status, _, _) = call(
+        &service(Unversioned::Oldest),
+        "POST",
+        "/payments",
+        Some("v1"),
+    )
+    .await;
     assert_ne!(status, StatusCode::OK);
 }
 
