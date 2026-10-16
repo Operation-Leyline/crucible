@@ -310,7 +310,10 @@ fn raw_payload_syntax_uses_the_resolved_content_type_once() {
     for file in files(WEATHER, Audience::External) {
         if file.path.ends_with("API_GetCityPhoto.md") || file.path.ends_with("API_PutCityPhoto.md")
         {
-            assert_eq!(file.contents.matches("Content-Type: image/jpeg").count(), 1);
+            // Once in the syntax, and once in the generated sample.
+            let (syntax, sample) = file.contents.split_once("## Generated sample").unwrap();
+            assert_eq!(syntax.matches("Content-Type: image/jpeg").count(), 1);
+            assert_eq!(sample.matches("Content-Type: image/jpeg").count(), 1);
         }
     }
 }

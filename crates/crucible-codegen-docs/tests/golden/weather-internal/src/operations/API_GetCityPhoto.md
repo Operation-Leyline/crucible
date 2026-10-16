@@ -52,3 +52,23 @@ X-Photo-Caption: {caption}
 ## Idempotency and retries
 
 Readonly: true. Idempotent: false.
+
+## Generated sample
+
+Generated from the model's types and constraints, not written by the API's authors.
+
+Request:
+
+```http
+GET /cities/c-4xzk6sz6/photo HTTP/1.1
+```
+
+Response:
+
+```http
+HTTP/1.1 200
+Content-Type: image/jpeg
+X-Photo-Caption: caption
+
+<binary payload, base64: cGhvdG8=>
+```

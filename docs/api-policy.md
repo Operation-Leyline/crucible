@@ -87,7 +87,8 @@ hover, and reports a bad value where it is written.
 `schema_version = 1` is optional; 1 is the only version. Unknown fields,
 rules, enum values, malformed regular expressions, and unsupported schema
 versions are errors. Each group accepts `severity = "error"`, `"warning"`, or
-`"off"`; the default is `"error"`. Omitted static groups run no checks.
+`"off"`; the default is `"error"`, except for `rules.examples`, whose default
+is `"warning"`. Omitted static groups run no checks.
 
 Every check also takes its own severity. Write it bare to use the group's,
 or as a table naming its value and severity:
@@ -106,7 +107,28 @@ or as a table naming its value and severity:
 | `rules.naming` | `operations`, `shapes`, `members`, `enum_values`: optional casing conventions; corresponding `*_pattern` fields add whole-name Rust regex checks |
 | `rules.paths` | `prefix`: absolute literal path with segment-boundary matching; `segment_case` checks literals; `parameter_case` checks labels |
 | `rules.documentation` | `targets`: any of `service`, `operations`, `shapes`, `members`, `errors`, `enums`; empty means no documentation checks |
+| `rules.examples` | `operations`, `errors`: an `example` on each operation, documentation on each error an operation returns; both default to true, and the group's severity defaults to `"warning"` |
 | `compatibility` | `wire`, `sdk_source`: independently select wire and model-level public-symbol checks; both default to true |
+
+### Example coverage
+
+A reference is easiest to use when each operation shows a real request and
+response, and each error says when it happens. `[rules.examples]` checks
+both, as warnings unless the group or a check says otherwise, so a model
+can adopt it before every operation has an example:
+
+```toml
+[rules.examples]
+operations = true                                # examples.operations
+errors = { enabled = true, severity = "error" }  # examples.errors
+```
+
+`examples.operations` reports each selected operation that declares no
+`example`; its reference page shows a [generated sample](docs.md#generated-samples)
+instead. `examples.errors` reports each error a selected operation returns,
+its own or the service's and imported ones too, whose shape has no `///`
+documentation. Either can be excepted like any other finding, such as a
+health check that needs no example.
 
 Naming patterns are wrapped in `\A(?:...)\z` and validated in that form.
 Verbose-mode (`(?x)`) comments need a terminating newline before the pattern

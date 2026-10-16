@@ -1,0 +1,40 @@
+/// Every scalar, collection and default in one request.
+idempotent operation PutGraph {
+    http PUT "/graphs/{graphId}"
+    input {
+        graphId: GraphId
+        @token
+        clientToken?: string
+        @header("X-Region")
+        region?: Region
+        @query("since")
+        since?: timestamp
+        @header("If-Modified-Since")
+        modifiedSince?: timestamp
+        name: GraphName
+        tier: Tier = SMALL
+        priority?: Priority
+        port?: Port
+        negative?: Negative
+        ratio?: Ratio
+        price?: Price
+        enabled?: boolean
+        created?: EpochTime
+        updated?: timestamp
+        thumbnail?: Thumbnail
+        settings?: document
+        tags: Tags
+        regions?: Regions
+        limits?: Limits
+        source?: Source
+        description?: Printable
+        count: long = 42
+    }
+    output {
+        graphId: GraphId
+        name: GraphName
+        @header("Last-Modified")
+        lastModified?: timestamp
+    }
+    errors [GraphNotFound, Busy]
+}

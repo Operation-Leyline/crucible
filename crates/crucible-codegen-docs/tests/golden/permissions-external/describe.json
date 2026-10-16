@@ -168,6 +168,37 @@
       "responseProtocolHeaders": {
         "Content-Type": "application/json"
       },
+      "sample": {
+        "fallbacks": [],
+        "generated": true,
+        "input": {
+          "body": null,
+          "headers": {
+            "Content-Type": "application/json"
+          },
+          "labels": {
+            "graphId": "g_graphid",
+            "organizationId": "org_organizationid"
+          },
+          "method": "POST",
+          "payload": null,
+          "query": [],
+          "uri": "/orgs/org_organizationid/graphs/g_graphid/archive"
+        },
+        "minimalInput": null,
+        "output": {
+          "body": {
+            "archived": false
+          },
+          "headers": {
+            "Content-Type": "application/json"
+          },
+          "labels": {},
+          "payload": null,
+          "query": []
+        },
+        "title": "Generated sample"
+      },
       "status": 200,
       "uri": "/orgs/{organizationId}/graphs/{graphId}/archive"
     },
@@ -337,6 +368,38 @@
       },
       "responseProtocolHeaders": {
         "Content-Type": "application/json"
+      },
+      "sample": {
+        "fallbacks": [],
+        "generated": true,
+        "input": {
+          "body": {
+            "name": "name"
+          },
+          "headers": {
+            "Content-Type": "application/json"
+          },
+          "labels": {
+            "organizationId": "org_organizationid"
+          },
+          "method": "POST",
+          "payload": null,
+          "query": [],
+          "uri": "/orgs/org_organizationid/graphs"
+        },
+        "minimalInput": null,
+        "output": {
+          "body": {
+            "created": "g_created"
+          },
+          "headers": {
+            "Content-Type": "application/json"
+          },
+          "labels": {},
+          "payload": null,
+          "query": []
+        },
+        "title": "Generated sample"
       },
       "status": 200,
       "uri": "/orgs/{organizationId}/graphs"
@@ -630,6 +693,59 @@
       "responseProtocolHeaders": {
         "Content-Type": "application/json"
       },
+      "sample": {
+        "fallbacks": [],
+        "generated": true,
+        "input": {
+          "body": {
+            "query": "query",
+            "target": {
+              "current": {}
+            }
+          },
+          "headers": {
+            "Content-Type": "application/json"
+          },
+          "labels": {
+            "graphId": "g_graphid",
+            "organizationId": "org_organizationid"
+          },
+          "method": "POST",
+          "payload": null,
+          "query": [],
+          "uri": "/orgs/org_organizationid/graphs/g_graphid/query"
+        },
+        "minimalInput": {
+          "body": {
+            "query": "query"
+          },
+          "headers": {
+            "Content-Type": "application/json"
+          },
+          "labels": {
+            "graphId": "g_graphid",
+            "organizationId": "org_organizationid"
+          },
+          "method": "POST",
+          "payload": null,
+          "query": [],
+          "uri": "/orgs/org_organizationid/graphs/g_graphid/query"
+        },
+        "output": {
+          "body": {
+            "rows": [
+              "rows"
+            ]
+          },
+          "headers": {
+            "Content-Type": "application/json"
+          },
+          "labels": {},
+          "payload": null,
+          "query": []
+        },
+        "title": "Generated sample"
+      },
       "status": 200,
       "uri": "/orgs/{organizationId}/graphs/{graphId}/query"
     },
@@ -797,6 +913,35 @@
       "responseProtocolHeaders": {
         "Content-Type": "application/json"
       },
+      "sample": {
+        "fallbacks": [],
+        "generated": true,
+        "input": {
+          "body": null,
+          "headers": {},
+          "labels": {
+            "graph": "g_graph",
+            "organizationId": "org_organizationid"
+          },
+          "method": "GET",
+          "payload": null,
+          "query": [],
+          "uri": "/orgs/org_organizationid/graphs/g_graph"
+        },
+        "minimalInput": null,
+        "output": {
+          "body": {
+            "name": "name"
+          },
+          "headers": {
+            "Content-Type": "application/json"
+          },
+          "labels": {},
+          "payload": null,
+          "query": []
+        },
+        "title": "Generated sample"
+      },
       "status": 200,
       "uri": "/orgs/{organizationId}/graphs/{graph}"
     },
@@ -931,6 +1076,34 @@
       "responseProtocolHeaders": {
         "Content-Type": "application/json"
       },
+      "sample": {
+        "fallbacks": [],
+        "generated": true,
+        "input": {
+          "body": null,
+          "headers": {},
+          "labels": {
+            "organizationId": "org_organizationid"
+          },
+          "method": "GET",
+          "payload": null,
+          "query": [],
+          "uri": "/orgs/org_organizationid"
+        },
+        "minimalInput": null,
+        "output": {
+          "body": {
+            "name": "name"
+          },
+          "headers": {
+            "Content-Type": "application/json"
+          },
+          "labels": {},
+          "payload": null,
+          "query": []
+        },
+        "title": "Generated sample"
+      },
       "status": 200,
       "uri": "/orgs/{organizationId}"
     },
@@ -1035,6 +1208,32 @@
       "responseProtocolHeaders": {
         "Content-Type": "application/json"
       },
+      "sample": {
+        "fallbacks": [],
+        "generated": true,
+        "input": {
+          "body": null,
+          "headers": {},
+          "labels": {},
+          "method": "GET",
+          "payload": null,
+          "query": [],
+          "uri": "/user"
+        },
+        "minimalInput": null,
+        "output": {
+          "body": {
+            "subject": "subject"
+          },
+          "headers": {
+            "Content-Type": "application/json"
+          },
+          "labels": {},
+          "payload": null,
+          "query": []
+        },
+        "title": "Generated sample"
+      },
       "status": 200,
       "uri": "/user"
     },
@@ -1123,6 +1322,32 @@
       },
       "responseProtocolHeaders": {
         "Content-Type": "application/json"
+      },
+      "sample": {
+        "fallbacks": [],
+        "generated": true,
+        "input": {
+          "body": null,
+          "headers": {},
+          "labels": {},
+          "method": "GET",
+          "payload": null,
+          "query": [],
+          "uri": "/health"
+        },
+        "minimalInput": null,
+        "output": {
+          "body": {
+            "status": "status"
+          },
+          "headers": {
+            "Content-Type": "application/json"
+          },
+          "labels": {},
+          "payload": null,
+          "query": []
+        },
+        "title": "Generated sample"
       },
       "status": 200,
       "uri": "/health"
@@ -1283,6 +1508,36 @@
       "responseProtocolHeaders": {
         "Content-Type": "application/json"
       },
+      "sample": {
+        "fallbacks": [],
+        "generated": true,
+        "input": {
+          "body": null,
+          "headers": {},
+          "labels": {
+            "organizationId": "org_organizationid"
+          },
+          "method": "GET",
+          "payload": null,
+          "query": [],
+          "uri": "/orgs/org_organizationid/graphs"
+        },
+        "minimalInput": null,
+        "output": {
+          "body": {
+            "names": [
+              "names"
+            ]
+          },
+          "headers": {
+            "Content-Type": "application/json"
+          },
+          "labels": {},
+          "payload": null,
+          "query": []
+        },
+        "title": "Generated sample"
+      },
       "status": 200,
       "uri": "/orgs/{organizationId}/graphs"
     },
@@ -1432,6 +1687,36 @@
       },
       "responseProtocolHeaders": {
         "Content-Type": "application/json"
+      },
+      "sample": {
+        "fallbacks": [],
+        "generated": true,
+        "input": {
+          "body": null,
+          "headers": {},
+          "labels": {
+            "graphId": "g_graphid",
+            "historyId": "h_historyid",
+            "organizationId": "org_organizationid"
+          },
+          "method": "POST",
+          "payload": null,
+          "query": [],
+          "uri": "/orgs/org_organizationid/graphs/g_graphid/histories/h_historyid/restore"
+        },
+        "minimalInput": null,
+        "output": {
+          "body": {
+            "restored": false
+          },
+          "headers": {
+            "Content-Type": "application/json"
+          },
+          "labels": {},
+          "payload": null,
+          "query": []
+        },
+        "title": "Generated sample"
       },
       "status": 200,
       "uri": "/orgs/{organizationId}/graphs/{graphId}/histories/{historyId}/restore"
@@ -1657,6 +1942,52 @@
       },
       "responseProtocolHeaders": {
         "Content-Type": "application/json"
+      },
+      "sample": {
+        "fallbacks": [],
+        "generated": true,
+        "input": {
+          "body": {
+            "mode": "mode"
+          },
+          "headers": {
+            "Content-Type": "application/json"
+          },
+          "labels": {
+            "graphId": "g_graphid",
+            "organizationId": "org_organizationid"
+          },
+          "method": "POST",
+          "payload": null,
+          "query": [],
+          "uri": "/orgs/org_organizationid/graphs/g_graphid/rewrite"
+        },
+        "minimalInput": {
+          "body": {},
+          "headers": {
+            "Content-Type": "application/json"
+          },
+          "labels": {
+            "graphId": "g_graphid",
+            "organizationId": "org_organizationid"
+          },
+          "method": "POST",
+          "payload": null,
+          "query": [],
+          "uri": "/orgs/org_organizationid/graphs/g_graphid/rewrite"
+        },
+        "output": {
+          "body": {
+            "rewritten": false
+          },
+          "headers": {
+            "Content-Type": "application/json"
+          },
+          "labels": {},
+          "payload": null,
+          "query": []
+        },
+        "title": "Generated sample"
       },
       "status": 200,
       "uri": "/orgs/{organizationId}/graphs/{graphId}/rewrite"
@@ -1925,6 +2256,24 @@
         "retryable": {
           "throttling": false
         },
+        "sample": {
+          "fallbacks": [],
+          "generated": true,
+          "message": {
+            "body": {
+              "__type": "InternalServerException",
+              "message": "message"
+            },
+            "headers": {
+              "Content-Type": "application/json",
+              "Retry-After": "1",
+              "X-Crucible-Error": "InternalServerException"
+            },
+            "labels": {},
+            "payload": null,
+            "query": []
+          }
+        },
         "shape": "crucible.errors#InternalServerException",
         "status": 500,
         "wireCode": "InternalServerException"
@@ -2033,6 +2382,24 @@
           "Content-Type": "application/json"
         },
         "retryable": null,
+        "sample": {
+          "fallbacks": [],
+          "generated": true,
+          "message": {
+            "body": {
+              "__type": "NotFoundException",
+              "message": "message",
+              "resourceType": "resourceType"
+            },
+            "headers": {
+              "Content-Type": "application/json",
+              "X-Crucible-Error": "NotFoundException"
+            },
+            "labels": {},
+            "payload": null,
+            "query": []
+          }
+        },
         "shape": "crucible.errors#NotFoundException",
         "status": 404,
         "wireCode": "NotFoundException"
@@ -2142,6 +2509,30 @@
           "Content-Type": "application/json"
         },
         "retryable": null,
+        "sample": {
+          "fallbacks": [],
+          "generated": true,
+          "message": {
+            "body": {
+              "__type": "ValidationException",
+              "fieldList": [
+                {
+                  "message": "message",
+                  "name": "name"
+                }
+              ],
+              "message": "message",
+              "reason": "unknownOperation"
+            },
+            "headers": {
+              "Content-Type": "application/json",
+              "X-Crucible-Error": "ValidationException"
+            },
+            "labels": {},
+            "payload": null,
+            "query": []
+          }
+        },
         "shape": "crucible.errors#ValidationException",
         "status": 400,
         "wireCode": "ValidationException"

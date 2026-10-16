@@ -574,6 +574,19 @@ fn operation(d: &Description, op: &Value) -> String {
                 }
             }
         }
+    } else if !op["sample"].is_null() {
+        // Without an example, the sample the model implies, marked as such.
+        out.push_str(
+            "## Generated sample\n\nGenerated from the model's types and constraints, not written by the API's authors.\n\n",
+        );
+        for (key, label) in [("input", "Request"), ("output", "Response")] {
+            out.push_str(&format!("{label}:\n\n"));
+            out.push_str(&example_message(
+                &op["sample"][key],
+                key == "input",
+                &op["status"],
+            ));
+        }
     }
     out
 }

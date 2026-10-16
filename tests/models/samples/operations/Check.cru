@@ -1,0 +1,7 @@
+/// A pattern the generator cannot follow.
+operation Check {
+    http POST "/check"
+    input {
+        bounded?: Bounded
+    }
+}

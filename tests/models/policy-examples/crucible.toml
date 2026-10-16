@@ -1,0 +1,21 @@
+schema_version = 1
+
+# `[rules.examples]` (docs/api-policy.md): an operation without an
+# `example`, and an error without documentation, are warnings by default.
+[model]
+namespace = "example.coverage"
+language = 1
+sources = ["."]
+imports = []
+
+[model.naming]
+input = "{Operation}Input"
+output = "{Operation}Output"
+
+[rules.examples]
+# Both checks, at the group's default severity: warning.
+
+[[exceptions]]
+rule = "examples.operations"
+shape = "example.coverage#Ping"
+reason = "A health check needs no example"

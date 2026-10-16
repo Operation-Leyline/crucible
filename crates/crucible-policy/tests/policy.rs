@@ -486,3 +486,86 @@ fn problems_point_at_what_is_wrong() {
         error.message
     );
 }
+
+/// `tests/models/policy-examples`, and the policy in its manifest.
+fn coverage() -> (Service, Config) {
+    let dir =
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../tests/models/policy-examples");
+    let service = crucible_lang::load_service(&dir).unwrap();
+    let config = Config::load(&dir.join("crucible.toml")).unwrap();
+    (service, config)
+}
+
+fn findings(report: &crucible_policy::Report) -> Vec<(String, String, Severity, bool)> {
+    report
+        .findings
+        .iter()
+        .map(|f| {
+            (
+                f.rule.clone(),
+                f.shape.clone(),
+                f.severity,
+                f.exception.is_some(),
+            )
+        })
+        .collect()
+}
+
+#[test]
+fn example_coverage_warns_by_default_and_honours_exceptions() {
+    let (service, config) = coverage();
+    let report = check(&service, &config);
+    assert!(!report.has_errors(), "{report}");
+    assert_eq!(
+        findings(&report),
+        [
+            (
+                "examples.operations".to_owned(),
+                "example.coverage#ListNotes".to_owned(),
+                Severity::Warning,
+                false
+            ),
+            (
+                "examples.operations".to_owned(),
+                "example.coverage#Ping".to_owned(),
+                Severity::Warning,
+                true
+            ),
+            // A service error counts: every operation can return it. The
+            // documented NoteNotFound passes.
+            (
+                "examples.errors".to_owned(),
+                "example.coverage#Throttled".to_owned(),
+                Severity::Warning,
+                false
+            ),
+        ]
+    );
+}
+
+#[test]
+fn example_coverage_checks_take_their_own_severity_or_turn_off() {
+    let (service, _) = coverage();
+    let config = Config::parse(
+        "[rules.examples]\noperations = false\nerrors = { enabled = true, severity = \"error\" }\n",
+    )
+    .unwrap();
+    let report = check(&service, &config);
+    assert!(report.has_errors());
+    assert_eq!(
+        findings(&report),
+        [(
+            "examples.errors".to_owned(),
+            "example.coverage#Throttled".to_owned(),
+            Severity::Error,
+            false
+        )]
+    );
+    let config = Config::parse("[rules.examples]\nseverity = \"error\"\n").unwrap();
+    assert_eq!(check(&service, &config).findings.len(), 3);
+    let config = Config::parse("[rules.examples]\nseverity = \"off\"\n").unwrap();
+    assert!(check(&service, &config).findings.is_empty());
+    // Without the table, nothing is checked.
+    assert!(check(&service, &Config::default()).findings.is_empty());
+    assert!(Config::parse("[rules.examples]\nshapes = true\n").is_err());
+}

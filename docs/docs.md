@@ -100,7 +100,8 @@ Markdown. Crucible does not launch mdBook or serve the HTML reference.
 Open `index.html` in a browser, from `file://` or any static host. It shows a
 sidebar of resources and operations with search, the service overview, operation
 pages (request in protocol form, parameter and body tables, response, errors,
-pagination, idempotency, examples with copy buttons), data-type pages, and
+pagination, idempotency, examples with copy buttons, or for an operation
+without examples its generated sample, labelled as generated), data-type pages, and
 internal/deprecated/unstable badges. Light and dark themes follow
 `prefers-color-scheme`; every page has a hash address such as
 `#/op/example.weather%23GetCity/errors`, and the sidebar, search (`/` focuses
@@ -244,6 +245,7 @@ provisioning member bindings or interpreting design-time resource references.
 | `readonly`, `idempotent`, `idempotencyToken` | Retry/idempotency flags and nullable input token member name |
 | `pagination` | Null or `{inputToken, outputToken, items, pageSize}`; token strings and nullable item/page-size member paths |
 | `examples` | Ordered example objects described below |
+| `sample` | A generated example, below: `{title, generated: true, input, minimalInput, output, fallbacks}` |
 | `requirements` | Absent when the operation declares nothing; else `{kind}`: `none`, `internal`, `pending` with `reason`, or `list` with `clauses` (`mode`, `permission`, `resourceType`, `tier`, and optional `bindings`, `when`, `documentation`) and `partial: true` when further clauses name internal permissions this audience does not see. A clause's `documentation` is the model's raw Markdown string, not a common documentation object; beside it, `renderedDocumentation` is the same text as a common documentation object (`markdown`, `html`, `text`) |
 | `requirementSentences`, `requirementDocumentation` | Beside `requirements`: what the caller must hold, as Markdown strings and as common documentation objects (`markdown`, `html`, `text`), since they carry model text. The two arrays are index-aligned. An entry may hold several paragraphs (a handler clause's longer documentation follows the sentences as its own entry) |
 
@@ -271,7 +273,7 @@ implementation.
 | Each member | `name`, `wireName` (equal to `name`), `target`, `targetName`, `targetType`: strings; `required`, `nullable`, `clientOptional`, `sensitive`, `internal`: booleans |
 | Member semantics | `default`: model default or null; `wireDefault`: resolved top-level wire default or null; `constraints`; `timestampFormat`: resolved format; common `documentation`, `notes` |
 | Constraints | `length`, `range`: null or objects with nullable `min`/`max`; `pattern`: nullable string; `uniqueItems`: boolean |
-| Error metadata | `shape`, `wireCode`: strings; `bodyDiscriminator`, `discriminatorHeader`: nullable body code/header name; `protocolHeaders`: fixed response headers; `status`: integer; `fault`: `client` or `server`; `retryable`: null or `{throttling: boolean}`; `bindings`: resolved error response bindings |
+| Error metadata | `shape`, `wireCode`: strings; `bodyDiscriminator`, `discriminatorHeader`: nullable body code/header name; `protocolHeaders`: fixed response headers; `status`: integer; `fault`: `client` or `server`; `retryable`: null or `{throttling: boolean}`; `bindings`: resolved error response bindings; `sample`: `{generated: true, message, fallbacks}`, a generated error response |
 
 Version 1 shape kinds are `unit`, `boolean`, `string`, `byte`, `short`, `integer`,
 `long`, `float`, `double`, `bigInteger`, `bigDecimal`, `timestamp`, `document`,
@@ -294,6 +296,61 @@ contract can preserve bytes; send decoded bytes as the HTTP payload. Other
 payloads use `encoding: "identity"`. Error examples include `shape`, `status`,
 `wireCode`, and `message`, with the protocol discriminator in the body or header
 as appropriate.
+
+### Generated samples
+
+Every operation also carries a `sample`, and every error's metadata a
+`sample`, generated from the model alone (`crucible_codegen_common::sample`)
+so a reader sees a realistic request and response where the model declares
+no `example`. Explicit examples stay authoritative: a sample is labelled
+`generated: true` and titled "Generated sample", and the renderers show it
+only for an operation without examples.
+
+A sample's `input`, `minimalInput` and `output` are wire messages in the same
+form as an example's, built by the same code: labels, query, headers, body,
+payload, and for inputs the method and percent-encoded URI. `input`
+includes every optional member, for a complete picture; `minimalInput` has
+only what the server requires (required members without a default), and is
+null when that is the same request. An error's `message` is its response as
+an error example's would be. Values follow the model, deterministically:
+
+| Shape | Sample |
+|---|---|
+| string | matches its `pattern` within its length bounds; open parts spell the member name, fixed runs (an id's body, a hash) vary; without a pattern, the member name, padded or cut to its length |
+| idempotency token | a fixed UUID, when its constraints allow one |
+| integer kinds, floats, decimals | 1 (1.5 for fractional kinds), moved to the nearest bound when outside the range |
+| boolean | `false` |
+| enum, intEnum | the first value |
+| timestamp | 2026-01-15T09:30:00Z, in the member's resolved format |
+| blob | the member name's bytes within the length bounds, base64 |
+| document | `{}` |
+| list, map | one entry, or the minimum length; distinct for `unique` lists and for map keys |
+| union | the first member, or the first that does not close a cycle |
+| a member with a default | the default |
+
+Recursion stops where a cycle would close: an optional member that would
+contain its own ancestor is omitted, a list or map of it is empty, and past
+six levels of nesting only required members are included. The pattern
+generator supports anchors, literals and escapes (`\d`, `\w`, `\s`, their
+complements, `\xHH`, `\uHHHH`, `\cX`), `.`, character classes with ranges and
+negation, capturing and `(?:)` groups, alternation, and the quantifiers `?`,
+`*`, `+`, `{n}`, `{n,}` and `{n,m}`, lazy or not. Each generated string is
+checked against the compiled pattern and length. A value that cannot be
+generated (a word boundary, a back reference or look-around, bounds no
+string meets) becomes a readable placeholder and an entry in the sample's
+`fallbacks`: `{path, shape, pattern, reason}`, where `path` names the value
+as example diagnostics do (`input.name`, `input.tags[0]`) and `shape` the
+member that constrains it. An empty `fallbacks` means the sample passes the
+model's own validation, the check `example` blocks are held to; a test
+holds every `tests/models` package to that, and checks any other package
+named in `CRUCIBLE_SAMPLE_PACKAGES`:
+
+```sh
+CRUCIBLE_SAMPLE_PACKAGES=path/to/model cargo test -p crucible-codegen-common --test sample -- --nocapture
+```
+
+The [`rules.examples` policy](api-policy.md#example-coverage) reports the
+operations that rely on a generated sample.
 
 ## The `crucible.sdks/1` contract
 

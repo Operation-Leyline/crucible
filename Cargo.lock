@@ -701,6 +701,7 @@ dependencies = [
  "crucible-lang",
  "crucible-wire",
  "pulldown-cmark",
+ "regex",
  "serde",
  "serde_json",
  "url",

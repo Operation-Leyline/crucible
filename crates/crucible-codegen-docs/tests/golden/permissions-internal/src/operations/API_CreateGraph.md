@@ -70,3 +70,29 @@ Content-Type: application/json
 ## Idempotency and retries
 
 Readonly: false. Idempotent: false.
+
+## Generated sample
+
+Generated from the model's types and constraints, not written by the API's authors.
+
+Request:
+
+```http
+POST /orgs/org_organizationid/graphs HTTP/1.1
+Content-Type: application/json
+
+{
+  "name": "name"
+}
+```
+
+Response:
+
+```http
+HTTP/1.1 200
+Content-Type: application/json
+
+{
+  "created": "g_created"
+}
+```

@@ -1,0 +1,15 @@
+/// Reads a note: it has an example.
+readonly operation GetNote {
+    http GET "/notes/{id}"
+    input {
+        id: string
+    }
+    output {
+        note: Note
+    }
+    errors [NoteNotFound]
+    example "Read a note" {
+        input { id: "n-1" }
+        output { note: { id: "n-1", text: "Buy milk" } }
+    }
+}

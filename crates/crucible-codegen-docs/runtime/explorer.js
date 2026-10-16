@@ -416,9 +416,25 @@
     return out;
   }
 
+  // With no examples, the description's generated sample stands in, marked
+  // as generated: the model implies it, nobody wrote it.
+  function sampleSection(op) {
+    const s = op.sample;
+    if (!s || !s.input) return null;
+    const out = [
+      sectionHeading(op, "examples", "Generated sample"),
+      h("p", { class: "cx-muted cx-generated" }, "This operation has no examples. This generated sample follows the model's types and constraints; it was not written by the API's authors."),
+    ];
+    const fallbacks = list(s.fallbacks).map((f) => text(f.path));
+    if (fallbacks.length) out.push(h("p", { class: "cx-muted" }, `Placeholders that do not meet their constraints: ${fallbacks.join(", ")}.`));
+    out.push(codeBlock("generated sample request", exampleMessage(s.input, true), "http"));
+    if (s.output) out.push(codeBlock("generated sample response", exampleMessage(s.output, false, op.status), "http"));
+    return h("section", { id: sectionId("examples") }, out);
+  }
+
   function examplesSection(op) {
     const examples = list(op.examples);
-    if (!examples.length) return null;
+    if (!examples.length) return sampleSection(op);
     const out = [sectionHeading(op, "examples", "Examples")];
     examples.forEach((e, i) => {
       out.push(h("h3", {}, e.title || `Example ${i + 1}`), rich(e.documentation && e.documentation.html));

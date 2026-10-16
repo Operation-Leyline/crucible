@@ -1,4 +1,4 @@
-use crate::{Documentation, Naming, Paths};
+use crate::{Documentation, Examples, Naming, Paths};
 use serde::Deserialize;
 
 #[derive(Debug, Clone, Default, Deserialize)]
@@ -9,4 +9,5 @@ pub struct Rules {
     pub naming: Option<Naming>,
     pub paths: Option<Paths>,
     pub documentation: Option<Documentation>,
+    pub examples: Option<Examples>,
 }

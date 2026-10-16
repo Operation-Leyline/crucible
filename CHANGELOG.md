@@ -17,6 +17,22 @@ version's section when it is prepared.
 
 ### Added
 
+- `describe.json` (`crucible.describe/1`, additive): each operation has a
+  `sample` and each error's metadata a `sample`, generated from the model
+  alone and labelled `generated: true`: wire messages in the examples' form
+  (`input`, `minimalInput`, `output`; an error's `message`) whose values
+  pass the model's own validation, with typed ids from their patterns,
+  timestamps in each member's format and values within their bounds. A
+  value the generator cannot make (a pattern outside its subset) is a
+  placeholder listed in `fallbacks`. The static reference and the Markdown
+  pages show the sample, marked as generated, for an operation without
+  examples. `crucible_codegen_common::sample` builds them
+  ([docs/docs.md](docs/docs.md#generated-samples)).
+- Policy: `[rules.examples]` reports operations without an `example`
+  (`examples.operations`) and errors an operation returns without
+  documentation (`examples.errors`). Its checks are warnings unless
+  configured otherwise ([docs/api-policy.md](docs/api-policy.md#example-coverage)).
+
 - `.cru`: the compiler lowers resources. `ir::Service::resources` holds every
   resource the service reaches, with its identifiers (its ancestors' and its
   own, keyed by name), properties, children, the lifecycle slots its operations' roles fill

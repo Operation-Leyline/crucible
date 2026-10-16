@@ -299,6 +299,52 @@
       "responseProtocolHeaders": {
         "Content-Type": "application/json"
       },
+      "sample": {
+        "fallbacks": [],
+        "generated": true,
+        "input": {
+          "body": {
+            "nextToken": "nextToken",
+            "pageSize": 10
+          },
+          "headers": {
+            "Content-Type": "application/json"
+          },
+          "labels": {},
+          "method": "POST",
+          "payload": null,
+          "query": [],
+          "uri": "/ListItems"
+        },
+        "minimalInput": {
+          "body": {},
+          "headers": {
+            "Content-Type": "application/json"
+          },
+          "labels": {},
+          "method": "POST",
+          "payload": null,
+          "query": [],
+          "uri": "/ListItems"
+        },
+        "output": {
+          "body": {
+            "items": [
+              {
+                "text": "text"
+              }
+            ],
+            "nextToken": "nextToken"
+          },
+          "headers": {
+            "Content-Type": "application/json"
+          },
+          "labels": {},
+          "payload": null,
+          "query": []
+        },
+        "title": "Generated sample"
+      },
       "status": 200,
       "uri": "/ListItems"
     },
@@ -650,6 +696,57 @@
       },
       "responseProtocolHeaders": {
         "Content-Type": "application/json"
+      },
+      "sample": {
+        "fallbacks": [],
+        "generated": true,
+        "input": {
+          "body": {
+            "clientToken": "3f2b8c1e-5d4a-4e6f-9a7b-0c1d2e3f4a5b",
+            "item": {
+              "text": "text"
+            },
+            "itemId": "itemId"
+          },
+          "headers": {
+            "Content-Type": "application/json"
+          },
+          "labels": {},
+          "method": "POST",
+          "payload": null,
+          "query": [],
+          "uri": "/WriteItem"
+        },
+        "minimalInput": {
+          "body": {
+            "item": {
+              "text": "text"
+            },
+            "itemId": "itemId"
+          },
+          "headers": {
+            "Content-Type": "application/json"
+          },
+          "labels": {},
+          "method": "POST",
+          "payload": null,
+          "query": [],
+          "uri": "/WriteItem"
+        },
+        "output": {
+          "body": {
+            "at": "2026-01-15T09:30:00Z",
+            "state": "READY",
+            "total": 1234567890123456789
+          },
+          "headers": {
+            "Content-Type": "application/json"
+          },
+          "labels": {},
+          "payload": null,
+          "query": []
+        },
+        "title": "Generated sample"
       },
       "status": 200,
       "uri": "/WriteItem"
@@ -1175,6 +1272,23 @@
         },
         "retryable": {
           "throttling": false
+        },
+        "sample": {
+          "fallbacks": [],
+          "generated": true,
+          "message": {
+            "body": {
+              "__type": "Unavailable",
+              "message": "message"
+            },
+            "headers": {
+              "Content-Type": "application/json",
+              "X-Crucible-Error": "Unavailable"
+            },
+            "labels": {},
+            "payload": null,
+            "query": []
+          }
         },
         "shape": "example.docs#Unavailable",
         "status": 503,

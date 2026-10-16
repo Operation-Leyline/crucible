@@ -1,0 +1,27 @@
+/// Operations with and without examples, errors with and without
+/// documentation.
+service Coverage {
+    version "1"
+    protocol json
+    operations [GetNote, ListNotes, Ping]
+    errors [Throttled]
+}
+
+/// No note has that id.
+error NoteNotFound {
+    status 404
+    message: string
+}
+
+error Throttled {
+    status 429
+    retryable throttling
+    message: string
+}
+
+structure Note {
+    id: string
+    text: string
+}
+
+list Notes: Note

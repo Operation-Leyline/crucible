@@ -278,7 +278,62 @@ pub fn check(service: &Service, config: &Config) -> Report {
             }
         }
     }
+    if let Some(rule) = &config.rules.examples {
+        examples(&mut report, service, rule, &selected);
+    }
     report.finish(config)
+}
+
+/// `[rules.examples]`: an example on each selected operation, and
+/// documentation on each error those operations return. An error is checked
+/// wherever it is declared, imported ones too: what matters is what the
+/// operation's reader sees.
+fn examples(
+    report: &mut Report,
+    service: &Service,
+    rule: &crate::Examples,
+    selected: &dyn Fn(&ShapeId) -> bool,
+) {
+    let operations: Vec<_> = service
+        .operations
+        .iter()
+        .filter(|operation| selected(&operation.id))
+        .collect();
+    if rule.operations.value {
+        for operation in &operations {
+            if operation.examples.is_empty() {
+                report.push(
+                    "examples.operations",
+                    &operation.id,
+                    rule.operations.severity_in(rule.severity),
+                    "operation declares no `example`: the reference shows a generated sample instead",
+                );
+            }
+        }
+    }
+    if rule.errors.value {
+        let errors: std::collections::BTreeSet<_> = operations
+            .iter()
+            .flat_map(|operation| &operation.errors)
+            .collect();
+        for id in errors {
+            let documented = match service.shape(id) {
+                Some(Shape::Structure(shape)) => shape
+                    .docs
+                    .as_deref()
+                    .is_some_and(|text| !text.trim().is_empty()),
+                _ => true,
+            };
+            if !documented {
+                report.push(
+                    "examples.errors",
+                    id,
+                    rule.errors.severity_in(rule.severity),
+                    "modelled error has no documentation: say when an operation returns it",
+                );
+            }
+        }
+    }
 }
 
 fn docs(report: &mut Report, id: &ShapeId, text: Option<&str>, severity: Severity) {

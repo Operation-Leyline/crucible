@@ -49,3 +49,24 @@ Content-Type: application/json
 ## Idempotency and retries
 
 Readonly: true. Idempotent: false.
+
+## Generated sample
+
+Generated from the model's types and constraints, not written by the API's authors.
+
+Request:
+
+```http
+GET /user HTTP/1.1
+```
+
+Response:
+
+```http
+HTTP/1.1 200
+Content-Type: application/json
+
+{
+  "subject": "subject"
+}
+```
