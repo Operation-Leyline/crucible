@@ -580,3 +580,74 @@ fn a_reference_refuses_an_sdk_file_for_another_model() {
     ));
     assert!(error.contains("declares SDKs for the model"), "{error}");
 }
+
+#[test]
+fn a_reference_writes_sdks_json_beside_describe_json() {
+    let directory = tempfile::tempdir_in(env!("CARGO_TARGET_TMPDIR")).unwrap();
+    let root = directory.path();
+    fs::create_dir(root.join(".git")).unwrap();
+    common::install_shared(root, "service-docs-weather");
+    fs::write(
+        root.join("crucible-sdk.toml"),
+        r#"schema_version = 1
+model = "service-docs-weather"
+
+[sdk.ts]
+package = "@example/weather"
+endpoint = { env = "WEATHER_SDK_TEST_ENDPOINT" }
+middleware = ["content-sha256"]
+out = "generated/ts"
+
+[sdk.rust]
+out = "generated/rust"
+
+[sdk.ts-internal]
+language = "ts"
+audience = "internal"
+package = "@example/weather-internal"
+out = "generated/ts-internal"
+"#,
+    )
+    .unwrap();
+    let generate = |audience: &str, out: &str| {
+        success(crucible(
+            root,
+            &[
+                "generate",
+                "docs",
+                "service-docs-weather",
+                "--out",
+                out,
+                "--audience",
+                audience,
+                "--sdks",
+                "crucible-sdk.toml",
+            ],
+        ))
+    };
+    generate("external", "reference");
+    let description = json(&root.join("reference/describe.json"));
+    let sdks = json(&root.join("reference/sdks.json"));
+    assert_eq!(sdks["format"], "crucible.sdks/1");
+    assert_eq!(sdks["service"], description["service"]["id"]);
+    assert_eq!(
+        sdks["sdks"].as_object().unwrap().keys().collect::<Vec<_>>(),
+        ["rust", "ts"],
+        "an external reference names no internal SDK"
+    );
+    let ts = &sdks["sdks"]["ts"];
+    assert_eq!(ts["endpoint"], serde_json::Value::Null);
+    assert_eq!(ts["endpointEnv"], "WEATHER_SDK_TEST_ENDPOINT");
+    assert_eq!(ts["middleware"][0]["headers"][0], "x-amz-content-sha256");
+    for id in ts["operations"].as_object().unwrap().keys() {
+        assert!(description["operations"].get(id).is_some(), "{id}");
+    }
+    // The same inputs give the same bytes, whatever the environment holds.
+    let first = fs::read(root.join("reference/sdks.json")).unwrap();
+    generate("external", "reference");
+    assert_eq!(fs::read(root.join("reference/sdks.json")).unwrap(), first);
+
+    generate("internal", "internal");
+    let internal = json(&root.join("internal/sdks.json"));
+    assert_eq!(internal["sdks"].as_object().unwrap().len(), 3);
+}

@@ -104,6 +104,16 @@ fn docs_sdks_probe() {
         "list_cities_pages"
     );
     assert!(reference.files.iter().any(|file| file == "sdks.json"));
+    // Beside the description it accompanies, naming the same operations.
+    let description: Value =
+        serde_json::from_slice(&fs::read(reference.path.join("describe.json")).unwrap()).unwrap();
+    for id in sdks["sdks"]["rust"]["operations"]
+        .as_object()
+        .unwrap()
+        .keys()
+    {
+        assert!(description["operations"].get(id).is_some(), "{id}");
+    }
     let internal = model
         .docs("internal")
         .audience(Audience::Internal)
@@ -115,7 +125,6 @@ fn docs_sdks_probe() {
 }
 
 #[test]
-#[ignore = "documentation, infrastructure and Explorer output from a .cru package needs resource lowering (decision 63)"]
 fn docs_write_sdks_json_beside_describe_json() {
     let dir = tempfile::tempdir().unwrap();
     let root = dir.path();

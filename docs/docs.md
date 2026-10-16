@@ -49,7 +49,13 @@ fn main() {
 
 To document the service's SDKs beside the reference, pass its
 `crucible-sdk.toml`: `model.docs("reference").sdks("../crucible-sdk.toml")`,
-or `--sdks crucible-sdk.toml` on `crucible generate docs`. The output then
+or `--sdks` on `crucible generate docs`:
+
+```sh
+crucible generate docs model --out generated/reference --sdks crucible-sdk.toml
+```
+
+The output then
 also holds `sdks.json`, the [`crucible.sdks/1`](#the-cruciblesdks1-contract)
 document. Its SDK file must declare this model, and the build needs the
 `crucible-build` feature of each SDK's language. `crucible sdk describe`
