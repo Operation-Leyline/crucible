@@ -306,7 +306,15 @@ fn release_names_become_safe_file_names() {
         .unwrap()
         .contents;
     assert!(summary.contains("(releases/_63on.md)"), "{summary}");
-    assert!(!summary.contains("<img"), "{summary}");
+    // A reader sees the name's `<img ..>` as text, never as HTML.
+    assert!(
+        !pulldown_cmark::Parser::new(summary).any(|event| matches!(
+            event,
+            pulldown_cmark::Event::InlineHtml(_) | pulldown_cmark::Event::Html(_)
+        )),
+        "{summary}"
+    );
+    assert!(shown(summary).contains(hostile), "{summary}");
 }
 
 #[test]
@@ -733,7 +741,7 @@ fn a_release_name_cannot_redirect_a_link() {
         .contents;
     assert!(
         summary.contains(
-            r"[x\](https://example.com)](releases/x_5D_28https_3A_2F_2Fexample.com_29.md)"
+            r"[x\]\(https\:\/\/example\.com\)](releases/x_5D_28https_3A_2F_2Fexample.com_29.md)"
         ),
         "{summary}"
     );
@@ -809,4 +817,90 @@ fn an_older_operation_names_no_member_its_release_hid() {
         .unwrap()
         .contents;
     assert!(changes.contains("ledger"), "the internal view keeps it");
+}
+
+/// What a Markdown reader shows of a page: its text, code and raw-HTML
+/// content, character references read.
+fn shown(markdown: &str) -> String {
+    pulldown_cmark::Parser::new(markdown)
+        .filter_map(|event| match event {
+            pulldown_cmark::Event::Text(text) | pulldown_cmark::Event::Code(text) => {
+                Some(text.to_string())
+            }
+            _ => None,
+        })
+        .collect()
+}
+
+/// Release names with Markdown syntax in them (emphasis, brackets, a
+/// backslash) read back exactly as written wherever the book names them,
+/// in link labels and in code, and no link leaves the book.
+#[test]
+fn release_names_read_back_as_written() {
+    let dir = package_dir("version-history");
+    // Each name is also the middle release once, which the current page
+    // names in code ("Clients of <code>..</code>").
+    for names in [
+        ["*beta*", "[beta]", "_x_"],
+        ["[beta]", "*beta*", r"a\b"],
+        [r"a\b", "_x_", "*beta*"],
+        ["_x_", r"a\b", "[beta](https://example.com)"],
+        ["v1", "[y](https://example.org)", "<b>&amp;"],
+        ["`c`", "<b>&amp;", "v3"],
+    ] {
+        let mut service = crucible_lang::load_versioned_service(&dir).unwrap();
+        service.versions[0].name = names[0].into();
+        service.versions[1].name = names[1].into();
+        service.version = names[2].into();
+        service.api_version = Some(names[2].into());
+        let files = generate(&project(&service, Audience::External).unwrap()).unwrap();
+        let page = |path: &str| {
+            &files
+                .iter()
+                .find(|f| f.path == path)
+                .unwrap_or_else(|| panic!("{path}"))
+                .contents
+        };
+        for path in ["src/SUMMARY.md", "src/releases.md"] {
+            let text = shown(page(path));
+            for name in names {
+                assert!(text.contains(name), "{name} in {path}: {text}");
+            }
+        }
+        // The current release's page names the release before it in a
+        // link, and in code where it says what its clients see.
+        let current = files
+            .iter()
+            .find(|f| {
+                f.path.starts_with("src/releases/")
+                    && shown(&f.contents).contains(&format!("Release {}", names[2]))
+            })
+            .unwrap_or_else(|| panic!("the page of {}", names[2]));
+        let text = shown(&current.contents);
+        assert!(text.contains(&format!("Follows {}.", names[1])), "{text}");
+        assert!(
+            text.contains(&format!("Clients of {} ", names[1])),
+            "{text}"
+        );
+        assert!(shown(page("src/index.md")).contains(names[2]));
+        // Dates on a data type's page and in its table cells.
+        let size = shown(page("src/shapes/Size.md"));
+        assert!(
+            size.contains(&format!("Changed in {}.", names[1])),
+            "{size}"
+        );
+        assert!(
+            size.contains(&format!("Clients of {} do not see it.", names[0])),
+            "{size}"
+        );
+        for file in files.iter().filter(|f| f.path.ends_with(".md")) {
+            for destination in destinations(&file.contents) {
+                assert!(
+                    !destination.contains("://"),
+                    "{destination} in {}",
+                    file.path
+                );
+            }
+        }
+    }
 }

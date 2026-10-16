@@ -3,7 +3,7 @@
 <p><a href="https://weather.example/docs">Home</a></p>
 
 
-Service version: <code>2026-10-01</code>.
+Service version: <code>2026&#45;10&#45;01</code>.
 
 ## Protocol
 

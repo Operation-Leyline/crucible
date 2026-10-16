@@ -106,26 +106,44 @@ fn operation_path(item: &Value) -> String {
 fn shape_path(item: &Value) -> String {
     format!("shapes/{}.md", string(&item["name"]))
 }
-/// Text that Markdown reads back as written: HTML-escaped, with the
-/// characters that open or close a link, a code span or an escape
-/// backslash-escaped, so model text (a release name is any visible ASCII)
-/// cannot end a link's label early or open a link of its own.
+/// Model text (a release name is any visible ASCII) as Markdown text that
+/// reads back exactly as written: every ASCII punctuation character
+/// backslash-escaped, which CommonMark allows for any of them and renders
+/// without the backslash, so none opens or closes a link, emphasis, a code
+/// span, an entity or raw HTML. Line breaks become spaces.
 fn literal(text: &str) -> String {
     let mut out = String::with_capacity(text.len());
-    for c in escaped(text).chars() {
-        if matches!(c, '\\' | '[' | ']' | '`') {
-            out.push('\\');
+    for c in text.chars() {
+        match c {
+            '\n' | '\r' => out.push(' '),
+            c if c.is_ascii_punctuation() => {
+                out.push('\\');
+                out.push(c);
+            }
+            c => out.push(c),
         }
-        out.push(c);
     }
     out
 }
 fn link(label: &str, path: &str) -> String {
     format!("[{}]({path})", literal(label))
 }
-/// A release name in code, as [`literal`] text.
+/// A release name in `<code>`. Markdown still parses inline content between
+/// raw HTML tags (a link or emphasis there is live) and shows a backslash
+/// escape there as typed, so every ASCII punctuation character is a numeric
+/// character reference instead, which both Markdown and HTML read as the
+/// character itself.
 fn release_code(name: &str) -> String {
-    format!("<code>{}</code>", literal(name))
+    let mut out = String::from("<code>");
+    for c in name.chars() {
+        match c {
+            '\n' | '\r' => out.push(' '),
+            c if c.is_ascii_punctuation() => out.push_str(&format!("&#{};", u32::from(c))),
+            c => out.push(c),
+        }
+    }
+    out.push_str("</code>");
+    out
 }
 /// A link to a release's changelog from a page at `prefix` from `src/`:
 /// every link to a release goes through here.
