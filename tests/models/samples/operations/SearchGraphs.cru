@@ -1,5 +1,5 @@
 /// Paginated, with the page token in the body beside the query, and no
-/// example: the first page sends no token.
+/// example: no SDK snippet or `http` request sends it.
 readonly operation SearchGraphs {
     http POST "/graphs/search"
     paginated(inputToken: pageToken, outputToken: pageToken, items: graphIds)

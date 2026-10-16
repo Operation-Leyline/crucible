@@ -1,0 +1,12 @@
+schema_version = 1
+
+# Page tokens and idempotency tokens in every place a request binds them,
+# each set by an example beside a member that stays: the SDK snippets and
+# the raw request (`sdks.json`'s `http`) leave each token out, a query name
+# that is percent-encoded on the wire included, and write a defaulted page
+# token at its default.
+[model]
+namespace = "example.pagetokens"
+language = 1
+sources = ["."]
+imports = []

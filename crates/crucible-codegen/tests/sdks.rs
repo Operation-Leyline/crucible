@@ -461,15 +461,56 @@ fn edge_values_reach_every_language_without_the_token() {
     }
 }
 
-/// A paginated call's first page sends no page token: Samples'
-/// `ListGraphs` (token in the query) and `SearchGraphs` (token in the
-/// body) have no example, so their input is the sample, whose token
-/// (`"nextToken"`, `"pageToken"`) is none the service issued and would be
-/// refused. Every language's plain snippet leaves it out, as its paginated
-/// one does, and keeps the rest of the input.
+/// A paginated call's first page sends no page token, and a copied call
+/// no idempotency token, wherever the request binds it (`page-tokens`).
+/// Each operation's example sets the token to a value written nowhere
+/// else (`page-token-left-out`) beside `filter-kept`: a language that
+/// writes the example's `filter` writes its literals as the model gives
+/// them, so it would write the token's too, were the token in its input.
+/// The check is on the input each language constructs, not on a spelling
+/// of the token's name it might happen to avoid. A page token with a
+/// default is written at its default, `first-page`, which some languages'
+/// constructors require.
 #[cfg(feature = "all-clients")]
 #[test]
-fn a_snippet_sends_no_page_token_in_any_language() {
+fn a_snippet_constructs_no_page_or_idempotency_token_in_any_language() {
+    let service = common::load("page-tokens");
+    let operations = [
+        "ListByBody",
+        "ListByHeader",
+        "ListByPayload",
+        "ListByQuery",
+        "ListDefaulted",
+        "Submit",
+    ];
+    for (language, client) in clients::clients() {
+        let surface = client.surface(&service, Audience::External).unwrap();
+        for operation in operations {
+            let described = &surface.operations[&format!("example.pagetokens#{operation}")];
+            let mut snippets = vec![("snippet", described.snippet.as_str())];
+            if operation != "Submit" {
+                let pages = described.paginated_snippet.as_deref();
+                snippets.push(("paginatedSnippet", pages.unwrap()));
+            }
+            for (field, snippet) in snippets {
+                let at = format!("{language} {operation} {field}");
+                assert!(snippet.contains("filter-kept"), "{at}: {snippet}");
+                assert!(!snippet.contains("page-token-left-out"), "{at}: {snippet}");
+                assert!(
+                    !snippet.contains("idempotency-token-left-out"),
+                    "{at}: {snippet}"
+                );
+                assert_eq!(
+                    snippet.contains("first-page"),
+                    operation == "ListDefaulted",
+                    "{at}: {snippet}"
+                );
+            }
+        }
+    }
+    // Samples' paginated operations have no example: their input is the
+    // sample, whose token (`"nextToken"`) is none the service issued, and
+    // `ListRevisions`' defaulted token is its default.
     let service = common::load("samples");
     for (language, client) in clients::clients() {
         let surface = client.surface(&service, Audience::External).unwrap();
@@ -485,43 +526,82 @@ fn a_snippet_sends_no_page_token_in_any_language() {
                 }
             }
         }
+        let revisions = &surface.operations["example.samples#ListRevisions"];
+        let pages = revisions.paginated_snippet.as_deref().unwrap();
+        for snippet in [revisions.snippet.as_str(), pages] {
+            assert!(snippet.contains("first-page"), "{language}: {snippet}");
+        }
     }
 }
 
-/// The raw request for a paginated operation is its first page: no page
-/// token in the query (`ListGraphs`) or the body (`SearchGraphs`).
+/// The raw request leaves each token out wherever it is bound: a page
+/// token in the body, a header, the whole payload, or a query parameter
+/// whose name is percent-encoded on the wire (`page%5Bcursor%5D`), and an
+/// idempotency token in one too (`client%5Btoken%5D`). The member beside
+/// each stays. A defaulted page token is left out too: the service reads
+/// its absence as the default.
 #[test]
-fn a_raw_request_sends_no_page_token() {
-    let text = "schema_version = 1
-model = \"model\"
+fn a_raw_request_sends_no_page_or_idempotency_token() {
+    let text = "schema_version = 1\nmodel = \"model\"\n\n[sdk.ts]\npackage = \"@example/pagetokens\"\nmiddleware = [\"content-sha256\"]\nout = \"generated/ts\"\n";
+    let (_directory, path) = repository("page-tokens", text);
+    let text = describe(&path, "page-tokens", Audience::External).unwrap();
+    let document: serde_json::Value = serde_json::from_str(&text).unwrap();
+    let http = &document["http"];
+    let http_text = http.to_string();
+    assert!(!http_text.contains("page-token-left-out"), "{http_text}");
+    assert!(
+        !http_text.contains("idempotency-token-left-out"),
+        "{http_text}"
+    );
+    let operation = |name: &str| &http["operations"][format!("example.pagetokens#{name}")];
+    let header = |name: &str, header: &str| {
+        operation(name)["headers"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|h| h["name"].as_str().unwrap().eq_ignore_ascii_case(header))
+            .map(|h| h["value"].as_str().unwrap().to_owned())
+    };
+    let uri = |name: &str| operation(name)["uri"].as_str().unwrap().to_owned();
+    let body = |name: &str| -> serde_json::Value {
+        serde_json::from_str(operation(name)["body"].as_str().unwrap()).unwrap()
+    };
 
-[sdk.ts]
-package = \"@example/samples\"
-middleware = [\"content-sha256\"]
-out = \"generated/ts\"
-";
+    assert_eq!(uri("ListByQuery"), "/by-query?filter=filter-kept");
+    assert_eq!(uri("ListByHeader"), "/by-header?filter=filter-kept");
+    assert_eq!(header("ListByHeader", "X-Page-Token"), None);
+    assert_eq!(uri("ListDefaulted"), "/defaulted?filter=filter-kept");
+    assert_eq!(
+        body("ListByBody"),
+        serde_json::json!({"filter": "filter-kept"})
+    );
+    let payload = operation("ListByPayload");
+    assert!(payload["body"].is_null(), "{payload}");
+    assert_eq!(header("ListByPayload", "Content-Type"), None);
+    assert_eq!(
+        header("ListByPayload", "X-Filter").as_deref(),
+        Some("filter-kept")
+    );
+    assert_eq!(uri("Submit"), "/submit");
+    assert_eq!(body("Submit"), serde_json::json!({"filter": "filter-kept"}));
+
+    // Samples' sampled tokens, in the query and the body.
+    let text = "schema_version = 1\nmodel = \"model\"\n\n[sdk.ts]\npackage = \"@example/samples\"\nout = \"generated/ts\"\n";
     let (_directory, path) = repository("samples", text);
     let text = describe(&path, "samples", Audience::External).unwrap();
     let document: serde_json::Value = serde_json::from_str(&text).unwrap();
     let operations = &document["http"]["operations"];
     let list = &operations["example.samples#ListGraphs"];
-    assert!(list["example"].is_null(), "{list}");
     let uri = list["uri"].as_str().unwrap();
-    assert!(uri.starts_with("/graphs?"), "{uri}");
-    assert!(uri.contains("maxResults="), "{uri}");
+    assert!(uri.starts_with("/graphs?maxResults="), "{uri}");
     assert!(!uri.contains("nextToken"), "{uri}");
-    assert!(
-        !list["snippet"].as_str().unwrap().contains("nextToken"),
-        "{list}"
-    );
     let search = &operations["example.samples#SearchGraphs"];
-    let body = search["body"].as_str().unwrap();
-    let body: serde_json::Value = serde_json::from_str(body).unwrap();
+    let body: serde_json::Value = serde_json::from_str(search["body"].as_str().unwrap()).unwrap();
     assert!(body.get("query").is_some(), "{body}");
     assert!(body.get("pageToken").is_none(), "{body}");
-    assert!(
-        !search["snippet"].as_str().unwrap().contains("pageToken"),
-        "{search}"
+    assert_eq!(
+        operations["example.samples#ListRevisions"]["uri"],
+        "/revisions"
     );
 }
 

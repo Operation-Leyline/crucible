@@ -1703,9 +1703,9 @@
     "example.samples#ListGraphs": {
       "auth": [],
       "documentation": {
-        "html": "<p>Paginated, with the page token in the query and no example: the\nsample's token is none the service issued, so no snippet or request\nsends it.</p>\n",
-        "markdown": "Paginated, with the page token in the query and no example: the\nsample's token is none the service issued, so no snippet or request\nsends it.",
-        "text": "Paginated, with the page token in the query and no example: the\nsample's token is none the service issued, so no snippet or request\nsends it."
+        "html": "<p>Paginated, with the page token in the query and no example: the\nsample's token is none the service issued, so no SDK snippet or <code>http</code>\nrequest sends it.</p>\n",
+        "markdown": "Paginated, with the page token in the query and no example: the\nsample's token is none the service issued, so no SDK snippet or `http`\nrequest sends it.",
+        "text": "Paginated, with the page token in the query and no example: the\nsample's token is none the service issued, so no SDK snippet or http\nrequest sends it."
       },
       "errors": [],
       "examples": [],
@@ -1946,6 +1946,203 @@
       },
       "status": 200,
       "uri": "/graphs"
+    },
+    "example.samples#ListRevisions": {
+      "auth": [],
+      "documentation": {
+        "html": "<p>Paginated, with a page token that has a default and no example: the\nsnippets write the default, the first page's value, which some\nlanguages' constructors require, and never the sample's token.</p>\n",
+        "markdown": "Paginated, with a page token that has a default and no example: the\nsnippets write the default, the first page's value, which some\nlanguages' constructors require, and never the sample's token.",
+        "text": "Paginated, with a page token that has a default and no example: the\nsnippets write the default, the first page's value, which some\nlanguages' constructors require, and never the sample's token."
+      },
+      "errors": [],
+      "examples": [],
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
+      "id": "example.samples#ListRevisions",
+      "idempotencyToken": null,
+      "idempotent": false,
+      "input": "example.samples#ListRevisionsInput",
+      "inputSchema": {
+        "$defs": {
+          "crucible.api.String": {
+            "type": "string"
+          },
+          "example.samples.ListRevisionsInput": {
+            "properties": {
+              "after": {
+                "$ref": "#/$defs/crucible.api.String",
+                "default": "first-page",
+                "x-crucible-default": "first-page"
+              }
+            },
+            "type": "object"
+          }
+        },
+        "properties": {
+          "after": {
+            "$ref": "#/$defs/crucible.api.String",
+            "default": "first-page",
+            "x-crucible-default": "first-page"
+          }
+        },
+        "type": "object"
+      },
+      "internal": false,
+      "method": "GET",
+      "name": "ListRevisions",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "output": "example.samples#ListRevisionsOutput",
+      "outputSchema": {
+        "$defs": {
+          "crucible.api.String": {
+            "type": "string"
+          },
+          "example.samples.GraphId": {
+            "description": "A graph id: a type prefix and 26 Crockford base-32 characters.",
+            "pattern": "^g_[0-9a-hjkmnp-tv-z]{26}(_[a-z]{3})?$",
+            "type": "string"
+          },
+          "example.samples.GraphIds": {
+            "items": {
+              "description": "A graph id: a type prefix and 26 Crockford base-32 characters.",
+              "pattern": "^g_[0-9a-hjkmnp-tv-z]{26}(_[a-z]{3})?$",
+              "type": "string"
+            },
+            "type": "array",
+            "uniqueItems": false
+          },
+          "example.samples.ListRevisionsOutput": {
+            "properties": {
+              "next": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/crucible.api.String"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "revisions": {
+                "$ref": "#/$defs/example.samples.GraphIds"
+              }
+            },
+            "required": [
+              "revisions"
+            ],
+            "type": "object"
+          }
+        },
+        "properties": {
+          "next": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/crucible.api.String"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "revisions": {
+            "$ref": "#/$defs/example.samples.GraphIds"
+          }
+        },
+        "required": [
+          "revisions"
+        ],
+        "type": "object"
+      },
+      "pagination": {
+        "inputToken": "after",
+        "items": "revisions",
+        "outputToken": "next",
+        "pageSize": null
+      },
+      "protocol": "crucibleJson",
+      "protocolHeaders": {},
+      "readonly": true,
+      "request": {
+        "body": [],
+        "headerEncodings": {},
+        "headers": [],
+        "labels": [],
+        "payload": null,
+        "query": [
+          {
+            "member": "after",
+            "name": "after"
+          }
+        ],
+        "timestampFormats": {}
+      },
+      "resources": [],
+      "response": {
+        "body": [
+          "revisions",
+          "next"
+        ],
+        "headerEncodings": {},
+        "headers": [],
+        "labels": [],
+        "payload": null,
+        "query": [],
+        "timestampFormats": {}
+      },
+      "responseProtocolHeaders": {
+        "Content-Type": "application/json"
+      },
+      "sample": {
+        "fallbacks": [],
+        "generated": true,
+        "input": {
+          "body": null,
+          "headers": {},
+          "labels": {},
+          "method": "GET",
+          "payload": null,
+          "query": [
+            {
+              "name": "after",
+              "value": "first-page"
+            }
+          ],
+          "uri": "/revisions?after=first-page"
+        },
+        "minimalInput": {
+          "body": null,
+          "headers": {},
+          "labels": {},
+          "method": "GET",
+          "payload": null,
+          "query": [],
+          "uri": "/revisions"
+        },
+        "output": {
+          "body": {
+            "next": "next",
+            "revisions": [
+              "g_nzkxa7xw7j3ez927px4d2ejtz7"
+            ]
+          },
+          "headers": {
+            "Content-Type": "application/json"
+          },
+          "labels": {},
+          "payload": null,
+          "query": []
+        }
+      },
+      "status": 200,
+      "uri": "/revisions"
     },
     "example.samples#PutGraph": {
       "auth": [],
@@ -2911,9 +3108,9 @@
     "example.samples#SearchGraphs": {
       "auth": [],
       "documentation": {
-        "html": "<p>Paginated, with the page token in the body beside the query, and no\nexample: the first page sends no token.</p>\n",
-        "markdown": "Paginated, with the page token in the body beside the query, and no\nexample: the first page sends no token.",
-        "text": "Paginated, with the page token in the body beside the query, and no\nexample: the first page sends no token."
+        "html": "<p>Paginated, with the page token in the body beside the query, and no\nexample: no SDK snippet or <code>http</code> request sends it.</p>\n",
+        "markdown": "Paginated, with the page token in the body beside the query, and no\nexample: no SDK snippet or `http` request sends it.",
+        "text": "Paginated, with the page token in the body beside the query, and no\nexample: no SDK snippet or http request sends it."
       },
       "errors": [],
       "examples": [],
@@ -6181,6 +6378,169 @@
         }
       ],
       "name": "ListGraphsOutput",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false
+    },
+    "example.samples#ListRevisionsInput": {
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "error": null,
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
+      "id": "example.samples#ListRevisionsInput",
+      "internal": false,
+      "kind": "structure",
+      "members": [
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": "first-page",
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "after",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": false,
+          "required": false,
+          "sensitive": false,
+          "target": "crucible.api#String",
+          "targetName": "String",
+          "targetType": "string",
+          "timestampFormat": "date-time",
+          "wireDefault": "first-page",
+          "wireName": "after"
+        }
+      ],
+      "name": "ListRevisionsInput",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false
+    },
+    "example.samples#ListRevisionsOutput": {
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "error": null,
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
+      "id": "example.samples#ListRevisionsOutput",
+      "internal": false,
+      "kind": "structure",
+      "members": [
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "revisions",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": false,
+          "required": true,
+          "sensitive": false,
+          "target": "example.samples#GraphIds",
+          "targetName": "GraphIds",
+          "targetType": "list",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "revisions"
+        },
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "next",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": true,
+          "required": false,
+          "sensitive": false,
+          "target": "crucible.api#String",
+          "targetName": "String",
+          "targetType": "string",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "next"
+        }
+      ],
+      "name": "ListRevisionsOutput",
       "notes": {
         "deprecated": null,
         "externalDocs": {},

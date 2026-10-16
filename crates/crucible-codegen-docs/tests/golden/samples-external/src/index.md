@@ -28,6 +28,7 @@ No modeled errors.
 - [Edges](operations/API_Edges.md)
 - [GetGraph](operations/API_GetGraph.md)
 - [ListGraphs](operations/API_ListGraphs.md)
+- [ListRevisions](operations/API_ListRevisions.md)
 - [PutGraph](operations/API_PutGraph.md)
 - [SearchGraphs](operations/API_SearchGraphs.md)
 - [Walk](operations/API_Walk.md)

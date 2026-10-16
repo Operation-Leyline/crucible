@@ -14,9 +14,10 @@ Every page below is Markdown. Requests are JSON over HTTP; each operation's page
 - [Check](src/operations/API_Check.md): `POST /check`. A pattern the generator cannot follow\.
 - [Edges](src/operations/API_Edges.md): `POST /edges`. Values at the edges of what each language represents\, in an example\: both ends of long\, bigInteger and bigDecimal past 64 bits\, instants with nanoseconds\, before the epoch\, with an offset\, at both ends of the calendar and before its first year\, a null in a sparse recursive map and list\, a member left to its default\, and an idempotency token the snippets leave to the client\.
 - [GetGraph](src/operations/API_GetGraph.md): `GET /graphs/{graphId}`.
-- [ListGraphs](src/operations/API_ListGraphs.md): `GET /graphs`. Paginated\, with the page token in the query and no example\: the sample\'s token is none the service issued\, so no snippet or request sends it\.
+- [ListGraphs](src/operations/API_ListGraphs.md): `GET /graphs`. Paginated\, with the page token in the query and no example\: the sample\'s token is none the service issued\, so no SDK snippet or http request sends it\.
+- [ListRevisions](src/operations/API_ListRevisions.md): `GET /revisions`. Paginated\, with a page token that has a default and no example\: the snippets write the default\, the first page\'s value\, which some languages\' constructors require\, and never the sample\'s token\.
 - [PutGraph](src/operations/API_PutGraph.md): `PUT /graphs/{graphId}`. Every scalar\, collection and default in one request\.
-- [SearchGraphs](src/operations/API_SearchGraphs.md): `POST /graphs/search`. Paginated\, with the page token in the body beside the query\, and no example\: the first page sends no token\.
+- [SearchGraphs](src/operations/API_SearchGraphs.md): `POST /graphs/search`. Paginated\, with the page token in the body beside the query\, and no example\: no SDK snippet or http request sends it\.
 - [Walk](src/operations/API_Walk.md): `POST /walk`. Recursive input and output\.
 
 ## Data types
@@ -45,6 +46,8 @@ Every page below is Markdown. Requests are JSON over HTTP; each operation's page
 - [Limits](src/shapes/Limits.md): map.
 - [ListGraphsInput](src/shapes/ListGraphsInput.md): structure.
 - [ListGraphsOutput](src/shapes/ListGraphsOutput.md): structure.
+- [ListRevisionsInput](src/shapes/ListRevisionsInput.md): structure.
+- [ListRevisionsOutput](src/shapes/ListRevisionsOutput.md): structure.
 - [ManyLabels](src/shapes/ManyLabels.md): list. More labels than a sample shows\.
 - [ManyLimits](src/shapes/ManyLimits.md): map. More entries than a sample shows\.
 - [Negative](src/shapes/Negative.md): integer.

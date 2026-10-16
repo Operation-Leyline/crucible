@@ -1,7 +1,7 @@
 # SearchGraphs
 
 <p>Paginated, with the page token in the body beside the query, and no
-example: the first page sends no token.</p>
+example: no SDK snippet or <code>http</code> request sends it.</p>
 
 Protocol: <code>crucibleJson</code>.
 

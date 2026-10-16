@@ -771,7 +771,8 @@ characters of JSON, and a comment says which. Either way the idempotency
 token is left out, for the client to fill: a fixed token in copied code
 would replay one logical request. So is a paginated operation's input
 token: the call asks for the first page, and a sample's token (such as
-`"nextToken"`) is none the service issued. A member with a modelled default that the
+`"nextToken"`) is none the service issued. A page token with a modelled
+default is written at its default instead, the first page's value. A member with a modelled default that the
 example leaves out is written with its default, since some languages'
 constructors require it. An instant outside the years 0001 to 9999, which
 RFC 3339 parsers refuse, is built from its seconds where the language
@@ -807,8 +808,9 @@ the widest audience among the listed SDKs. Like every SDK, it leaves out a
 
 The request is the one `describe.json` shows: the first example with an
 input, else the generated sample, either way without its idempotency
-token or pagination input token, wherever it is bound (`example` is that
-example's title, or null). `uri` is percent-encoded and includes the query. `headers` is an
+token or pagination input token, wherever it is bound (a query name is
+matched percent-encoded, as `uri` writes it; `example` is that example's
+title, or null). `uri` is percent-encoded and includes the query. `headers` is an
 array of `{name, value}`, sorted by lowercase name: the modeled and
 protocol headers (`Content-Type` included wherever a body or payload is
 sent), `Authorization: Bearer <token>` for an operation with bearer auth,

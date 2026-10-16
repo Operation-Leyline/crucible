@@ -1,8 +1,8 @@
 # ListGraphs
 
 <p>Paginated, with the page token in the query and no example: the
-sample's token is none the service issued, so no snippet or request
-sends it.</p>
+sample's token is none the service issued, so no SDK snippet or <code>http</code>
+request sends it.</p>
 
 Protocol: <code>crucibleJson</code>.
 

@@ -1109,9 +1109,17 @@ version's section when it is prepared.
   `nextToken: "nextToken"`, which a service refuses as a token it never
   issued; they now leave it out, as `paginatedSnippet` did and as the
   idempotency token already was, so the call asks for the first page. An
-  example's input token is left out as well. The generated README's and
-  AGENTS.md's showcase call follows the snippet. Samples gains the
-  paginated `ListGraphs` and `SearchGraphs` that test it.
+  example's input token is left out as well. A page token with a modelled
+  default is written at its default, the first page's value, in both
+  snippets: some languages' constructors (Ruby's, Swift's, PHP's, R's)
+  require a defaulted member, where `paginatedSnippet` left it out. The generated README's and AGENTS.md's showcase call follows
+  the snippet. The `http` request now also removes an idempotency or page
+  token bound to a query name that is percent-encoded on the wire
+  (`page[cursor]`), which it compared unencoded and kept; the name is
+  encoded by `describe::query_component`, which the request's `uri` uses.
+  Samples gains the paginated `ListGraphs`, `SearchGraphs` and
+  `ListRevisions`, and the new `tests/models/page-tokens` binds each token
+  in the body, a header, the payload and an encoded query name.
 
 - Examples and defaults are checked against `range` the way the generated
   server checks a request (#337). A `bigDecimal`, a `bigInteger` and every

@@ -548,7 +548,8 @@ struct Program {
 }
 
 /// Starts `main`: the error, any parsed documents, the client and the
-/// input, which a paginated snippet builds without its input token.
+/// input, which `snippet::call` already holds without its idempotency and
+/// page tokens.
 fn program(service: &Service, options: &Options, call: &Call<'_>) -> (Program, Vec<String>) {
     let p = &options.prefix;
     let mut input = Input::new(service, p);

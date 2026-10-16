@@ -1,0 +1,15 @@
+/// Paginated, with a page token that has a default and no example: the
+/// snippets write the default, the first page's value, which some
+/// languages' constructors require, and never the sample's token.
+readonly operation ListRevisions {
+    http GET "/revisions"
+    paginated(inputToken: after, outputToken: next, items: revisions)
+    input {
+        @query
+        after: string = "first-page"
+    }
+    output {
+        revisions: GraphIds
+        next?: string
+    }
+}

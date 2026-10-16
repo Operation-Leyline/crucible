@@ -19,6 +19,7 @@
 //! `omitted`. A raw `\x03` or `ESC [201~` would otherwise interrupt the
 //! shell or end a bracketed paste early and run what follows.
 
+use crucible_codegen_common::describe::query_component;
 use crucible_codegen_common::snippet::{base64_bytes, base64_text, env_var};
 use crucible_ir::Audience;
 use crucible_ir::ir::{Operation, Service};
@@ -140,9 +141,12 @@ fn without_member(operation: &Operation, message: &mut Value, member: &str) {
         && let Some(uri) = message["uri"].as_str()
         && let Some((path, query)) = uri.split_once('?')
     {
+        // The `uri` holds each name percent-encoded (`page%5Bcursor%5D`),
+        // so the binding's name is compared encoded the same way.
+        let name = query_component(&binding.name);
         let kept: Vec<&str> = query
             .split('&')
-            .filter(|pair| pair.split('=').next() != Some(binding.name.as_str()))
+            .filter(|pair| pair.split('=').next() != Some(name.as_str()))
             .collect();
         message["uri"] = json!(if kept.is_empty() {
             path.to_owned()
