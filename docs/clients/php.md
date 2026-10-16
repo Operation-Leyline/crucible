@@ -94,7 +94,7 @@ or content type.
 ## API documentation and string representations
 
 Every generated type, constructor argument, enum constant, operation and the
-client carry PHPDoc built from the model's `@documentation` plus Crucible's own
+client carry PHPDoc built from the model's doc comments plus Crucible's own
 text for the client, `ClientConfig`, transports, credentials and errors. `*/`
 in model text cannot end a docblock, and `@tag` lines are escaped.
 

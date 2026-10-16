@@ -1,4 +1,4 @@
-//! Smithy encodes a structure as a JSON object, and only as one. serde's
+//! Crucible JSON encodes a structure as a JSON object, and only as one. serde's
 //! derived struct visitor also takes a sequence of positional values, and
 //! serde_json offers one for `[`: left alone, `[]` or `["Oslo", 1]` would read
 //! as a structure, at any depth of a body or as a whole `@httpPayload`.

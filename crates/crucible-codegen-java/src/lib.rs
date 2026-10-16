@@ -133,7 +133,7 @@ pub(crate) fn unset_field(member: &crucible_ir::ir::Member, union: bool) -> bool
 /// or its field starts at the modeled default. Only a member without
 /// either is "Required." when the request is sent.
 pub(crate) fn omittable(member: &crucible_ir::ir::Member, union: bool) -> bool {
-    unset_field(member, union) || member.default.as_ref().is_some()
+    unset_field(member, union) || member.default.is_some()
 }
 
 pub(crate) fn member_field(text: &str, package: &str) -> String {
@@ -855,7 +855,7 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
                         format!(
                             "Unset members are omitted from requests; see {{@link {package}.OptionalValue}}."
                         )
-                    } else if m.default.as_ref().is_some() {
+                    } else if m.default.is_some() {
                         "Has a default value.".to_string()
                     } else {
                         "Required.".to_string()
@@ -931,9 +931,9 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
                     let t = ty(service, &m.target, package);
                     let f = member_field(&m.name, package);
                     let optional = unset_field(m, is_union);
-                    // '$' cannot occur in a lowered Smithy member name, keeping
+                    // '$' cannot occur in a lowered member name, keeping
                     // these private flags independent of modeled identifiers.
-                    let set_default = if !optional && m.default.as_ref().is_some() {
+                    let set_default = if !optional && m.default.is_some() {
                         builder.push_str(&format!(
                             "            private boolean $defaultSet{index};\n"
                         ));
@@ -1007,12 +1007,11 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
                 builder.push_str(&format!("            public {name} build() {{\n                {name} result = new {name}();\n"));
                 for (index, m) in s.members.iter().enumerate() {
                     let f = member_field(&m.name, package);
-                    let assigned =
-                        if !m.optional_on_client() && m.default.as_ref().is_some() && !is_union {
-                            format!("if ($defaultSet{index}) ")
-                        } else {
-                            String::new()
-                        };
+                    let assigned = if !m.optional_on_client() && m.default.is_some() && !is_union {
+                        format!("if ($defaultSet{index}) ")
+                    } else {
+                        String::new()
+                    };
                     builder.push_str(&format!(
                         "                {assigned}result.{f} = value.{f};\n"
                     ));

@@ -43,8 +43,8 @@ pub(crate) fn ts_type(service: &Service, target: &ShapeId, prefix: &str) -> Stri
 /// Whether a member may be left out of a TypeScript value. In an input only
 /// `@required` members are required, so a caller learns at compile time that
 /// one is missing; the idempotency token stays optional because the client
-/// fills it. Everything else follows Smithy's client nullability, under which
-/// a member with a default is always present: the runtime fills it in.
+/// fills it. Everything else follows the model's nullability, under which a
+/// member with a default is always present: the runtime fills it in.
 pub(crate) fn optional(structure: &Structure, member: &Member) -> bool {
     if is_input(structure) {
         // A default is the server's to apply, so the caller may omit it.

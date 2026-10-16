@@ -312,7 +312,7 @@ fn responses(service: &Service, op: &Operation, keys: &[String]) -> Value {
     )
 }
 
-/// OpenAPI groups by status, whereas Smithy permits several modeled errors
+/// OpenAPI groups by status, whereas a model permits several modeled errors
 /// (or success and error) on one status. Keep every alternative and media type.
 fn merge(mut variants: Vec<Value>) -> Value {
     if variants.len() == 1 {

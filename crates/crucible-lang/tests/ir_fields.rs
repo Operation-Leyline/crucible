@@ -1,5 +1,5 @@
 //! The typed IR facts the language produces, which generators read instead of
-//! raw Smithy traits (decisions 43, 61, 63 and 34a).
+//! raw traits (decisions 43, 61, 63 and 34a).
 
 use crucible_ir::ShapeId;
 use crucible_ir::ir::{Mutability, Service, Shape, Structure};

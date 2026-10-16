@@ -70,7 +70,7 @@ to a nonempty request payload. An empty raw response remains a present empty
 ## API documentation and string representations
 
 Every generated type, member, enum value, operation and the client carry
-DocC comments built from the model's `@documentation` plus Crucible's own text
+DocC comments built from the model's doc comments plus Crucible's own text
 for the client, `ClientConfig`, errors and `Pages`; run
 `swift package generate-documentation` with the DocC plugin to render them.
 Bare `[name]` references and `@tag` lines in model text are escaped.

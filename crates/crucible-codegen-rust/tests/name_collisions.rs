@@ -1,4 +1,4 @@
-//! Valid Smithy whose Rust spelling collides is diagnosed, or generated
+//! A valid model whose Rust spelling collides is diagnosed, or generated
 //! without the collision, never emitted as uncompilable code.
 use crucible_codegen_rust::{Options, generate, generate_client, pages_method};
 use crucible_ir::ShapeId;

@@ -3,9 +3,9 @@
 //! Each front end parses its own syntax and reports problems in its own
 //! terms; what remains true of the IR itself (routes are unique, bindings
 //! carry text, pagination members have the right types, examples fit their
-//! shapes, names do not collide) is checked here, once, so the Smithy and
-//! `.cru` paths cannot disagree. Every problem is reported against a shape,
-//! operation or member id, which each front end maps back to its sources.
+//! shapes, names do not collide) is checked here, once, on the IR. Every
+//! problem is reported against a shape, operation or member id, which the
+//! front end maps back to its sources.
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -94,9 +94,8 @@ pub fn pattern_problem(pattern: &str) -> Option<String> {
     }
 }
 
-/// Smithy's limits on recursive shapes (Smithy 2.0, "Recursive shape
-/// definitions"), decided as Smithy's own `ShapeRecursionValidator` decides
-/// them, so the two front ends and Smithy agree on which models are valid:
+/// The limits on recursive shapes, so that every shape has a finite value
+/// and every target language can spell its types:
 /// - a cycle of lists and maps alone is a type most languages cannot spell;
 /// - a structure must not reach itself through required members alone,
 ///   where each step is a required member targeting a structure;
@@ -171,7 +170,7 @@ fn required_cycle(service: &Service, start: &ShapeId) -> bool {
     false
 }
 
-/// Smithy's `UnionTerminatesVisitor`: whether a value of `id` can be built
+/// Whether a value of `id` can be built
 /// without following a member twice (`visited` holds member ids).
 fn terminates(service: &Service, id: &ShapeId, visited: &mut BTreeSet<ShapeId>) -> bool {
     let member =

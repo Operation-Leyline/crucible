@@ -494,8 +494,8 @@ fn roles_are_checked() {
 
 #[test]
 fn updates_implies_no_idempotency() {
-    // Smithy's update lifecycle does not require idempotency, and an update
-    // that appends a version is not safe to repeat.
+    // An update need not be idempotent: one that appends a version is not
+    // safe to repeat.
     let edit = |modifiers: &str, method: &str| {
         compiled(&format!(
             "{modifiers}operation EditOrder updates Order {{\n    http {method} \"/orders/{{orderId}}\"\n    input {{\n        $orderId\n        comment?: string\n    }}\n}}"

@@ -56,7 +56,7 @@ For example:
         "resource_type": "Custom::WeatherCity",
         "context": {
           "SecretArn": {
-            "target": "smithy.api#String",
+            "target": "crucible.api#String",
             "required": true,
             "length": { "min": 1 }
           }

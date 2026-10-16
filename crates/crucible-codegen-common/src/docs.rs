@@ -1,6 +1,6 @@
 //! Doc-comment text and string-representation redaction shared by native clients.
 //!
-//! Smithy `@documentation` is CommonMark with raw HTML allowed. Every target
+//! Model documentation (doc comments) is CommonMark with raw HTML allowed. Every target
 //! doc format here (DocC, dartdoc, PHPDoc, YARD) renders Markdown, so the text
 //! passes through and only what could break the comment itself or be mistaken
 //! for doc-tool syntax is neutralised.
@@ -138,7 +138,7 @@ pub fn requirement_notes(service: &Service, op: &Operation) -> Vec<String> {
         .collect()
 }
 
-/// Neutralises what in Smithy-authored Markdown a doc tool would misread:
+/// Neutralises what in model-authored Markdown a doc tool would misread:
 /// `@tag` at the start of a line and bare `[reference]` lookalikes, which
 /// would be tags or unresolvable symbol links. Fenced and inline code is left
 /// alone. Apply it to model text only, never to references Crucible writes.

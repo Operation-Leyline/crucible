@@ -1,5 +1,5 @@
 //! OpenAPI 3.1 export of the lowered Crucible JSON wire contract.
-//! Smithy remains authoritative; this document is a downstream projection.
+//! The `.cru` model remains authoritative; this document is a downstream projection.
 
 mod examples;
 mod operations;

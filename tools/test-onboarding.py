@@ -194,7 +194,6 @@ def main():
             assert "hello-client/crucible.toml" in contents.namelist()
             assert '.policy("crucible.toml")' in contents.read("hello-client/build.rs").decode()
             assert "hello-client/model/hello.cru" in contents.namelist()
-            assert not any("smithy" in name for name in contents.namelist())
         project = directory / "hello service"
         run([str(cli), "new", "hello-service", "--out", str(project), "--runtime-path", str(ROOT)])
         assert not (project / "src/contract.rs").exists()

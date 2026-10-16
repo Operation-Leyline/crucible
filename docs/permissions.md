@@ -1333,15 +1333,12 @@ below and the addendum to decision 5). By default it is
 `crucible.errors#NotFoundException` (404) that the compiler attached to the
 operation (check 17), so SDKs see it as a typed error:
 
-```smithy
+```cru
 /// The resource does not exist, or the caller may not know that it does.
-@error("client")
-@httpError(404)
-structure NotFoundException {
-    @required
-    message: String          // "No such inbox."; fixed per resource type
-    @required
-    resourceType: String     // the authorization name of the check's target
+error NotFoundException {
+    status 404
+    message: string          // "No such inbox."; fixed per resource type
+    resourceType: string     // the authorization name of the check's target
 }
 ```
 

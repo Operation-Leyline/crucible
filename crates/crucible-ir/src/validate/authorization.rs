@@ -1,6 +1,5 @@
 //! Checks 1-18 of docs/permissions.md §5: what holds of a lowered service's
-//! permissions and requirements. Only the `.cru` front end declares them;
-//! the Smithy front end refuses the permission traits at lowering.
+//! permissions and requirements, which the `.cru` lowering declares.
 //!
 //! Facts the contract IR does not carry are passed in [`PermissionFacts`]:
 //! each resource's identifier types, which operations are collection

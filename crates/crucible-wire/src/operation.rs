@@ -149,7 +149,7 @@ impl ServiceInfo {
 #[derive(Debug)]
 #[non_exhaustive]
 pub struct OperationInfo {
-    /// Smithy @internal; caller authorization remains application policy.
+    /// `internal` in the model; caller authorization remains application policy.
     pub internal: bool,
     /// The operation's shape id, `namespace#Name`.
     pub id: &'static str,
@@ -383,7 +383,7 @@ pub enum TimestampFormat {
 pub struct Pagination {
     pub input_token: PaginationMember,
     pub page_size: Option<PaginationMember>,
-    /// Whether the input token is a map rather than a string (Smithy allows
+    /// Whether the input token is a map rather than a string (the IR allows
     /// either): a server extension that seals string tokens refuses such an
     /// operation instead of reading its token as absent.
     pub input_token_map: bool,

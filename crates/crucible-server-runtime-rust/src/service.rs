@@ -509,7 +509,7 @@ impl Crucible {
     /// Settles the request's API version and returns the operations that
     /// serve it: the current table, or an older version's. A `.cru`
     /// service without migrations has one release and refuses any other; a
-    /// Smithy-sourced service has none and skips this.
+    /// service that names no release skips this.
     fn version<'a>(&'a self, job: &mut Job) -> crate::Result<&'a Operations> {
         let operations = &self.inner.operations;
         let versions = &operations.versions;

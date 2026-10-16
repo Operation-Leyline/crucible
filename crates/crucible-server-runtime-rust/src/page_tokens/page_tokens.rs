@@ -207,7 +207,7 @@ impl Interceptor for PageTokens {
             ));
         }
         // A sealed token is a string, so an operation whose token is a map
-        // (which Smithy allows) cannot resume from one; reading its token
+        // (which the IR allows) cannot resume from one; reading its token
         // as absent would restart every listing on its first page. Asked per
         // served entry: an older API version served by a handler of its own
         // has that handler's token.

@@ -58,10 +58,9 @@ retains the old namespace if a rollback is needed.
 Ordinary model instances are frozen; their arrays and strings remain native
 Ruby values. A call snapshots its input before invoking hooks. Optional
 members default to `Runtime::UNSET`; `nil` means explicit null. Members that
-the IR makes non-optional on clients are required constructor arguments.
-Input structures and `@clientOptional` members allow omission even
-when marked `@required`: missing HTTP labels are rejected before transport,
-while missing body/query/header members are left for service validation.
+the IR makes non-optional are required constructor arguments. Missing HTTP
+labels are rejected before transport, while body/query/header members are
+left for service validation.
 Missing response members receive modeled
 defaults, while explicit null does not. Names use snake_case, with a
 `_value` suffix where a member would hide a keyword or runtime method.
@@ -86,7 +85,7 @@ no body or content type.
 ## API documentation and string representations
 
 Every generated type, member, enum value, operation and the client carry YARD
-comments built from the model's `@documentation` plus Crucible's own text for
+comments built from the model's doc comments plus Crucible's own text for
 the client, `ClientConfig`, transports and errors. The gem ships a
 `.yardopts` that selects Markdown, which is what `.cru` documentation is
 written in; `yard doc` renders them.

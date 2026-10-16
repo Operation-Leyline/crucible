@@ -484,7 +484,7 @@ version's section when it is prepared.
   reaches itself through its members, directly or through lists and maps.
   They lower into the same IR as Smithy's, `recursive_groups` included,
   computed by the algorithm the Smithy front end uses. Smithy's limits on
-  recursion are checked on the IR in `crucible_smithy::validate`, for both
+  recursion are checked on the IR in `crucible_ir::validate`, for both
   front ends, decided as Smithy's own `ShapeRecursionValidator` decides
   them: a cycle of lists and maps alone is refused (as before, now in one
   place), and so are a structure that reaches itself through required
@@ -511,7 +511,7 @@ version's section when it is prepared.
   `ir::Operation::requirements` (all `#[serde(default)]`, and not written
   when empty, so existing release snapshots read and write unchanged), with
   `Service::all_permissions()` for the registry, and are checked by
-  `crucible_smithy::validate::permissions`: once a service declares any
+  `crucible_ir::validate::permissions`: once a service declares any
   permission, an authenticated operation that says nothing about
   authorization is the error `permissions.undeclared`. `.cru` lowering adds the new
   `crucible.errors#NotFoundException` (404, `message` and `resourceType`;
@@ -529,7 +529,7 @@ version's section when it is prepared.
   covers the generators reading the rest.
 
 - `crucible-build` and `crucible` print a `.cru` package's advice beside
-  its warnings. `crucible_smithy::validate::permissions_from_ir` runs the
+  its warnings. `crucible_ir::validate::permissions_from_ir` runs the
   permission checks that need nothing but the IR.
 
 - Release guard and `crucible diff`: `compatibility.permissions` reports a
@@ -544,7 +544,7 @@ version's section when it is prepared.
 - `crucible_lang::Severity::Advice` and `Diagnostic::advice`: a question
   for the author, never a failure; the language server shows it as
   information, and builds print it beside warnings. `Severity` is now
-  `#[non_exhaustive]`, as is `crucible_smithy::validate::FindingSeverity`:
+  `#[non_exhaustive]`, as is `crucible_ir::validate::FindingSeverity`:
   a `match` on either needs a wildcard arm.
 
 - `Prepare::served_operations()` and `ServedOperation`: every entry a
@@ -639,6 +639,16 @@ version's section when it is prepared.
   compatibility guard compares them with the current model unchanged. The
   prelude namespace reserved for packages is `crucible.api`; `smithy.api`
   is no longer reserved. See [migrating](docs/migrating.md#the-built-in-vocabulary-is-crucibleapi).
+
+- **Generated output says Crucible, not Smithy.** OpenAPI and JSON Schema
+  extensions are `x-crucible-*` (`x-crucible-traits`, `x-crucible-errors`,
+  `x-crucible-pagination`, `x-crucible-length`, `x-crucible-deprecation`,
+  ...; formerly `x-smithy-*`) in OpenAPI documents, `describe.json`, MCP
+  tool schemas and the CLI schema. The Python and C# clients' spans set
+  `rpc.system` to `crucible`. Java, C# and Kotlin model docs say "Model
+  shape", and the Python, R and TypeScript file headers and the R help
+  title name the `.cru` model. The recursion diagnostic calls a
+  collection-only cycle invalid, not "invalid Smithy".
 
 - `.cru`: a `[Name]` doc link that names nothing is a compile error, reported
   at its label (decision 80); it was a warning (decision 41). So is

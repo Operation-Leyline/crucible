@@ -116,7 +116,7 @@ fn run(row: &Value) {
         "example.weather#Location" => round_trip::<Location>(row, |_, _| {}),
         "example.weather#Forecast" => {
             // A collection alias is a native BTreeMap; its generated member
-            // codec carries Smithy nullability and enum-key semantics.
+            // codec carries the model's nullability and enum-key semantics.
             let mut envelope = row.clone();
             let wrap = |wire: &str| {
                 format!(

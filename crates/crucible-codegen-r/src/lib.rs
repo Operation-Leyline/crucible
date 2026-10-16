@@ -1,4 +1,4 @@
-//! Native R package generation from the shared lowered Smithy IR.
+//! Native R package generation from the shared lowered IR.
 mod links;
 mod markdown;
 mod permissions;

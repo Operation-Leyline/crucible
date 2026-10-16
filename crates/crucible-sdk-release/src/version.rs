@@ -180,8 +180,7 @@ pub struct Inputs<'a> {
     /// `--first-release <sdk>`.
     pub first_release: bool,
     /// For a `.cru` service only: its current `version`, compared with the
-    /// last release's `serviceVersion`. A Smithy service's version names no
-    /// release its server checks, so it is not passed.
+    /// last release's `serviceVersion`.
     pub cru_service_version: Option<&'a str>,
 }
 

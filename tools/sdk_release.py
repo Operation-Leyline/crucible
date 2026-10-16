@@ -53,7 +53,7 @@ def load_config(path):
     if config.get("schemaVersion") != 1:
         raise ValueError("Unsupported SDK release configuration version")
     if not isinstance(config.get("service"), str) or "#" not in config["service"]:
-        raise ValueError("A Smithy service shape ID is required")
+        raise ValueError("A service shape ID is required")
     targets = config.get("targets")
     if not isinstance(targets, dict) or not targets or not set(targets) <= LANGUAGES:
         raise ValueError("Specify one or more supported SDK targets")

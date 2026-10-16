@@ -73,9 +73,8 @@ Nonoptional members are constructor arguments. Optional client members use
 `value_or(fallback)` provides a default. Default construction means absent,
 `reset()` restores absence, and `Field<T>::null()` explicitly supplies null.
 Advanced callers can distinguish those states with `is_set()` and `is_null()`;
-`Field<T>::of(value)` remains available. Input and
-`@clientOptional` members can be omitted even when the service requires them.
-Missing HTTP labels fail locally; body, header, and query validation remains
+`Field<T>::of(value)` remains available. A member is optional for the client
+exactly when it is for the service. Missing HTTP labels fail locally; body, header, and query validation remains
 the service's responsibility.
 
 Models own their strings, vectors, maps, and nested structures. Recursive

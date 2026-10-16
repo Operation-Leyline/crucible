@@ -2,9 +2,9 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-/// The source trees compiled into Crucible's binaries: the crates, the
-/// traits package, the vendored compiler integration and the manifests.
-const SOURCE_TREES: &[&str] = &["crates", "smithy", "vendor", "Cargo.toml", "Cargo.lock"];
+/// The source trees compiled into Crucible's binaries: the crates and the
+/// manifests.
+const SOURCE_TREES: &[&str] = &["crates", "Cargo.toml", "Cargo.lock"];
 
 fn main() {
     println!("cargo::rerun-if-changed=build.rs");

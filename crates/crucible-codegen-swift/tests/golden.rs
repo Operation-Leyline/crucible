@@ -499,7 +499,7 @@ fn vault_golden(name: &str, source: &str) {
 }
 
 #[test]
-fn smithy_documentation_reaches_models_and_client() {
+fn model_documentation_reaches_models_and_client() {
     let files = emit(&vault_service(|text| text), &options()).unwrap();
     let file = |suffix: &str| {
         &files

@@ -373,11 +373,7 @@ pub(crate) fn member_field(
     } else {
         member.optional_on_server()
     };
-    let default = if client {
-        member.default.as_ref()
-    } else {
-        member.default.as_ref()
-    };
+    let default = member.default.as_ref();
     if optional {
         if default.is_none() {
             serde.push("default".to_owned());

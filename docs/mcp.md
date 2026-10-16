@@ -306,9 +306,9 @@ there is no Internal audience option for MCP.
 
 JSON Schema emission is shared with OpenAPI. MCP embeds only reachable
 definitions under `$defs` instead of OpenAPI's `components/schemas`. Inputs use
-Client nullability: `@input` and `@clientOptional` members may be omitted
-or null in the description, while the normal server validator remains
-authoritative about whether the handler can receive them. Success returns an
+the model's nullability: a member that is neither required nor defaulted
+may be omitted or null in the description, while the normal server
+validator remains authoritative about whether the handler can receive them. Success returns an
 object as `structuredContent` and its serialized JSON as a text content block.
 Empty outputs become `{}`. Validators compile once at service construction;
 every published output is checked against its `outputSchema`.

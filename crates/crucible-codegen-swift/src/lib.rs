@@ -1,4 +1,4 @@
-//! Native Swift models and async clients emitted from lowered Smithy semantics.
+//! Native Swift models and async clients emitted from the lowered IR.
 mod client;
 mod links;
 mod models;

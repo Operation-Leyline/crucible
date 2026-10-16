@@ -1,6 +1,5 @@
 // Leyline's own rules, on top of org.standards (which it imports and cannot
-// weaken). Ported from leyline/smithy/src/main/smithy/validators.smithy, which
-// ran them through smithy-linters at build time only, and only in Gradle.
+// weaken).
 
 /// Every operation is charged to exactly one request-rate class, and is either
 /// classified for the audit journal or excluded from it with a reason.

@@ -1,5 +1,5 @@
-//! Recursive shapes (Smithy 2.0, "Recursive shape definitions"): allowed,
-//! recorded in `recursive_groups` as the Smithy front end records them, and
+//! Recursive shapes: allowed, recorded in `recursive_groups` by the shared
+//! algorithm, and
 //! refused only where no finite value exists or only collections recur.
 
 use crucible_ir::ir::{Service, Shape, Structure};
@@ -110,8 +110,8 @@ fn recursive_shapes_lower_and_record_their_groups() {
     );
 }
 
-/// The Smithy front end's groups for the same shapes: one algorithm, so the
-/// two cannot disagree about which members recur.
+/// The groups the shared algorithm finds for the same shapes, so lowering
+/// and the IR's checks cannot disagree about which members recur.
 #[test]
 fn the_groups_are_the_ones_the_shared_algorithm_finds() {
     let service = service(RECURSIVE);
@@ -161,11 +161,11 @@ fn a_structure_recurring_only_through_required_members_is_refused() {
     ));
 }
 
-/// Smithy's validator, not a stricter reading: a structure with an optional
-/// member terminates for the union check, though its required member leads
-/// back. Smithy accepts this model, so both front ends must.
+/// Not a stricter reading: a structure with an optional member terminates
+/// for the union check, though its required member leads back, so the model
+/// is accepted.
 #[test]
-fn recursion_smithy_accepts_is_accepted() {
+fn recursion_through_an_optional_member_is_accepted() {
     service(&with_shapes(
         "structure S {\n    r: U\n    o?: string\n}\nunion U {\n    s: S\n}\n",
         "s?: S",

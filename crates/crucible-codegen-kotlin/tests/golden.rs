@@ -175,7 +175,7 @@ fn docs_files() -> Vec<crucible_codegen_kotlin::File> {
 }
 
 #[test]
-fn smithy_documentation_cannot_break_out_of_kdoc() {
+fn model_documentation_cannot_break_out_of_kdoc() {
     for file in docs_files().iter().filter(|f| f.path.ends_with(".kt")) {
         // Kotlin comments nest, so a stray `/*` is as fatal as a stray `*/`.
         assert_eq!(

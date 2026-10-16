@@ -87,7 +87,7 @@ impl std::error::Error for Internal {}
 /// An error shape from the model. Generated for every `@error` structure.
 pub trait ModelledError: std::error::Error + Send + Sync + 'static {
     fn info(&self) -> &'static ErrorInfo;
-    /// Original Smithy shape id, independent of service-local Rust renames.
+    /// The model's shape id, independent of Rust renames.
     fn shape_id(&self) -> &'static str {
         self.info().name
     }

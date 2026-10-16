@@ -1,6 +1,5 @@
 //! Typed permissions (docs/permissions.md §6.1): what a resource accepts and
-//! what an operation requires. Only the `.cru` front end declares them (a
-//! Smithy model that uses a permission trait is refused at lowering), and
+//! what an operation requires. The `.cru` lowering declares them, and
 //! `crate::validate::permissions` checks them once.
 //!
 //! The serde names are part of the release snapshot format: every field is

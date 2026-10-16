@@ -1,4 +1,4 @@
-/// Generated once from the External audience of the lowered Smithy IR.
+/// Generated once from the External audience of the lowered IR.
 #[derive(Debug)]
 pub struct ToolDescriptor {
     pub name: &'static str,

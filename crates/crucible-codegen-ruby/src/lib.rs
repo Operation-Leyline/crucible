@@ -1,4 +1,4 @@
-//! Ruby gem generation from the shared, lowered Smithy IR.
+//! Ruby gem generation from the shared, lowered IR.
 mod links;
 mod models;
 mod names;
@@ -254,7 +254,7 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
         .expect("provenance"),
     });
     files.push(File {path:format!("{package}.gemspec"), contents:format!("# frozen_string_literal: true\nGem::Specification.new do |spec|\n  spec.name = {}\n  spec.version = {}\n  spec.summary = {}\n  spec.authors = ['Package maintainers']\n  spec.required_ruby_version = '>= 3.3', '< 5'\n  spec.files = Dir['lib/**/*', 'sig/**/*', 'crucible.json', '.yardopts']\n  spec.require_paths = ['lib']\n  spec.add_dependency 'json', '>= 2.7', '< 3'\n  spec.add_dependency 'net-http', '>= 0.4', '< 1'\n  spec.add_dependency 'base64', '>= 0.2', '< 1'\n  spec.add_dependency 'date', '>= 3.3', '< 4'\n  spec.add_dependency 'time', '>= 0.3', '< 1'\n  spec.add_dependency 'securerandom', '>= 0.3', '< 1'\n  spec.add_dependency 'openssl', '>= 3.0', '< 5'\n  spec.add_dependency 'bigdecimal', '>= 3.1', '< 5'\nend\n",literal(package),literal(&options.package_version),literal(&format!("Generated {} client",service.name_of(&service.id))))});
-    // The doc comments are Markdown (Smithy's @documentation is CommonMark).
+    // The doc comments are Markdown (model documentation is CommonMark).
     files.push(File {
         path: ".yardopts".into(),
         contents: "--markup markdown\n--no-private\nlib/**/*.rb\n".into(),

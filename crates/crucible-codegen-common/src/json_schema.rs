@@ -214,7 +214,7 @@ pub fn member(
         value["x-crucible-traits"] = traits(&member.traits);
     }
     let default = if format.is_some() {
-        member.wire_default.as_ref().cloned()
+        member.wire_default.clone()
     } else {
         service.document_wire_default(member)
     };
@@ -292,7 +292,7 @@ fn constraints(value: &mut Value, constraints: &Constraints, shape: &Shape) {
             Shape::List(_) => Some(("minItems", "maxItems")),
             Shape::Map(_) => Some(("minProperties", "maxProperties")),
             Shape::Simple(simple) if simple.kind == SimpleKind::Blob => {
-                // Smithy measures decoded bytes, not base64 characters.
+                // A blob's length counts decoded bytes, not base64 characters.
                 value["x-crucible-length"] =
                     json!({"unit": "bytes", "min": bounds.min, "max": bounds.max});
                 None
