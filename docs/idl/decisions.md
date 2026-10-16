@@ -1475,11 +1475,15 @@ references are to the code as of the design.
     side in the frozen release. A shape renamed since a supported step
     named it is an error at the step, naming the missing id; a `rename` of
     a shape would be a later shortcut (54a). The generator's silent skips
-    (`versions.rs:113`, `638`, `688`, `732`, `954`, `1049`) become
-    diagnostics first, and `crucible_lang::versions` collects every
-    diagnostic with its span instead of stopping at the first
-    (`guard.rs:1029-1034`). *Why:* the ids the server converts by must be
-    the ones steps were checked against.
+    are diagnostics (built): the two an accepted model could reach are
+    the compiler's, an operation dropped without `remove operation`
+    (refused at the migration's `from` unless a `compatibility.operation`
+    exception retires it, as decision 70 leaves an excepted step inert
+    with a warning) and an enum value's rename (converted); the others
+    can only be reached by an edited IR. Still to come:
+    `crucible_lang::versions` collects every diagnostic with its span
+    instead of stopping at the first. *Why:* the ids the server converts
+    by must be the ones steps were checked against.
 
 72. **Steps carry both sides, and undo composes them.** `Require` and
     `Hook::Require` gain their old side and older name, `AddEnumValue` its

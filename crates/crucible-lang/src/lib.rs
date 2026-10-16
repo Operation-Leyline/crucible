@@ -28,9 +28,10 @@ pub use compile::{
 };
 pub use diagnostic::{Diagnostic, Severity};
 pub use format::{FormatOptions, format, format_lines};
-pub use guard::{Guard, guard, versions};
+pub use guard::{Guard, guard, guard_in, versions, versions_in};
 pub use lexer::{Token, TokenKind};
 pub use package::{check_manifest, is_package, load_package, load_package_with_manifest};
+pub use release::Releases;
 pub use span::{LineIndex, Span};
 
 /// Loads the package in `dir`, compiles it and returns its service, or the

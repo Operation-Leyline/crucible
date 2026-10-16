@@ -6,7 +6,7 @@
 
 use std::path::Path;
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 
 use crucible_ir::ShapeId;
 use crucible_ir::ir::{
@@ -16,7 +16,7 @@ use crucible_policy::{Config, Finding, Renames, Severity};
 use serde_json::Value as Json;
 
 use crate::ast::{Decl, Doc, Dotted, Ident, Key, Migration, RequireHow, Step, StepKind, Value};
-use crate::compile::{Compiled, FileDiagnostic, Package, load_baseline};
+use crate::compile::{Compiled, FileDiagnostic, Package};
 use crate::diagnostic::Diagnostic;
 use crate::literal::{duplicate_keys, resolve_enum_symbols};
 
@@ -86,8 +86,20 @@ pub fn guard(
     own: usize,
     config: &Config,
 ) -> Option<Result<Guard, String>> {
+    guard_in(package, compiled, own, config, &crate::Releases::default())
+}
+
+/// [`guard`], reading frozen releases through `releases`, which a build
+/// shares with [`versions_in`] and an editor keeps across compiles.
+pub fn guard_in(
+    package: &Package,
+    compiled: &Compiled,
+    own: usize,
+    config: &Config,
+    releases: &crate::Releases,
+) -> Option<Result<Guard, String>> {
     let service = compiled.service.as_ref()?;
-    let old = match load_baseline(package)? {
+    let old = match releases.load(package.baseline.as_deref()?) {
         Ok(old) => old,
         Err(problem) => return Some(Err(problem)),
     };
@@ -126,6 +138,28 @@ pub fn guard(
         }
     }
     let mut covers = Vec::new();
+    // Each enum value change no step declares, by enum, for its finding.
+    let mut unexplained = BTreeMap::new();
+    // An operation a migration drops without `remove operation` is refused
+    // at the migration, or not served at older releases when an exception
+    // accepts the drop, in every migration of the chain: the diff below
+    // sees only the newest. A chain that does not load is `versions`' to
+    // report.
+    if let Ok(links) = chain(package, compiled, own, releases) {
+        for link in &links {
+            for drop in dropped(link, service, config) {
+                // The refusal at the migration says what the undeclared
+                // finding would.
+                if !drop.excepted && link.migration.from.value == version {
+                    covers.push(Cover::exact(drop.operation, &["compatibility.operation"]));
+                }
+                problems.push(FileDiagnostic {
+                    file: Some(link.file),
+                    diagnostic: drop.diagnostic,
+                });
+            }
+        }
+    }
     // A member the migration renames is compared with its new self, so the
     // rename declares its name and nothing else about it.
     let mut renames = Renames::new();
@@ -141,6 +175,7 @@ pub fn guard(
         }
         let context = Context::new(&compiled.namespace, &old, service, migration);
         renames = context.renames.clone();
+        unexplained = context.unexplained.clone();
         for step in &migration.steps {
             match context.checked_step(&step.kind) {
                 Ok(mut cover) => covers.append(&mut cover),
@@ -196,6 +231,20 @@ pub fn guard(
         if covered {
             declared += 1;
         } else {
+            let mut finding = finding;
+            if finding.rule == "compatibility.enum"
+                && let Some(values) = finding
+                    .shape
+                    .parse::<ShapeId>()
+                    .ok()
+                    .and_then(|id| unexplained.get(&id))
+            {
+                finding.message = format!(
+                    "{}; no step declares: {}",
+                    finding.message,
+                    values.join(", ")
+                );
+            }
             undeclared.push(finding);
         }
     }
@@ -295,6 +344,23 @@ struct Context<'a> {
     renames: Renames,
     /// The members the migration retypes, as the current model names them.
     retyped: BTreeSet<(ShapeId, String)>,
+    /// What the migration's renames and additions of enum values leave
+    /// ambiguous, at the step that does it ([`Context::enum_changes`]).
+    enum_problems: Vec<(crate::span::Span, String)>,
+    /// For each enum those steps change, the values whose removal or
+    /// addition no step declares: its `compatibility.enum` finding stands,
+    /// naming them. An enum missing here is wholly explained.
+    unexplained: BTreeMap<ShapeId, Vec<String>>,
+}
+
+/// One enum's value changes a migration declares: its renamed values
+/// (older name, newer name) and its added ones (value, downgrade), each at
+/// its step.
+#[derive(Default)]
+struct EnumChanges {
+    old: Option<ShapeId>,
+    renames: Vec<(String, String, crate::span::Span)>,
+    adds: Vec<(String, String, crate::span::Span)>,
 }
 
 /// Where a dotted path points: a shape, or a member of one.
@@ -319,6 +385,8 @@ impl<'a> Context<'a> {
             new,
             renames: Renames::new(),
             retyped: BTreeSet::new(),
+            enum_problems: Vec::new(),
+            unexplained: BTreeMap::new(),
         };
         for step in &migration.steps {
             if let StepKind::Retype { path, .. } = &step.kind
@@ -340,7 +408,191 @@ impl<'a> Context<'a> {
                     .insert((old.shape, from), (new.shape, to.name.clone()));
             }
         }
+        context.enum_changes(migration);
         context
+    }
+
+    /// The wire value of each value of enum `shape` in `service`, by name.
+    fn wires(service: &Service, shape: &ShapeId) -> Option<BTreeMap<String, String>> {
+        Some(match service.shapes.get(shape)? {
+            Shape::Enum(e) => e
+                .values
+                .iter()
+                .map(|value| (value.name.clone(), value.value.clone()))
+                .collect(),
+            Shape::IntEnum(e) => e
+                .values
+                .iter()
+                .map(|value| (value.name.clone(), value.value.to_string()))
+                .collect(),
+            _ => return None,
+        })
+    }
+
+    /// Composes, for each enum, the value renames and additions the
+    /// migration declares, as the server applies them: one lookup per value
+    /// each way. Refuses, at a step taking part, a composition that sends
+    /// one newer value to two older ones, or two older values to one newer
+    /// one (an older client's two values would read the same). Records the
+    /// values whose removal or addition no step declares, so the enum's
+    /// `compatibility.enum` finding is covered only when the steps explain
+    /// the whole change.
+    fn enum_changes(&mut self, migration: &Migration) {
+        let mut changes: BTreeMap<ShapeId, EnumChanges> = BTreeMap::new();
+        for step in &migration.steps {
+            match &step.kind {
+                StepKind::Rename { path, to } => {
+                    if let Ok((old, new)) = self.both(path)
+                        && let Some(from) = old.member
+                        && Self::wires(self.old, &old.shape).is_some()
+                        && Self::wires(self.new, &new.shape).is_some()
+                    {
+                        let entry = changes.entry(new.shape).or_default();
+                        entry.old = Some(old.shape);
+                        entry.renames.push((from, to.name.clone(), path.span));
+                    }
+                }
+                StepKind::Add {
+                    path,
+                    name: None,
+                    downgrade,
+                    ..
+                } => {
+                    if let Ok((old, new)) = self.both(path)
+                        && let Some(value) = new.member
+                        && Self::wires(self.old, &old.shape).is_some()
+                        && Self::wires(self.new, &new.shape).is_some()
+                    {
+                        let entry = changes.entry(new.shape).or_default();
+                        entry.old = Some(old.shape);
+                        entry.adds.push((value, downgrade.name.clone(), path.span));
+                    }
+                }
+                _ => {}
+            }
+        }
+        for (shape, change) in changes {
+            let (Some(older), Some(newer)) = (
+                change
+                    .old
+                    .as_ref()
+                    .and_then(|old| Self::wires(self.old, old)),
+                Self::wires(self.new, &shape),
+            ) else {
+                continue;
+            };
+            let enum_name = shape.name();
+            // Upgrade: what each older value becomes. Two reaching one
+            // newer value could not be told apart again.
+            let mut reached: BTreeMap<&str, Vec<(&str, Option<crate::span::Span>)>> =
+                BTreeMap::new();
+            for (name, wire) in &older {
+                let target = match change.renames.iter().find(|(from, ..)| from == name) {
+                    Some((_, to, span)) => newer.get(to).map(|wire| (wire.as_str(), Some(*span))),
+                    None => newer
+                        .values()
+                        .find(|value| *value == wire)
+                        .map(|wire| (wire.as_str(), None)),
+                };
+                if let Some((target, span)) = target {
+                    reached.entry(target).or_default().push((name, span));
+                }
+            }
+            for (target, sources) in &reached {
+                if let [first, second, ..] = sources.as_slice()
+                    && let Some(span) = sources.iter().find_map(|(_, span)| *span)
+                {
+                    self.enum_problems.push((
+                        span,
+                        format!(
+                            "older clients' {enum_name}.{} and {enum_name}.{} would both be read as `{target}`; rename to a value the release did not have",
+                            first.0, second.0
+                        ),
+                    ));
+                }
+            }
+            // Downgrade: what older clients see of each newer value. Two
+            // steps sending it two ways is ambiguous.
+            for (name, wire) in &newer {
+                let mut seen: Vec<(&str, Option<crate::span::Span>)> = change
+                    .renames
+                    .iter()
+                    .filter(|(_, to, _)| to == name)
+                    .map(|(from, _, span)| (from.as_str(), Some(*span)))
+                    .chain(
+                        change
+                            .adds
+                            .iter()
+                            .filter(|(value, ..)| value == name)
+                            .map(|(_, downgrade, span)| (downgrade.as_str(), Some(*span))),
+                    )
+                    .collect();
+                if seen.is_empty() {
+                    continue;
+                }
+                // A value the release already had stays itself, unless a
+                // rename took it away.
+                if let Some((kept, _)) = older.iter().find(|(old, value)| {
+                    *value == wire && !change.renames.iter().any(|(from, ..)| from == *old)
+                }) {
+                    seen.push((kept, None));
+                }
+                let names: BTreeSet<&str> = seen.iter().map(|(name, _)| *name).collect();
+                let names: Vec<&str> = names.into_iter().collect();
+                if let [first, second, ..] = names.as_slice()
+                    && let Some(span) = seen.iter().find_map(|(_, span)| *span)
+                {
+                    self.enum_problems.push((
+                        span,
+                        format!(
+                            "{enum_name}.{name} would reach older clients as both {enum_name}.{first} and {enum_name}.{second}; declare one step for it"
+                        ),
+                    ));
+                }
+            }
+            // What changed on the wire that no step declares.
+            let explained_old: BTreeSet<&str> = change
+                .renames
+                .iter()
+                .filter_map(|(from, ..)| older.get(from).map(String::as_str))
+                .collect();
+            let explained_new: BTreeSet<&str> = change
+                .renames
+                .iter()
+                .map(|(_, to, _)| to)
+                .chain(change.adds.iter().map(|(value, ..)| value))
+                .filter_map(|name| newer.get(name).map(String::as_str))
+                .collect();
+            let older_wires: BTreeSet<&str> = older.values().map(String::as_str).collect();
+            let newer_wires: BTreeSet<&str> = newer.values().map(String::as_str).collect();
+            let mut missing: Vec<String> = older
+                .iter()
+                .filter(|(_, wire)| {
+                    !newer_wires.contains(wire.as_str()) && !explained_old.contains(wire.as_str())
+                })
+                .map(|(name, _)| format!("{name} removed"))
+                .collect();
+            missing.extend(
+                newer
+                    .iter()
+                    .filter(|(_, wire)| {
+                        !older_wires.contains(wire.as_str())
+                            && !explained_new.contains(wire.as_str())
+                    })
+                    .map(|(name, _)| format!("{name} added")),
+            );
+            if !missing.is_empty() {
+                self.unexplained.insert(shape, missing);
+            }
+        }
+    }
+
+    /// What `enum_changes` found wrong with the step at `span`.
+    fn enum_problem(&self, span: crate::span::Span) -> Option<Diagnostic> {
+        self.enum_problems
+            .iter()
+            .find(|(at, _)| *at == span)
+            .map(|(at, message)| error(*at, message.clone()))
     }
 
     /// The baseline's name for `member` of `shape`: the one a rename in
@@ -529,10 +781,76 @@ impl<'a> Context<'a> {
                         format!("{} has no member `{}`", new.shape.name(), to.name),
                     ));
                 }
-                Ok(vec![
+                let mut covers = vec![
                     Cover::exact(old.shape.with_member(from), RENAME),
                     Cover::exact(new.shape.with_member(&to.name), RENAME),
-                ])
+                ];
+                // A string value and an integer one differ in their JSON
+                // type, whatever their text: that is a retype, which a
+                // rename does not convert.
+                let kind = |service: &Service, shape: &ShapeId| match service.shapes.get(shape) {
+                    Some(Shape::Enum(_)) => Some("an enum"),
+                    Some(Shape::IntEnum(_)) => Some("an integer enum"),
+                    _ => None,
+                };
+                if let (Some(before), Some(after)) =
+                    (kind(self.old, &old.shape), kind(self.new, &new.shape))
+                    && before != after
+                {
+                    return Err(error(
+                        path.span,
+                        format!(
+                            "{} is {before} in the baseline and {after} now, so its values change JSON type; a `rename` cannot convert that",
+                            new.shape.name()
+                        ),
+                    ));
+                }
+                // An enum value renamed: the checker sees the enum lose one
+                // value and gain another, which the rename declares. The
+                // server maps a string enum's wire value both ways; an
+                // intEnum's number is its wire value, which is not mapped.
+                let number = |service: &Service, shape: &ShapeId, name: &str| match service
+                    .shapes
+                    .get(shape)
+                {
+                    Some(Shape::IntEnum(e)) => e
+                        .values
+                        .iter()
+                        .find(|value| value.name == name)
+                        .map(|value| value.value),
+                    _ => None,
+                };
+                if let (Some(before), Some(after)) = (
+                    number(self.old, &old.shape, from),
+                    number(self.new, &new.shape, &to.name),
+                ) && before != after
+                {
+                    return Err(error(
+                        path.span,
+                        format!(
+                            "renaming the intEnum value `{from}` to `{}` changes its number from {before} to {after}, which older clients send; keep it {before}",
+                            to.name
+                        ),
+                    ));
+                }
+                let is_enum = |service: &Service, shape: &ShapeId| {
+                    matches!(
+                        service.shapes.get(shape),
+                        Some(Shape::Enum(_) | Shape::IntEnum(_))
+                    )
+                };
+                if is_enum(self.old, &old.shape) && is_enum(self.new, &new.shape) {
+                    if let Some(problem) = self.enum_problem(path.span) {
+                        return Err(problem);
+                    }
+                    // The enum's own finding is this migration's when its
+                    // steps explain every value that changed on the wire.
+                    if !self.unexplained.contains_key(&new.shape) {
+                        covers.push(Cover::exact(old.shape.clone(), ENUM_VALUE));
+                        covers.push(Cover::exact(new.shape.clone(), ENUM_VALUE));
+                    }
+                }
+                Ok(covers)
             }
             StepKind::Require { path, how } => {
                 let (old, new) = self.both(path)?;
@@ -720,10 +1038,16 @@ impl<'a> Context<'a> {
                             ),
                         ));
                     }
-                    Ok(vec![
-                        Cover::exact(old.shape.clone(), ENUM_VALUE),
-                        Cover::exact(new.shape.with_member(value), ENUM_VALUE),
-                    ])
+                    if let Some(problem) = self.enum_problem(path.span) {
+                        return Err(problem);
+                    }
+                    let mut covers = vec![Cover::exact(new.shape.with_member(value), ENUM_VALUE)];
+                    // As for a rename: the enum's own finding only when the
+                    // steps explain its whole change.
+                    if !self.unexplained.contains_key(&new.shape) {
+                        covers.push(Cover::exact(old.shape.clone(), ENUM_VALUE));
+                    }
+                    Ok(covers)
                 }
             },
             StepKind::Move {
@@ -993,63 +1317,208 @@ fn is_date(text: &str) -> bool {
     (1..=days).contains(&day)
 }
 
-/// The older versions `compiled` still serves, oldest first: the chain of
-/// migrations back from the service's version, each `from` a release frozen
-/// beside the baseline (`releases/<version>.json`). `guard` has checked the
-/// newest migration; an older one was checked when it was the newest.
-pub fn versions(
+/// One migration of the chain, with the two releases it joins.
+struct Link<'c> {
+    /// The source file that declares it.
+    file: usize,
+    migration: &'c Migration,
+    doc: Option<&'c Doc>,
+    /// Its `from` release, frozen.
+    old: std::sync::Arc<Service>,
+    /// The release it serves, frozen; `None` for the current model.
+    newer: Option<std::sync::Arc<Service>>,
+}
+
+impl Link<'_> {
+    /// The release the migration serves, given the current model.
+    fn newer<'s>(&'s self, current: &'s Service) -> &'s Service {
+        self.newer.as_deref().unwrap_or(current)
+    }
+}
+
+/// The chain of migrations back from the service's version, newest first,
+/// each `from` a release frozen beside the baseline
+/// (`releases/<version>.json`).
+fn chain<'c>(
     package: &Package,
-    compiled: &Compiled,
+    compiled: &'c Compiled,
     own: usize,
-) -> Result<Vec<ApiVersion>, String> {
+    loaded: &crate::Releases,
+) -> Result<Vec<Link<'c>>, String> {
     let (Some(service), Some(baseline)) = (&compiled.service, &package.baseline) else {
         return Ok(Vec::new());
     };
     let releases = baseline.parent().unwrap_or(baseline);
-    let migrations: Vec<(&Migration, Option<&Doc>)> = compiled
+    let migrations: Vec<(usize, &Migration, Option<&Doc>)> = compiled
         .parsed
         .iter()
         .take(own)
-        .flat_map(|parsed| &parsed.file.items)
-        .filter_map(|item| match &item.decl {
-            Decl::Migration(migration) => Some((migration, item.doc.as_ref())),
+        .enumerate()
+        .flat_map(|(file, parsed)| parsed.file.items.iter().map(move |item| (file, item)))
+        .filter_map(|(file, item)| match &item.decl {
+            Decl::Migration(migration) => Some((file, migration, item.doc.as_ref())),
             _ => None,
         })
         .collect();
     let mut out = Vec::new();
-    let mut newer = service.clone();
+    let mut newer: Option<std::sync::Arc<Service>> = None;
     let mut seen = BTreeSet::new();
-    while let Some(&(migration, doc)) = migrations
-        .iter()
-        .find(|(migration, _)| migration.version.value == newer.version)
-    {
+    while let Some(&(file, migration, doc)) = migrations.iter().find(|(_, migration, _)| {
+        migration.version.value == newer.as_deref().unwrap_or(service).version
+    }) {
         let name = migration.from.value.clone();
         if !seen.insert(name.clone()) {
             return Err(format!("the migrations from \"{name}\" form a cycle"));
         }
-        let file = releases.join(crate::release::file_name(&name)?);
-        if !file.is_file() {
+        let path = releases.join(crate::release::file_name(&name)?);
+        if !path.is_file() {
             return Err(format!(
                 "release \"{name}\", which the migration to \"{}\" comes from, is not frozen at {}; freeze it with `crucible freeze` (`--from <git ref>` for a past release)",
                 migration.version.value,
-                file.display()
+                path.display()
             ));
         }
-        let old = crate::release::load(&file)?;
+        let old = loaded.load(&path)?;
         // The chain follows releases by name: a release frozen under another
         // version's name would serve one version's contract as another's.
         if old.version != name {
             return Err(format!(
                 "the frozen release {} declares version \"{}\"; its file must be named for it",
-                file.display(),
+                path.display(),
                 old.version
             ));
         }
-        let context = Context::new(&compiled.namespace, &old, &newer, migration);
+        let next = Some(std::sync::Arc::clone(&old));
+        out.push(Link {
+            file,
+            migration,
+            doc,
+            old,
+            newer: std::mem::replace(&mut newer, next),
+        });
+    }
+    Ok(out)
+}
+
+/// An operation a migration drops without `remove operation`.
+struct Dropped {
+    operation: ShapeId,
+    /// A `compatibility.operation` exception in the manifest accepts it.
+    excepted: bool,
+    /// At the migration's `from`: an error, or a warning when excepted.
+    diagnostic: Diagnostic,
+}
+
+/// The operations `link`'s `from` release has, which the release it serves
+/// does not, and which no `remove operation` step keeps serving. Nothing
+/// would answer them at `from` and before, so each is refused unless the
+/// manifest excepts `compatibility.operation` for it: then the older
+/// releases stop serving it, which a warning says (decision 70). The
+/// manifest's exceptions apply to every migration, as frozen releases do
+/// not record them (decision 68); its settings do not.
+fn dropped(link: &Link, current: &Service, config: &Config) -> Vec<Dropped> {
+    let removed: BTreeSet<&str> = link
+        .migration
+        .steps
+        .iter()
+        .filter_map(|step| match &step.kind {
+            StepKind::RemoveOperation(name) => Some(name.name.as_str()),
+            _ => None,
+        })
+        .collect();
+    let (from, to) = (&link.migration.from, &link.migration.version.value);
+    link.old
+        .operations
+        .iter()
+        .filter(|old| {
+            !link
+                .newer(current)
+                .operations
+                .iter()
+                .any(|op| op.id == old.id)
+        })
+        .filter(|old| !removed.contains(old.name()))
+        .map(|old| {
+            let (name, id) = (old.name(), old.id.to_string());
+            let excepted = config
+                .exceptions
+                .iter()
+                .any(|exception| exception.rule == "compatibility.operation" && exception.shape == id);
+            let diagnostic = if excepted {
+                Diagnostic::warning(
+                    from.span,
+                    format!(
+                        "{name} is not in \"{to}\" and this migration has no `remove operation {name}`; under the exception for `compatibility.operation`, \"{}\" and the releases before it no longer serve it",
+                        from.value
+                    ),
+                )
+            } else {
+                Diagnostic::new(
+                    from.span,
+                    format!(
+                        "{name} is not in \"{to}\" and this migration has no `remove operation {name}`, so nothing would serve it at \"{}\"; declare `remove operation {name}` and its handler, or except `compatibility.operation` for {id} to stop serving it there and before",
+                        from.value
+                    ),
+                )
+            };
+            Dropped {
+                operation: old.id.clone(),
+                excepted,
+                diagnostic,
+            }
+        })
+        .collect()
+}
+
+/// The older versions `compiled` still serves, oldest first: the chain of
+/// migrations back from the service's version. `guard` has checked the
+/// newest migration's steps; an older one's were checked when it was the
+/// newest. `config` is the manifest's policy, whose exceptions accept an
+/// operation dropped without `remove operation` ([`dropped`]).
+pub fn versions(
+    package: &Package,
+    compiled: &Compiled,
+    own: usize,
+    config: &Config,
+) -> Result<Vec<ApiVersion>, String> {
+    versions_in(package, compiled, own, config, &crate::Releases::default())
+}
+
+/// [`versions`], reading frozen releases through `releases`: the build
+/// passes the ones its guard loaded.
+pub fn versions_in(
+    package: &Package,
+    compiled: &Compiled,
+    own: usize,
+    config: &Config,
+    releases: &crate::Releases,
+) -> Result<Vec<ApiVersion>, String> {
+    let Some(service) = compiled.service.as_ref() else {
+        return Ok(Vec::new());
+    };
+    let mut out = Vec::new();
+    for link in chain(package, compiled, own, releases)? {
+        let to = &link.migration.version.value;
+        let mut retired = Vec::new();
+        for drop in dropped(&link, service, config) {
+            if !drop.excepted {
+                return Err(format!(
+                    "the migration to \"{to}\": {}",
+                    drop.diagnostic.message
+                ));
+            }
+            retired.push(drop.operation);
+        }
+        let context = Context::new(
+            &compiled.namespace,
+            &link.old,
+            link.newer(service),
+            link.migration,
+        );
         let mut steps = Vec::new();
         let mut sunset = None;
         let mut sunset_docs = None;
-        for step in &migration.steps {
+        for step in &link.migration.steps {
             // A sunset is the release's, not a conversion: it and its
             // documentation go on the version.
             if let StepKind::Sunset(date) = &step.kind {
@@ -1058,22 +1527,18 @@ pub fn versions(
                 continue;
             }
             steps.push(context.lower(step).map_err(|diagnostic| {
-                format!(
-                    "the migration to \"{}\": {}",
-                    migration.version.value, diagnostic.message
-                )
+                format!("the migration to \"{to}\": {}", diagnostic.message)
             })?);
         }
-        let next = old.clone();
         out.push(ApiVersion {
-            name,
-            service: Box::new(old),
+            name: link.migration.from.value.clone(),
+            service: Box::new((*link.old).clone()),
             steps,
             sunset,
             sunset_docs,
-            docs: doc_text(doc),
+            docs: doc_text(link.doc),
+            retired,
         });
-        newer = next;
     }
     out.reverse();
     Ok(out)

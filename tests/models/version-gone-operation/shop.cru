@@ -1,0 +1,18 @@
+service Shop {
+    version "v4"
+    protocol json
+    operations [GetItem]
+}
+
+readonly operation GetItem {
+    http GET "/items/{id}"
+    input { id: string }
+    output { name: string }
+}
+
+migration "v2" from "v1" {}
+
+// v3 dropped CountItems without `remove operation CountItems`.
+migration "v3" from "v2" {}
+
+migration "v4" from "v3" {}

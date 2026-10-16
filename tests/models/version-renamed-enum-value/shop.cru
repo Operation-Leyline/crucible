@@ -1,0 +1,21 @@
+service Shop {
+    version "v2"
+    protocol json
+    operations [GetItem]
+}
+
+readonly operation GetItem {
+    http GET "/items/{id}"
+    input {
+        id: string
+        @query
+        like?: Kind
+    }
+    output { kind: Kind }
+}
+
+enum Kind { TINY = "tiny", LARGE = "large" }
+
+migration "v2" from "v1" {
+    rename Kind.SMALL -> TINY
+}

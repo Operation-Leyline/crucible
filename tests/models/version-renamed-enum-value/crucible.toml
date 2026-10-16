@@ -1,0 +1,9 @@
+# A `rename` of an enum value whose wire value changes
+# (crucible-codegen-rust/tests/versions.rs): the rename declares the
+# enum's change, and the Rust server maps the value both ways, in requests
+# and in responses. v1 is frozen under releases/, v2 is current.
+[model]
+namespace = "example.renamed"
+
+[model.baseline]
+path = "releases/v1.json"

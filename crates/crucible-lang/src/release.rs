@@ -6,7 +6,8 @@
 //! accidental edit, not a deliberate one that rewrites the lock too.
 
 use std::collections::BTreeMap;
-use std::path::Path;
+use std::path::{Path, PathBuf};
+use std::sync::{Arc, Mutex};
 
 use crucible_ir::ir::Service;
 use crucible_ir::snapshot;
@@ -35,24 +36,74 @@ pub fn file_name(version: &str) -> Result<String, String> {
 pub fn load(path: &Path) -> Result<Service, String> {
     let text = std::fs::read_to_string(path)
         .map_err(|error| format!("cannot read the release {}: {error}", path.display()))?;
+    let digest = digest(&text);
+    check_lock(path, &digest)?;
+    snapshot::read(&text).map_err(|error| format!("{}: {error}", path.display()))
+}
+
+/// Refuses a release the lock beside it does not record as `digest`.
+fn check_lock(path: &Path, digest: &str) -> Result<(), String> {
     let name = name_of(path)?;
     let locked = read_lock(path.parent().unwrap_or(Path::new(".")))?;
     match locked.get(&name) {
-        None => {
-            return Err(format!(
-                "{} is not recorded in {LOCK}; releases are written by `crucible freeze`",
-                path.display()
-            ));
-        }
-        Some(expected) if *expected != digest(&text) => {
-            return Err(format!(
-                "{} changed after it was frozen; a release is never edited: freeze a new one instead",
-                path.display()
-            ));
-        }
-        Some(_) => {}
+        None => Err(format!(
+            "{} is not recorded in {LOCK}; releases are written by `crucible freeze`",
+            path.display()
+        )),
+        Some(expected) if expected != digest => Err(format!(
+            "{} changed after it was frozen; a release is never edited: freeze a new one instead",
+            path.display()
+        )),
+        Some(_) => Ok(()),
     }
-    snapshot::read(&text).map_err(|error| format!("{}: {error}", path.display()))
+}
+
+/// Frozen releases as one compile loads them, shared by the guard and
+/// [`crate::versions`] so the chain is read once. An editor keeps one across
+/// compiles: a release is parsed again only when its file's content
+/// changes, while the lock is checked on every load.
+#[derive(Debug, Default)]
+pub struct Releases {
+    /// Each release read, by path: its text's digest and its model.
+    loaded: Mutex<BTreeMap<PathBuf, (String, Arc<Service>)>>,
+}
+
+impl Releases {
+    /// The release at `path`, as [`load`] reads it, from the cache when
+    /// the file still holds what was parsed.
+    pub fn load(&self, path: &Path) -> Result<Arc<Service>, String> {
+        let text = std::fs::read_to_string(path)
+            .map_err(|error| format!("cannot read the release {}: {error}", path.display()))?;
+        let digest = digest(&text);
+        check_lock(path, &digest)?;
+        let mut loaded = self
+            .loaded
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        if let Some((known, service)) = loaded.get(path)
+            && *known == digest
+        {
+            return Ok(Arc::clone(service));
+        }
+        let service = Arc::new(
+            snapshot::read(&text).map_err(|error| format!("{}: {error}", path.display()))?,
+        );
+        loaded.insert(path.to_path_buf(), (digest, Arc::clone(&service)));
+        Ok(service)
+    }
+
+    /// How many releases have been parsed and kept.
+    pub fn len(&self) -> usize {
+        self.loaded
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .len()
+    }
+
+    /// Whether none has.
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
 }
 
 /// Writes `service` as the release `releases/<version>.json` and records

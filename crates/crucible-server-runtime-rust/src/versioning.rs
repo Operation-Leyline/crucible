@@ -97,12 +97,13 @@ pub enum Transform {
         member: &'static str,
         value: &'static str,
     },
-    /// The string at `at` reads `to` where it reads `from`: an enum value
-    /// an older client does not know.
+    /// The string at `at` reads a pair's second where it reads its first:
+    /// every value one migration's steps change in one enum (a rename, a
+    /// value an older client does not know), looked up once, so one pair
+    /// never rewrites what another wrote.
     Map {
         at: &'static [Seg],
-        from: &'static str,
-        to: &'static str,
+        values: &'static [(&'static str, &'static str)],
     },
     /// Every value at `at` becomes what the service's hook `hook` makes of
     /// it: a `reshape` or `retype` step.
@@ -324,9 +325,11 @@ pub(crate) fn apply(value: &mut Value, transforms: &[Transform]) {
                     map.insert((*member).to_owned(), default);
                 }
             }
-            Transform::Map { from, to, .. } => {
+            Transform::Map { values, .. } => {
                 let mut swap = |slot: &mut Value| {
-                    if slot.as_str() == Some(from) {
+                    if let Some(text) = slot.as_str()
+                        && let Some((_, to)) = values.iter().find(|(from, _)| *from == text)
+                    {
                         *slot = Value::String((*to).to_owned());
                     }
                 };
@@ -459,8 +462,7 @@ mod tests {
                 },
                 Transform::Map {
                     at: &[Seg::Field("items"), Seg::Items, Seg::Field("kind")],
-                    from: "HUGE",
-                    to: "LARGE",
+                    values: &[("HUGE", "LARGE")],
                 },
                 Transform::Default {
                     at: &[],
@@ -488,6 +490,22 @@ mod tests {
             }],
         );
         assert_eq!(sent, json!({ "limit": 5 }));
+    }
+
+    #[test]
+    fn a_map_looks_each_value_up_once() {
+        // `rename Kind.A -> B` with `add Kind.A downgrade C`, downgraded: a
+        // `B` reads `A`, and the new `A` reads `C`; the `A` a pair wrote is
+        // never rewritten by the other.
+        let mut value = json!({ "kinds": ["B", "A", "D"] });
+        apply(
+            &mut value,
+            &[Transform::Map {
+                at: &[Seg::Field("kinds"), Seg::Items],
+                values: &[("B", "A"), ("A", "C")],
+            }],
+        );
+        assert_eq!(value, json!({ "kinds": ["A", "C", "D"] }));
     }
 
     #[test]

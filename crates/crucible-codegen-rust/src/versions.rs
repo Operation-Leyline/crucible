@@ -87,6 +87,11 @@ pub(crate) fn emit(
     let mut chains = String::new();
     let mut registrations = String::new();
     let mut built = BTreeSet::new();
+    // Operations gone without a handler, by the migration that dropped
+    // them: every older version's chain reaches the same gap.
+    let mut gone = BTreeSet::new();
+    // Steps naming a shape neither of their releases has, reported once.
+    let mut orphans = BTreeSet::new();
     for (index, version) in service.versions.iter().enumerate() {
         let module = version_module(&version.name);
         let constant = version_constant(&version.name);
@@ -108,8 +113,25 @@ pub(crate) fn emit(
                 // The handler takes the last version's types.
                 let at_last = operation(models[last], &old_op.id).expect("the last version has it");
                 Some(legacy(&models, last, at_last, &mut methods, diagnostics))
+            } else if service.versions[last].retired.contains(&old_op.id) {
+                // Dropped under an exception: the compiler warned that
+                // `last` and the versions before it no longer serve it.
+                continue;
             } else {
-                // Gone without a handler: the guard refuses such a model.
+                // Gone without a handler or an exception, which the compiler
+                // refuses (`crucible_lang::versions`): only an edited IR
+                // gets here, and nothing would serve the operation.
+                if gone.insert((old_op.id.clone(), last)) {
+                    diagnostics.push(
+                        &old_op.id,
+                        format!(
+                            "{op} is not in API version {next}, and the migration from {from} neither removes it with `remove operation {op}` nor retires it; nothing serves it at {from} or before",
+                            op = old_op.name(),
+                            next = names[last + 1],
+                            from = names[last],
+                        ),
+                    );
+                }
                 continue;
             };
             let mut chain = Vec::new();
@@ -123,6 +145,7 @@ pub(crate) fn emit(
                         step,
                         &old_op.id,
                         &mut methods,
+                        &mut orphans,
                         diagnostics,
                     );
                     steps.push_str(&format!(
@@ -591,13 +614,16 @@ struct Item {
     fill: bool,
 }
 
-/// How `operation` crosses from version `step` to the next.
+/// How `operation` crosses from version `step` to the next. `orphans` holds
+/// the steps already reported for naming a shape neither release has, by
+/// version and position, so each is reported once.
 fn conversion(
     models: &[&Service],
     current: &Service,
     step: usize,
     operation: &ShapeId,
     methods: &mut Methods,
+    orphans: &mut BTreeSet<(usize, usize)>,
     diagnostics: &mut Diagnostics,
 ) -> String {
     let (old, new) = (models[step], models[step + 1]);
@@ -612,9 +638,65 @@ fn conversion(
     let mut downgrade: Vec<Item> = Vec::new();
     let mut errors = Vec::new();
     let version = &current.versions[step].name;
+    let next = current
+        .versions
+        .get(step + 1)
+        .map_or(current.version.as_str(), |next| next.name.as_str());
+    // Whether a step on `old_shape` and `new_shape` bears on this
+    // operation: a value of it reaches the shape on either side, map keys
+    // included.
+    let concerns = |old_shape: &ShapeId, new_shape: &ShapeId| {
+        let touches = |service: &Service, op: &Operation, shape: &ShapeId| {
+            op.input
+                .iter()
+                .chain(&op.output)
+                .chain(&op.errors)
+                .any(|root| reaches(service, root, shape, &mut BTreeSet::new()))
+        };
+        touches(old, old_op, old_shape) || touches(new, new_op, new_shape)
+    };
+    // A step whose subject its release does not have. Lowering checks
+    // every step against these two models, so only an edited IR gets
+    // here; skipping the step would serve the older version wrong without
+    // a word. `conversion` runs once per operation and migration, so this
+    // is reported once for each operation the step bears on. A step whose
+    // shape neither release has bears on none, and is reported once.
+    let unresolved = |(old_shape, new_shape): (&ShapeId, &ShapeId),
+                      at: usize,
+                      subject: &ShapeId,
+                      release: &str,
+                      text: &str,
+                      diagnostics: &mut Diagnostics,
+                      orphans: &mut BTreeSet<(usize, usize)>| {
+        if old.shape(old_shape).is_none() && new.shape(new_shape).is_none() {
+            if orphans.insert((step, at)) {
+                diagnostics.push(
+                    subject,
+                    format!(
+                        "`{text}`, in the migration from API version {version}, names {subject}, which neither API version {version} nor {next} has; no operation is converted across it"
+                    ),
+                );
+            }
+        } else if concerns(old_shape, new_shape) {
+            diagnostics.push(
+                subject,
+                format!(
+                    "`{text}`, in the migration from API version {version}, names {subject}, which API version {release} does not have; {} is not converted across it",
+                    operation.name()
+                ),
+            );
+        }
+    };
+    // A conversion the generator cannot write yet: every other problem of
+    // the operation is still collected before it is refused.
+    let mut refusal = None;
     let inside_error = |shape: &ShapeId, what: &str, diagnostics: &mut Diagnostics| {
         for error in &new_op.errors {
-            if !places(new, Some(error), shape, operation, diagnostics).is_empty() {
+            // A map key is not a place, so a value keying a map inside the
+            // error is looked for apart, as `reaches` follows keys.
+            if !places(new, Some(error), shape, operation, diagnostics).is_empty()
+                || keyed(new, Some(error), shape)
+            {
                 diagnostics.push(
                     shape,
                     format!(
@@ -624,7 +706,11 @@ fn conversion(
             }
         }
     };
-    for item in steps {
+    // Every value the migration's steps change in one enum, by direction
+    // (`true` upgrades) and enum: one map each, so a value is looked up once
+    // and one step never rewrites what another wrote.
+    let mut maps: BTreeMap<(bool, &ShapeId), Vec<(String, String)>> = BTreeMap::new();
+    for (at, item) in steps.iter().enumerate() {
         match item {
             VersionStep::Rename {
                 old: old_shape,
@@ -633,9 +719,111 @@ fn conversion(
                 to,
                 ..
             } => {
+                let text = format!("rename {}.{from} -> {to}", old_shape.name());
+                // An enum value renamed: the rename gives both wire values,
+                // so a value maps to the next version's on the way in and
+                // back on the way out. An unchanged one converts nothing.
+                if let (Some(before), Some(after)) = (
+                    enum_wire(old, old_shape, from),
+                    enum_wire(new, new_shape, to),
+                ) {
+                    if !concerns(old_shape, new_shape) {
+                        continue;
+                    }
+                    let strings = (
+                        matches!(old.shape(old_shape), Some(Shape::Enum(_))),
+                        matches!(new.shape(new_shape), Some(Shape::Enum(_))),
+                    );
+                    if strings.0 != strings.1 {
+                        // The compiler refuses it: `1` and `"1"` read the
+                        // same as text, but not as JSON.
+                        diagnostics.push(
+                            &new_shape.with_member(to),
+                            format!(
+                                "`{text}`, in the migration from API version {version}, renames between a string enum and an integer one, whose values differ in JSON type; {} is not converted across it",
+                                operation.name()
+                            ),
+                        );
+                        continue;
+                    }
+                    if before == after {
+                        continue;
+                    }
+                    if !strings.0 {
+                        // The compiler refuses it: an intEnum's number is
+                        // what older clients send.
+                        diagnostics.push(
+                            &new_shape.with_member(to),
+                            format!(
+                                "`{text}`, in the migration from API version {version}, changes an intEnum value's number, which is not converted for {} yet",
+                                operation.name()
+                            ),
+                        );
+                        continue;
+                    }
+                    for (service, root, shape, side) in [
+                        (old, old_op.input.as_ref(), old_shape, "input"),
+                        (new, new_op.output.as_ref(), new_shape, "output"),
+                    ] {
+                        if keyed(service, root, shape) {
+                            diagnostics.push(
+                                shape,
+                                format!(
+                                    "{} keys a map in {operation}'s {side}; map keys are not converted for API version {version} yet",
+                                    shape.name()
+                                ),
+                            );
+                        }
+                    }
+                    inside_error(new_shape, "a renamed enum value", diagnostics);
+                    maps.entry((true, old_shape))
+                        .or_default()
+                        .push((before.clone(), after.clone()));
+                    maps.entry((false, new_shape))
+                        .or_default()
+                        .push((after, before));
+                    continue;
+                }
                 let (Some(from_wire), Some(to_wire)) =
                     (wire(old, old_shape, from), wire(new, new_shape, to))
                 else {
+                    let has = |service: &Service, shape: &ShapeId, name: &str| {
+                        wire(service, shape, name).is_some()
+                            || enum_wire(service, shape, name).is_some()
+                    };
+                    if !has(old, old_shape, from) {
+                        unresolved(
+                            (old_shape, new_shape),
+                            at,
+                            &old_shape.with_member(from),
+                            version,
+                            &text,
+                            diagnostics,
+                            orphans,
+                        );
+                    } else if !has(new, new_shape, to) {
+                        unresolved(
+                            (old_shape, new_shape),
+                            at,
+                            &new_shape.with_member(to),
+                            next,
+                            &text,
+                            diagnostics,
+                            orphans,
+                        );
+                    } else if concerns(old_shape, new_shape) {
+                        // Both sides are there, but one is a structure's
+                        // member and the other an enum's value.
+                        diagnostics.push(
+                            &new_shape.with_member(to),
+                            format!(
+                                "`{text}`, in the migration from API version {version}, names {} in API version {version} and {} in API version {next}; {} is not converted across it",
+                                kind(old, old_shape),
+                                kind(new, new_shape),
+                                operation.name()
+                            ),
+                        );
+                    }
                     continue;
                 };
                 for at in places(
@@ -688,6 +876,15 @@ fn conversion(
                 ..
             } => {
                 let Some(member_wire) = wire(new, new_shape, member) else {
+                    unresolved(
+                        (old_shape, new_shape),
+                        at,
+                        &new_shape.with_member(member),
+                        next,
+                        &format!("require {}.{member} default ..", new_shape.name()),
+                        diagnostics,
+                        orphans,
+                    );
                     continue;
                 };
                 let value = serde_json::to_string(default).expect("JSON value");
@@ -730,10 +927,31 @@ fn conversion(
                     continue;
                 }
                 // The value is the next version's; the downgrade, this one's.
+                let text = format!("add {}.{value} downgrade {replacement}", new_shape.name());
                 let (Some(from), Some(to)) = (
                     enum_value(new, new_shape, value),
                     enum_value(old, old_shape, replacement),
                 ) else {
+                    match enum_value(new, new_shape, value) {
+                        None => unresolved(
+                            (old_shape, new_shape),
+                            at,
+                            &new_shape.with_member(value),
+                            next,
+                            &text,
+                            diagnostics,
+                            orphans,
+                        ),
+                        Some(_) => unresolved(
+                            (old_shape, new_shape),
+                            at,
+                            &old_shape.with_member(replacement),
+                            version,
+                            &text,
+                            diagnostics,
+                            orphans,
+                        ),
+                    }
                     continue;
                 };
                 if keyed(new, new_op.output.as_ref(), new_shape) {
@@ -746,26 +964,7 @@ fn conversion(
                     );
                 }
                 inside_error(new_shape, "an added enum value", diagnostics);
-                for at in places(
-                    new,
-                    new_op.output.as_ref(),
-                    new_shape,
-                    operation,
-                    diagnostics,
-                ) {
-                    let text = format!(
-                        "Transform::Map {{ at: {}, from: {}, to: {} }}",
-                        segs(&at),
-                        literal(&from),
-                        literal(&to)
-                    );
-                    downgrade.push(Item {
-                        at,
-                        text,
-                        hook: false,
-                        fill: false,
-                    });
-                }
+                maps.entry((false, new_shape)).or_default().push((from, to));
             }
             VersionStep::AddError {
                 operation: target,
@@ -791,6 +990,19 @@ fn conversion(
                 }
                 // Errors cross as the current version's types: the error the
                 // older version knows is built as the current model declares it.
+                if current.shape(error).is_none() {
+                    diagnostics.push(
+                        error,
+                        format!(
+                            "`add {}.errors {} downgrade {}`, in the migration from API version {version}, names {error}, which the current model does not have; {} is not converted across it",
+                            operation.name(),
+                            error.name(),
+                            replacement.name(),
+                            operation.name()
+                        ),
+                    );
+                    continue;
+                }
                 let Some(Shape::Structure(older)) = current.shape(replacement) else {
                     diagnostics.push(
                         replacement,
@@ -868,6 +1080,34 @@ fn conversion(
                     new: new_shape,
                     ..
                 } => {
+                    let text = format!("reshape {}", old_shape.name());
+                    let structure = |service: &Service, shape: &ShapeId| {
+                        matches!(service.shape(shape), Some(Shape::Structure(_)))
+                    };
+                    if !structure(old, old_shape) {
+                        unresolved(
+                            (old_shape, new_shape),
+                            at,
+                            old_shape,
+                            version,
+                            &text,
+                            diagnostics,
+                            orphans,
+                        );
+                        continue;
+                    }
+                    if !structure(new, new_shape) {
+                        unresolved(
+                            (old_shape, new_shape),
+                            at,
+                            new_shape,
+                            next,
+                            &text,
+                            diagnostics,
+                            orphans,
+                        );
+                        continue;
+                    }
                     let name = function(old_shape.name());
                     let ups = places(
                         old,
@@ -955,7 +1195,7 @@ fn conversion(
                             "a `{kind}` step without `by hook` needs a declared `conversion`, which is not generated yet; add `by hook` to the step"
                         ),
                     );
-                    return refused("a conversion is not generated yet");
+                    refusal = Some("a conversion is not generated yet");
                 }
                 Hook::Retype {
                     old: old_shape,
@@ -971,6 +1211,27 @@ fn conversion(
                         member_of(old, old_shape, was),
                         member_of(new, new_shape, member),
                     ) else {
+                        let text = format!("retype {}.{member} by hook", new_shape.name());
+                        match member_of(old, old_shape, was) {
+                            None => unresolved(
+                                (old_shape, new_shape),
+                                at,
+                                &old_shape.with_member(was),
+                                version,
+                                &text,
+                                diagnostics,
+                                orphans,
+                            ),
+                            Some(_) => unresolved(
+                                (old_shape, new_shape),
+                                at,
+                                &new_shape.with_member(member),
+                                next,
+                                &text,
+                                diagnostics,
+                                orphans,
+                            ),
+                        }
                         continue;
                     };
                     if crate::types::codec(old, old_member).is_some()
@@ -1071,6 +1332,15 @@ fn conversion(
                     ..
                 } => {
                     let Some(new_member) = member_of(new, new_shape, member) else {
+                        unresolved(
+                            (old_shape, new_shape),
+                            at,
+                            &new_shape.with_member(member),
+                            next,
+                            &format!("require {}.{member} by hook", new_shape.name()),
+                            diagnostics,
+                            orphans,
+                        );
                         continue;
                     };
                     if crate::types::codec(new, new_member).is_some() {
@@ -1127,6 +1397,52 @@ fn conversion(
             },
             _ => {}
         }
+    }
+    for ((up, shape), mut values) in maps {
+        values.sort();
+        values.dedup();
+        // The compiler refuses steps that send one value two ways; only an
+        // edited IR gets here.
+        if let Some(pair) = values.windows(2).find(|pair| pair[0].0 == pair[1].0) {
+            diagnostics.push(
+                shape,
+                format!(
+                    "the migration from API version {version} maps {} value `{}` of {} both to `{}` and to `{}`; {} is not converted across it",
+                    if up { "the older" } else { "the newer" },
+                    pair[0].0,
+                    shape.name(),
+                    pair[0].1,
+                    pair[1].1,
+                    operation.name()
+                ),
+            );
+            continue;
+        }
+        let table: Vec<String> = values
+            .iter()
+            .map(|(from, to)| format!("({}, {})", literal(from), literal(to)))
+            .collect();
+        let (service, root, items) = if up {
+            (old, old_op.input.as_ref(), &mut upgrade)
+        } else {
+            (new, new_op.output.as_ref(), &mut downgrade)
+        };
+        for at in places(service, root, shape, operation, diagnostics) {
+            let text = format!(
+                "Transform::Map {{ at: {}, values: &[{}] }}",
+                segs(&at),
+                table.join(", ")
+            );
+            items.push(Item {
+                at,
+                text,
+                hook: false,
+                fill: false,
+            });
+        }
+    }
+    if let Some(reason) = refusal {
+        return refused(reason);
     }
     format!(
         "Conversion {{ upgrade: &[{}], downgrade: &[{}], errors: &[{}], refused: None }}",
@@ -1310,8 +1626,23 @@ fn reaches(
             .iter()
             .any(|member| reaches(service, &member.target, target, seen)),
         Some(Shape::List(list)) => reaches(service, &list.member.target, target, seen),
-        Some(Shape::Map(map)) => reaches(service, &map.value.target, target, seen),
+        // A key holds a value too: an enum value that keys a map.
+        Some(Shape::Map(map)) => {
+            reaches(service, &map.key.target, target, seen)
+                || reaches(service, &map.value.target, target, seen)
+        }
         _ => false,
+    }
+}
+
+/// What `shape` is, for a message.
+fn kind(service: &Service, shape: &ShapeId) -> &'static str {
+    match service.shape(shape) {
+        Some(Shape::Structure(_)) => "a structure member",
+        Some(Shape::Union(_)) => "a union member",
+        Some(Shape::Enum(_)) => "an enum value",
+        Some(Shape::IntEnum(_)) => "an intEnum value",
+        _ => "a member",
     }
 }
 
@@ -1334,6 +1665,18 @@ fn wire(service: &Service, shape: &ShapeId, member: &str) -> Option<String> {
             Some(structure.member(member)?.name.clone())
         }
         _ => None,
+    }
+}
+
+/// The wire value of enum or intEnum `shape`'s value `name`, as text.
+fn enum_wire(service: &Service, shape: &ShapeId, name: &str) -> Option<String> {
+    match service.shape(shape)? {
+        Shape::IntEnum(values) => values
+            .values
+            .iter()
+            .find(|value| value.name == name)
+            .map(|value| value.value.to_string()),
+        _ => enum_value(service, shape, name),
     }
 }
 

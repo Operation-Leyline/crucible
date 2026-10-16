@@ -8,12 +8,26 @@ use std::path::{Path, PathBuf};
 use crucible_codegen_rust::{Options, generate};
 use crucible_ir::ir::Service;
 
-/// The package at `dir`, lowered with the versions it serves.
+/// The package at `dir`, lowered with the versions it serves, as a build
+/// lowers it: the compatibility guard must pass first, so every model a
+/// test generates is one the compiler accepts.
 fn lower(dir: &Path) -> Service {
     let package = crucible_lang::load_package(dir).unwrap();
     let own = package.files.len();
     let compiled = crucible_lang::compile(&package, None);
-    let versions = crucible_lang::versions(&package, &compiled, own).unwrap();
+    assert!(compiled.service.is_some(), "{}", compiled.render());
+    let manifest = dir.join("crucible.toml");
+    let config =
+        if crucible_policy::Config::declares_policy(&fs::read_to_string(&manifest).unwrap()) {
+            crucible_policy::Config::load(&manifest).unwrap()
+        } else {
+            crucible_policy::Config::default()
+        };
+    if let Some(guard) = crucible_lang::guard(&package, &compiled, own, &config) {
+        let guard = guard.unwrap();
+        assert!(!guard.has_errors(), "{}", guard.render(&compiled));
+    }
+    let versions = crucible_lang::versions(&package, &compiled, own, &config).unwrap();
     let mut service = compiled.service.expect("the package compiles");
     service.versions = versions;
     service
@@ -53,6 +67,11 @@ enum Kind { SMALL, LARGE }
 "#;
 
 const MANIFEST: &str = "[model]\nnamespace = \"example.shop\"\nimports = [\"crucible.errors\"]\n";
+
+/// The resource tests remove the operation that alone reached some
+/// identifier shapes and permissions, a break of the SDK's source they do
+/// not exercise: the guard judges only the wire.
+const SDK_OFF: &str = "\n[compatibility]\nsdk_source = false\n";
 
 /// Freezes `source`, a release of the shop, into `dir/releases`, as
 /// `crucible freeze` does: compiled once, then a snapshot.
@@ -240,7 +259,7 @@ readonly operation ReadNote reads Note {
     freeze(&dir, v1);
     fs::write(
         dir.join("crucible.toml"),
-        format!("{MANIFEST}\n[model.baseline]\npath = \"releases/v1.json\"\n"),
+        format!("{MANIFEST}\n[model.baseline]\npath = \"releases/v1.json\"\n{SDK_OFF}"),
     )
     .unwrap();
     let current = v1
@@ -307,7 +326,7 @@ readonly operation ReadNote reads Note {
     freeze(&dir, v1);
     fs::write(
         dir.join("crucible.toml"),
-        format!("{MANIFEST}\n[model.baseline]\npath = \"releases/v1.json\"\n"),
+        format!("{MANIFEST}\n[model.baseline]\npath = \"releases/v1.json\"\n{SDK_OFF}"),
     )
     .unwrap();
     let current = v1
@@ -363,7 +382,7 @@ readonly operation ReadNote reads Note {
     freeze(&dir, v1);
     fs::write(
         dir.join("crucible.toml"),
-        format!("{MANIFEST}\n[model.baseline]\npath = \"releases/v1.json\"\n"),
+        format!("{MANIFEST}\n[model.baseline]\npath = \"releases/v1.json\"\n{SDK_OFF}"),
     )
     .unwrap();
     let current = v1
@@ -426,7 +445,7 @@ readonly operation ReadNote reads Note {
     freeze(&dir, v1);
     fs::write(
         dir.join("crucible.toml"),
-        format!("{MANIFEST}\n[model.baseline]\npath = \"releases/v1.json\"\n"),
+        format!("{MANIFEST}\n[model.baseline]\npath = \"releases/v1.json\"\n{SDK_OFF}"),
     )
     .unwrap();
     let current = v1
@@ -518,4 +537,445 @@ migration \"v2\" from \"v1\" {{
     let at = |text: &str| code.find(text).expect(text);
     assert!(at("upgrade_put_note_input_bytes") < at(r#"from: "size", to: "bytes""#));
     assert!(at("downgrade_put_note_output_bytes") < at(r#"from: "bytes", to: "size""#));
+}
+
+/// The shared test package `tests/models/<name>`.
+fn model(name: &str) -> PathBuf {
+    Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../tests/models")
+        .join(name)
+}
+
+/// The diagnostics generating `service` reports, one per line.
+fn reported(service: &Service) -> Vec<String> {
+    generate(service, &Options::default())
+        .expect_err("the generator refuses the model")
+        .iter()
+        .map(ToString::to_string)
+        .collect()
+}
+
+#[test]
+fn an_operation_retired_under_an_exception_is_not_served_at_older_versions() {
+    let service = lower(&model("version-retired-operation"));
+    assert_eq!(
+        service.versions[1].retired,
+        ["example.gone#CountItems"
+            .parse::<crucible_ir::ShapeId>()
+            .unwrap()]
+    );
+    let code = generate(&service, &Options::default()).unwrap();
+    assert!(code.contains("add_versioned::<v1::GetItem"), "{code}");
+    assert!(!code.contains("add_versioned::<v1::CountItems"), "{code}");
+    assert!(!code.contains("add_versioned::<v2::CountItems"), "{code}");
+
+    // Without the record of the exception, which only an edited IR lacks,
+    // nothing would serve it: reported once, though v1 and v2 both reach
+    // the gap.
+    let mut edited = service;
+    edited.versions[1].retired.clear();
+    assert_eq!(
+        reported(&edited),
+        [
+            "example.gone#CountItems: CountItems is not in API version v3, and the migration from v2 neither removes it with `remove operation CountItems` nor retires it; nothing serves it at v2 or before"
+        ]
+    );
+}
+
+#[test]
+fn a_renamed_enum_value_is_mapped_both_ways() {
+    let code = generate(
+        &lower(&model("version-renamed-enum-value")),
+        &Options::default(),
+    )
+    .unwrap();
+    for expected in [
+        // A request's value, as the next version reads it.
+        r#"upgrade: &[Transform::Map { at: &[Seg::Field("like")], values: &[("small", "tiny")] }]"#,
+        // A response's value, as older clients read it.
+        r#"downgrade: &[Transform::Map { at: &[Seg::Field("kind")], values: &[("tiny", "small")] }]"#,
+    ] {
+        assert!(code.contains(expected), "{expected}\n{code}");
+    }
+
+    // With the wire value kept, nothing on the wire changes: nothing maps.
+    let dir = package(
+        "renamed-enum-value-kept",
+        &V1.replace(
+            "enum Kind { SMALL, LARGE }",
+            "enum Kind { TINY = \"SMALL\", LARGE }",
+        ),
+        "migration \"v2\" from \"v1\" {\n    rename Kind.SMALL -> TINY\n}\n",
+    );
+    let code = generate(&lower(&dir), &Options::default()).unwrap();
+    assert!(!code.contains("Transform::Map"), "{code}");
+
+    // A renamed value that keys a map is not converted yet, as an added one
+    // is not.
+    let dir = package(
+        "renamed-enum-value-keyed",
+        &V1.replace("enum Kind { SMALL, LARGE }", "enum Kind { TINY, LARGE }"),
+        "migration \"v2\" from \"v1\" {\n    rename Kind.SMALL -> TINY\n}\n",
+    );
+    let reported = reported(&lower(&dir));
+    assert!(
+        reported
+            .iter()
+            .any(|line| line.contains("keys a map in example.shop#GetCounts's output")),
+        "{reported:#?}"
+    );
+}
+
+#[test]
+fn a_step_its_release_does_not_have_is_reported_not_skipped() {
+    use crucible_ir::ir::{Hook, VersionStep};
+
+    let fixture =
+        lower(&Path::new(env!("CARGO_MANIFEST_DIR")).join("../../e2e/weather-service/versioned"));
+    let gone: crucible_ir::ShapeId = "example.shop#Gone".parse().unwrap();
+    // Each edit makes one step name what its release does not have, as
+    // only an edited IR can: lowering checks every step against both
+    // releases. `index` is the older release whose migration it edits.
+    type Edit = Box<dyn Fn(&mut VersionStep) -> bool>;
+    let cases: Vec<(&str, usize, Edit, &[&str])> = vec![
+        (
+            "rename, older side",
+            0,
+            Box::new(|step| match step {
+                VersionStep::Rename { from, .. } if from == "name" => {
+                    "gone".clone_into(from);
+                    true
+                }
+                _ => false,
+            }),
+            &[
+                "example.shop#GetItemOutput$gone: `rename GetItemOutput.gone -> title`, in the migration from API version v1, names example.shop#GetItemOutput$gone, which API version v1 does not have; GetItem is not converted across it",
+            ],
+        ),
+        (
+            "rename, newer side",
+            0,
+            Box::new(|step| match step {
+                VersionStep::Rename { from, to, .. } if from == "name" => {
+                    "gone".clone_into(to);
+                    true
+                }
+                _ => false,
+            }),
+            &[
+                "example.shop#GetItemOutput$gone: `rename GetItemOutput.name -> gone`, in the migration from API version v1, names example.shop#GetItemOutput$gone, which API version v2 does not have; GetItem is not converted across it",
+            ],
+        ),
+        (
+            "rename, a member become an enum value",
+            0,
+            Box::new(|step| match step {
+                VersionStep::Rename { new, from, to, .. } if from == "name" => {
+                    *new = "example.shop#Kind".parse().unwrap();
+                    "SMALL".clone_into(to);
+                    true
+                }
+                _ => false,
+            }),
+            &[
+                "example.shop#Kind$SMALL: `rename GetItemOutput.name -> SMALL`, in the migration from API version v1, names a structure member in API version v1 and an enum value in API version v2; GetItem is not converted across it",
+                "example.shop#Kind$SMALL: `rename GetItemOutput.name -> SMALL`, in the migration from API version v1, names a structure member in API version v1 and an enum value in API version v2; ListItems is not converted across it",
+            ],
+        ),
+        (
+            "require by default",
+            1,
+            Box::new(|step| match step {
+                VersionStep::Require { member, .. } => {
+                    "gone".clone_into(member);
+                    true
+                }
+                _ => false,
+            }),
+            &[
+                "example.shop#ListItemsInput$gone: `require ListItemsInput.gone default ..`, in the migration from API version v2, names example.shop#ListItemsInput$gone, which API version v3 does not have; ListItems is not converted across it",
+            ],
+        ),
+        (
+            "add enum value, the downgrade",
+            1,
+            Box::new(|step| match step {
+                VersionStep::AddEnumValue { downgrade, .. } => {
+                    "GONE".clone_into(downgrade);
+                    true
+                }
+                _ => false,
+            }),
+            &[
+                "example.shop#Kind$GONE: `add Kind.HUGE downgrade GONE`, in the migration from API version v2, names example.shop#Kind$GONE, which API version v2 does not have; GetItem is not converted across it",
+                "example.shop#Kind$GONE: `add Kind.HUGE downgrade GONE`, in the migration from API version v2, names example.shop#Kind$GONE, which API version v2 does not have; ListItems is not converted across it",
+            ],
+        ),
+        (
+            "add enum value, the value",
+            1,
+            Box::new(|step| match step {
+                VersionStep::AddEnumValue { value, .. } => {
+                    "GONE".clone_into(value);
+                    true
+                }
+                _ => false,
+            }),
+            &[
+                "example.shop#Kind$GONE: `add Kind.GONE downgrade LARGE`, in the migration from API version v2, names example.shop#Kind$GONE, which API version v3 does not have; GetItem is not converted across it",
+                "example.shop#Kind$GONE: `add Kind.GONE downgrade LARGE`, in the migration from API version v2, names example.shop#Kind$GONE, which API version v3 does not have; ListItems is not converted across it",
+            ],
+        ),
+        (
+            "add error",
+            1,
+            Box::new(|step| match step {
+                VersionStep::AddError { error, .. } => {
+                    *error = "example.shop#Gone".parse().unwrap();
+                    true
+                }
+                _ => false,
+            }),
+            &[
+                "example.shop#Gone: `add GetItem.errors Gone downgrade ItemNotFoundException`, in the migration from API version v2, names example.shop#Gone, which the current model does not have; GetItem is not converted across it",
+            ],
+        ),
+        (
+            "reshape",
+            1,
+            Box::new(|step| match step {
+                VersionStep::Hooked {
+                    hook: Hook::Reshape { old, .. },
+                    ..
+                } => {
+                    *old = "example.shop#Gone".parse().unwrap();
+                    true
+                }
+                _ => false,
+            }),
+            &[
+                "example.shop#Gone: `reshape Gone`, in the migration from API version v2, names example.shop#Gone, which API version v2 does not have; GetItem is not converted across it",
+            ],
+        ),
+        (
+            "retype, older side",
+            1,
+            Box::new(|step| match step {
+                VersionStep::Hooked {
+                    hook: Hook::Retype { member, .. },
+                    ..
+                } if member == "force" => {
+                    "gone".clone_into(member);
+                    true
+                }
+                _ => false,
+            }),
+            &[
+                "example.shop#DeleteItemInput$gone: `retype DeleteItemInput.gone by hook`, in the migration from API version v2, names example.shop#DeleteItemInput$gone, which API version v2 does not have; DeleteItem is not converted across it",
+            ],
+        ),
+        (
+            "retype, newer side",
+            1,
+            Box::new(|step| match step {
+                VersionStep::Hooked {
+                    hook: Hook::Retype { member, from, .. },
+                    ..
+                } if member == "force" => {
+                    "force".clone_into(from);
+                    "gone".clone_into(member);
+                    true
+                }
+                _ => false,
+            }),
+            &[
+                "example.shop#DeleteItemInput$gone: `retype DeleteItemInput.gone by hook`, in the migration from API version v2, names example.shop#DeleteItemInput$gone, which API version v3 does not have; DeleteItem is not converted across it",
+            ],
+        ),
+        (
+            "require by hook",
+            0,
+            Box::new(|step| match step {
+                VersionStep::Hooked {
+                    hook: Hook::Require { member, .. },
+                    ..
+                } => {
+                    "gone".clone_into(member);
+                    true
+                }
+                _ => false,
+            }),
+            &[
+                "example.shop#ListItemsInput$gone: `require ListItemsInput.gone by hook`, in the migration from API version v1, names example.shop#ListItemsInput$gone, which API version v2 does not have; ListItems is not converted across it",
+            ],
+        ),
+        // A shape neither release has bears on no operation, and is
+        // reported once for the step.
+        (
+            "a shape neither release has",
+            0,
+            Box::new(move |step| match step {
+                VersionStep::Rename { old, new, from, .. } if from == "name" => {
+                    *old = gone.clone();
+                    *new = gone.clone();
+                    true
+                }
+                _ => false,
+            }),
+            &[
+                "example.shop#Gone$name: `rename Gone.name -> title`, in the migration from API version v1, names example.shop#Gone$name, which neither API version v1 nor v2 has; no operation is converted across it",
+            ],
+        ),
+    ];
+    for (name, index, edit, expected) in cases {
+        let mut service = fixture.clone();
+        let edited = service.versions[index]
+            .steps
+            .iter_mut()
+            .filter_map(|step| edit(step).then_some(()))
+            .count();
+        assert_eq!(edited, 1, "{name}: one step edited");
+        let reported = reported(&service);
+        // Once for each operation whose values reach the step's shape,
+        // however many older versions' chains cross it; not for the others.
+        let unresolved: Vec<&str> = reported
+            .iter()
+            .map(String::as_str)
+            .filter(|line| line.ends_with("converted across it"))
+            .collect();
+        assert_eq!(unresolved, expected, "{name}: {reported:#?}");
+    }
+}
+
+#[test]
+fn a_conversion_refused_still_collects_every_problem() {
+    use crucible_ir::ir::{Hook, RetypeBy, VersionStep};
+
+    let mut service =
+        lower(&Path::new(env!("CARGO_MANIFEST_DIR")).join("../../e2e/weather-service/versioned"));
+    // DeleteItem's input retype is served by a declared conversion, which
+    // is not generated, and its output retype names a member v3 lacks.
+    for step in &mut service.versions[1].steps {
+        if let VersionStep::Hooked {
+            hook: Hook::Retype { member, by, .. },
+            ..
+        } = step
+        {
+            if member == "force" {
+                *by = RetypeBy::Conversion;
+            } else if member == "deleted" {
+                "gone".clone_into(member);
+            }
+        }
+    }
+    let reported = reported(&service);
+    assert!(
+        reported
+            .iter()
+            .any(|line| line.contains("needs a declared `conversion`")),
+        "{reported:#?}"
+    );
+    assert!(
+        reported
+            .iter()
+            .any(|line| line.contains("`retype DeleteItemOutput.gone by hook`")),
+        "{reported:#?}"
+    );
+}
+
+#[test]
+fn an_enums_value_changes_map_in_one_lookup() {
+    // TINY takes SMALL's place and HUGE takes SMALL's wire value: one map,
+    // so a TINY sent down as `small` is not then read as HUGE's `large`.
+    let v1 = r#"service Shop {
+    version "v1"
+    protocol json
+    operations [GetItem]
+    errors [ValidationException, InternalServerException]
+}
+
+readonly operation GetItem {
+    http GET "/items/{id}"
+    input { id: string }
+    output { kind: Kind }
+}
+
+enum Kind { SMALL = "small", LARGE = "large" }
+"#;
+    let dir = Path::new(env!("CARGO_TARGET_TMPDIR")).join("versions-enum-composed");
+    let _ = fs::remove_dir_all(&dir);
+    fs::create_dir_all(&dir).unwrap();
+    freeze(&dir, v1);
+    fs::write(
+        dir.join("crucible.toml"),
+        format!("{MANIFEST}\n[model.baseline]\npath = \"releases/v1.json\"\n"),
+    )
+    .unwrap();
+    let current = v1.replace("version \"v1\"", "version \"v2\"").replace(
+        "enum Kind { SMALL = \"small\", LARGE = \"large\" }",
+        "enum Kind { TINY = \"tiny\", LARGE = \"large\", HUGE = \"small\" }",
+    );
+    fs::write(
+        dir.join("shop.cru"),
+        format!(
+            "{current}\nmigration \"v2\" from \"v1\" {{\n    rename Kind.SMALL -> TINY\n    add Kind.HUGE downgrade LARGE\n}}\n"
+        ),
+    )
+    .unwrap();
+    let code = generate(&lower(&dir), &Options::default()).unwrap();
+    let expected = r#"downgrade: &[Transform::Map { at: &[Seg::Field("kind")], values: &[("small", "large"), ("tiny", "small")] }]"#;
+    assert!(code.contains(expected), "{expected}\n{code}");
+}
+
+#[test]
+fn a_renamed_enum_value_keying_a_map_in_an_error_is_reported() {
+    // The enum is reached only as the key of a map an error holds: not a
+    // place a value sits, yet a value that changes on the wire.
+    let v1 = r#"service Shop {
+    version "v1"
+    protocol json
+    operations [GetItem]
+    errors [ValidationException, InternalServerException]
+}
+
+readonly operation GetItem {
+    http GET "/items/{id}"
+    input { id: string }
+    errors [Missing]
+    output { name: string }
+}
+
+error Missing {
+    status 404
+    message: string
+    counts?: Counts
+}
+
+map Counts: Kind -> integer
+
+enum Kind { SMALL, LARGE }
+"#;
+    let dir = Path::new(env!("CARGO_TARGET_TMPDIR")).join("versions-enum-error-key");
+    let _ = fs::remove_dir_all(&dir);
+    fs::create_dir_all(&dir).unwrap();
+    freeze(&dir, v1);
+    fs::write(
+        dir.join("crucible.toml"),
+        format!("{MANIFEST}\n[model.baseline]\npath = \"releases/v1.json\"\n"),
+    )
+    .unwrap();
+    let current = v1
+        .replace("version \"v1\"", "version \"v2\"")
+        .replace("enum Kind { SMALL, LARGE }", "enum Kind { TINY, LARGE }");
+    fs::write(
+        dir.join("shop.cru"),
+        format!("{current}\nmigration \"v2\" from \"v1\" {{\n    rename Kind.SMALL -> TINY\n}}\n"),
+    )
+    .unwrap();
+    let reported = reported(&lower(&dir));
+    assert!(
+        reported.iter().any(|line| line
+            == "example.shop#Kind: a renamed enum value inside error example.shop#Missing is not converted for API version v1 yet"),
+        "{reported:#?}"
+    );
 }
