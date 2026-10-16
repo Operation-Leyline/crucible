@@ -59,6 +59,11 @@ pub fn line(service: &Service, release: &str) -> Result<Service, Diagnostics> {
     let mut chain = std::mem::take(&mut current.versions);
     let name = current_name(service).to_owned();
     let current = Box::new(current);
+    // The current release's entry holds the current model twice, as
+    // `service` and `release`, since both are owned boxes: sharing one would
+    // change `ApiVersion`'s types, which the IR serializes. A line is built
+    // once per generated output, at build time, so the copy is a model's
+    // size once, never per request.
     chain.push(ApiVersion {
         name,
         service: current.clone(),

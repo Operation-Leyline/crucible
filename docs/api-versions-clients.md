@@ -594,7 +594,15 @@ A client, document or CLI can be generated for any supported release
   release's `crucible-model.json` at error for both families, with no
   exception (`model-break`), and the version-changed warning reads the
   SDK's own release, which a line never changes; that comparison runs for
-  every SDK whose last release carries the snapshot, not only lines.
+  every SDK whose last release carries the snapshot, not only lines. A
+  line whose last release has none (every language but Rust and
+  TypeScript), or any SDK whose snapshot cannot be read, needs `--bump`:
+  nothing else would see a break that reaches it. A line's reference
+  shows `Crucible-Version: <its release>` on every request it documents
+  and says which release is current (the index, `llms.txt`, the releases
+  page and the Explorer); OpenAPI declares the header as a required
+  parameter fixed to the document's release, for the current release too;
+  and `sdks.json` names the other releases' SDKs in `lines`.
 
 ## API documentation across releases
 
