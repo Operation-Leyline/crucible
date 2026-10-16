@@ -15,6 +15,7 @@
   - [GetItemInput](shapes/GetItemInput.md)
   - [GetItemOutput](shapes/GetItemOutput.md)
   - [ItemGone](shapes/ItemGone.md)
+  - [ItemLocked](shapes/ItemLocked.md)
   - [ItemNotFound](shapes/ItemNotFound.md)
   - [Kind](shapes/Kind.md)
   - [ListItemsInput](shapes/ListItemsInput.md)

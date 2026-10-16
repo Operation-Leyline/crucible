@@ -3,7 +3,7 @@
 # step across the two migrations, an operation retired under an exception,
 # and steps on internal API that only the internal reference lists, among
 # them steps on public API that name internal API on one side (an internal
-# enum value or error added, a reshape of an internal member, a rename and
+# enum value or error added, a public error mapped from an internal member, a reshape of an internal member, a rename and
 # a retype of a member internal before). v1 and v2 are frozen under
 # releases/; v3 is current.
 #

@@ -293,6 +293,7 @@
       "errors": [
         "example.history#ItemNotFound",
         "example.history#ItemGone",
+        "example.history#ItemLocked",
         "example.history#Conflict"
       ],
       "examples": [],
@@ -1746,6 +1747,147 @@
       },
       "sensitive": false
     },
+    "example.history#ItemLocked": {
+      "documentation": {
+        "html": "<p>Another writer holds the item.</p>\n",
+        "markdown": "Another writer holds the item.",
+        "text": "Another writer holds the item."
+      },
+      "error": {
+        "bindings": {
+          "body": [
+            "message",
+            "holder"
+          ],
+          "headerEncodings": {},
+          "headers": [],
+          "labels": [],
+          "payload": null,
+          "query": [],
+          "timestampFormats": {}
+        },
+        "bodyDiscriminator": "ItemLocked",
+        "discriminatorHeader": "X-Crucible-Error",
+        "fault": "client",
+        "protocolHeaders": {
+          "Content-Type": "application/json"
+        },
+        "retryable": null,
+        "sample": {
+          "fallbacks": [],
+          "generated": true,
+          "message": {
+            "body": {
+              "__type": "ItemLocked",
+              "holder": "holder",
+              "message": "message"
+            },
+            "headers": {
+              "Content-Type": "application/json",
+              "X-Crucible-Error": "ItemLocked"
+            },
+            "labels": {},
+            "payload": null,
+            "query": []
+          }
+        },
+        "shape": "example.history#ItemLocked",
+        "status": 423,
+        "wireCode": "ItemLocked"
+      },
+      "history": {
+        "added": "v3",
+        "changed": [],
+        "missing": []
+      },
+      "id": "example.history#ItemLocked",
+      "internal": false,
+      "kind": "structure",
+      "members": [
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": "v3",
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "message",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": false,
+          "required": true,
+          "sensitive": false,
+          "target": "crucible.api#String",
+          "targetName": "String",
+          "targetType": "string",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "message"
+        },
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "<p>Who holds it, which only the service sees.</p>\n",
+            "markdown": "Who holds it, which only the service sees.",
+            "text": "Who holds it, which only the service sees."
+          },
+          "history": {
+            "added": "v3",
+            "changed": [],
+            "missing": []
+          },
+          "internal": true,
+          "name": "holder",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": true,
+          "required": false,
+          "sensitive": false,
+          "target": "crucible.api#String",
+          "targetName": "String",
+          "targetType": "string",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "holder"
+        }
+      ],
+      "name": "ItemLocked",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false
+    },
     "example.history#ItemNotFound": {
       "documentation": {
         "html": "<p>No item has that id.</p>\n",
@@ -1755,7 +1897,8 @@
       "error": {
         "bindings": {
           "body": [
-            "message"
+            "message",
+            "detail"
           ],
           "headerEncodings": {},
           "headers": [],
@@ -1777,6 +1920,7 @@
           "message": {
             "body": {
               "__type": "ItemNotFound",
+              "detail": "detail",
               "message": "message"
             },
             "headers": {
@@ -1837,6 +1981,43 @@
           "timestampFormat": "date-time",
           "wireDefault": null,
           "wireName": "message"
+        },
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "<p>What else the service knows.</p>\n",
+            "markdown": "What else the service knows.",
+            "text": "What else the service knows."
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "detail",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": true,
+          "required": false,
+          "sensitive": false,
+          "target": "crucible.api#String",
+          "targetName": "String",
+          "targetType": "string",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "detail"
         }
       ],
       "name": "ItemNotFound",
@@ -2980,6 +3161,33 @@
                 {
                   "from": "message",
                   "member": "message"
+                }
+              ],
+              "shapes": {}
+            },
+            "operation": "example.history#GetItem",
+            "subjects": [
+              "example.history#GetItem"
+            ]
+          },
+          {
+            "documentation": {
+              "html": "<p>Older clients see a locked item as not found, its detail saying\nwho holds it.</p>\n",
+              "markdown": "Older clients see a locked item as not found, its detail saying\nwho holds it.",
+              "text": "Older clients see a locked item as not found, its detail saying\nwho holds it."
+            },
+            "error": "example.history#ItemLocked",
+            "kind": "addError",
+            "older": {
+              "error": "example.history#ItemNotFound",
+              "members": [
+                {
+                  "from": "message",
+                  "member": "message"
+                },
+                {
+                  "from": "holder",
+                  "member": "detail"
                 }
               ],
               "shapes": {}

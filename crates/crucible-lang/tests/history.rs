@@ -141,9 +141,9 @@ fn the_external_view_leaves_out_every_step_naming_internal_api() {
     let count = |versions: &[crucible_ir::ir::ApiVersion]| {
         versions.iter().map(|v| v.steps.len()).collect::<Vec<_>>()
     };
-    assert_eq!(count(&visible(&internal)), [10, 8]);
+    assert_eq!(count(&visible(&internal)), [10, 9]);
     let seen = visible(&external);
-    assert_eq!(count(&seen), [7, 5]);
+    assert_eq!(count(&seen), [7, 6]);
     for (index, version) in seen.iter().enumerate() {
         let newer = seen.get(index + 1).map_or(&external, |v| &*v.service);
         for step in &version.steps {
@@ -177,7 +177,7 @@ fn the_external_view_leaves_out_every_step_naming_internal_api() {
     }
     let text = format!("{seen:?}");
     for internal in [
-        "Audit", "secret", "hint", "depth", "SECRET", "Conflict", "priority",
+        "Audit", "secret", "hint", "depth", "SECRET", "Conflict", "priority", "holder",
     ] {
         // `priority` is public since v2; only its v1 retype names v1's
         // internal member.
@@ -187,6 +187,29 @@ fn the_external_view_leaves_out_every_step_naming_internal_api() {
             .any(|step| format!("{step:?}").contains(internal));
         assert!(!leaked, "{internal} in {text}");
     }
+    // A public error mapped partly from an internal member is kept: the
+    // error and the operation decide, and the mapping keeps what is seen.
+    let locked = seen[1]
+        .steps
+        .iter()
+        .find_map(|step| match step {
+            VersionStep::AddError { error, members, .. } if *error == id("ItemLocked") => {
+                Some(members.clone())
+            }
+            _ => None,
+        })
+        .expect("the ItemLocked step is external");
+    assert_eq!(locked, [("message".to_owned(), "message".to_owned())]);
+    let internal_locked = visible(&internal)[1]
+        .steps
+        .iter()
+        .find_map(|step| match step {
+            VersionStep::AddError { error, members, .. } if *error == id("ItemLocked") => {
+                Some(members.len())
+            }
+            _ => None,
+        });
+    assert_eq!(internal_locked, Some(2));
     // The retired operation is public, so both views keep it.
     assert_eq!(seen[0].retired, [id("PingItems")]);
     assert_eq!(visible(&internal)[0].retired, [id("PingItems")]);

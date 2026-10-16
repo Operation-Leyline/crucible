@@ -843,6 +843,33 @@
                 "external_docs": {}
               },
               "traits": {}
+            },
+            {
+              "internal": false,
+              "sensitive": false,
+              "name": "detail",
+              "target": "crucible.api#String",
+              "required": false,
+              "default": null,
+              "wire_default": null,
+              "idempotency_token": false,
+              "mutability": null,
+              "constraints": {
+                "length": null,
+                "range": null,
+                "pattern": null,
+                "unique_items": false
+              },
+              "timestamp_format": null,
+              "wire_timestamp_format": "date-time",
+              "docs": "What else the service knows.",
+              "notes": {
+                "deprecated": null,
+                "since": null,
+                "unstable": false,
+                "external_docs": {}
+              },
+              "traits": {}
             }
           ],
           "error": {

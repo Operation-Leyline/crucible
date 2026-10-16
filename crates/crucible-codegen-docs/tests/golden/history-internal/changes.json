@@ -481,6 +481,33 @@
           },
           {
             "documentation": {
+              "html": "<p>Older clients see a locked item as not found, its detail saying\nwho holds it.</p>\n",
+              "markdown": "Older clients see a locked item as not found, its detail saying\nwho holds it.",
+              "text": "Older clients see a locked item as not found, its detail saying\nwho holds it."
+            },
+            "error": "example.history#ItemLocked",
+            "kind": "addError",
+            "older": {
+              "error": "example.history#ItemNotFound",
+              "members": [
+                {
+                  "from": "message",
+                  "member": "message"
+                },
+                {
+                  "from": "holder",
+                  "member": "detail"
+                }
+              ],
+              "shapes": {}
+            },
+            "operation": "example.history#GetItem",
+            "subjects": [
+              "example.history#GetItem"
+            ]
+          },
+          {
+            "documentation": {
               "html": "<p>Older clients see a race as not found.</p>\n",
               "markdown": "Older clients see a race as not found.",
               "text": "Older clients see a race as not found."

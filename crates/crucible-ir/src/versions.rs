@@ -277,11 +277,13 @@ pub struct Named {
     pub newer: Vec<ShapeId>,
 }
 
-/// Every id `step` names, on each side: its [`subjects`], the member's older
-/// name, an enum value and its downgrade, an error, its downgrade and the
-/// members they map, a reshape's new member, a removed operation. A
-/// reshape's replaced members are left out: [`visible`] keeps those the
-/// audience sees.
+/// Every id that makes `step` what it is, on each side: its [`subjects`],
+/// the member's older name, an enum value and its downgrade, an error and
+/// its downgrade, a reshape's new member, a moved or removed operation.
+/// The lists of parts a step carries are not among them, since they do not
+/// decide whether the audience sees the change: a reshape's replaced
+/// members and an error's member mapping, which [`visible`] cuts to what
+/// the audience sees.
 pub fn named(step: &VersionStep) -> Named {
     let mut older = Vec::new();
     let mut newer = subjects(step);
@@ -297,19 +299,10 @@ pub fn named(step: &VersionStep) -> Named {
             newer.push(new.with_member(value));
         }
         VersionStep::AddError {
-            error,
-            downgrade,
-            members,
-            ..
+            error, downgrade, ..
         } => {
             older.push(downgrade.clone());
-            older.extend(
-                members
-                    .iter()
-                    .map(|(member, _)| downgrade.with_member(member)),
-            );
             newer.push(error.clone());
-            newer.extend(members.iter().map(|(_, from)| error.with_member(from)));
         }
         VersionStep::Move { operation, .. } => older.push(operation.clone()),
         VersionStep::Hooked {

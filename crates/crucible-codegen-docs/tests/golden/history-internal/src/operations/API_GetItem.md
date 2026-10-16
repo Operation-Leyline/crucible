@@ -55,6 +55,7 @@ Content-Type: application/json
 |---|---|---|---|---|
 | [ItemNotFound](../shapes/ItemNotFound.md) | 404 | client | No | <p>No item has that id.</p>  |
 | [ItemGone](../shapes/ItemGone.md) | 410 | client | No | <p>The item was deleted.</p>  Added in [v3](../releases/v3.md). |
+| [ItemLocked](../shapes/ItemLocked.md) | 423 | client | No | <p>Another writer holds the item.</p>  Added in [v3](../releases/v3.md). |
 | [Conflict](../shapes/Conflict.md) **Internal** | 409 | client | No | <p>Two writers raced; only the service sees it.</p>  <strong>Internal</strong> Added in [v3](../releases/v3.md). |
 
 ## Idempotency and retries

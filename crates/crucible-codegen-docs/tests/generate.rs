@@ -218,17 +218,28 @@ fn release_history_leaves_internal_steps_out_of_the_external_reference() {
                 "retype",
                 "behavior"
             ],
-            vec!["move", "addError", "require", "retype", "removeOperation"],
+            vec![
+                "move",
+                "addError",
+                "addError",
+                "require",
+                "retype",
+                "removeOperation"
+            ],
         ]
     );
     assert_eq!(kinds(&internal)[1].len(), 10);
-    assert_eq!(kinds(&internal)[2].len(), 8);
+    assert_eq!(kinds(&internal)[2].len(), 9);
     // No external file names internal API: not the internal operation, the
     // internal value or error a step added, the internal member a reshape
     // replaced, nor the members internal in v1 that a rename and a retype
     // made public (externally they arrived in v2).
     let files = versioned_files(&dir, Audience::External);
-    for file in &files {
+    // The renderer is the same for every service, and says "placeholder".
+    for file in files
+        .iter()
+        .filter(|f| !SITE_RUNTIME.contains(&f.path.as_str()))
+    {
         let text = file.contents.to_lowercase();
         for internal in [
             "audit",
@@ -236,6 +247,7 @@ fn release_history_leaves_internal_steps_out_of_the_external_reference() {
             "conflict",
             "depth",
             "hint",
+            "holder",
             "priority</code></a> to",
         ] {
             assert!(!text.contains(internal), "{internal} in {}", file.path);
@@ -687,4 +699,114 @@ fn samples_match_reviewed_goldens() {
             "Placeholders that do not meet their constraints: <code>input.bounded</code>."
         )
     );
+}
+
+/// Every link destination a generated Markdown page has, as a Markdown
+/// reader finds them.
+fn destinations(markdown: &str) -> Vec<String> {
+    pulldown_cmark::Parser::new(markdown)
+        .filter_map(|event| match event {
+            pulldown_cmark::Event::Start(pulldown_cmark::Tag::Link { dest_url, .. }) => {
+                Some(dest_url.to_string())
+            }
+            _ => None,
+        })
+        .collect()
+}
+
+/// A release name is model text: Markdown link syntax in it stays the text
+/// of its own link, in the sidebar and on every page, never a link of its
+/// own.
+#[test]
+fn a_release_name_cannot_redirect_a_link() {
+    let dir = package_dir("version-history");
+    let mut service = crucible_lang::load_versioned_service(&dir).unwrap();
+    let hostile = "x](https://example.com)";
+    service.version = hostile.into();
+    service.api_version = Some(hostile.into());
+    service.versions[1].name = "[y](https://example.org)`\\".into();
+    let files = generate(&project(&service, Audience::External).unwrap()).unwrap();
+    let summary = &files
+        .iter()
+        .find(|f| f.path == "src/SUMMARY.md")
+        .unwrap()
+        .contents;
+    assert!(
+        summary.contains(
+            r"[x\](https://example.com)](releases/x_5D_28https_3A_2F_2Fexample.com_29.md)"
+        ),
+        "{summary}"
+    );
+    let mut checked = 0;
+    for file in files.iter().filter(|f| f.path.ends_with(".md")) {
+        for destination in destinations(&file.contents) {
+            assert!(
+                !destination.contains("://"),
+                "{destination} in {}",
+                file.path
+            );
+            checked += 1;
+        }
+    }
+    assert!(checked > 50, "{checked} links");
+    // The release pages still link each other and the pages they name.
+    let page = &files
+        .iter()
+        .find(|f| f.path == "src/releases/x_5D_28https_3A_2F_2Fexample.com_29.md")
+        .unwrap()
+        .contents;
+    assert!(
+        destinations(page)
+            .contains(&"../releases/_5By_5D_28https_3A_2F_2Fexample.org_29_60_5C.md".to_owned()),
+        "{page}"
+    );
+}
+
+/// An older operation the reference shows (a removed one) names no member
+/// its release's external view left out, in its bindings or anywhere else:
+/// a public member whose target is internal goes, and with it every
+/// binding that named it.
+#[test]
+fn an_older_operation_names_no_member_its_release_hid() {
+    use crucible_ir::ShapeId;
+    use crucible_ir::ir::Shape;
+    let dir = package_dir("version-history");
+    let mut service = crucible_lang::load_versioned_service(&dir).unwrap();
+    let v2 = &mut service.versions[1].service;
+    let output: ShapeId = "example.history#CountItemsOutput".parse().unwrap();
+    let ledger: ShapeId = "example.history#Ledger".parse().unwrap();
+    let mut hidden = v2.shapes[&output].clone();
+    if let Shape::Structure(s) = &mut hidden {
+        s.internal = true;
+    }
+    v2.shapes.insert(ledger.clone(), hidden);
+    let Some(Shape::Structure(s)) = v2.shapes.get_mut(&output) else {
+        panic!("CountItemsOutput");
+    };
+    let mut member = s.members[0].clone();
+    member.name = "ledger".into();
+    member.target = ledger;
+    member.required = false;
+    s.members.push(member);
+    let op = v2
+        .operations
+        .iter_mut()
+        .find(|op| op.name() == "CountItems")
+        .unwrap();
+    op.response.body.push("ledger".into());
+    let external = generate(&project(&service, Audience::External).unwrap()).unwrap();
+    for file in &external {
+        assert!(
+            !file.contents.to_lowercase().contains("ledger"),
+            "ledger in {}",
+            file.path
+        );
+    }
+    let internal = generate(&project(&service, Audience::Internal).unwrap()).unwrap();
+    let changes = &internal
+        .iter()
+        .find(|f| f.path == "changes.json")
+        .unwrap()
+        .contents;
+    assert!(changes.contains("ledger"), "the internal view keeps it");
 }

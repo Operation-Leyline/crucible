@@ -18,3 +18,5 @@ workspace = true
 [dev-dependencies]
 # The typed permissions fixture is a `.cru` package (tests/fixtures/permissions).
 crucible-lang.workspace = true
+# Reads the generated pages back as Markdown, to check where their links go.
+pulldown-cmark = { version = "0.13", default-features = false }

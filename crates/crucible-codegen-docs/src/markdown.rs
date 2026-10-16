@@ -106,8 +106,31 @@ fn operation_path(item: &Value) -> String {
 fn shape_path(item: &Value) -> String {
     format!("shapes/{}.md", string(&item["name"]))
 }
+/// Text that Markdown reads back as written: HTML-escaped, with the
+/// characters that open or close a link, a code span or an escape
+/// backslash-escaped, so model text (a release name is any visible ASCII)
+/// cannot end a link's label early or open a link of its own.
+fn literal(text: &str) -> String {
+    let mut out = String::with_capacity(text.len());
+    for c in escaped(text).chars() {
+        if matches!(c, '\\' | '[' | ']' | '`') {
+            out.push('\\');
+        }
+        out.push(c);
+    }
+    out
+}
 fn link(label: &str, path: &str) -> String {
-    format!("[{}]({path})", escaped(label))
+    format!("[{}]({path})", literal(label))
+}
+/// A release name in code, as [`literal`] text.
+fn release_code(name: &str) -> String {
+    format!("<code>{}</code>", literal(name))
+}
+/// A link to a release's changelog from a page at `prefix` from `src/`:
+/// every link to a release goes through here.
+fn release_link(name: &str, prefix: &str) -> String {
+    link(name, &format!("{prefix}{}", release_path(name)))
 }
 
 pub(super) fn render(service: &Service, d: &Description) -> Vec<File> {
@@ -117,7 +140,7 @@ pub(super) fn render(service: &Service, d: &Description) -> Vec<File> {
         heading(string(&d.service["title"])),
         notes(&d.service),
         docs(&d.service),
-        code(string(&d.service["version"])),
+        release_code(string(&d.service["version"])),
         code(string(&d.service["protocol"]))
     );
     if chained(d) {
@@ -244,7 +267,7 @@ pub(super) fn render(service: &Service, d: &Description) -> Vec<File> {
         });
         for release in list(&d.versions["releases"]) {
             let name = string(&release["name"]);
-            summary.push_str(&format!("  - {}\n", link(name, &release_path(name))));
+            summary.push_str(&format!("  - {}\n", release_link(name, "")));
             files.push(File {
                 path: format!("src/{}", release_path(name)),
                 contents: release_page(d, release),
@@ -959,19 +982,13 @@ fn dates(history: &Value, prefix: &str) -> Vec<String> {
     let releases = |key: &str| {
         list(&history[key])
             .iter()
-            .map(|name| {
-                let name = string(name);
-                link(name, &format!("{prefix}{}", release_path(name)))
-            })
+            .map(|name| release_link(string(name), prefix))
             .collect::<Vec<_>>()
             .join(", ")
     };
     let mut parts = Vec::new();
     if let Some(added) = history["added"].as_str() {
-        parts.push(format!(
-            "Added in {}.",
-            link(added, &format!("{prefix}{}", release_path(added)))
-        ));
+        parts.push(format!("Added in {}.", release_link(added, prefix)));
     }
     if !list(&history["changed"]).is_empty() {
         parts.push(format!("Changed in {}.", releases("changed")));
@@ -1035,14 +1052,14 @@ fn releases_page(d: &Description) -> String {
     let versions = &d.versions;
     let mut out = format!(
         "# Releases\n\nThe current release is {}. A client names the release it was built for in the {} header.\n\n| Release | Follows | Sunset | Changes |\n|---|---|---|---|\n",
-        code(string(&versions["current"])),
+        release_code(string(&versions["current"])),
         code(string(&versions["carrier"]["name"]))
     );
     for release in list(&versions["releases"]) {
         let name = string(&release["name"]);
         out.push_str(&format!(
             "| {}{} | {} | {} | {} |\n",
-            link(name, &release_path(name)),
+            release_link(name, ""),
             if release["current"] == true {
                 " **Current**"
             } else {
@@ -1050,10 +1067,10 @@ fn releases_page(d: &Description) -> String {
             },
             release["from"]
                 .as_str()
-                .map_or_else(|| "—".to_owned(), code),
+                .map_or_else(|| "—".to_owned(), release_code),
             release["sunset"]
                 .as_str()
-                .map_or_else(|| "—".to_owned(), code),
+                .map_or_else(|| "—".to_owned(), release_code),
             list(&release["changes"]).len()
         ));
     }
@@ -1071,14 +1088,11 @@ fn release_page(d: &Description, release: &Value) -> String {
         facts.push("The current release.".to_owned());
     }
     match release["from"].as_str() {
-        Some(from) => facts.push(format!(
-            "Follows {}.",
-            link(from, &format!("{}.md", release_file(from)))
-        )),
+        Some(from) => facts.push(format!("Follows {}.", release_link(from, "../"))),
         None => facts.push("The oldest supported release.".to_owned()),
     }
     if let Some(sunset) = release["sunset"].as_str() {
-        facts.push(format!("Supported until {}.", code(sunset)));
+        facts.push(format!("Supported until {}.", release_code(sunset)));
     }
     out.push_str(&format!("{}\n\n", facts.join(" ")));
     if !string(&release["documentation"]["html"]).is_empty() {
@@ -1121,7 +1135,7 @@ fn json_doc(documentation: &Value) -> Value {
 /// One change: what it did, its documentation, and what a client of
 /// `from`, the release before, sees instead.
 fn change_section(d: &Description, change: &Value, from: &str) -> String {
-    let clients = format!("Clients of {}", code(from));
+    let clients = format!("Clients of {}", release_code(from));
     let older = &change["older"];
     let member = || {
         let id = format!("{}${}", string(&change["shape"]), string(&change["member"]));

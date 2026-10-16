@@ -256,7 +256,13 @@ fn external(service: &Service, lenient: bool) -> Result<Service, Diagnostics> {
         version.external = true;
     }
     if lenient {
-        drop_dangling(&mut result);
+        // What `drop_dangling` removes, the bindings, tokens, pagination
+        // paths, examples and resource bindings filtered above may still
+        // name: project what remains again, until nothing more goes, so
+        // every member-name list is filtered against the final shapes.
+        if drop_dangling(&mut result) {
+            return external(&result, true);
+        }
         return Ok(result);
     }
     if diagnostics.is_empty() {
@@ -268,8 +274,10 @@ fn external(service: &Service, lenient: bool) -> Result<Service, Diagnostics> {
 
 /// After a lenient projection, what names a shape it removed goes too: a
 /// member whose target is gone, then a collection whose element is, and an
-/// operation whose input or output is, until nothing dangles.
-fn drop_dangling(service: &mut Service) {
+/// operation whose input or output is, until nothing dangles. Whether it
+/// removed anything.
+fn drop_dangling(service: &mut Service) -> bool {
+    let mut removed = false;
     loop {
         let present: BTreeSet<ShapeId> = service.shapes.keys().cloned().collect();
         let mut changed = false;
@@ -297,12 +305,17 @@ fn drop_dangling(service: &mut Service) {
         });
         changed |= service.operations.len() != before;
         for op in &mut service.operations {
+            let before = op.errors.len();
             op.errors.retain(|id| present.contains(id));
+            changed |= op.errors.len() != before;
         }
+        let before = service.errors.len();
         service.errors.retain(|id| present.contains(id));
+        changed |= service.errors.len() != before;
         if !changed {
-            break;
+            return removed;
         }
+        removed = true;
     }
 }
 

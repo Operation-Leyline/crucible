@@ -9,7 +9,7 @@ service Shop {
 readonly operation GetItem {
     http GET "/things/{id}"
     input { id: string }
-    errors [ItemNotFound, ItemGone, Conflict]
+    errors [ItemNotFound, ItemGone, ItemLocked, Conflict]
     output {
         /// The item's title.
         title: string
@@ -36,6 +36,8 @@ structure Size {
 error ItemNotFound {
     status 404
     message: string
+    /// What else the service knows.
+    detail?: string
 }
 
 /// Lists item names.
@@ -75,6 +77,14 @@ internal operation Audit {
 error ItemGone {
     status 410
     message: string
+}
+
+/// Another writer holds the item.
+error ItemLocked {
+    status 423
+    message: string
+    /// Who holds it, which only the service sees.
+    internal holder?: string
 }
 
 /// Two writers raced; only the service sees it.
@@ -124,6 +134,12 @@ migration "v3" from "v2" {
     /// Older clients see a deleted item as not found.
     add GetItem.errors ItemGone downgrade ItemNotFound {
         message <- message
+    }
+    /// Older clients see a locked item as not found, its detail saying
+    /// who holds it.
+    add GetItem.errors ItemLocked downgrade ItemNotFound {
+        message <- message
+        detail <- holder
     }
     /// Older clients see a race as not found.
     add GetItem.errors Conflict downgrade ItemNotFound {
