@@ -1026,6 +1026,35 @@ version's section when it is prepared.
 
 ### Fixed
 
+- Examples and defaults are checked against `range` the way the generated
+  server checks a request (#337). A `bigDecimal`, a `bigInteger` and every
+  integer kind compare exactly, through the new `crucible_ir::decimal`
+  (on the server's own `DecimalValue` type), so `range
+  ..0.29999999999999999999` refuses an example of `0.3` and a `long`
+  bounded `..9007199254740992.5` refuses `9007199254740993`, exponent
+  notation (`1e-10`, `2.5E3`) and negative values included. A `float` or
+  `double` keeps IEEE comparison, a `float` in `f32` as the server narrows
+  it. Examples the server could not read are now refused as well: a
+  `float` or `double` past its type's range, and `"NaN"`, `"Infinity"` and
+  `"-Infinity"`, which the server's JSON reader refuses. A `bigInteger`
+  example is accepted in any notation the server reads (`1e2`, `100e-2`,
+  `1.0`), up to its 10,000 digits, and is written as its digits in full
+  in snippets, `describe.json`, OpenAPI and the raw request. The
+  compiler refuses a number literal whose exponent no decimal holds (such
+  as `1e99999999999999999999`) where it is written. The generated server
+  compares an integer kind against a fractional or exponent bound exactly
+  too, as the integer the bound admits (`ir::Bounds::integer_bounds`),
+  where it compared in `f64`; a `float` or `double` bound past `f64`'s
+  range is infinite, where it became 0. A `range` whose minimum exceeds
+  its maximum, a member `range` that loosens its type's, and rule
+  conditions on `type.range.min` and `type.range.max` compare exactly as
+  well. `crucible-policy`'s tightened-range check compares bounds as the
+  server does: `..10.5` to `..10` on an integer, or `0.3` to
+  `0.29999999999999999999` on a `double`, is no longer a
+  `compatibility.constraints` finding, while the latter on a `bigDecimal`
+  now is. The sample generator's decimal arithmetic moved into
+  `crucible_ir::decimal`, so there is one implementation.
+
 - A project's own traits in an `aws.*` or `smithy.test` namespace are kept:
   `Service::project_metadata_only`, `crucible check`'s custom trait count and
   the traits the Rust generator records for `when_trait` treated them as

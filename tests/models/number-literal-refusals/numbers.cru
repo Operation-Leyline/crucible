@@ -1,0 +1,23 @@
+service Numbers {
+    version "1"
+    protocol json
+    operations [Measure]
+}
+
+bigDecimal Vast { range 1e99999999999999999999.. }
+
+structure Settings {
+    scale: bigDecimal = 1e-9223372036854775808
+}
+
+operation Measure {
+    http POST "/measures"
+    input {
+        vast?: Vast
+        settings?: Settings
+        size: bigDecimal
+    }
+    example "Too large to hold" {
+        input { size: 1e99999999999999999999 }
+    }
+}

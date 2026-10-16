@@ -1,0 +1,12 @@
+schema_version = 1
+
+# Examples and defaults the compiler refuses: each value is just past a bound
+# with more digits than an `f64` keeps, where the nearest `f64` is the
+# value's own. The server compares a `bigDecimal`, a `bigInteger` and every
+# integer kind exactly, so the check does too; a `double` keeps IEEE
+# arithmetic, so its value at the rounded bound is accepted.
+[model]
+namespace = "example.ranges"
+language = 1
+sources = ["."]
+imports = []

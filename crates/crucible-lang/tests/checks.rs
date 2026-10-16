@@ -445,6 +445,44 @@ fn constraints_apply_once_to_what_they_can_constrain() {
     );
 }
 
+/// Range bounds compare exactly, as written: in `f64` the ends of
+/// `0.30000000000000001..0.3` are equal, and a member bound tightened past
+/// `f64`'s digits would look the same as its type's.
+#[test]
+fn range_bounds_compare_exactly() {
+    assert_mentions(
+        &messages("double Ratio { range 0.30000000000000001..0.3 }"),
+        "the minimum exceeds the maximum",
+    );
+    assert_eq!(
+        messages("double Ratio { range 0.3..0.30000000000000001 }"),
+        Vec::<String>::new()
+    );
+    assert_mentions(
+        &messages(
+            "bigDecimal Rate { range ..0.29999999999999999999 }\n\
+             structure Quote { rate: Rate { range ..0.3 } }",
+        ),
+        "loosens its type's",
+    );
+    assert_eq!(
+        messages(
+            "bigDecimal Rate { range ..0.3 }\n\
+             structure Quote { rate: Rate { range ..0.29999999999999999999 } }",
+        ),
+        Vec::<String>::new()
+    );
+    for literal in [
+        "bigDecimal Rate { range 1e99999999999999999999.. }",
+        "structure Quote { rate: bigDecimal = 1e-9223372036854775808 }",
+    ] {
+        assert_mentions(
+            &messages(literal),
+            "is out of range: its exponent is too large",
+        );
+    }
+}
+
 #[test]
 fn metadata_declarations_are_checked_once() {
     let m = messages(
@@ -720,5 +758,49 @@ fn external_docs_links_are_web_or_mail_addresses() {
     assert_eq!(refused.matches(message).count(), 5, "{refused}");
     for line in ["links.cru:1:", "links.cru:8:"] {
         assert!(refused.contains(line), "{refused}");
+    }
+}
+
+/// An example or default just past a bound with more digits than an `f64`
+/// keeps is refused, as the server's exact comparison refuses it: each
+/// value's nearest `f64` is the bound's. The values at the bounds pass, and
+/// so does a `double` at its rounded bound, which the server compares in
+/// IEEE arithmetic.
+#[test]
+fn examples_past_a_high_precision_bound_are_refused() {
+    let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../tests/models/example-range-refusals");
+    let refused = crucible_lang::load_service(&dir).unwrap_err();
+    assert_eq!(
+        refused.matches("is outside its range").count(),
+        6,
+        "{refused}"
+    );
+    for problem in [
+        "the default: 0.3 is outside its range",
+        "the default: 9007199254740993 is outside its range",
+        "example 2 \"Past the bounds\": input.rate: 3e-1 is outside its range",
+        "example 2 \"Past the bounds\": input.huge: 170141183460469231731687303715884105729 is outside its range",
+        "example 2 \"Past the bounds\": input.count: 9007199254740993 is outside its range",
+        "example 2 \"Past the bounds\": input.tiny: -1.00000000000000000001e-10 is outside its range",
+    ] {
+        assert!(refused.contains(problem), "{problem}\n{refused}");
+    }
+    assert!(!refused.contains("example 1"), "{refused}");
+    assert!(!refused.contains("input.ratio"), "{refused}");
+}
+
+/// A number literal whose exponent no decimal holds is refused where it is
+/// written, as a range bound, a default and an example value, so nothing
+/// downstream meets a number it cannot compare.
+#[test]
+fn number_literals_past_any_decimal_are_refused() {
+    let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../tests/models/number-literal-refusals");
+    let refused = crucible_lang::load_service(&dir).unwrap_err();
+    let message = "is out of range: its exponent is too large";
+    assert_eq!(refused.matches(message).count(), 3, "{refused}");
+    for line in ["numbers.cru:7:", "numbers.cru:10:", "numbers.cru:21:"] {
+        assert!(refused.contains(line), "{line}: {refused}");
     }
 }

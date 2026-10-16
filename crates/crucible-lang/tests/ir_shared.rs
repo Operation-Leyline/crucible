@@ -91,3 +91,26 @@ fn wire_examples_use_json_names_and_the_members_timestamp_format() {
     // A binding's format applies to the bound member, never inside a document.
     assert_eq!(http["updatedAt"], json!("2026-01-02T03:04:05Z"));
 }
+
+/// A `bigInteger` example in any notation is carried as its digits, in full
+/// up to the 10,000 the server reads: `describe.json`, OpenAPI and the raw
+/// request all show it so.
+#[test]
+fn a_big_integer_example_is_carried_in_digits() {
+    let service = load("samples");
+    let owner: crucible_ir::ShapeId = "example.samples#EdgesInput".parse().unwrap();
+    let Some(Shape::Structure(input)) = service.shape(&owner) else {
+        panic!("input structure")
+    };
+    let huge = input.member("huge").unwrap();
+    let digits = |text: &str| {
+        let value: serde_json::Value = serde_json::from_str(text).unwrap();
+        service.wire_example(huge, &value, None).to_string()
+    };
+    assert_eq!(digits("1e2"), "100");
+    assert_eq!(digits("-15.00"), "-15");
+    let thousand_and_one = format!("1{}", "0".repeat(1000));
+    assert_eq!(digits("1e1000"), thousand_and_one);
+    assert_eq!(digits(&thousand_and_one), thousand_and_one);
+    assert_eq!(digits("-1e9999"), format!("-1{}", "0".repeat(9999)));
+}

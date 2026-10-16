@@ -1,0 +1,11 @@
+schema_version = 1
+
+# Number literals the compiler refuses: each exponent is past what a decimal
+# holds (its scale is a 64-bit integer), so no range check could compare it
+# and no server could read it. A range bound, a default and an example
+# value are each refused where they are written.
+[model]
+namespace = "example.numbers"
+language = 1
+sources = ["."]
+imports = []

@@ -374,6 +374,41 @@ fn numeric_bounds_preserve_large_integer_precision_and_allow_input_relaxation() 
     assert!(rules(&old, &new).contains(&"compatibility.constraints".into()));
 }
 
+/// The contract with a `limit` input of type `Limit`, a `kind` ranged to
+/// `max`.
+fn ranged(kind: &str, max: &str) -> Service {
+    contract(
+        &[(
+            INPUT,
+            &INPUT.replace("    }\n", "        limit?: Limit\n    }\n"),
+        )],
+        &format!("{kind} Limit {{ range ..{max} }}\n"),
+    )
+}
+
+/// A bound changes when the server compares it differently: exactly for a
+/// `bigDecimal`, as the integers it admits for an integer kind, in `f64` or
+/// `f32` for a `double` or `float`.
+#[test]
+fn numeric_bounds_compare_as_the_server_does() {
+    let changed = |kind: &str, old: &str, new: &str| {
+        rules(&ranged(kind, old), &ranged(kind, new)).contains(&"compatibility.constraints".into())
+    };
+    // Past f64's digits, a bigDecimal bound is tightened...
+    assert!(changed("bigDecimal", "0.3", "0.29999999999999999999"));
+    assert!(!changed("bigDecimal", "0.29999999999999999999", "0.3"));
+    assert!(!changed("bigDecimal", "0.3", "3e-1"));
+    // ...and a double's is the same f64, a float's the same f32.
+    assert!(!changed("double", "0.3", "0.29999999999999999999"));
+    assert!(changed("double", "0.3", "0.2999999999999999"));
+    assert!(!changed("float", "0.1", "0.100000001"));
+    assert!(changed("float", "0.1", "0.0999999"));
+    // An integer kind admits the same integers below 10.5 as below 10.
+    assert!(!changed("integer", "10.5", "10"));
+    assert!(!changed("integer", "10", "1.0e1"));
+    assert!(changed("integer", "10.5", "9.99"));
+}
+
 #[test]
 fn effective_member_constraints_override_changed_target_constraints() {
     let member_limited = |name_max: &str| {

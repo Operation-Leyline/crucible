@@ -9,6 +9,9 @@ repository.workspace = true
 
 [dependencies]
 base64 = "0.22"
+# Exact model numbers: the server's `DecimalValue` type, so a range check here
+# agrees with the generated one.
+bigdecimal.workspace = true
 serde.workspace = true
 serde_json = { workspace = true, features = ["preserve_order", "arbitrary_precision"] }
 thiserror.workspace = true
