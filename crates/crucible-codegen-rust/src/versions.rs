@@ -324,11 +324,6 @@ fn older_requirements(
     }
     if kept {
         module.permissions = current.permissions.clone();
-        for id in current.permissions.keys() {
-            module
-                .renames
-                .insert(id.clone(), current.name_of(id).to_owned());
-        }
     }
     kept
 }

@@ -121,7 +121,7 @@ fn describe_member(service: &Service, member: &Member) -> Value {
         "flag": names::kebab(&member.name),
         "target": member.target.to_string(),
         "description": member.notes.prose(member.docs.as_deref()).unwrap_or_default(),
-        "required": !member.optional_on_client() && member.client_default().is_none()
+        "required": !member.optional_on_client() && member.default.as_ref().is_none()
             && !member.idempotency_token,
         "sensitive": service.sensitive(member),
     });

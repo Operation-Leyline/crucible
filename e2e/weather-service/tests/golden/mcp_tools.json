@@ -9,6 +9,23 @@
       "description": "",
       "inputSchema": {
         "$defs": {
+          "crucible.api.Double": {
+            "format": "double",
+            "type": "number"
+          },
+          "crucible.api.Long": {
+            "format": "int64",
+            "maximum": 9223372036854775807,
+            "minimum": -9223372036854775808,
+            "type": "integer"
+          },
+          "crucible.api.String": {
+            "type": "string"
+          },
+          "crucible.api.Unit": {
+            "maxProperties": 0,
+            "type": "object"
+          },
           "example.weather.CityName": {
             "maxLength": 100,
             "minLength": 1,
@@ -17,10 +34,10 @@
           "example.weather.Coordinates": {
             "properties": {
               "latitude": {
-                "$ref": "#/$defs/smithy.api.Double"
+                "$ref": "#/$defs/crucible.api.Double"
               },
               "longitude": {
-                "$ref": "#/$defs/smithy.api.Double"
+                "$ref": "#/$defs/crucible.api.Double"
               }
             },
             "required": [
@@ -35,7 +52,7 @@
               "clientToken": {
                 "anyOf": [
                   {
-                    "$ref": "#/$defs/smithy.api.String"
+                    "$ref": "#/$defs/crucible.api.String"
                   },
                   {
                     "type": "null"
@@ -46,7 +63,7 @@
               "expectedRevision": {
                 "anyOf": [
                   {
-                    "$ref": "#/$defs/smithy.api.Long"
+                    "$ref": "#/$defs/crucible.api.Long"
                   },
                   {
                     "type": "null"
@@ -94,7 +111,7 @@
                 "additionalProperties": false,
                 "properties": {
                   "unknown": {
-                    "$ref": "#/$defs/smithy.api.Unit"
+                    "$ref": "#/$defs/crucible.api.Unit"
                   }
                 },
                 "required": [
@@ -103,23 +120,6 @@
                 "type": "object"
               }
             ]
-          },
-          "smithy.api.Double": {
-            "format": "double",
-            "type": "number"
-          },
-          "smithy.api.Long": {
-            "format": "int64",
-            "maximum": 9223372036854775807,
-            "minimum": -9223372036854775808,
-            "type": "integer"
-          },
-          "smithy.api.String": {
-            "type": "string"
-          },
-          "smithy.api.Unit": {
-            "maxProperties": 0,
-            "type": "object"
           }
         },
         "additionalProperties": false,
@@ -127,7 +127,7 @@
           "clientToken": {
             "anyOf": [
               {
-                "$ref": "#/$defs/smithy.api.String"
+                "$ref": "#/$defs/crucible.api.String"
               },
               {
                 "type": "null"
@@ -138,7 +138,7 @@
           "expectedRevision": {
             "anyOf": [
               {
-                "$ref": "#/$defs/smithy.api.Long"
+                "$ref": "#/$defs/crucible.api.Long"
               },
               {
                 "type": "null"
@@ -171,6 +171,16 @@
       "name": "CreateCity",
       "outputSchema": {
         "$defs": {
+          "crucible.api.Long": {
+            "format": "int64",
+            "maximum": 9223372036854775807,
+            "minimum": -9223372036854775808,
+            "type": "integer"
+          },
+          "crucible.api.Timestamp": {
+            "format": "date-time",
+            "type": "string"
+          },
           "example.weather.CityId": {
             "pattern": "^c-[a-z0-9]{8}$",
             "type": "string"
@@ -208,7 +218,7 @@
                 "type": "string"
               },
               "population": {
-                "$ref": "#/$defs/smithy.api.Long",
+                "$ref": "#/$defs/crucible.api.Long",
                 "default": 0,
                 "x-smithy-default": 0
               },
@@ -240,16 +250,6 @@
               "city"
             ],
             "type": "object"
-          },
-          "smithy.api.Long": {
-            "format": "int64",
-            "maximum": 9223372036854775807,
-            "minimum": -9223372036854775808,
-            "type": "integer"
-          },
-          "smithy.api.Timestamp": {
-            "format": "date-time",
-            "type": "string"
           }
         },
         "properties": {
@@ -329,6 +329,20 @@
       "name": "GetCity",
       "outputSchema": {
         "$defs": {
+          "crucible.api.Document": {},
+          "crucible.api.Long": {
+            "format": "int64",
+            "maximum": 9223372036854775807,
+            "minimum": -9223372036854775808,
+            "type": "integer"
+          },
+          "crucible.api.String": {
+            "type": "string"
+          },
+          "crucible.api.Timestamp": {
+            "format": "date-time",
+            "type": "string"
+          },
           "example.weather.CityId": {
             "pattern": "^c-[a-z0-9]{8}$",
             "type": "string"
@@ -366,7 +380,7 @@
                 "type": "string"
               },
               "population": {
-                "$ref": "#/$defs/smithy.api.Long",
+                "$ref": "#/$defs/crucible.api.Long",
                 "default": 0,
                 "x-smithy-default": 0
               },
@@ -390,7 +404,7 @@
           },
           "example.weather.Forecast": {
             "additionalProperties": {
-              "$ref": "#/$defs/smithy.api.Document"
+              "$ref": "#/$defs/crucible.api.Document"
             },
             "propertyNames": {
               "$ref": "#/$defs/example.weather.Sky"
@@ -415,7 +429,7 @@
               "requestId": {
                 "anyOf": [
                   {
-                    "$ref": "#/$defs/smithy.api.String"
+                    "$ref": "#/$defs/crucible.api.String"
                   },
                   {
                     "type": "null"
@@ -433,20 +447,6 @@
               "clear",
               "cloudy"
             ],
-            "type": "string"
-          },
-          "smithy.api.Document": {},
-          "smithy.api.Long": {
-            "format": "int64",
-            "maximum": 9223372036854775807,
-            "minimum": -9223372036854775808,
-            "type": "integer"
-          },
-          "smithy.api.String": {
-            "type": "string"
-          },
-          "smithy.api.Timestamp": {
-            "format": "date-time",
             "type": "string"
           }
         },
@@ -467,7 +467,7 @@
           "requestId": {
             "anyOf": [
               {
-                "$ref": "#/$defs/smithy.api.String"
+                "$ref": "#/$defs/crucible.api.String"
               },
               {
                 "type": "null"
@@ -521,12 +521,15 @@
       "name": "GetCityPhoto",
       "outputSchema": {
         "$defs": {
+          "crucible.api.String": {
+            "type": "string"
+          },
           "example.weather.GetCityPhotoOutput": {
             "properties": {
               "caption": {
                 "anyOf": [
                   {
-                    "$ref": "#/$defs/smithy.api.String"
+                    "$ref": "#/$defs/crucible.api.String"
                   },
                   {
                     "type": "null"
@@ -562,16 +565,13 @@
               "min": 1,
               "unit": "bytes"
             }
-          },
-          "smithy.api.String": {
-            "type": "string"
           }
         },
         "properties": {
           "caption": {
             "anyOf": [
               {
-                "$ref": "#/$defs/smithy.api.String"
+                "$ref": "#/$defs/crucible.api.String"
               },
               {
                 "type": "null"
@@ -608,6 +608,15 @@
       "description": "Pagination: pass the output `nextToken` cursor as input `nextToken` to fetch the next page.",
       "inputSchema": {
         "$defs": {
+          "crucible.api.Integer": {
+            "format": "int32",
+            "maximum": 2147483647,
+            "minimum": -2147483648,
+            "type": "integer"
+          },
+          "crucible.api.String": {
+            "type": "string"
+          },
           "example.weather.ListCitiesInput": {
             "properties": {
               "maxResults": {
@@ -626,7 +635,7 @@
               "nextToken": {
                 "anyOf": [
                   {
-                    "$ref": "#/$defs/smithy.api.String"
+                    "$ref": "#/$defs/crucible.api.String"
                   },
                   {
                     "type": "null"
@@ -637,7 +646,7 @@
                 "anyOf": [
                   {
                     "items": {
-                      "$ref": "#/$defs/smithy.api.String"
+                      "$ref": "#/$defs/crucible.api.String"
                     },
                     "maxItems": 5,
                     "type": "array",
@@ -653,20 +662,11 @@
           },
           "example.weather.Tags": {
             "items": {
-              "$ref": "#/$defs/smithy.api.String"
+              "$ref": "#/$defs/crucible.api.String"
             },
             "maxItems": 5,
             "type": "array",
             "uniqueItems": false
-          },
-          "smithy.api.Integer": {
-            "format": "int32",
-            "maximum": 2147483647,
-            "minimum": -2147483648,
-            "type": "integer"
-          },
-          "smithy.api.String": {
-            "type": "string"
           }
         },
         "properties": {
@@ -686,7 +686,7 @@
           "nextToken": {
             "anyOf": [
               {
-                "$ref": "#/$defs/smithy.api.String"
+                "$ref": "#/$defs/crucible.api.String"
               },
               {
                 "type": "null"
@@ -697,7 +697,7 @@
             "anyOf": [
               {
                 "items": {
-                  "$ref": "#/$defs/smithy.api.String"
+                  "$ref": "#/$defs/crucible.api.String"
                 },
                 "maxItems": 5,
                 "type": "array",
@@ -714,6 +714,19 @@
       "name": "ListCities",
       "outputSchema": {
         "$defs": {
+          "crucible.api.Long": {
+            "format": "int64",
+            "maximum": 9223372036854775807,
+            "minimum": -9223372036854775808,
+            "type": "integer"
+          },
+          "crucible.api.String": {
+            "type": "string"
+          },
+          "crucible.api.Timestamp": {
+            "format": "date-time",
+            "type": "string"
+          },
           "example.weather.CityId": {
             "pattern": "^c-[a-z0-9]{8}$",
             "type": "string"
@@ -758,7 +771,7 @@
                 "type": "string"
               },
               "population": {
-                "$ref": "#/$defs/smithy.api.Long",
+                "$ref": "#/$defs/crucible.api.Long",
                 "default": 0,
                 "x-smithy-default": 0
               },
@@ -788,7 +801,7 @@
               "nextToken": {
                 "anyOf": [
                   {
-                    "$ref": "#/$defs/smithy.api.String"
+                    "$ref": "#/$defs/crucible.api.String"
                   },
                   {
                     "type": "null"
@@ -800,19 +813,6 @@
               "cities"
             ],
             "type": "object"
-          },
-          "smithy.api.Long": {
-            "format": "int64",
-            "maximum": 9223372036854775807,
-            "minimum": -9223372036854775808,
-            "type": "integer"
-          },
-          "smithy.api.String": {
-            "type": "string"
-          },
-          "smithy.api.Timestamp": {
-            "format": "date-time",
-            "type": "string"
           }
         },
         "properties": {
@@ -822,7 +822,7 @@
           "nextToken": {
             "anyOf": [
               {
-                "$ref": "#/$defs/smithy.api.String"
+                "$ref": "#/$defs/crucible.api.String"
               },
               {
                 "type": "null"
@@ -864,6 +864,9 @@
       "description": "Stores a city's photo exactly as sent.",
       "inputSchema": {
         "$defs": {
+          "crucible.api.String": {
+            "type": "string"
+          },
           "example.weather.CityId": {
             "pattern": "^c-[a-z0-9]{8}$",
             "type": "string"
@@ -883,7 +886,7 @@
               "caption": {
                 "anyOf": [
                   {
-                    "$ref": "#/$defs/smithy.api.String"
+                    "$ref": "#/$defs/crucible.api.String"
                   },
                   {
                     "type": "null"
@@ -910,16 +913,13 @@
               "photo"
             ],
             "type": "object"
-          },
-          "smithy.api.String": {
-            "type": "string"
           }
         },
         "properties": {
           "caption": {
             "anyOf": [
               {
-                "$ref": "#/$defs/smithy.api.String"
+                "$ref": "#/$defs/crucible.api.String"
               },
               {
                 "type": "null"
@@ -950,6 +950,15 @@
       "name": "PutCityPhoto",
       "outputSchema": {
         "$defs": {
+          "crucible.api.Integer": {
+            "format": "int32",
+            "maximum": 2147483647,
+            "minimum": -2147483648,
+            "type": "integer"
+          },
+          "crucible.api.String": {
+            "type": "string"
+          },
           "example.weather.PhotoSummary": {
             "externalDocs": {
               "description": "Photo guide",
@@ -959,7 +968,7 @@
               "caption": {
                 "anyOf": [
                   {
-                    "$ref": "#/$defs/smithy.api.String"
+                    "$ref": "#/$defs/crucible.api.String"
                   },
                   {
                     "type": "null"
@@ -967,7 +976,7 @@
                 ]
               },
               "size": {
-                "$ref": "#/$defs/smithy.api.Integer"
+                "$ref": "#/$defs/crucible.api.Integer"
               },
               "thumbnail": {
                 "contentEncoding": "base64",
@@ -1011,15 +1020,6 @@
               "min": null,
               "unit": "bytes"
             }
-          },
-          "smithy.api.Integer": {
-            "format": "int32",
-            "maximum": 2147483647,
-            "minimum": -2147483648,
-            "type": "integer"
-          },
-          "smithy.api.String": {
-            "type": "string"
           }
         },
         "properties": {

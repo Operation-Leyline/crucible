@@ -250,7 +250,7 @@ fn void_operation_has_typed_default_unit_input_and_output() {
     .unwrap();
     assert!(schema["operations"]["Ping"]["input"].is_null());
     assert!(schema["operations"]["Ping"]["output"].is_null());
-    assert!(schema["shapes"].get("smithy.api#Unit").is_none());
+    assert!(schema["shapes"].get("crucible.api#Unit").is_none());
 }
 
 #[test]

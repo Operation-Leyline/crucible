@@ -1,10 +1,11 @@
 //! Lowering a parsed package to `ir::Service`.
 //!
 //! Lowering settles the semantics the generators share (bindings, effective
-//! constraints, timestamp formats, error envelopes). It works with
-//! Smithy-style trait ids internally, the IR's trait vocabulary; the finished
-//! IR keeps only project metadata in its raw `traits` maps, because every
-//! generator reads typed fields (decision 63).
+//! constraints, timestamp formats, error envelopes). While it works it
+//! records standard facts as raw traits in the prelude namespace
+//! (`crucible.api#http`, [`builtin`]); the finished IR keeps only project
+//! metadata in its raw `traits` maps, because every generator reads typed
+//! fields (decision 63).
 //!
 //! Constructs the compiler cannot lower yet are diagnostics, never skipped.
 
@@ -267,7 +268,7 @@ fn member_differences(a: &IrMember, b: &IrMember) -> Vec<String> {
     fn fields(member: &IrMember) -> serde_json::Map<String, Json> {
         let mut member = member.clone();
         member.docs = None;
-        member.traits.remove(&smithy("documentation"));
+        member.traits.remove(&builtin("documentation"));
         match serde_json::to_value(member) {
             Ok(Json::Object(map)) => map,
             _ => serde_json::Map::new(),
@@ -342,11 +343,13 @@ const ROLES: &[&str] = &[
 /// The roles a resource's lifecycle has one of each (decision 32).
 const LIFECYCLE: &[&str] = &["creates", "puts", "reads", "updates", "deletes", "lists"];
 
-fn smithy(name: &str) -> ShapeId {
-    ShapeId::new("smithy.api", name)
+/// A built-in type or a standard trait the lowering records while it works:
+/// `builtin("String")` is `crucible.api#String`.
+fn builtin(name: &str) -> ShapeId {
+    ShapeId::prelude(name)
 }
 
-/// Built-in scalar type names and the Smithy prelude shape each one is.
+/// Built-in scalar type names and the prelude shape each one is.
 fn prelude(word: &str) -> Option<(&'static str, SimpleKind)> {
     Some(match word {
         "string" => ("String", SimpleKind::String),
@@ -1038,7 +1041,7 @@ impl<'a> Lowerer<'a> {
                     );
                 }
                 if entry.kind == ResourceEntryKind::Id {
-                    let text = target == smithy("String")
+                    let text = target == builtin("String")
                         || match self.decl(target.name()).map(|d| &d.item.decl) {
                             Some(Decl::Scalar(s)) => s.kind.name == "string",
                             Some(Decl::Enum(e)) => e.base.is_none(),
@@ -1627,8 +1630,8 @@ impl<'a> Lowerer<'a> {
                 operation.name.span,
                 format!("`{role}` implies `idempotent`; the operation is not also `readonly`"),
             ),
-            // Smithy's update lifecycle forbids `readonly` too, though it
-            // implies no idempotency.
+            // An update changes the resource, so it is not `readonly`,
+            // though it implies no idempotency.
             "updates" if modifiers.contains("readonly") => self.error(
                 file,
                 operation.name.span,
@@ -1710,7 +1713,7 @@ impl<'a> Lowerer<'a> {
     /// when it is not, this does not.
     fn type_id(&self, name: &str) -> Option<ShapeId> {
         match prelude(name) {
-            Some((prelude, _)) => Some(smithy(prelude)),
+            Some((prelude, _)) => Some(builtin(prelude)),
             None => self
                 .decl(name)
                 .filter(|decl| is_type(&decl.item.decl))
@@ -1720,7 +1723,7 @@ impl<'a> Lowerer<'a> {
 
     fn resolve_type(&mut self, file: usize, name: &Ident) -> Option<ShapeId> {
         if let Some((prelude, _)) = prelude(&name.name) {
-            return Some(smithy(prelude));
+            return Some(builtin(prelude));
         }
         match self.decl(&name.name) {
             Some(decl) if is_type(&decl.item.decl) => Some(self.ref_id(&name.name)),
@@ -1846,7 +1849,8 @@ impl<'a> Lowerer<'a> {
                     if let Some(since) = &since {
                         value.insert("since".into(), Json::String(since.clone()));
                     }
-                    out.traits.insert(smithy("deprecated"), Json::Object(value));
+                    out.traits
+                        .insert(builtin("deprecated"), Json::Object(value));
                     out.notes.deprecated = Some(Deprecation { message, since });
                 }
                 "since" => match annotation.args.as_slice() {
@@ -1855,7 +1859,7 @@ impl<'a> Lowerer<'a> {
                             unreachable!("matched")
                         };
                         out.traits
-                            .insert(smithy("since"), Json::String(s.value.clone()));
+                            .insert(builtin("since"), Json::String(s.value.clone()));
                         out.notes.since = Some(s.value.clone());
                     }
                     _ => self.error(file, annotation.span, "`@since` takes one string"),
@@ -1863,7 +1867,7 @@ impl<'a> Lowerer<'a> {
                 "unstable" => {
                     self.no_args(file, annotation);
                     out.traits
-                        .insert(smithy("unstable"), Json::Object(JsonMap::new()));
+                        .insert(builtin("unstable"), Json::Object(JsonMap::new()));
                     out.notes.unstable = true;
                 }
                 "externalDocs" => {
@@ -1884,7 +1888,7 @@ impl<'a> Lowerer<'a> {
                         }
                     }
                     out.traits
-                        .insert(smithy("externalDocumentation"), Json::Object(value));
+                        .insert(builtin("externalDocumentation"), Json::Object(value));
                 }
                 "query" => match annotation.args.as_slice() {
                     [] => out.query = Some(None),
@@ -2217,7 +2221,7 @@ impl<'a> Lowerer<'a> {
             Some(Decl::Structure(s)) if top => s.members.iter().all(|member| match &member.kind {
                 MemberKind::Field { ty: Some(ty), .. } => {
                     let id = match prelude(&ty.name.name) {
-                        Some((name, _)) => smithy(name),
+                        Some((name, _)) => builtin(name),
                         None => self.ref_id(&ty.name.name),
                     };
                     self.metadata_type(&id, false)
@@ -2238,7 +2242,7 @@ impl<'a> Lowerer<'a> {
         value: &Json,
     ) {
         let id = match prelude(&ty.name.name) {
-            Some((prelude, _)) => smithy(prelude),
+            Some((prelude, _)) => builtin(prelude),
             None => self.ref_id(&ty.name.name),
         };
         if !self.meta_shapes.contains_key(&id) {
@@ -2390,7 +2394,7 @@ impl<'a> Lowerer<'a> {
                         self.error(file, constraint.span, "the minimum length exceeds the maximum");
                     }
                     info.constraints.length = Some(bounds);
-                    info.traits.insert(smithy("length"), Json::Object(value));
+                    info.traits.insert(builtin("length"), Json::Object(value));
                 }
                 ("range", ConstraintValue::Range { min, max }) => {
                     let mut value = JsonMap::new();
@@ -2410,17 +2414,17 @@ impl<'a> Lowerer<'a> {
                         self.error(file, constraint.span, "the minimum exceeds the maximum");
                     }
                     info.constraints.range = Some(Bounds { min, max });
-                    info.traits.insert(smithy("range"), Json::Object(value));
+                    info.traits.insert(builtin("range"), Json::Object(value));
                 }
                 ("pattern", ConstraintValue::Value(Value::Str(pattern))) => {
                     info.constraints.pattern = Some(pattern.value.clone());
                     info.traits
-                        .insert(smithy("pattern"), Json::String(pattern.value.clone()));
+                        .insert(builtin("pattern"), Json::String(pattern.value.clone()));
                 }
                 ("unique", ConstraintValue::Flag) => {
                     info.constraints.unique_items = true;
                     info.traits
-                        .insert(smithy("uniqueItems"), Json::Object(JsonMap::new()));
+                        .insert(builtin("uniqueItems"), Json::Object(JsonMap::new()));
                 }
                 ("format", ConstraintValue::Value(Value::Ident(format))) => {
                     let parsed = match format.name.as_str() {
@@ -2433,7 +2437,7 @@ impl<'a> Lowerer<'a> {
                         Some(parsed) => {
                             info.format = Some(parsed);
                             info.traits.insert(
-                                smithy("timestampFormat"),
+                                builtin("timestampFormat"),
                                 Json::String(format.name.clone()),
                             );
                         }
@@ -2447,7 +2451,7 @@ impl<'a> Lowerer<'a> {
                 ("mediaType", ConstraintValue::Value(Value::Str(media))) => {
                     info.media_type = Some(media.value.clone());
                     info.traits
-                        .insert(smithy("mediaType"), Json::String(media.value.clone()));
+                        .insert(builtin("mediaType"), Json::String(media.value.clone()));
                 }
                 _ => self.error(
                     file,
@@ -2747,7 +2751,7 @@ impl<'a> Lowerer<'a> {
                 _ => {}
             }
         }
-        let shape = if id.namespace() == "smithy.api" {
+        let shape = if id.is_prelude() {
             self.prelude_shape(id)
         } else if let Some(body) = self.bodies.get(id).cloned() {
             self.locate(id.clone(), body.file, body.body.span);
@@ -2785,8 +2789,8 @@ impl<'a> Lowerer<'a> {
 
     fn kind_requirements(&mut self, id: &ShapeId, kind: SimpleKind) {
         match kind {
-            SimpleKind::BigInteger => self.require(id, Feature::BigInteger, smithy("BigInteger")),
-            SimpleKind::BigDecimal => self.require(id, Feature::BigDecimal, smithy("BigDecimal")),
+            SimpleKind::BigInteger => self.require(id, Feature::BigInteger, builtin("BigInteger")),
+            SimpleKind::BigDecimal => self.require(id, Feature::BigDecimal, builtin("BigDecimal")),
             _ => {}
         }
     }
@@ -2809,11 +2813,11 @@ impl<'a> Lowerer<'a> {
         let mut traits = annotations.traits;
         let docs = self.doc(file, item.doc.as_ref());
         if let Some(docs) = &docs {
-            traits.insert(smithy("documentation"), Json::String(docs.clone()));
+            traits.insert(builtin("documentation"), Json::String(docs.clone()));
         }
         for modifier in ["internal", "sensitive"] {
             if modifiers.contains(modifier) {
-                traits.insert(smithy(modifier), Json::Object(JsonMap::new()));
+                traits.insert(builtin(modifier), Json::Object(JsonMap::new()));
             }
         }
         (traits, annotations.notes, docs)
@@ -2867,7 +2871,7 @@ impl<'a> Lowerer<'a> {
                     }
                 }
                 if integer {
-                    self.require(id, Feature::IntEnum, smithy("IntEnum"));
+                    self.require(id, Feature::IntEnum, builtin("IntEnum"));
                     let mut seen = BTreeSet::new();
                     let mut values = Vec::new();
                     for value in &enumeration.values {
@@ -2927,7 +2931,7 @@ impl<'a> Lowerer<'a> {
                 let member = self.collection_member(id, "member", &target);
                 traits.extend(info.traits);
                 if modifiers.contains("sparse") {
-                    self.require(id, Feature::Sparse, smithy("sparse"));
+                    self.require(id, Feature::Sparse, builtin("sparse"));
                 }
                 Shape::List(List {
                     internal: modifiers.contains("internal"),
@@ -2961,7 +2965,7 @@ impl<'a> Lowerer<'a> {
                 let value = self.collection_member(id, "value", &value);
                 traits.extend(info.traits);
                 if modifiers.contains("sparse") {
-                    self.require(id, Feature::Sparse, smithy("sparse"));
+                    self.require(id, Feature::Sparse, builtin("sparse"));
                 }
                 Shape::Map(Map {
                     internal: modifiers.contains("internal"),
@@ -3097,7 +3101,7 @@ impl<'a> Lowerer<'a> {
                     Fault::Client
                 };
                 traits.insert(
-                    smithy("error"),
+                    builtin("error"),
                     Json::String(
                         if fault == Fault::Server {
                             "server"
@@ -3107,13 +3111,13 @@ impl<'a> Lowerer<'a> {
                         .into(),
                     ),
                 );
-                traits.insert(smithy("httpError"), Json::Number(status.into()));
+                traits.insert(builtin("httpError"), Json::Number(status.into()));
                 if let Some(retryable) = &retryable {
                     let mut value = JsonMap::new();
                     if retryable.throttling {
                         value.insert("throttling".into(), Json::Bool(true));
                     }
-                    traits.insert(smithy("retryable"), Json::Object(value));
+                    traits.insert(builtin("retryable"), Json::Object(value));
                 }
                 let context = MemberContext {
                     owner: id,
@@ -3236,7 +3240,7 @@ impl<'a> Lowerer<'a> {
             BodyKind::Input => "input",
             BodyKind::Output => "output",
         };
-        traits.insert(smithy(marker), Json::Object(JsonMap::new()));
+        traits.insert(builtin(marker), Json::Object(JsonMap::new()));
         let mut strict = false;
         for modifier in &source.body.modifiers {
             if modifier.name == "strict" && source.body.kind == BodyKind::Input {
@@ -3290,7 +3294,7 @@ impl<'a> Lowerer<'a> {
         );
         let docs = self.doc(file, source.body.doc.as_ref());
         if let Some(docs) = &docs {
-            traits.insert(smithy("documentation"), Json::String(docs.clone()));
+            traits.insert(builtin("documentation"), Json::String(docs.clone()));
         }
         Shape::Structure(IrStructure {
             internal: false,
@@ -3317,7 +3321,6 @@ impl<'a> Lowerer<'a> {
             required: false,
             default: None,
             wire_default: None,
-            client_optional: false,
             idempotency_token: false,
             mutability: None,
             constraints,
@@ -3495,7 +3498,7 @@ impl<'a> Lowerer<'a> {
                             if *optional && bare {
                                 // Loosened for this view, where `$*` put it.
                                 out[index].required = false;
-                                out[index].traits.remove(&smithy("required"));
+                                out[index].traits.remove(&builtin("required"));
                             } else {
                                 self.error(
                                     file,
@@ -4093,7 +4096,7 @@ impl<'a> Lowerer<'a> {
         };
         let target = match ty {
             Some(ty) => self.resolve_type(ty_file, &ty.name)?,
-            None => smithy("Unit"),
+            None => builtin("Unit"),
         };
         self.visit(&target);
         let own = match ty {
@@ -4171,23 +4174,23 @@ impl<'a> Lowerer<'a> {
             }
         }
         if internal {
-            traits.insert(smithy("internal"), Json::Object(JsonMap::new()));
+            traits.insert(builtin("internal"), Json::Object(JsonMap::new()));
         }
         if sensitive {
-            traits.insert(smithy("sensitive"), Json::Object(JsonMap::new()));
+            traits.insert(builtin("sensitive"), Json::Object(JsonMap::new()));
         }
         if let Some(query) = &annotations.query {
             let parameter = query.clone().unwrap_or_else(|| name.clone());
-            traits.insert(smithy("httpQuery"), Json::String(parameter));
+            traits.insert(builtin("httpQuery"), Json::String(parameter));
         }
         if let Some(header) = &annotations.header {
-            traits.insert(smithy("httpHeader"), Json::String(header.clone()));
+            traits.insert(builtin("httpHeader"), Json::String(header.clone()));
         }
         if annotations.payload {
-            traits.insert(smithy("httpPayload"), Json::Object(JsonMap::new()));
+            traits.insert(builtin("httpPayload"), Json::Object(JsonMap::new()));
         }
         if annotations.token {
-            traits.insert(smithy("idempotencyToken"), Json::Object(JsonMap::new()));
+            traits.insert(builtin("idempotencyToken"), Json::Object(JsonMap::new()));
         }
         if context.labels.contains(&name) {
             let explicit =
@@ -4199,18 +4202,18 @@ impl<'a> Lowerer<'a> {
                     format!("`{name}` binds the URI label {{{name}}} by name; it cannot also be a query parameter, header or payload"),
                 );
             }
-            traits.insert(smithy("httpLabel"), Json::Object(JsonMap::new()));
+            traits.insert(builtin("httpLabel"), Json::Object(JsonMap::new()));
         }
         if required {
-            traits.insert(smithy("required"), Json::Object(JsonMap::new()));
+            traits.insert(builtin("required"), Json::Object(JsonMap::new()));
         }
         // A doc borrowed from the resource entry is checked with the entry.
         self.doc(file, member.doc.as_ref());
         let docs = doc_text(doc);
         if let Some(docs) = &docs {
-            traits.insert(smithy("documentation"), Json::String(docs.clone()));
+            traits.insert(builtin("documentation"), Json::String(docs.clone()));
         }
-        // A member's constraint replaces its type's, as in Smithy. One that
+        // A member's constraint replaces its type's. One that
         // loosens it accepts what the type refuses, which is usually a
         // mistake (a dropped bound), so it is a warning, not an error: the
         // weather model loosens a name on purpose to exercise output checks.
@@ -4258,7 +4261,7 @@ impl<'a> Lowerer<'a> {
         let default =
             default.map(|value| self.default_value(file, name_span, value, &target, &constraints));
         if let Some(default) = &default {
-            traits.insert(smithy("default"), default.clone());
+            traits.insert(builtin("default"), default.clone());
         }
         if own.media_type.is_some() {
             self.error(
@@ -4290,7 +4293,6 @@ impl<'a> Lowerer<'a> {
             wire_default: default.clone(),
             default,
             // Decision 20: a required member is required in generated clients too.
-            client_optional: false,
             idempotency_token: annotations.token,
             mutability,
             constraints,
@@ -4310,11 +4312,11 @@ impl<'a> Lowerer<'a> {
             let traits = &member.traits;
             let string = |name: &str| {
                 traits
-                    .get(&smithy(name))
+                    .get(&builtin(name))
                     .and_then(Json::as_str)
                     .map(str::to_owned)
             };
-            if traits.contains_key(&smithy("httpPayload")) {
+            if traits.contains_key(&builtin("httpPayload")) {
                 if bindings.payload.is_some() {
                     self.error_at(
                         &owner.with_member(&member.name),
@@ -4323,7 +4325,7 @@ impl<'a> Lowerer<'a> {
                 } else {
                     bindings.payload = self.payload(owner, member);
                 }
-            } else if request && traits.contains_key(&smithy("httpLabel")) {
+            } else if request && traits.contains_key(&builtin("httpLabel")) {
                 bindings.labels.push(member.name.clone());
             } else if let Some(parameter) = string("httpQuery").filter(|_| request) {
                 bindings.query.push(Binding {
@@ -4378,7 +4380,7 @@ impl<'a> Lowerer<'a> {
             }
         };
         let media_type = traits
-            .get(&smithy("mediaType"))
+            .get(&builtin("mediaType"))
             .and_then(Json::as_str)
             .map(str::to_owned)
             .unwrap_or_else(|| {
@@ -4393,7 +4395,7 @@ impl<'a> Lowerer<'a> {
             self.require(
                 &owner.with_member(&member.name),
                 Feature::NonBlobPayload,
-                smithy("httpPayload"),
+                builtin("httpPayload"),
             );
         }
         Some(Payload {
@@ -4414,16 +4416,16 @@ impl<'a> Lowerer<'a> {
             }
             let media = match target {
                 Some(Shape::Simple(s)) if s.kind == SimpleKind::String => {
-                    s.traits.contains_key(&smithy("mediaType"))
+                    s.traits.contains_key(&builtin("mediaType"))
                 }
-                Some(Shape::Enum(e)) => e.traits.contains_key(&smithy("mediaType")),
+                Some(Shape::Enum(e)) => e.traits.contains_key(&builtin("mediaType")),
                 _ => false,
             };
             if media {
                 self.require(
                     &owner.with_member(&binding.member),
                     Feature::MediaTypeHeaders,
-                    smithy("mediaType"),
+                    builtin("mediaType"),
                 );
                 bindings
                     .header_encodings
@@ -4480,11 +4482,11 @@ impl<'a> Lowerer<'a> {
         retryable: Option<Retryable>,
     ) -> ErrorInfo {
         for member in members {
-            if member.traits.contains_key(&smithy("httpPayload")) {
+            if member.traits.contains_key(&builtin("httpPayload")) {
                 self.require(
                     &id.with_member(&member.name),
                     Feature::ErrorPayload,
-                    smithy("httpPayload"),
+                    builtin("httpPayload"),
                 );
             }
         }
@@ -4749,7 +4751,7 @@ impl<'a> Lowerer<'a> {
         }
         let uri = self.uri(file, http.uri.span, &http.uri.value);
         if !uri.greedy_labels.is_empty() {
-            self.require(&id, Feature::GreedyLabels, smithy("http"));
+            self.require(&id, Feature::GreedyLabels, builtin("http"));
         }
         let status = match &http.status {
             None => 200,
@@ -4771,7 +4773,7 @@ impl<'a> Lowerer<'a> {
         if http.status.is_some() {
             http_trait.insert("code".into(), Json::Number(status.into()));
         }
-        traits.insert(smithy("http"), Json::Object(http_trait));
+        traits.insert(builtin("http"), Json::Object(http_trait));
 
         let (role, resource) = match &operation.attachment {
             Some(attachment) => {
@@ -4868,11 +4870,11 @@ impl<'a> Lowerer<'a> {
         // Role and keywords together (decisions 26 and 32).
         let idempotency_token = input_members
             .iter()
-            .find(|m| m.traits.contains_key(&smithy("idempotencyToken")))
+            .find(|m| m.traits.contains_key(&builtin("idempotencyToken")))
             .map(|m| m.name.clone());
         let readonly = modifiers.contains("readonly") || matches!(role, Some("reads" | "lists"));
-        // `updates` implies nothing about repeating: Smithy's update lifecycle
-        // does not require idempotency, and an update that, say, appends a
+        // `updates` implies nothing about repeating: an update need not be
+        // idempotent, and one that, say, appends a
         // version is not safe to retry. It says `idempotent` when it is.
         let idempotent = !readonly
             && (modifiers.contains("idempotent")
@@ -4899,10 +4901,10 @@ impl<'a> Lowerer<'a> {
             _ => {}
         }
         if readonly {
-            traits.insert(smithy("readonly"), Json::Object(JsonMap::new()));
+            traits.insert(builtin("readonly"), Json::Object(JsonMap::new()));
         }
         if idempotent {
-            traits.insert(smithy("idempotent"), Json::Object(JsonMap::new()));
+            traits.insert(builtin("idempotent"), Json::Object(JsonMap::new()));
         }
 
         let mut protocol_headers = BTreeMap::new();
@@ -4969,7 +4971,7 @@ impl<'a> Lowerer<'a> {
                 page_size: field("pageSize"),
             };
             // Member paths and types are checked by crucible_ir::validate.
-            traits.insert(smithy("paginated"), Json::Object(own));
+            traits.insert(builtin("paginated"), Json::Object(own));
             Some(paginated)
         });
         if pagination.is_some() && paginated.is_none() {
@@ -5043,21 +5045,21 @@ impl<'a> Lowerer<'a> {
             lowered_examples.push(lowered);
         }
         if !example_traits.is_empty() {
-            traits.insert(smithy("examples"), Json::Array(example_traits));
+            traits.insert(builtin("examples"), Json::Array(example_traits));
         }
 
         let docs = self.doc(file, item.doc.as_ref());
         if let Some(docs) = &docs {
-            traits.insert(smithy("documentation"), Json::String(docs.clone()));
+            traits.insert(builtin("documentation"), Json::String(docs.clone()));
         }
         let auth = if modifiers.contains("public") {
-            traits.insert(smithy("auth"), Json::Array(Vec::new()));
+            traits.insert(builtin("auth"), Json::Array(Vec::new()));
             Vec::new()
         } else {
             default_auth.to_vec()
         };
         if modifiers.contains("internal") {
-            traits.insert(smithy("internal"), Json::Object(JsonMap::new()));
+            traits.insert(builtin("internal"), Json::Object(JsonMap::new()));
         }
         let has_value =
             output_id.is_some() && (!response.body.is_empty() || response.payload.is_some());
@@ -5244,7 +5246,7 @@ impl<'a> Lowerer<'a> {
         let mut auth_schemes = BTreeMap::new();
         if let Some(scheme) = auth_scheme {
             if scheme.name == "bearer" {
-                let scheme_id = smithy("httpBearerAuth");
+                let scheme_id = builtin("httpBearerAuth");
                 traits.insert(scheme_id.clone(), Json::Object(JsonMap::new()));
                 auth.push(scheme_id.clone());
                 auth_schemes.insert(scheme_id, AuthScheme::Bearer);
@@ -5260,14 +5262,14 @@ impl<'a> Lowerer<'a> {
             }
         }
         if let Some(title) = &title {
-            traits.insert(smithy("title"), Json::String(title.clone()));
+            traits.insert(builtin("title"), Json::String(title.clone()));
         }
         if !pagination.is_empty() {
-            traits.insert(smithy("paginated"), Json::Object(pagination.clone()));
+            traits.insert(builtin("paginated"), Json::Object(pagination.clone()));
         }
         let docs = self.doc(file, item.doc.as_ref());
         if let Some(docs) = &docs {
-            traits.insert(smithy("documentation"), Json::String(docs.clone()));
+            traits.insert(builtin("documentation"), Json::String(docs.clone()));
         }
 
         // Which resources the service reaches: the roots it lists, and every
@@ -5420,7 +5422,6 @@ impl<'a> Lowerer<'a> {
             // shape a second time and repeat its diagnostics.
             shapes: self.shapes.clone(),
             traits,
-            renames: BTreeMap::new(),
             versions: Vec::new(),
             api_version: None,
             internal_traits: BTreeSet::new(),
@@ -5442,7 +5443,7 @@ impl<'a> Lowerer<'a> {
                 "the service's version names the release clients send in the `Crucible-Version` header: use visible ASCII without spaces",
             );
         }
-        // Rules of the IR itself, shared with the Smithy front end.
+        // Rules of the IR itself, checked in `crucible_ir::validate`.
         let mut issues = crucible_ir::Diagnostics::default();
         crucible_ir::validate::service(&service, &mut issues);
         for issue in issues.iter() {

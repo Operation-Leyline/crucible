@@ -260,20 +260,18 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
             }
             Shape::Unit { .. } => models.push_str(&format!("{name}: TypeAlias = None\n\n")),
             Shape::Simple(s) => {
-                let prelude = ShapeId::new(
-                    "smithy.api",
-                    match s.kind {
-                        crucible_ir::ir::SimpleKind::String => "String",
-                        crucible_ir::ir::SimpleKind::Boolean => "Boolean",
-                        crucible_ir::ir::SimpleKind::Timestamp => "Timestamp",
-                        crucible_ir::ir::SimpleKind::Document => "Document",
-                        crucible_ir::ir::SimpleKind::Blob => "Blob",
-                        crucible_ir::ir::SimpleKind::BigDecimal => "BigDecimal",
-                        crucible_ir::ir::SimpleKind::Float
-                        | crucible_ir::ir::SimpleKind::Double => "Double",
-                        _ => "Long",
-                    },
-                );
+                let prelude = ShapeId::prelude(match s.kind {
+                    crucible_ir::ir::SimpleKind::String => "String",
+                    crucible_ir::ir::SimpleKind::Boolean => "Boolean",
+                    crucible_ir::ir::SimpleKind::Timestamp => "Timestamp",
+                    crucible_ir::ir::SimpleKind::Document => "Document",
+                    crucible_ir::ir::SimpleKind::Blob => "Blob",
+                    crucible_ir::ir::SimpleKind::BigDecimal => "BigDecimal",
+                    crucible_ir::ir::SimpleKind::Float | crucible_ir::ir::SimpleKind::Double => {
+                        "Double"
+                    }
+                    _ => "Long",
+                });
                 let t = match prelude.name() {
                     "String" => "str",
                     "Boolean" => "bool",

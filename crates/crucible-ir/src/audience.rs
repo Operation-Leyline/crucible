@@ -223,9 +223,6 @@ pub fn project(service: &Service, audience: Audience) -> Result<Service, Diagnos
                 .member()
                 .is_none_or(|name| member_exists(&result.shapes, Some(&root), name))
     });
-    result
-        .renames
-        .retain(|id, _| reached.contains(id) || operations.contains(id) || resources.contains(id));
     // A doc link to what the projection removed is plain text (decision
     // 80): the external contract names no internal id.
     result.retain_doc_links();
@@ -237,80 +234,17 @@ pub fn project(service: &Service, audience: Audience) -> Result<Service, Diagnos
     }
 }
 
-/// Standard traits (the `smithy.*`, `aws.*` and `crucible.*` namespaces)
-/// an external view keeps in its raw trait maps: their values are scalars,
-/// wire bindings, constraints or protocol settings, never a member, shape or
-/// enum value the projection may have removed. The rest (`smithy.api#enum`,
-/// `smithy.api#references`, protocol tests, examples, waiters, endpoint
-/// tests, and any standard trait not listed) are dropped; their projected
-/// typed forms remain.
-const EXTERNAL_RAW_TRAITS: &[&str] = &[
-    "smithy.api#addedDefault",
-    "smithy.api#auth",
-    "smithy.api#authDefinition",
-    "smithy.api#box",
-    "smithy.api#clientOptional",
-    "smithy.api#default",
-    "smithy.api#deprecated",
-    "smithy.api#documentation",
-    "smithy.api#enumValue",
-    "smithy.api#error",
-    "smithy.api#externalDocumentation",
-    "smithy.api#http",
-    "smithy.api#httpBearerAuth",
-    "smithy.api#httpError",
-    "smithy.api#httpHeader",
-    "smithy.api#httpLabel",
-    "smithy.api#httpPayload",
-    "smithy.api#httpQuery",
-    "smithy.api#idempotencyToken",
-    "smithy.api#idempotent",
-    "smithy.api#input",
-    "smithy.api#length",
-    "smithy.api#mediaType",
-    "smithy.api#noReplace",
-    "smithy.api#output",
-    "smithy.api#paginated",
-    "smithy.api#pattern",
-    "smithy.api#private",
-    "smithy.api#protocolDefinition",
-    "smithy.api#range",
-    "smithy.api#readonly",
-    "smithy.api#recommended",
-    "smithy.api#requestCompression",
-    "smithy.api#required",
-    "smithy.api#retryable",
-    "smithy.api#sensitive",
-    "smithy.api#sparse",
-    "smithy.api#since",
-    "smithy.api#sparse",
-    "smithy.api#tags",
-    "smithy.api#timestampFormat",
-    "smithy.api#title",
-    "smithy.api#uniqueItems",
-    "smithy.api#unitType",
-    "smithy.api#unstable",
-    "aws.api#service",
-    "crucible.protocols#json",
-    "crucible.protocols#strict",
-];
-
-/// Whether an external view keeps a raw trait application. A custom trait
-/// (outside the standard namespaces) is the author's: it stays unless its
-/// definition is `@internal`, which is Smithy's own projection rule.
+/// Whether an external view keeps a raw trait application. A raw map holds
+/// the author's own traits ([`Service::project_metadata_only`]): one stays
+/// unless its definition is `@internal`. A standard trait in IR built some
+/// other way is dropped; its typed form remains.
+///
+/// [`Service::project_metadata_only`]: crate::ir::Service::project_metadata_only
 fn external_raw_trait(id: &ShapeId, internal_traits: &BTreeSet<ShapeId>) -> bool {
-    let namespace = id.namespace();
-    let standard = namespace.starts_with("smithy.")
-        || namespace.starts_with("aws.")
-        || namespace.starts_with("crucible.");
-    if standard {
-        EXTERNAL_RAW_TRAITS.contains(&id.to_string().as_str())
-    } else {
-        !internal_traits.contains(id)
-    }
+    !crate::ir::is_standard_trait(id) && !internal_traits.contains(id)
 }
 
-/// Every IR node keeps a raw copy of its Smithy traits. The projection
+/// Every IR node keeps a raw map of its traits. The projection
 /// rewrites the typed fields, not those copies, so a removed vector, enum
 /// value or resource could survive in them: an external view keeps only
 /// the raw traits [`external_raw_trait`] allows, and is read through the
@@ -393,7 +327,7 @@ fn project_example(
 fn removed_enum_default(service: &Service, member: &Member) -> bool {
     // Input/client-optional defaults are ignored by clients, so they do not
     // reference a generated enum variant in the projected contract.
-    match (service.shape(&member.target), member.client_default()) {
+    match (service.shape(&member.target), member.default.as_ref()) {
         (Some(Shape::Enum(shape)), Some(crate::ir::Value::String(value))) => shape
             .values
             .iter()

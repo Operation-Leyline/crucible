@@ -50,7 +50,7 @@ fn flattened_names_diagnose_collisions_before_emitting_code() {
             .unwrap_err()
             .to_string();
         assert!(
-            diagnostics.contains("example.weather#GetCityInput"),
+            diagnostics.contains(&format!("example.weather#{name}")),
             "{diagnostics}"
         );
         assert!(diagnostics.contains("collides"), "{diagnostics}");

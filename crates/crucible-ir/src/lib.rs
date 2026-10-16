@@ -24,4 +24,4 @@ pub use audience::{Audience, project};
 pub use capabilities::{Capabilities, Feature, FeatureUse};
 pub use diagnostics::{Diagnostic, Diagnostics};
 pub use protocol::{Protocol, ProtocolSettings};
-pub use shape_id::{ShapeId, ShapeIdError};
+pub use shape_id::{PRELUDE, ShapeId, ShapeIdError};

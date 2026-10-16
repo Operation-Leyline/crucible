@@ -7,11 +7,7 @@ use crate::{Slot, annotate, description, examples, key, schemas, traits};
 
 pub(crate) fn operation(service: &Service, op: &Operation) -> Value {
     let keys = examples::keys(op);
-    let mut raw_traits = traits(&op.traits);
-    // The examples are projected natively below; repeating them raw is noise.
-    if let Some(raw) = raw_traits.as_object_mut() {
-        raw.remove("smithy.api#examples");
-    }
+    let raw_traits = traits(&op.traits);
     let mut value = json!({
         "operationId": service.name_of(&op.id),
         "responses": responses(service, op, &keys),

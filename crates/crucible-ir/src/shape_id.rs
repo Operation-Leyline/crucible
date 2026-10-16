@@ -3,7 +3,12 @@ use std::str::FromStr;
 
 use serde::{Deserialize, Deserializer};
 
-/// An absolute Smithy shape id: `namespace#Name`, or `namespace#Name$member`.
+/// The namespace of the built-in types (`crucible.api#String`), which no
+/// model file declares, and of the standard vocabulary the `.cru` lowering
+/// uses while it works (decision 62c in docs/idl/decisions.md).
+pub const PRELUDE: &str = "crucible.api";
+
+/// An absolute shape id: `namespace#Name`, or `namespace#Name$member`.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ShapeId {
     namespace: String,
@@ -48,9 +53,15 @@ impl ShapeId {
         Self::new(&self.namespace, &self.name)
     }
 
-    /// The Smithy prelude: `smithy.api`, whose shapes no model file declares.
+    /// A built-in in the [`PRELUDE`] namespace: `ShapeId::prelude("String")`
+    /// is `crucible.api#String`.
+    pub fn prelude(name: &str) -> Self {
+        Self::new(PRELUDE, name)
+    }
+
+    /// Whether the id is in the [`PRELUDE`], whose shapes no model file declares.
     pub fn is_prelude(&self) -> bool {
-        self.namespace == "smithy.api"
+        self.namespace == PRELUDE
     }
 }
 
@@ -113,7 +124,7 @@ mod tests {
 
     #[test]
     fn round_trips_shape_and_member_ids() {
-        for text in ["smithy.api#String", "dev.leyline#Graph$name", "a#B"] {
+        for text in ["crucible.api#String", "dev.leyline#Graph$name", "a#B"] {
             assert_eq!(text.parse::<ShapeId>().unwrap().to_string(), text);
         }
     }

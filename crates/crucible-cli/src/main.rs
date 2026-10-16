@@ -1654,9 +1654,7 @@ fn permissions_summary(service: &Service) -> String {
 
 /// Traits from the model's own namespaces, which only a project plugin reads.
 fn custom_traits(service: &Service) -> BTreeMap<&ShapeId, usize> {
-    let standard = |id: &ShapeId| {
-        id.is_prelude() || id.namespace().starts_with("aws.") || id.namespace() == "smithy.test"
-    };
+    let standard = crucible_ir::ir::is_standard_trait;
     let mut maps: Vec<&Traits> = service.operations.iter().map(|op| &op.traits).collect();
     for shape in service.shapes.values() {
         if let Shape::Structure(structure) | Shape::Union(structure) = shape {

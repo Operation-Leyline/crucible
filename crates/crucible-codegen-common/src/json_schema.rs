@@ -214,7 +214,7 @@ pub fn member(
         value["x-smithy-traits"] = traits(&member.traits);
     }
     let default = if format.is_some() {
-        member.client_wire_default().cloned()
+        member.wire_default.as_ref().cloned()
     } else {
         service.document_wire_default(member)
     };

@@ -226,7 +226,7 @@ pub fn emit(links: &Links<'_>) -> (Vec<(String, String)>, String) {
                             m.docs
                                 .as_deref()
                                 .or(Some(&format!("The `{}` member.", m.name))),
-                            &[if m.client_default().is_some() {
+                            &[if m.default.as_ref().is_some() {
                                 "Has a default value when left unset.".to_string()
                             } else {
                                 "Required.".to_string()
@@ -240,7 +240,7 @@ pub fn emit(links: &Links<'_>) -> (Vec<(String, String)>, String) {
                             "requireNotNull(`{f}`) {{ {} }}",
                             literal(&format!("Missing required member: {}", m.name))
                         );
-                        let assigned = if let Some(default) = m.client_default() {
+                        let assigned = if let Some(default) = m.default.as_ref() {
                             let default = default_expr(service, &m.target, default, package)
                                 .expect("validated default");
                             let assigned = format!("__crucibleField{index}Assigned");
@@ -537,5 +537,5 @@ pub(crate) fn optional_value(member: &crucible_ir::ir::Member) -> bool {
 /// or `build()` fills its modeled default. Only a member with neither is
 /// required, and `build()` fails without it.
 pub(crate) fn omittable(member: &crucible_ir::ir::Member) -> bool {
-    optional_value(member) || member.client_default().is_some()
+    optional_value(member) || member.default.as_ref().is_some()
 }

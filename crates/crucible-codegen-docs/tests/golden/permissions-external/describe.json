@@ -3,7 +3,7 @@
   "operations": {
     "example.leyline#ArchiveGraph": {
       "auth": [
-        "smithy.api#httpBearerAuth"
+        "crucible.api#httpBearerAuth"
       ],
       "documentation": {
         "html": "<p>A mixed list: clients see the public clause and that more are internal,\nnever the internal clause or the internal member its <code>when</code> reads.</p>\n",
@@ -76,24 +76,24 @@
       "output": "example.leyline#ArchiveGraphOutput",
       "outputSchema": {
         "$defs": {
+          "crucible.api.Boolean": {
+            "type": "boolean"
+          },
           "example.leyline.ArchiveGraphOutput": {
             "properties": {
               "archived": {
-                "$ref": "#/$defs/smithy.api.Boolean"
+                "$ref": "#/$defs/crucible.api.Boolean"
               }
             },
             "required": [
               "archived"
             ],
             "type": "object"
-          },
-          "smithy.api.Boolean": {
-            "type": "boolean"
           }
         },
         "properties": {
           "archived": {
-            "$ref": "#/$defs/smithy.api.Boolean"
+            "$ref": "#/$defs/crucible.api.Boolean"
           }
         },
         "required": [
@@ -216,7 +216,7 @@
     },
     "example.leyline#CreateGraph": {
       "auth": [
-        "smithy.api#httpBearerAuth"
+        "crucible.api#httpBearerAuth"
       ],
       "documentation": {
         "html": "",
@@ -235,10 +235,13 @@
       "input": "example.leyline#CreateGraphInput",
       "inputSchema": {
         "$defs": {
+          "crucible.api.String": {
+            "type": "string"
+          },
           "example.leyline.CreateGraphInput": {
             "properties": {
               "name": {
-                "$ref": "#/$defs/smithy.api.String"
+                "$ref": "#/$defs/crucible.api.String"
               },
               "organizationId": {
                 "pattern": "^org_[a-z0-9]+$",
@@ -254,14 +257,11 @@
           "example.leyline.OrganizationId": {
             "pattern": "^org_[a-z0-9]+$",
             "type": "string"
-          },
-          "smithy.api.String": {
-            "type": "string"
           }
         },
         "properties": {
           "name": {
-            "$ref": "#/$defs/smithy.api.String"
+            "$ref": "#/$defs/crucible.api.String"
           },
           "organizationId": {
             "pattern": "^org_[a-z0-9]+$",
@@ -431,7 +431,7 @@
     },
     "example.leyline#ExecuteQuery": {
       "auth": [
-        "smithy.api#httpBearerAuth"
+        "crucible.api#httpBearerAuth"
       ],
       "documentation": {
         "html": "",
@@ -450,6 +450,13 @@
       "input": "example.leyline#ExecuteQueryInput",
       "inputSchema": {
         "$defs": {
+          "crucible.api.String": {
+            "type": "string"
+          },
+          "crucible.api.Unit": {
+            "maxProperties": 0,
+            "type": "object"
+          },
           "example.leyline.ExecuteQueryInput": {
             "properties": {
               "graphId": {
@@ -461,7 +468,7 @@
                 "type": "string"
               },
               "query": {
-                "$ref": "#/$defs/smithy.api.String"
+                "$ref": "#/$defs/crucible.api.String"
               },
               "target": {
                 "anyOf": [
@@ -512,7 +519,7 @@
                 "additionalProperties": false,
                 "properties": {
                   "current": {
-                    "$ref": "#/$defs/smithy.api.Unit"
+                    "$ref": "#/$defs/crucible.api.Unit"
                   }
                 },
                 "required": [
@@ -533,13 +540,6 @@
                 "type": "object"
               }
             ]
-          },
-          "smithy.api.String": {
-            "type": "string"
-          },
-          "smithy.api.Unit": {
-            "maxProperties": 0,
-            "type": "object"
           }
         },
         "properties": {
@@ -552,7 +552,7 @@
             "type": "string"
           },
           "query": {
-            "$ref": "#/$defs/smithy.api.String"
+            "$ref": "#/$defs/crucible.api.String"
           },
           "target": {
             "anyOf": [
@@ -584,6 +584,9 @@
       "output": "example.leyline#ExecuteQueryOutput",
       "outputSchema": {
         "$defs": {
+          "crucible.api.String": {
+            "type": "string"
+          },
           "example.leyline.ExecuteQueryOutput": {
             "properties": {
               "rows": {
@@ -597,13 +600,10 @@
           },
           "example.leyline.Names": {
             "items": {
-              "$ref": "#/$defs/smithy.api.String"
+              "$ref": "#/$defs/crucible.api.String"
             },
             "type": "array",
             "uniqueItems": false
-          },
-          "smithy.api.String": {
-            "type": "string"
           }
         },
         "properties": {
@@ -775,7 +775,7 @@
     },
     "example.leyline#GetGraph": {
       "auth": [
-        "smithy.api#httpBearerAuth"
+        "crucible.api#httpBearerAuth"
       ],
       "documentation": {
         "html": "",
@@ -848,24 +848,24 @@
       "output": "example.leyline#GetGraphOutput",
       "outputSchema": {
         "$defs": {
+          "crucible.api.String": {
+            "type": "string"
+          },
           "example.leyline.GetGraphOutput": {
             "properties": {
               "name": {
-                "$ref": "#/$defs/smithy.api.String"
+                "$ref": "#/$defs/crucible.api.String"
               }
             },
             "required": [
               "name"
             ],
             "type": "object"
-          },
-          "smithy.api.String": {
-            "type": "string"
           }
         },
         "properties": {
           "name": {
-            "$ref": "#/$defs/smithy.api.String"
+            "$ref": "#/$defs/crucible.api.String"
           }
         },
         "required": [
@@ -981,7 +981,7 @@
     },
     "example.leyline#GetOrganization": {
       "auth": [
-        "smithy.api#httpBearerAuth"
+        "crucible.api#httpBearerAuth"
       ],
       "documentation": {
         "html": "",
@@ -1040,24 +1040,24 @@
       "output": "example.leyline#GetOrganizationOutput",
       "outputSchema": {
         "$defs": {
+          "crucible.api.String": {
+            "type": "string"
+          },
           "example.leyline.GetOrganizationOutput": {
             "properties": {
               "name": {
-                "$ref": "#/$defs/smithy.api.String"
+                "$ref": "#/$defs/crucible.api.String"
               }
             },
             "required": [
               "name"
             ],
             "type": "object"
-          },
-          "smithy.api.String": {
-            "type": "string"
           }
         },
         "properties": {
           "name": {
-            "$ref": "#/$defs/smithy.api.String"
+            "$ref": "#/$defs/crucible.api.String"
           }
         },
         "required": [
@@ -1152,7 +1152,7 @@
     },
     "example.leyline#GetUser": {
       "auth": [
-        "smithy.api#httpBearerAuth"
+        "crucible.api#httpBearerAuth"
       ],
       "documentation": {
         "html": "<p>Answers about the caller's own credential.</p>\n",
@@ -1185,24 +1185,24 @@
       "output": "example.leyline#GetUserOutput",
       "outputSchema": {
         "$defs": {
+          "crucible.api.String": {
+            "type": "string"
+          },
           "example.leyline.GetUserOutput": {
             "properties": {
               "subject": {
-                "$ref": "#/$defs/smithy.api.String"
+                "$ref": "#/$defs/crucible.api.String"
               }
             },
             "required": [
               "subject"
             ],
             "type": "object"
-          },
-          "smithy.api.String": {
-            "type": "string"
           }
         },
         "properties": {
           "subject": {
-            "$ref": "#/$defs/smithy.api.String"
+            "$ref": "#/$defs/crucible.api.String"
           }
         },
         "required": [
@@ -1320,24 +1320,24 @@
       "output": "example.leyline#HealthOutput",
       "outputSchema": {
         "$defs": {
+          "crucible.api.String": {
+            "type": "string"
+          },
           "example.leyline.HealthOutput": {
             "properties": {
               "status": {
-                "$ref": "#/$defs/smithy.api.String"
+                "$ref": "#/$defs/crucible.api.String"
               }
             },
             "required": [
               "status"
             ],
             "type": "object"
-          },
-          "smithy.api.String": {
-            "type": "string"
           }
         },
         "properties": {
           "status": {
-            "$ref": "#/$defs/smithy.api.String"
+            "$ref": "#/$defs/crucible.api.String"
           }
         },
         "required": [
@@ -1411,7 +1411,7 @@
     },
     "example.leyline#ListGraphs": {
       "auth": [
-        "smithy.api#httpBearerAuth"
+        "crucible.api#httpBearerAuth"
       ],
       "documentation": {
         "html": "<p>Returns only the graphs the caller may read.</p>\n",
@@ -1470,6 +1470,9 @@
       "output": "example.leyline#ListGraphsOutput",
       "outputSchema": {
         "$defs": {
+          "crucible.api.String": {
+            "type": "string"
+          },
           "example.leyline.ListGraphsOutput": {
             "properties": {
               "names": {
@@ -1483,13 +1486,10 @@
           },
           "example.leyline.Names": {
             "items": {
-              "$ref": "#/$defs/smithy.api.String"
+              "$ref": "#/$defs/crucible.api.String"
             },
             "type": "array",
             "uniqueItems": false
-          },
-          "smithy.api.String": {
-            "type": "string"
           }
         },
         "properties": {
@@ -1609,7 +1609,7 @@
     },
     "example.leyline#RestoreBackup": {
       "auth": [
-        "smithy.api#httpBearerAuth"
+        "crucible.api#httpBearerAuth"
       ],
       "documentation": {
         "html": "",
@@ -1695,24 +1695,24 @@
       "output": "example.leyline#RestoreBackupOutput",
       "outputSchema": {
         "$defs": {
+          "crucible.api.Boolean": {
+            "type": "boolean"
+          },
           "example.leyline.RestoreBackupOutput": {
             "properties": {
               "restored": {
-                "$ref": "#/$defs/smithy.api.Boolean"
+                "$ref": "#/$defs/crucible.api.Boolean"
               }
             },
             "required": [
               "restored"
             ],
             "type": "object"
-          },
-          "smithy.api.Boolean": {
-            "type": "boolean"
           }
         },
         "properties": {
           "restored": {
-            "$ref": "#/$defs/smithy.api.Boolean"
+            "$ref": "#/$defs/crucible.api.Boolean"
           }
         },
         "required": [
@@ -1800,7 +1800,7 @@
     },
     "example.leyline#RewriteGraph": {
       "auth": [
-        "smithy.api#httpBearerAuth"
+        "crucible.api#httpBearerAuth"
       ],
       "documentation": {
         "html": "<p>Hostile documentation: a backtick in a <code>when</code> literal, and handler\nclause documentation that must keep its case, its paragraphs and its\ncode spans.</p>\n",
@@ -1819,6 +1819,9 @@
       "input": "example.leyline#RewriteGraphInput",
       "inputSchema": {
         "$defs": {
+          "crucible.api.String": {
+            "type": "string"
+          },
           "example.leyline.GraphId": {
             "pattern": "^g_[a-z0-9]+$",
             "type": "string"
@@ -1836,7 +1839,7 @@
               "mode": {
                 "anyOf": [
                   {
-                    "$ref": "#/$defs/smithy.api.String"
+                    "$ref": "#/$defs/crucible.api.String"
                   },
                   {
                     "type": "null"
@@ -1853,9 +1856,6 @@
               "graphId"
             ],
             "type": "object"
-          },
-          "smithy.api.String": {
-            "type": "string"
           }
         },
         "properties": {
@@ -1866,7 +1866,7 @@
           "mode": {
             "anyOf": [
               {
-                "$ref": "#/$defs/smithy.api.String"
+                "$ref": "#/$defs/crucible.api.String"
               },
               {
                 "type": "null"
@@ -1896,24 +1896,24 @@
       "output": "example.leyline#RewriteGraphOutput",
       "outputSchema": {
         "$defs": {
+          "crucible.api.Boolean": {
+            "type": "boolean"
+          },
           "example.leyline.RewriteGraphOutput": {
             "properties": {
               "rewritten": {
-                "$ref": "#/$defs/smithy.api.Boolean"
+                "$ref": "#/$defs/crucible.api.Boolean"
               }
             },
             "required": [
               "rewritten"
             ],
             "type": "object"
-          },
-          "smithy.api.Boolean": {
-            "type": "boolean"
           }
         },
         "properties": {
           "rewritten": {
-            "$ref": "#/$defs/smithy.api.Boolean"
+            "$ref": "#/$defs/crucible.api.Boolean"
           }
         },
         "required": [
@@ -2181,10 +2181,10 @@
   },
   "service": {
     "auth": [
-      "smithy.api#httpBearerAuth"
+      "crucible.api#httpBearerAuth"
     ],
     "authSchemes": {
-      "smithy.api#httpBearerAuth": {
+      "crucible.api#httpBearerAuth": {
         "kind": "bearer"
       }
     },
@@ -2300,6 +2300,100 @@
     "version": "2026-10-01"
   },
   "shapes": {
+    "crucible.api#Boolean": {
+      "constraints": {
+        "length": null,
+        "pattern": null,
+        "range": null,
+        "uniqueItems": false
+      },
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "id": "crucible.api#Boolean",
+      "internal": false,
+      "kind": "boolean",
+      "members": [],
+      "name": "Boolean",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false
+    },
+    "crucible.api#Integer": {
+      "constraints": {
+        "length": null,
+        "pattern": null,
+        "range": null,
+        "uniqueItems": false
+      },
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "id": "crucible.api#Integer",
+      "internal": false,
+      "kind": "integer",
+      "members": [],
+      "name": "Integer",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false
+    },
+    "crucible.api#String": {
+      "constraints": {
+        "length": null,
+        "pattern": null,
+        "range": null,
+        "uniqueItems": false
+      },
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "id": "crucible.api#String",
+      "internal": false,
+      "kind": "string",
+      "members": [],
+      "name": "String",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false
+    },
+    "crucible.api#Unit": {
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "id": "crucible.api#Unit",
+      "internal": false,
+      "kind": "unit",
+      "members": [],
+      "name": "Unit",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false
+    },
     "crucible.errors#InternalServerException": {
       "documentation": {
         "html": "<p>An unexpected server failure. Its message never exposes the underlying cause.</p>\n",
@@ -2383,7 +2477,7 @@
           "nullable": false,
           "required": true,
           "sensitive": false,
-          "target": "smithy.api#String",
+          "target": "crucible.api#String",
           "targetName": "String",
           "targetType": "string",
           "timestampFormat": "date-time",
@@ -2415,7 +2509,7 @@
           "nullable": true,
           "required": false,
           "sensitive": false,
-          "target": "smithy.api#Integer",
+          "target": "crucible.api#Integer",
           "targetName": "Integer",
           "targetType": "integer",
           "timestampFormat": "date-time",
@@ -2509,7 +2603,7 @@
           "nullable": false,
           "required": true,
           "sensitive": false,
-          "target": "smithy.api#String",
+          "target": "crucible.api#String",
           "targetName": "String",
           "targetType": "string",
           "timestampFormat": "date-time",
@@ -2541,7 +2635,7 @@
           "nullable": false,
           "required": true,
           "sensitive": false,
-          "target": "smithy.api#String",
+          "target": "crucible.api#String",
           "targetName": "String",
           "targetType": "string",
           "timestampFormat": "date-time",
@@ -2642,7 +2736,7 @@
           "nullable": false,
           "required": true,
           "sensitive": false,
-          "target": "smithy.api#String",
+          "target": "crucible.api#String",
           "targetName": "String",
           "targetType": "string",
           "timestampFormat": "date-time",
@@ -2759,7 +2853,7 @@
           "nullable": false,
           "required": true,
           "sensitive": false,
-          "target": "smithy.api#String",
+          "target": "crucible.api#String",
           "targetName": "String",
           "targetType": "string",
           "timestampFormat": "date-time",
@@ -2791,7 +2885,7 @@
           "nullable": false,
           "required": true,
           "sensitive": false,
-          "target": "smithy.api#String",
+          "target": "crucible.api#String",
           "targetName": "String",
           "targetType": "string",
           "timestampFormat": "date-time",
@@ -3074,7 +3168,7 @@
           "nullable": false,
           "required": true,
           "sensitive": false,
-          "target": "smithy.api#Boolean",
+          "target": "crucible.api#Boolean",
           "targetName": "Boolean",
           "targetType": "boolean",
           "timestampFormat": "date-time",
@@ -3159,7 +3253,7 @@
           "nullable": false,
           "required": true,
           "sensitive": false,
-          "target": "smithy.api#String",
+          "target": "crucible.api#String",
           "targetName": "String",
           "targetType": "string",
           "timestampFormat": "date-time",
@@ -3329,7 +3423,7 @@
           "nullable": false,
           "required": true,
           "sensitive": false,
-          "target": "smithy.api#String",
+          "target": "crucible.api#String",
           "targetName": "String",
           "targetType": "string",
           "timestampFormat": "date-time",
@@ -3552,7 +3646,7 @@
           "nullable": false,
           "required": true,
           "sensitive": false,
-          "target": "smithy.api#String",
+          "target": "crucible.api#String",
           "targetName": "String",
           "targetType": "string",
           "timestampFormat": "date-time",
@@ -3658,7 +3752,7 @@
           "nullable": false,
           "required": true,
           "sensitive": false,
-          "target": "smithy.api#String",
+          "target": "crucible.api#String",
           "targetName": "String",
           "targetType": "string",
           "timestampFormat": "date-time",
@@ -3711,7 +3805,7 @@
           "nullable": false,
           "required": true,
           "sensitive": false,
-          "target": "smithy.api#String",
+          "target": "crucible.api#String",
           "targetName": "String",
           "targetType": "string",
           "timestampFormat": "date-time",
@@ -3789,7 +3883,7 @@
           "nullable": false,
           "required": true,
           "sensitive": false,
-          "target": "smithy.api#String",
+          "target": "crucible.api#String",
           "targetName": "String",
           "targetType": "string",
           "timestampFormat": "date-time",
@@ -4031,7 +4125,7 @@
           "nullable": true,
           "required": false,
           "sensitive": false,
-          "target": "smithy.api#String",
+          "target": "crucible.api#String",
           "targetName": "String",
           "targetType": "string",
           "timestampFormat": "date-time",
@@ -4111,7 +4205,7 @@
           "nullable": true,
           "required": false,
           "sensitive": false,
-          "target": "smithy.api#Unit",
+          "target": "crucible.api#Unit",
           "targetName": "Unit",
           "targetType": "unit",
           "timestampFormat": "date-time",
@@ -4313,7 +4407,7 @@
           "nullable": false,
           "required": true,
           "sensitive": false,
-          "target": "smithy.api#Boolean",
+          "target": "crucible.api#Boolean",
           "targetName": "Boolean",
           "targetType": "boolean",
           "timestampFormat": "date-time",
@@ -4430,7 +4524,7 @@
           "nullable": true,
           "required": false,
           "sensitive": false,
-          "target": "smithy.api#String",
+          "target": "crucible.api#String",
           "targetName": "String",
           "targetType": "string",
           "timestampFormat": "date-time",
@@ -4483,7 +4577,7 @@
           "nullable": false,
           "required": true,
           "sensitive": false,
-          "target": "smithy.api#Boolean",
+          "target": "crucible.api#Boolean",
           "targetName": "Boolean",
           "targetType": "boolean",
           "timestampFormat": "date-time",
@@ -4492,100 +4586,6 @@
         }
       ],
       "name": "RewriteGraphOutput",
-      "notes": {
-        "deprecated": null,
-        "externalDocs": {},
-        "since": null,
-        "unstable": false
-      },
-      "sensitive": false
-    },
-    "smithy.api#Boolean": {
-      "constraints": {
-        "length": null,
-        "pattern": null,
-        "range": null,
-        "uniqueItems": false
-      },
-      "documentation": {
-        "html": "",
-        "markdown": "",
-        "text": ""
-      },
-      "id": "smithy.api#Boolean",
-      "internal": false,
-      "kind": "boolean",
-      "members": [],
-      "name": "Boolean",
-      "notes": {
-        "deprecated": null,
-        "externalDocs": {},
-        "since": null,
-        "unstable": false
-      },
-      "sensitive": false
-    },
-    "smithy.api#Integer": {
-      "constraints": {
-        "length": null,
-        "pattern": null,
-        "range": null,
-        "uniqueItems": false
-      },
-      "documentation": {
-        "html": "",
-        "markdown": "",
-        "text": ""
-      },
-      "id": "smithy.api#Integer",
-      "internal": false,
-      "kind": "integer",
-      "members": [],
-      "name": "Integer",
-      "notes": {
-        "deprecated": null,
-        "externalDocs": {},
-        "since": null,
-        "unstable": false
-      },
-      "sensitive": false
-    },
-    "smithy.api#String": {
-      "constraints": {
-        "length": null,
-        "pattern": null,
-        "range": null,
-        "uniqueItems": false
-      },
-      "documentation": {
-        "html": "",
-        "markdown": "",
-        "text": ""
-      },
-      "id": "smithy.api#String",
-      "internal": false,
-      "kind": "string",
-      "members": [],
-      "name": "String",
-      "notes": {
-        "deprecated": null,
-        "externalDocs": {},
-        "since": null,
-        "unstable": false
-      },
-      "sensitive": false
-    },
-    "smithy.api#Unit": {
-      "documentation": {
-        "html": "",
-        "markdown": "",
-        "text": ""
-      },
-      "id": "smithy.api#Unit",
-      "internal": false,
-      "kind": "unit",
-      "members": [],
-      "name": "Unit",
       "notes": {
         "deprecated": null,
         "externalDocs": {},

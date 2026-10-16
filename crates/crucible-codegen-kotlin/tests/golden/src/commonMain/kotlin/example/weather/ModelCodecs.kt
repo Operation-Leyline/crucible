@@ -5,64 +5,64 @@ package example.weather
 @Suppress("UNCHECKED_CAST", "UNUSED_VARIABLE", "UNUSED_PARAMETER")
 internal object ModelCodecs {
     fun encode(target: String, value: Any, codec: JsonCodec): kotlinx.serialization.json.JsonElement = when (target) {
-        "example.weather#CitySummary" -> encode3(target, value, codec)
-        "example.weather#ConflictError" -> encode4(target, value, codec)
-        "example.weather#Coordinates" -> encode5(target, value, codec)
-        "example.weather#CreateCityInput" -> encode6(target, value, codec)
-        "example.weather#CreateCityOutput" -> encode7(target, value, codec)
-        "example.weather#GetCityInput" -> encode10(target, value, codec)
-        "example.weather#GetCityOutput" -> encode11(target, value, codec)
-        "example.weather#GetCityPhotoInput" -> encode12(target, value, codec)
-        "example.weather#GetCityPhotoOutput" -> encode13(target, value, codec)
-        "example.weather#ListCitiesInput" -> encode14(target, value, codec)
-        "example.weather#ListCitiesOutput" -> encode15(target, value, codec)
-        "example.weather#Location" -> encode16(target, value, codec)
-        "example.weather#NotFoundError" -> encode17(target, value, codec)
-        "example.weather#PhotoSummary" -> encode19(target, value, codec)
-        "example.weather#PutCityPhotoInput" -> encode20(target, value, codec)
-        "example.weather#PutCityPhotoOutput" -> encode21(target, value, codec)
-        "example.weather#Sky" -> encode22(target, value, codec)
-        "example.weather#StatusInput" -> encode23(target, value, codec)
-        "example.weather#StatusOutput" -> encode24(target, value, codec)
-        "example.weather#ThrottlingError" -> encode26(target, value, codec)
-        "example.weather#ValidationError" -> encode28(target, value, codec)
-        "example.weather#ValidationField" -> encode29(target, value, codec)
-        "example.weather#ValidationReason" -> encode31(target, value, codec)
+        "example.weather#CitySummary" -> encode10(target, value, codec)
+        "example.weather#ConflictError" -> encode11(target, value, codec)
+        "example.weather#Coordinates" -> encode12(target, value, codec)
+        "example.weather#CreateCityInput" -> encode13(target, value, codec)
+        "example.weather#CreateCityOutput" -> encode14(target, value, codec)
+        "example.weather#GetCityInput" -> encode17(target, value, codec)
+        "example.weather#GetCityOutput" -> encode18(target, value, codec)
+        "example.weather#GetCityPhotoInput" -> encode19(target, value, codec)
+        "example.weather#GetCityPhotoOutput" -> encode20(target, value, codec)
+        "example.weather#ListCitiesInput" -> encode21(target, value, codec)
+        "example.weather#ListCitiesOutput" -> encode22(target, value, codec)
+        "example.weather#Location" -> encode23(target, value, codec)
+        "example.weather#NotFoundError" -> encode24(target, value, codec)
+        "example.weather#PhotoSummary" -> encode26(target, value, codec)
+        "example.weather#PutCityPhotoInput" -> encode27(target, value, codec)
+        "example.weather#PutCityPhotoOutput" -> encode28(target, value, codec)
+        "example.weather#Sky" -> encode29(target, value, codec)
+        "example.weather#StatusInput" -> encode30(target, value, codec)
+        "example.weather#StatusOutput" -> encode31(target, value, codec)
+        "example.weather#ThrottlingError" -> encode33(target, value, codec)
+        "example.weather#ValidationError" -> encode35(target, value, codec)
+        "example.weather#ValidationField" -> encode36(target, value, codec)
+        "example.weather#ValidationReason" -> encode38(target, value, codec)
         else -> error("No generated encoder for $target")
     }
     fun decode(target: String, value: kotlinx.serialization.json.JsonElement, codec: JsonCodec): Any = when (target) {
-        "example.weather#CitySummaries" -> decode2(target, value, codec)
-        "example.weather#CitySummary" -> decode3(target, value, codec)
-        "example.weather#ConflictError" -> decode4(target, value, codec)
-        "example.weather#Coordinates" -> decode5(target, value, codec)
-        "example.weather#CreateCityInput" -> decode6(target, value, codec)
-        "example.weather#CreateCityOutput" -> decode7(target, value, codec)
-        "example.weather#Forecast" -> decode9(target, value, codec)
-        "example.weather#GetCityInput" -> decode10(target, value, codec)
-        "example.weather#GetCityOutput" -> decode11(target, value, codec)
-        "example.weather#GetCityPhotoInput" -> decode12(target, value, codec)
-        "example.weather#GetCityPhotoOutput" -> decode13(target, value, codec)
-        "example.weather#ListCitiesInput" -> decode14(target, value, codec)
-        "example.weather#ListCitiesOutput" -> decode15(target, value, codec)
-        "example.weather#Location" -> decode16(target, value, codec)
-        "example.weather#NotFoundError" -> decode17(target, value, codec)
-        "example.weather#PhotoSummary" -> decode19(target, value, codec)
-        "example.weather#PutCityPhotoInput" -> decode20(target, value, codec)
-        "example.weather#PutCityPhotoOutput" -> decode21(target, value, codec)
-        "example.weather#Sky" -> decode22(target, value, codec)
-        "example.weather#StatusInput" -> decode23(target, value, codec)
-        "example.weather#StatusOutput" -> decode24(target, value, codec)
-        "example.weather#Tags" -> decode25(target, value, codec)
-        "example.weather#ThrottlingError" -> decode26(target, value, codec)
-        "example.weather#ValidationError" -> decode28(target, value, codec)
-        "example.weather#ValidationField" -> decode29(target, value, codec)
-        "example.weather#ValidationFieldList" -> decode30(target, value, codec)
-        "example.weather#ValidationReason" -> decode31(target, value, codec)
+        "example.weather#CitySummaries" -> decode9(target, value, codec)
+        "example.weather#CitySummary" -> decode10(target, value, codec)
+        "example.weather#ConflictError" -> decode11(target, value, codec)
+        "example.weather#Coordinates" -> decode12(target, value, codec)
+        "example.weather#CreateCityInput" -> decode13(target, value, codec)
+        "example.weather#CreateCityOutput" -> decode14(target, value, codec)
+        "example.weather#Forecast" -> decode16(target, value, codec)
+        "example.weather#GetCityInput" -> decode17(target, value, codec)
+        "example.weather#GetCityOutput" -> decode18(target, value, codec)
+        "example.weather#GetCityPhotoInput" -> decode19(target, value, codec)
+        "example.weather#GetCityPhotoOutput" -> decode20(target, value, codec)
+        "example.weather#ListCitiesInput" -> decode21(target, value, codec)
+        "example.weather#ListCitiesOutput" -> decode22(target, value, codec)
+        "example.weather#Location" -> decode23(target, value, codec)
+        "example.weather#NotFoundError" -> decode24(target, value, codec)
+        "example.weather#PhotoSummary" -> decode26(target, value, codec)
+        "example.weather#PutCityPhotoInput" -> decode27(target, value, codec)
+        "example.weather#PutCityPhotoOutput" -> decode28(target, value, codec)
+        "example.weather#Sky" -> decode29(target, value, codec)
+        "example.weather#StatusInput" -> decode30(target, value, codec)
+        "example.weather#StatusOutput" -> decode31(target, value, codec)
+        "example.weather#Tags" -> decode32(target, value, codec)
+        "example.weather#ThrottlingError" -> decode33(target, value, codec)
+        "example.weather#ValidationError" -> decode35(target, value, codec)
+        "example.weather#ValidationField" -> decode36(target, value, codec)
+        "example.weather#ValidationFieldList" -> decode37(target, value, codec)
+        "example.weather#ValidationReason" -> decode38(target, value, codec)
         else -> error("No generated decoder for $target")
     }
-    private fun decode2(target: String, value: kotlinx.serialization.json.JsonElement, codec: JsonCodec): Any = codec.readList(target, value) as example.weather.model.`CitySummaries`
+    private fun decode9(target: String, value: kotlinx.serialization.json.JsonElement, codec: JsonCodec): Any = codec.readList(target, value) as example.weather.model.`CitySummaries`
 
-    private fun encode3(target: String, value: Any, codec: JsonCodec): kotlinx.serialization.json.JsonElement = wireObject { result ->
+    private fun encode10(target: String, value: Any, codec: JsonCodec): kotlinx.serialization.json.JsonElement = wireObject { result ->
             val model = value as example.weather.model.`CitySummary`
             codec.put(result, target, "id", model.`id`)
             codec.put(result, target, "name", model.`name`)
@@ -71,7 +71,7 @@ internal object ModelCodecs {
             codec.put(result, target, "createdAt", model.__crucibleField4)
         }
 
-    private fun decode3(target: String, value: kotlinx.serialization.json.JsonElement, codec: JsonCodec): Any = example.weather.model.`CitySummary`(
+    private fun decode10(target: String, value: kotlinx.serialization.json.JsonElement, codec: JsonCodec): Any = example.weather.model.`CitySummary`(
             `id` = codec.readMember(target, value.asJsonObject, "id", false) as kotlin.String,
             `name` = codec.readMember(target, value.asJsonObject, "name", false) as kotlin.String,
             `population` = codec.readMember(target, value.asJsonObject, "population", false) as kotlin.Long,
@@ -79,27 +79,27 @@ internal object ModelCodecs {
             __crucibleField4 = codec.readMember(target, value.asJsonObject, "createdAt", true) as example.weather.OptionalValue<kotlin.time.Instant>,
         )
 
-    private fun encode4(target: String, value: Any, codec: JsonCodec): kotlinx.serialization.json.JsonElement = wireObject { result ->
+    private fun encode11(target: String, value: Any, codec: JsonCodec): kotlinx.serialization.json.JsonElement = wireObject { result ->
             val model = value as example.weather.model.`ConflictError`
             codec.put(result, target, "message", model.`messageValue`)
         }
 
-    private fun decode4(target: String, value: kotlinx.serialization.json.JsonElement, codec: JsonCodec): Any = example.weather.model.`ConflictError`(
+    private fun decode11(target: String, value: kotlinx.serialization.json.JsonElement, codec: JsonCodec): Any = example.weather.model.`ConflictError`(
             `messageValue` = codec.readMember(target, value.asJsonObject, "message", false) as kotlin.String,
         )
 
-    private fun encode5(target: String, value: Any, codec: JsonCodec): kotlinx.serialization.json.JsonElement = wireObject { result ->
+    private fun encode12(target: String, value: Any, codec: JsonCodec): kotlinx.serialization.json.JsonElement = wireObject { result ->
             val model = value as example.weather.model.`Coordinates`
             codec.put(result, target, "latitude", model.`latitude`)
             codec.put(result, target, "longitude", model.`longitude`)
         }
 
-    private fun decode5(target: String, value: kotlinx.serialization.json.JsonElement, codec: JsonCodec): Any = example.weather.model.`Coordinates`(
+    private fun decode12(target: String, value: kotlinx.serialization.json.JsonElement, codec: JsonCodec): Any = example.weather.model.`Coordinates`(
             `latitude` = codec.readMember(target, value.asJsonObject, "latitude", false) as kotlin.Double,
             `longitude` = codec.readMember(target, value.asJsonObject, "longitude", false) as kotlin.Double,
         )
 
-    private fun encode6(target: String, value: Any, codec: JsonCodec): kotlinx.serialization.json.JsonElement = wireObject { result ->
+    private fun encode13(target: String, value: Any, codec: JsonCodec): kotlinx.serialization.json.JsonElement = wireObject { result ->
             val model = value as example.weather.model.`CreateCityInput`
             codec.put(result, target, "name", model.`name`)
             codec.put(result, target, "location", model.__crucibleField1)
@@ -107,182 +107,182 @@ internal object ModelCodecs {
             codec.put(result, target, "expectedRevision", model.__crucibleField3)
         }
 
-    private fun decode6(target: String, value: kotlinx.serialization.json.JsonElement, codec: JsonCodec): Any = example.weather.model.`CreateCityInput`(
+    private fun decode13(target: String, value: kotlinx.serialization.json.JsonElement, codec: JsonCodec): Any = example.weather.model.`CreateCityInput`(
             `name` = codec.readMember(target, value.asJsonObject, "name", false) as kotlin.String,
             __crucibleField1 = codec.readMember(target, value.asJsonObject, "location", true) as example.weather.OptionalValue<example.weather.model.`Location`>,
             __crucibleField2 = codec.readMember(target, value.asJsonObject, "clientToken", true) as example.weather.OptionalValue<kotlin.String>,
             __crucibleField3 = codec.readMember(target, value.asJsonObject, "expectedRevision", true) as example.weather.OptionalValue<kotlin.Long>,
         )
 
-    private fun encode7(target: String, value: Any, codec: JsonCodec): kotlinx.serialization.json.JsonElement = wireObject { result ->
+    private fun encode14(target: String, value: Any, codec: JsonCodec): kotlinx.serialization.json.JsonElement = wireObject { result ->
             val model = value as example.weather.model.`CreateCityOutput`
             codec.put(result, target, "city", model.`city`)
         }
 
-    private fun decode7(target: String, value: kotlinx.serialization.json.JsonElement, codec: JsonCodec): Any = example.weather.model.`CreateCityOutput`(
+    private fun decode14(target: String, value: kotlinx.serialization.json.JsonElement, codec: JsonCodec): Any = example.weather.model.`CreateCityOutput`(
             `city` = codec.readMember(target, value.asJsonObject, "city", false) as example.weather.model.`CitySummary`,
         )
 
-    private fun decode9(target: String, value: kotlinx.serialization.json.JsonElement, codec: JsonCodec): Any = codec.readMap(target, value) as example.weather.model.`Forecast`
+    private fun decode16(target: String, value: kotlinx.serialization.json.JsonElement, codec: JsonCodec): Any = codec.readMap(target, value) as example.weather.model.`Forecast`
 
-    private fun encode10(target: String, value: Any, codec: JsonCodec): kotlinx.serialization.json.JsonElement = wireObject { result ->
+    private fun encode17(target: String, value: Any, codec: JsonCodec): kotlinx.serialization.json.JsonElement = wireObject { result ->
             val model = value as example.weather.model.`GetCityInput`
             codec.put(result, target, "cityId", model.`cityId`)
             codec.put(result, target, "at", model.__crucibleField1)
         }
 
-    private fun decode10(target: String, value: kotlinx.serialization.json.JsonElement, codec: JsonCodec): Any = example.weather.model.`GetCityInput`(
+    private fun decode17(target: String, value: kotlinx.serialization.json.JsonElement, codec: JsonCodec): Any = example.weather.model.`GetCityInput`(
             `cityId` = codec.readMember(target, value.asJsonObject, "cityId", false) as kotlin.String,
             __crucibleField1 = codec.readMember(target, value.asJsonObject, "at", true) as example.weather.OptionalValue<kotlin.time.Instant>,
         )
 
-    private fun encode11(target: String, value: Any, codec: JsonCodec): kotlinx.serialization.json.JsonElement = wireObject { result ->
+    private fun encode18(target: String, value: Any, codec: JsonCodec): kotlinx.serialization.json.JsonElement = wireObject { result ->
             val model = value as example.weather.model.`GetCityOutput`
             codec.put(result, target, "city", model.`city`)
             codec.put(result, target, "forecast", model.__crucibleField1)
             codec.put(result, target, "requestId", model.__crucibleField2)
         }
 
-    private fun decode11(target: String, value: kotlinx.serialization.json.JsonElement, codec: JsonCodec): Any = example.weather.model.`GetCityOutput`(
+    private fun decode18(target: String, value: kotlinx.serialization.json.JsonElement, codec: JsonCodec): Any = example.weather.model.`GetCityOutput`(
             `city` = codec.readMember(target, value.asJsonObject, "city", false) as example.weather.model.`CitySummary`,
             __crucibleField1 = codec.readMember(target, value.asJsonObject, "forecast", true) as example.weather.OptionalValue<example.weather.model.`Forecast`>,
             __crucibleField2 = codec.readMember(target, value.asJsonObject, "requestId", true) as example.weather.OptionalValue<kotlin.String>,
         )
 
-    private fun encode12(target: String, value: Any, codec: JsonCodec): kotlinx.serialization.json.JsonElement = wireObject { result ->
+    private fun encode19(target: String, value: Any, codec: JsonCodec): kotlinx.serialization.json.JsonElement = wireObject { result ->
             val model = value as example.weather.model.`GetCityPhotoInput`
             codec.put(result, target, "cityId", model.`cityId`)
         }
 
-    private fun decode12(target: String, value: kotlinx.serialization.json.JsonElement, codec: JsonCodec): Any = example.weather.model.`GetCityPhotoInput`(
+    private fun decode19(target: String, value: kotlinx.serialization.json.JsonElement, codec: JsonCodec): Any = example.weather.model.`GetCityPhotoInput`(
             `cityId` = codec.readMember(target, value.asJsonObject, "cityId", false) as kotlin.String,
         )
 
-    private fun encode13(target: String, value: Any, codec: JsonCodec): kotlinx.serialization.json.JsonElement = wireObject { result ->
+    private fun encode20(target: String, value: Any, codec: JsonCodec): kotlinx.serialization.json.JsonElement = wireObject { result ->
             val model = value as example.weather.model.`GetCityPhotoOutput`
             codec.put(result, target, "caption", model.__crucibleField0)
             codec.put(result, target, "photo", model.__crucibleField1)
         }
 
-    private fun decode13(target: String, value: kotlinx.serialization.json.JsonElement, codec: JsonCodec): Any = example.weather.model.`GetCityPhotoOutput`(
+    private fun decode20(target: String, value: kotlinx.serialization.json.JsonElement, codec: JsonCodec): Any = example.weather.model.`GetCityPhotoOutput`(
             __crucibleField0 = codec.readMember(target, value.asJsonObject, "caption", true) as example.weather.OptionalValue<kotlin.String>,
             __crucibleField1 = codec.readMember(target, value.asJsonObject, "photo", true) as example.weather.OptionalValue<kotlin.ByteArray>,
         )
 
-    private fun encode14(target: String, value: Any, codec: JsonCodec): kotlinx.serialization.json.JsonElement = wireObject { result ->
+    private fun encode21(target: String, value: Any, codec: JsonCodec): kotlinx.serialization.json.JsonElement = wireObject { result ->
             val model = value as example.weather.model.`ListCitiesInput`
             codec.put(result, target, "nextToken", model.__crucibleField0)
             codec.put(result, target, "maxResults", model.__crucibleField1)
             codec.put(result, target, "tags", model.__crucibleField2)
         }
 
-    private fun decode14(target: String, value: kotlinx.serialization.json.JsonElement, codec: JsonCodec): Any = example.weather.model.`ListCitiesInput`(
+    private fun decode21(target: String, value: kotlinx.serialization.json.JsonElement, codec: JsonCodec): Any = example.weather.model.`ListCitiesInput`(
             __crucibleField0 = codec.readMember(target, value.asJsonObject, "nextToken", true) as example.weather.OptionalValue<kotlin.String>,
             __crucibleField1 = codec.readMember(target, value.asJsonObject, "maxResults", true) as example.weather.OptionalValue<kotlin.Int>,
             __crucibleField2 = codec.readMember(target, value.asJsonObject, "tags", true) as example.weather.OptionalValue<example.weather.model.`Tags`>,
         )
 
-    private fun encode15(target: String, value: Any, codec: JsonCodec): kotlinx.serialization.json.JsonElement = wireObject { result ->
+    private fun encode22(target: String, value: Any, codec: JsonCodec): kotlinx.serialization.json.JsonElement = wireObject { result ->
             val model = value as example.weather.model.`ListCitiesOutput`
             codec.put(result, target, "cities", model.`cities`)
             codec.put(result, target, "nextToken", model.__crucibleField1)
         }
 
-    private fun decode15(target: String, value: kotlinx.serialization.json.JsonElement, codec: JsonCodec): Any = example.weather.model.`ListCitiesOutput`(
+    private fun decode22(target: String, value: kotlinx.serialization.json.JsonElement, codec: JsonCodec): Any = example.weather.model.`ListCitiesOutput`(
             `cities` = codec.readMember(target, value.asJsonObject, "cities", false) as example.weather.model.`CitySummaries`,
             __crucibleField1 = codec.readMember(target, value.asJsonObject, "nextToken", true) as example.weather.OptionalValue<kotlin.String>,
         )
 
-    private fun encode16(target: String, value: Any, codec: JsonCodec): kotlinx.serialization.json.JsonElement = when (val model = value as example.weather.model.`Location`) {
+    private fun encode23(target: String, value: Any, codec: JsonCodec): kotlinx.serialization.json.JsonElement = when (val model = value as example.weather.model.`Location`) {
             is example.weather.model.`Location`.`Coordinates` -> wireObject { codec.put(it, target, "coordinates", model.value) }
             is example.weather.model.`Location`.`Unknown` -> wireObject { codec.put(it, target, "unknown", model.value) }
             is example.weather.model.`Location`.UnknownVariant -> codec.unknownUnion(target, model.name, model.value)
         }
 
-    private fun decode16(target: String, value: kotlinx.serialization.json.JsonElement, codec: JsonCodec): Any = codec.union("example.weather#Location", value).let { (name, item) -> when (name) {
+    private fun decode23(target: String, value: kotlinx.serialization.json.JsonElement, codec: JsonCodec): Any = codec.union("example.weather#Location", value).let { (name, item) -> when (name) {
             "coordinates" -> example.weather.model.`Location`.`Coordinates`(codec.readUnionMember(target, "coordinates", item) as example.weather.model.`Coordinates`?)
             "unknown" -> example.weather.model.`Location`.`Unknown`(codec.readUnionMember(target, "unknown", item) as kotlin.Unit?)
             else -> example.weather.model.`Location`.UnknownVariant(name, item)
         } }
 
-    private fun encode17(target: String, value: Any, codec: JsonCodec): kotlinx.serialization.json.JsonElement = wireObject { result ->
+    private fun encode24(target: String, value: Any, codec: JsonCodec): kotlinx.serialization.json.JsonElement = wireObject { result ->
             val model = value as example.weather.model.`NotFoundError`
             codec.put(result, target, "message", model.`messageValue`)
             codec.put(result, target, "resourceId", model.__crucibleField1)
         }
 
-    private fun decode17(target: String, value: kotlinx.serialization.json.JsonElement, codec: JsonCodec): Any = example.weather.model.`NotFoundError`(
+    private fun decode24(target: String, value: kotlinx.serialization.json.JsonElement, codec: JsonCodec): Any = example.weather.model.`NotFoundError`(
             `messageValue` = codec.readMember(target, value.asJsonObject, "message", false) as kotlin.String,
             __crucibleField1 = codec.readMember(target, value.asJsonObject, "resourceId", true) as example.weather.OptionalValue<kotlin.String>,
         )
 
-    private fun encode19(target: String, value: Any, codec: JsonCodec): kotlinx.serialization.json.JsonElement = wireObject { result ->
+    private fun encode26(target: String, value: Any, codec: JsonCodec): kotlinx.serialization.json.JsonElement = wireObject { result ->
             val model = value as example.weather.model.`PhotoSummary`
             codec.put(result, target, "size", model.`size`)
             codec.put(result, target, "thumbnail", model.`thumbnail`)
             codec.put(result, target, "caption", model.__crucibleField2)
         }
 
-    private fun decode19(target: String, value: kotlinx.serialization.json.JsonElement, codec: JsonCodec): Any = example.weather.model.`PhotoSummary`(
+    private fun decode26(target: String, value: kotlinx.serialization.json.JsonElement, codec: JsonCodec): Any = example.weather.model.`PhotoSummary`(
             `size` = codec.readMember(target, value.asJsonObject, "size", false) as kotlin.Int,
             `thumbnail` = codec.readMember(target, value.asJsonObject, "thumbnail", false) as kotlin.ByteArray,
             __crucibleField2 = codec.readMember(target, value.asJsonObject, "caption", true) as example.weather.OptionalValue<kotlin.String>,
         )
 
-    private fun encode20(target: String, value: Any, codec: JsonCodec): kotlinx.serialization.json.JsonElement = wireObject { result ->
+    private fun encode27(target: String, value: Any, codec: JsonCodec): kotlinx.serialization.json.JsonElement = wireObject { result ->
             val model = value as example.weather.model.`PutCityPhotoInput`
             codec.put(result, target, "cityId", model.`cityId`)
             codec.put(result, target, "caption", model.__crucibleField1)
             codec.put(result, target, "photo", model.`photo`)
         }
 
-    private fun decode20(target: String, value: kotlinx.serialization.json.JsonElement, codec: JsonCodec): Any = example.weather.model.`PutCityPhotoInput`(
+    private fun decode27(target: String, value: kotlinx.serialization.json.JsonElement, codec: JsonCodec): Any = example.weather.model.`PutCityPhotoInput`(
             `cityId` = codec.readMember(target, value.asJsonObject, "cityId", false) as kotlin.String,
             __crucibleField1 = codec.readMember(target, value.asJsonObject, "caption", true) as example.weather.OptionalValue<kotlin.String>,
             `photo` = codec.readMember(target, value.asJsonObject, "photo", false) as kotlin.ByteArray,
         )
 
-    private fun encode21(target: String, value: Any, codec: JsonCodec): kotlinx.serialization.json.JsonElement = wireObject { result ->
+    private fun encode28(target: String, value: Any, codec: JsonCodec): kotlinx.serialization.json.JsonElement = wireObject { result ->
             val model = value as example.weather.model.`PutCityPhotoOutput`
             codec.put(result, target, "photo", model.`photo`)
         }
 
-    private fun decode21(target: String, value: kotlinx.serialization.json.JsonElement, codec: JsonCodec): Any = example.weather.model.`PutCityPhotoOutput`(
+    private fun decode28(target: String, value: kotlinx.serialization.json.JsonElement, codec: JsonCodec): Any = example.weather.model.`PutCityPhotoOutput`(
             `photo` = codec.readMember(target, value.asJsonObject, "photo", false) as example.weather.model.`PhotoSummary`,
         )
 
-    private fun encode22(target: String, value: Any, codec: JsonCodec): kotlinx.serialization.json.JsonElement = kotlinx.serialization.json.JsonPrimitive((value as example.weather.model.`Sky`).value)
+    private fun encode29(target: String, value: Any, codec: JsonCodec): kotlinx.serialization.json.JsonElement = kotlinx.serialization.json.JsonPrimitive((value as example.weather.model.`Sky`).value)
 
-    private fun decode22(target: String, value: kotlinx.serialization.json.JsonElement, codec: JsonCodec): Any = example.weather.model.`Sky`(codec.string(value))
+    private fun decode29(target: String, value: kotlinx.serialization.json.JsonElement, codec: JsonCodec): Any = example.weather.model.`Sky`(codec.string(value))
 
-    private fun encode23(target: String, value: Any, codec: JsonCodec): kotlinx.serialization.json.JsonElement = wireObject { result ->
+    private fun encode30(target: String, value: Any, codec: JsonCodec): kotlinx.serialization.json.JsonElement = wireObject { result ->
             val model = value as example.weather.model.`StatusInput`
         }
 
-    private fun decode23(target: String, value: kotlinx.serialization.json.JsonElement, codec: JsonCodec): Any = example.weather.model.`StatusInput`(
+    private fun decode30(target: String, value: kotlinx.serialization.json.JsonElement, codec: JsonCodec): Any = example.weather.model.`StatusInput`(
         )
 
-    private fun encode24(target: String, value: Any, codec: JsonCodec): kotlinx.serialization.json.JsonElement = wireObject { result ->
+    private fun encode31(target: String, value: Any, codec: JsonCodec): kotlinx.serialization.json.JsonElement = wireObject { result ->
             val model = value as example.weather.model.`StatusOutput`
         }
 
-    private fun decode24(target: String, value: kotlinx.serialization.json.JsonElement, codec: JsonCodec): Any = example.weather.model.`StatusOutput`(
+    private fun decode31(target: String, value: kotlinx.serialization.json.JsonElement, codec: JsonCodec): Any = example.weather.model.`StatusOutput`(
         )
 
-    private fun decode25(target: String, value: kotlinx.serialization.json.JsonElement, codec: JsonCodec): Any = codec.readList(target, value) as example.weather.model.`Tags`
+    private fun decode32(target: String, value: kotlinx.serialization.json.JsonElement, codec: JsonCodec): Any = codec.readList(target, value) as example.weather.model.`Tags`
 
-    private fun encode26(target: String, value: Any, codec: JsonCodec): kotlinx.serialization.json.JsonElement = wireObject { result ->
+    private fun encode33(target: String, value: Any, codec: JsonCodec): kotlinx.serialization.json.JsonElement = wireObject { result ->
             val model = value as example.weather.model.`ThrottlingError`
             codec.put(result, target, "message", model.`messageValue`)
             codec.put(result, target, "retryAfter", model.__crucibleField1)
         }
 
-    private fun decode26(target: String, value: kotlinx.serialization.json.JsonElement, codec: JsonCodec): Any = example.weather.model.`ThrottlingError`(
+    private fun decode33(target: String, value: kotlinx.serialization.json.JsonElement, codec: JsonCodec): Any = example.weather.model.`ThrottlingError`(
             `messageValue` = codec.readMember(target, value.asJsonObject, "message", false) as kotlin.String,
             __crucibleField1 = codec.readMember(target, value.asJsonObject, "retryAfter", true) as example.weather.OptionalValue<kotlin.Int>,
         )
 
-    private fun encode28(target: String, value: Any, codec: JsonCodec): kotlinx.serialization.json.JsonElement = wireObject { result ->
+    private fun encode35(target: String, value: Any, codec: JsonCodec): kotlinx.serialization.json.JsonElement = wireObject { result ->
             val model = value as example.weather.model.`ValidationError`
             codec.put(result, target, "message", model.`messageValue`)
             codec.put(result, target, "reason", model.`reason`)
@@ -290,28 +290,28 @@ internal object ModelCodecs {
             codec.put(result, target, "requestId", model.__crucibleField3)
         }
 
-    private fun decode28(target: String, value: kotlinx.serialization.json.JsonElement, codec: JsonCodec): Any = example.weather.model.`ValidationError`(
+    private fun decode35(target: String, value: kotlinx.serialization.json.JsonElement, codec: JsonCodec): Any = example.weather.model.`ValidationError`(
             `messageValue` = codec.readMember(target, value.asJsonObject, "message", false) as kotlin.String,
             `reason` = codec.readMember(target, value.asJsonObject, "reason", false) as example.weather.model.`ValidationReason`,
             __crucibleField2 = codec.readMember(target, value.asJsonObject, "fieldList", true) as example.weather.OptionalValue<example.weather.model.`ValidationFieldList`>,
             __crucibleField3 = codec.readMember(target, value.asJsonObject, "requestId", true) as example.weather.OptionalValue<kotlin.String>,
         )
 
-    private fun encode29(target: String, value: Any, codec: JsonCodec): kotlinx.serialization.json.JsonElement = wireObject { result ->
+    private fun encode36(target: String, value: Any, codec: JsonCodec): kotlinx.serialization.json.JsonElement = wireObject { result ->
             val model = value as example.weather.model.`ValidationField`
             codec.put(result, target, "path", model.`path`)
             codec.put(result, target, "message", model.`messageValue`)
         }
 
-    private fun decode29(target: String, value: kotlinx.serialization.json.JsonElement, codec: JsonCodec): Any = example.weather.model.`ValidationField`(
+    private fun decode36(target: String, value: kotlinx.serialization.json.JsonElement, codec: JsonCodec): Any = example.weather.model.`ValidationField`(
             `path` = codec.readMember(target, value.asJsonObject, "path", false) as kotlin.String,
             `messageValue` = codec.readMember(target, value.asJsonObject, "message", false) as kotlin.String,
         )
 
-    private fun decode30(target: String, value: kotlinx.serialization.json.JsonElement, codec: JsonCodec): Any = codec.readList(target, value) as example.weather.model.`ValidationFieldList`
+    private fun decode37(target: String, value: kotlinx.serialization.json.JsonElement, codec: JsonCodec): Any = codec.readList(target, value) as example.weather.model.`ValidationFieldList`
 
-    private fun encode31(target: String, value: Any, codec: JsonCodec): kotlinx.serialization.json.JsonElement = kotlinx.serialization.json.JsonPrimitive((value as example.weather.model.`ValidationReason`).value)
+    private fun encode38(target: String, value: Any, codec: JsonCodec): kotlinx.serialization.json.JsonElement = kotlinx.serialization.json.JsonPrimitive((value as example.weather.model.`ValidationReason`).value)
 
-    private fun decode31(target: String, value: kotlinx.serialization.json.JsonElement, codec: JsonCodec): Any = example.weather.model.`ValidationReason`(codec.string(value))
+    private fun decode38(target: String, value: kotlinx.serialization.json.JsonElement, codec: JsonCodec): Any = example.weather.model.`ValidationReason`(codec.string(value))
 
 }

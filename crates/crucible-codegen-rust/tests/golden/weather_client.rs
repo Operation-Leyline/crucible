@@ -1171,7 +1171,7 @@ mod errors {
         false,
         false,
         &[
-            ::crucible_client_runtime_rust::__generated::member_info("message", ::crucible_client_runtime_rust::__generated::operation::Location::Body, ::crucible_client_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_36, &[]),
+            ::crucible_client_runtime_rust::__generated::member_info("message", ::crucible_client_runtime_rust::__generated::operation::Location::Body, ::crucible_client_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_4, &[]),
         ],
     );
 
@@ -1258,8 +1258,8 @@ mod errors {
         false,
         false,
         &[
-            ::crucible_client_runtime_rust::__generated::member_info("message", ::crucible_client_runtime_rust::__generated::operation::Location::Body, ::crucible_client_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_36, &[]),
-            ::crucible_client_runtime_rust::__generated::member_info("resourceId", ::crucible_client_runtime_rust::__generated::operation::Location::Body, ::crucible_client_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_36, &[]),
+            ::crucible_client_runtime_rust::__generated::member_info("message", ::crucible_client_runtime_rust::__generated::operation::Location::Body, ::crucible_client_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_4, &[]),
+            ::crucible_client_runtime_rust::__generated::member_info("resourceId", ::crucible_client_runtime_rust::__generated::operation::Location::Body, ::crucible_client_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_4, &[]),
         ],
     );
 
@@ -1346,8 +1346,8 @@ mod errors {
         true,
         true,
         &[
-            ::crucible_client_runtime_rust::__generated::member_info("message", ::crucible_client_runtime_rust::__generated::operation::Location::Body, ::crucible_client_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_36, &[]),
-            ::crucible_client_runtime_rust::__generated::member_info("retryAfter", ::crucible_client_runtime_rust::__generated::operation::Location::Header("retry-after"), ::crucible_client_runtime_rust::__generated::operation::Scalar::Integer, &__redaction::R_34, &[]),
+            ::crucible_client_runtime_rust::__generated::member_info("message", ::crucible_client_runtime_rust::__generated::operation::Location::Body, ::crucible_client_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_4, &[]),
+            ::crucible_client_runtime_rust::__generated::member_info("retryAfter", ::crucible_client_runtime_rust::__generated::operation::Location::Header("retry-after"), ::crucible_client_runtime_rust::__generated::operation::Scalar::Integer, &__redaction::R_2, &[]),
         ],
     );
 
@@ -1453,10 +1453,10 @@ mod errors {
         false,
         false,
         &[
-            ::crucible_client_runtime_rust::__generated::member_info("message", ::crucible_client_runtime_rust::__generated::operation::Location::Body, ::crucible_client_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_36, &[]),
-            ::crucible_client_runtime_rust::__generated::member_info("reason", ::crucible_client_runtime_rust::__generated::operation::Location::Body, ::crucible_client_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_31, &[]),
-            ::crucible_client_runtime_rust::__generated::member_info("fieldList", ::crucible_client_runtime_rust::__generated::operation::Location::Body, ::crucible_client_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_30, &[]),
-            ::crucible_client_runtime_rust::__generated::member_info("requestId", ::crucible_client_runtime_rust::__generated::operation::Location::Body, ::crucible_client_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_36, &[]),
+            ::crucible_client_runtime_rust::__generated::member_info("message", ::crucible_client_runtime_rust::__generated::operation::Location::Body, ::crucible_client_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_4, &[]),
+            ::crucible_client_runtime_rust::__generated::member_info("reason", ::crucible_client_runtime_rust::__generated::operation::Location::Body, ::crucible_client_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_38, &[]),
+            ::crucible_client_runtime_rust::__generated::member_info("fieldList", ::crucible_client_runtime_rust::__generated::operation::Location::Body, ::crucible_client_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_37, &[]),
+            ::crucible_client_runtime_rust::__generated::member_info("requestId", ::crucible_client_runtime_rust::__generated::operation::Location::Body, ::crucible_client_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_4, &[]),
         ],
     );
 
@@ -1497,42 +1497,42 @@ mod __redaction {
     use ::crucible_client_runtime_rust::__generated::operation::Redaction;
     pub(super) static R_0: Redaction = Redaction::Public;
     pub(super) static R_1: Redaction = Redaction::Public;
-    pub(super) static R_2: Redaction = Redaction::List(&R_3);
-    pub(super) static R_3: Redaction = Redaction::Structure(&[("id", &R_0), ("name", &R_1), ("population", &R_35), ("updatedAt", &R_37), ("createdAt", &R_37)]);
-    pub(super) static R_4: Redaction = Redaction::Structure(&[("message", &R_36)]);
-    pub(super) static R_5: Redaction = Redaction::Structure(&[("latitude", &R_33), ("longitude", &R_33)]);
-    pub(super) static R_6: Redaction = Redaction::Structure(&[("name", &R_1), ("location", &R_16), ("clientToken", &R_36), ("expectedRevision", &R_35)]);
-    pub(super) static R_7: Redaction = Redaction::Structure(&[("city", &R_3)]);
+    pub(super) static R_2: Redaction = Redaction::Public;
+    pub(super) static R_3: Redaction = Redaction::Public;
+    pub(super) static R_4: Redaction = Redaction::Public;
+    pub(super) static R_5: Redaction = Redaction::Public;
+    pub(super) static R_6: Redaction = Redaction::Public;
+    pub(super) static R_7: Redaction = Redaction::Public;
     pub(super) static R_8: Redaction = Redaction::Public;
-    pub(super) static R_9: Redaction = Redaction::Map(&R_32);
-    pub(super) static R_10: Redaction = Redaction::Structure(&[("cityId", &R_0), ("at", &R_8)]);
-    pub(super) static R_11: Redaction = Redaction::Structure(&[("city", &R_3), ("forecast", &R_9), ("requestId", &R_36)]);
-    pub(super) static R_12: Redaction = Redaction::Structure(&[("cityId", &R_0)]);
-    pub(super) static R_13: Redaction = Redaction::Structure(&[("caption", &R_36), ("photo", &R_18)]);
-    pub(super) static R_14: Redaction = Redaction::Structure(&[("nextToken", &R_36), ("maxResults", &R_34), ("tags", &R_25)]);
-    pub(super) static R_15: Redaction = Redaction::Structure(&[("cities", &R_2), ("nextToken", &R_36)]);
-    pub(super) static R_16: Redaction = Redaction::Structure(&[("coordinates", &R_5), ("unknown", &R_38)]);
-    pub(super) static R_17: Redaction = Redaction::Structure(&[("message", &R_36), ("resourceId", &R_36)]);
-    pub(super) static R_18: Redaction = Redaction::Public;
-    pub(super) static R_19: Redaction = Redaction::Structure(&[("size", &R_34), ("thumbnail", &R_27), ("caption", &R_36)]);
-    pub(super) static R_20: Redaction = Redaction::Structure(&[("cityId", &R_0), ("caption", &R_36), ("photo", &R_18)]);
-    pub(super) static R_21: Redaction = Redaction::Structure(&[("photo", &R_19)]);
-    pub(super) static R_22: Redaction = Redaction::Public;
-    pub(super) static R_23: Redaction = Redaction::Structure(&[]);
-    pub(super) static R_24: Redaction = Redaction::Structure(&[]);
-    pub(super) static R_25: Redaction = Redaction::List(&R_36);
-    pub(super) static R_26: Redaction = Redaction::Structure(&[("message", &R_36), ("retryAfter", &R_34)]);
-    pub(super) static R_27: Redaction = Redaction::Public;
-    pub(super) static R_28: Redaction = Redaction::Structure(&[("message", &R_36), ("reason", &R_31), ("fieldList", &R_30), ("requestId", &R_36)]);
-    pub(super) static R_29: Redaction = Redaction::Structure(&[("path", &R_36), ("message", &R_36)]);
-    pub(super) static R_30: Redaction = Redaction::List(&R_29);
-    pub(super) static R_31: Redaction = Redaction::Public;
-    pub(super) static R_32: Redaction = Redaction::Public;
-    pub(super) static R_33: Redaction = Redaction::Public;
+    pub(super) static R_9: Redaction = Redaction::List(&R_10);
+    pub(super) static R_10: Redaction = Redaction::Structure(&[("id", &R_7), ("name", &R_8), ("population", &R_3), ("updatedAt", &R_5), ("createdAt", &R_5)]);
+    pub(super) static R_11: Redaction = Redaction::Structure(&[("message", &R_4)]);
+    pub(super) static R_12: Redaction = Redaction::Structure(&[("latitude", &R_1), ("longitude", &R_1)]);
+    pub(super) static R_13: Redaction = Redaction::Structure(&[("name", &R_8), ("location", &R_23), ("clientToken", &R_4), ("expectedRevision", &R_3)]);
+    pub(super) static R_14: Redaction = Redaction::Structure(&[("city", &R_10)]);
+    pub(super) static R_15: Redaction = Redaction::Public;
+    pub(super) static R_16: Redaction = Redaction::Map(&R_0);
+    pub(super) static R_17: Redaction = Redaction::Structure(&[("cityId", &R_7), ("at", &R_15)]);
+    pub(super) static R_18: Redaction = Redaction::Structure(&[("city", &R_10), ("forecast", &R_16), ("requestId", &R_4)]);
+    pub(super) static R_19: Redaction = Redaction::Structure(&[("cityId", &R_7)]);
+    pub(super) static R_20: Redaction = Redaction::Structure(&[("caption", &R_4), ("photo", &R_25)]);
+    pub(super) static R_21: Redaction = Redaction::Structure(&[("nextToken", &R_4), ("maxResults", &R_2), ("tags", &R_32)]);
+    pub(super) static R_22: Redaction = Redaction::Structure(&[("cities", &R_9), ("nextToken", &R_4)]);
+    pub(super) static R_23: Redaction = Redaction::Structure(&[("coordinates", &R_12), ("unknown", &R_6)]);
+    pub(super) static R_24: Redaction = Redaction::Structure(&[("message", &R_4), ("resourceId", &R_4)]);
+    pub(super) static R_25: Redaction = Redaction::Public;
+    pub(super) static R_26: Redaction = Redaction::Structure(&[("size", &R_2), ("thumbnail", &R_34), ("caption", &R_4)]);
+    pub(super) static R_27: Redaction = Redaction::Structure(&[("cityId", &R_7), ("caption", &R_4), ("photo", &R_25)]);
+    pub(super) static R_28: Redaction = Redaction::Structure(&[("photo", &R_26)]);
+    pub(super) static R_29: Redaction = Redaction::Public;
+    pub(super) static R_30: Redaction = Redaction::Structure(&[]);
+    pub(super) static R_31: Redaction = Redaction::Structure(&[]);
+    pub(super) static R_32: Redaction = Redaction::List(&R_4);
+    pub(super) static R_33: Redaction = Redaction::Structure(&[("message", &R_4), ("retryAfter", &R_2)]);
     pub(super) static R_34: Redaction = Redaction::Public;
-    pub(super) static R_35: Redaction = Redaction::Public;
-    pub(super) static R_36: Redaction = Redaction::Public;
-    pub(super) static R_37: Redaction = Redaction::Public;
+    pub(super) static R_35: Redaction = Redaction::Structure(&[("message", &R_4), ("reason", &R_38), ("fieldList", &R_37), ("requestId", &R_4)]);
+    pub(super) static R_36: Redaction = Redaction::Structure(&[("path", &R_4), ("message", &R_4)]);
+    pub(super) static R_37: Redaction = Redaction::List(&R_36);
     pub(super) static R_38: Redaction = Redaction::Public;
 }
 
@@ -1639,13 +1639,13 @@ static CREATE_CITY_OPERATION: ::crucible_client_runtime_rust::__generated::Opera
     &[],
     201,
     &[
-        ::crucible_client_runtime_rust::__generated::member_info("name", ::crucible_client_runtime_rust::__generated::operation::Location::Body, ::crucible_client_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_1, &[("example.weather#audited", "{}")]),
-        ::crucible_client_runtime_rust::__generated::member_info("location", ::crucible_client_runtime_rust::__generated::operation::Location::Body, ::crucible_client_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_16, &[]),
-        ::crucible_client_runtime_rust::__generated::member_info("clientToken", ::crucible_client_runtime_rust::__generated::operation::Location::Body, ::crucible_client_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_36, &[]),
-        ::crucible_client_runtime_rust::__generated::member_info("expectedRevision", ::crucible_client_runtime_rust::__generated::operation::Location::Header("x-expected-revision"), ::crucible_client_runtime_rust::__generated::operation::Scalar::Integer, &__redaction::R_35, &[]),
+        ::crucible_client_runtime_rust::__generated::member_info("name", ::crucible_client_runtime_rust::__generated::operation::Location::Body, ::crucible_client_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_8, &[("example.weather#audited", "{}")]),
+        ::crucible_client_runtime_rust::__generated::member_info("location", ::crucible_client_runtime_rust::__generated::operation::Location::Body, ::crucible_client_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_23, &[]),
+        ::crucible_client_runtime_rust::__generated::member_info("clientToken", ::crucible_client_runtime_rust::__generated::operation::Location::Body, ::crucible_client_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_4, &[]),
+        ::crucible_client_runtime_rust::__generated::member_info("expectedRevision", ::crucible_client_runtime_rust::__generated::operation::Location::Header("x-expected-revision"), ::crucible_client_runtime_rust::__generated::operation::Scalar::Integer, &__redaction::R_3, &[]),
     ],
     &[
-        ::crucible_client_runtime_rust::__generated::member_info("city", ::crucible_client_runtime_rust::__generated::operation::Location::Body, ::crucible_client_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_3, &[]),
+        ::crucible_client_runtime_rust::__generated::member_info("city", ::crucible_client_runtime_rust::__generated::operation::Location::Body, ::crucible_client_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_10, &[]),
     ],
     &["ConflictError", "ThrottlingError", "ValidationError"],
     false,
@@ -1727,13 +1727,13 @@ static GET_CITY_OPERATION: ::crucible_client_runtime_rust::__generated::Operatio
     &[],
     200,
     &[
-        ::crucible_client_runtime_rust::__generated::member_info("cityId", ::crucible_client_runtime_rust::__generated::operation::Location::Label, ::crucible_client_runtime_rust::__generated::operation::Scalar::String, &__redaction::R_0, &[]),
-        ::crucible_client_runtime_rust::__generated::member_info("at", ::crucible_client_runtime_rust::__generated::operation::Location::Query("at"), ::crucible_client_runtime_rust::__generated::operation::Scalar::DateTime, &__redaction::R_8, &[]),
+        ::crucible_client_runtime_rust::__generated::member_info("cityId", ::crucible_client_runtime_rust::__generated::operation::Location::Label, ::crucible_client_runtime_rust::__generated::operation::Scalar::String, &__redaction::R_7, &[]),
+        ::crucible_client_runtime_rust::__generated::member_info("at", ::crucible_client_runtime_rust::__generated::operation::Location::Query("at"), ::crucible_client_runtime_rust::__generated::operation::Scalar::DateTime, &__redaction::R_15, &[]),
     ],
     &[
-        ::crucible_client_runtime_rust::__generated::member_info("city", ::crucible_client_runtime_rust::__generated::operation::Location::Body, ::crucible_client_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_3, &[]),
-        ::crucible_client_runtime_rust::__generated::member_info("forecast", ::crucible_client_runtime_rust::__generated::operation::Location::Body, ::crucible_client_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_9, &[]),
-        ::crucible_client_runtime_rust::__generated::member_info("requestId", ::crucible_client_runtime_rust::__generated::operation::Location::Header("x-request-id"), ::crucible_client_runtime_rust::__generated::operation::Scalar::String, &__redaction::R_36, &[]),
+        ::crucible_client_runtime_rust::__generated::member_info("city", ::crucible_client_runtime_rust::__generated::operation::Location::Body, ::crucible_client_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_10, &[]),
+        ::crucible_client_runtime_rust::__generated::member_info("forecast", ::crucible_client_runtime_rust::__generated::operation::Location::Body, ::crucible_client_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_16, &[]),
+        ::crucible_client_runtime_rust::__generated::member_info("requestId", ::crucible_client_runtime_rust::__generated::operation::Location::Header("x-request-id"), ::crucible_client_runtime_rust::__generated::operation::Scalar::String, &__redaction::R_4, &[]),
     ],
     &["NotFoundError", "ThrottlingError", "ValidationError"],
     true,
@@ -1815,11 +1815,11 @@ static GET_CITY_PHOTO_OPERATION: ::crucible_client_runtime_rust::__generated::Op
     &[],
     200,
     &[
-        ::crucible_client_runtime_rust::__generated::member_info("cityId", ::crucible_client_runtime_rust::__generated::operation::Location::Label, ::crucible_client_runtime_rust::__generated::operation::Scalar::String, &__redaction::R_0, &[]),
+        ::crucible_client_runtime_rust::__generated::member_info("cityId", ::crucible_client_runtime_rust::__generated::operation::Location::Label, ::crucible_client_runtime_rust::__generated::operation::Scalar::String, &__redaction::R_7, &[]),
     ],
     &[
-        ::crucible_client_runtime_rust::__generated::member_info("caption", ::crucible_client_runtime_rust::__generated::operation::Location::Header("x-photo-caption"), ::crucible_client_runtime_rust::__generated::operation::Scalar::String, &__redaction::R_36, &[]),
-        ::crucible_client_runtime_rust::__generated::member_info("photo", ::crucible_client_runtime_rust::__generated::operation::Location::Payload("image/jpeg"), ::crucible_client_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_18, &[]),
+        ::crucible_client_runtime_rust::__generated::member_info("caption", ::crucible_client_runtime_rust::__generated::operation::Location::Header("x-photo-caption"), ::crucible_client_runtime_rust::__generated::operation::Scalar::String, &__redaction::R_4, &[]),
+        ::crucible_client_runtime_rust::__generated::member_info("photo", ::crucible_client_runtime_rust::__generated::operation::Location::Payload("image/jpeg"), ::crucible_client_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_25, &[]),
     ],
     &["NotFoundError", "ThrottlingError", "ValidationError"],
     true,
@@ -1901,13 +1901,13 @@ static LIST_CITIES_OPERATION: ::crucible_client_runtime_rust::__generated::Opera
     &[],
     200,
     &[
-        ::crucible_client_runtime_rust::__generated::member_info("nextToken", ::crucible_client_runtime_rust::__generated::operation::Location::Query("nextToken"), ::crucible_client_runtime_rust::__generated::operation::Scalar::String, &__redaction::R_36, &[]),
-        ::crucible_client_runtime_rust::__generated::member_info("maxResults", ::crucible_client_runtime_rust::__generated::operation::Location::Query("maxResults"), ::crucible_client_runtime_rust::__generated::operation::Scalar::Integer, &__redaction::R_34, &[]),
-        ::crucible_client_runtime_rust::__generated::member_info("tags", ::crucible_client_runtime_rust::__generated::operation::Location::Query("tag"), ::crucible_client_runtime_rust::__generated::operation::Scalar::List(&::crucible_client_runtime_rust::__generated::operation::Scalar::String), &__redaction::R_25, &[]),
+        ::crucible_client_runtime_rust::__generated::member_info("nextToken", ::crucible_client_runtime_rust::__generated::operation::Location::Query("nextToken"), ::crucible_client_runtime_rust::__generated::operation::Scalar::String, &__redaction::R_4, &[]),
+        ::crucible_client_runtime_rust::__generated::member_info("maxResults", ::crucible_client_runtime_rust::__generated::operation::Location::Query("maxResults"), ::crucible_client_runtime_rust::__generated::operation::Scalar::Integer, &__redaction::R_2, &[]),
+        ::crucible_client_runtime_rust::__generated::member_info("tags", ::crucible_client_runtime_rust::__generated::operation::Location::Query("tag"), ::crucible_client_runtime_rust::__generated::operation::Scalar::List(&::crucible_client_runtime_rust::__generated::operation::Scalar::String), &__redaction::R_32, &[]),
     ],
     &[
-        ::crucible_client_runtime_rust::__generated::member_info("cities", ::crucible_client_runtime_rust::__generated::operation::Location::Body, ::crucible_client_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_2, &[]),
-        ::crucible_client_runtime_rust::__generated::member_info("nextToken", ::crucible_client_runtime_rust::__generated::operation::Location::Body, ::crucible_client_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_36, &[]),
+        ::crucible_client_runtime_rust::__generated::member_info("cities", ::crucible_client_runtime_rust::__generated::operation::Location::Body, ::crucible_client_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_9, &[]),
+        ::crucible_client_runtime_rust::__generated::member_info("nextToken", ::crucible_client_runtime_rust::__generated::operation::Location::Body, ::crucible_client_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_4, &[]),
     ],
     &["ThrottlingError", "ValidationError"],
     true,
@@ -2066,12 +2066,12 @@ static PUT_CITY_PHOTO_OPERATION: ::crucible_client_runtime_rust::__generated::Op
     &[],
     200,
     &[
-        ::crucible_client_runtime_rust::__generated::member_info("cityId", ::crucible_client_runtime_rust::__generated::operation::Location::Label, ::crucible_client_runtime_rust::__generated::operation::Scalar::String, &__redaction::R_0, &[]),
-        ::crucible_client_runtime_rust::__generated::member_info("caption", ::crucible_client_runtime_rust::__generated::operation::Location::Header("x-photo-caption"), ::crucible_client_runtime_rust::__generated::operation::Scalar::String, &__redaction::R_36, &[]),
-        ::crucible_client_runtime_rust::__generated::member_info("photo", ::crucible_client_runtime_rust::__generated::operation::Location::Payload("image/jpeg"), ::crucible_client_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_18, &[]),
+        ::crucible_client_runtime_rust::__generated::member_info("cityId", ::crucible_client_runtime_rust::__generated::operation::Location::Label, ::crucible_client_runtime_rust::__generated::operation::Scalar::String, &__redaction::R_7, &[]),
+        ::crucible_client_runtime_rust::__generated::member_info("caption", ::crucible_client_runtime_rust::__generated::operation::Location::Header("x-photo-caption"), ::crucible_client_runtime_rust::__generated::operation::Scalar::String, &__redaction::R_4, &[]),
+        ::crucible_client_runtime_rust::__generated::member_info("photo", ::crucible_client_runtime_rust::__generated::operation::Location::Payload("image/jpeg"), ::crucible_client_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_25, &[]),
     ],
     &[
-        ::crucible_client_runtime_rust::__generated::member_info("photo", ::crucible_client_runtime_rust::__generated::operation::Location::Body, ::crucible_client_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_19, &[]),
+        ::crucible_client_runtime_rust::__generated::member_info("photo", ::crucible_client_runtime_rust::__generated::operation::Location::Body, ::crucible_client_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_26, &[]),
     ],
     &["NotFoundError", "ThrottlingError", "ValidationError"],
     false,

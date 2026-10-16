@@ -10,7 +10,7 @@
         "Labels": {"source":{"shape":"example#CreateCityInput","path":["labels"]}}
       },
       "attributes": {"Id":{"source":{"shape":"example#CreateCityOutput","path":["id"]}}},
-      "cdk": {"resource_type":"Custom::WeatherCity","context":{"SecretArn":{"target":"smithy.api#String","required":true}}}
+      "cdk": {"resource_type":"Custom::WeatherCity","context":{"SecretArn":{"target":"crucible.api#String","required":true}}}
     }
   }
 }

@@ -625,6 +625,21 @@ version's section when it is prepared.
   checked: an imported package's describe its own releases. Release snapshots are unchanged:
   `snapshot::write` leaves out `Service::versions`.
 
+- **The built-in types and the bearer auth scheme are in the `crucible.api`
+  namespace**, not `smithy.api`: `crucible.api#String`, `crucible.api#Unit`,
+  `crucible.api#httpBearerAuth` (decision 62c in
+  [docs/idl/decisions.md](docs/idl/decisions.md)). `.cru` source is
+  unchanged. Every generated output that names a built-in spells it so:
+  `describe.json` targets and `$defs` (`crucible.api.Long`), OpenAPI
+  component and security scheme names, MCP tool schemas, the CLI schema and
+  the runtime schemas native SDKs bundle (whose `schemaSha256` and content
+  digests change with them). Release snapshots are format 5: an older one
+  still reads, its `smithy.api#..` ids read as `crucible.api#..` in memory,
+  so committed releases and their `crucible.lock` digests stay valid and the
+  compatibility guard compares them with the current model unchanged. The
+  prelude namespace reserved for packages is `crucible.api`; `smithy.api`
+  is no longer reserved. See [migrating](docs/migrating.md#the-built-in-vocabulary-is-crucibleapi).
+
 - `.cru`: a `[Name]` doc link that names nothing is a compile error, reported
   at its label (decision 80); it was a warning (decision 41). So is
   `[Name.member]` naming a member, value or operation input or output member
@@ -702,6 +717,17 @@ version's section when it is prepared.
   Their goldens are kept.
 
 ### Removed
+
+- `crucible_ir::ir::Service::renames`, `Member::client_optional` and
+  `Member::{client_default, client_wire_default}`: a `.cru` model never set
+  them (decision 62c). `Service::name_of` is the name in the id, and
+  `optional_on_client` equals `optional_on_server`. Release snapshots drop
+  `client_optional` and an empty `renames` when read, and refuse one that
+  renamed a shape. `describe.json` keeps `clientOptional`, now always
+  `false`. The unreferenced Smithy JSON AST fixtures
+  (`tests/conformance/native-docs.json`,
+  `e2e/weather-service/tests/fixtures/auth-chain.json`,
+  `crates/crucible-codegen-common/tests/fixtures/recursion.json`) are gone.
 
 - **The Smithy front end.** Crucible reads `.cru` packages only; Leyline and
   Pigeon are on `.cru`. Gone: the Smithy JSON AST front end and
@@ -817,6 +843,12 @@ version's section when it is prepared.
   feature is refused with a message naming it.
 
 ### Fixed
+
+- A project's own traits in an `aws.*` or `smithy.test` namespace are kept:
+  `Service::project_metadata_only`, `crucible check`'s custom trait count and
+  the traits the Rust generator records for `when_trait` treated them as
+  standard, as only a Smithy model needed. An external audience view keeps a
+  custom trait unless its definition is `@internal`, whatever its namespace.
 
 - `crucible check` without `--target` accepts every capability some generator
   supports. It checked against an empty set, so a model using a gated feature

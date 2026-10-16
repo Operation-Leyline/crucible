@@ -267,8 +267,8 @@ pub mod desk {
             false,
             false,
             &[
-                ::crucible_server_runtime_rust::__generated::member_info("message", ::crucible_server_runtime_rust::__generated::operation::Location::Body, ::crucible_server_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_19, &[]),
-                ::crucible_server_runtime_rust::__generated::member_info("reason", ::crucible_server_runtime_rust::__generated::operation::Location::Body, ::crucible_server_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_1, &[]),
+                ::crucible_server_runtime_rust::__generated::member_info("message", ::crucible_server_runtime_rust::__generated::operation::Location::Body, ::crucible_server_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_0, &[]),
+                ::crucible_server_runtime_rust::__generated::member_info("reason", ::crucible_server_runtime_rust::__generated::operation::Location::Body, ::crucible_server_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_2, &[]),
             ],
         );
 
@@ -318,7 +318,7 @@ pub mod desk {
             true,
             false,
             &[
-                ::crucible_server_runtime_rust::__generated::member_info("message", ::crucible_server_runtime_rust::__generated::operation::Location::Body, ::crucible_server_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_19, &[]),
+                ::crucible_server_runtime_rust::__generated::member_info("message", ::crucible_server_runtime_rust::__generated::operation::Location::Body, ::crucible_server_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_0, &[]),
             ],
         );
 
@@ -379,10 +379,10 @@ pub mod desk {
             false,
             false,
             &[
-                ::crucible_server_runtime_rust::__generated::member_info("message", ::crucible_server_runtime_rust::__generated::operation::Location::Body, ::crucible_server_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_19, &[]),
-                ::crucible_server_runtime_rust::__generated::member_info("resourceType", ::crucible_server_runtime_rust::__generated::operation::Location::Body, ::crucible_server_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_2, &[]),
-                ::crucible_server_runtime_rust::__generated::member_info("resourceId", ::crucible_server_runtime_rust::__generated::operation::Location::Body, ::crucible_server_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_19, &[]),
-                ::crucible_server_runtime_rust::__generated::member_info("requestId", ::crucible_server_runtime_rust::__generated::operation::Location::Body, ::crucible_server_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_19, &[]),
+                ::crucible_server_runtime_rust::__generated::member_info("message", ::crucible_server_runtime_rust::__generated::operation::Location::Body, ::crucible_server_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_0, &[]),
+                ::crucible_server_runtime_rust::__generated::member_info("resourceType", ::crucible_server_runtime_rust::__generated::operation::Location::Body, ::crucible_server_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_3, &[]),
+                ::crucible_server_runtime_rust::__generated::member_info("resourceId", ::crucible_server_runtime_rust::__generated::operation::Location::Body, ::crucible_server_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_0, &[]),
+                ::crucible_server_runtime_rust::__generated::member_info("requestId", ::crucible_server_runtime_rust::__generated::operation::Location::Body, ::crucible_server_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_0, &[]),
             ],
         );
 
@@ -432,7 +432,7 @@ pub mod desk {
             false,
             false,
             &[
-                ::crucible_server_runtime_rust::__generated::member_info("message", ::crucible_server_runtime_rust::__generated::operation::Location::Body, ::crucible_server_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_19, &[]),
+                ::crucible_server_runtime_rust::__generated::member_info("message", ::crucible_server_runtime_rust::__generated::operation::Location::Body, ::crucible_server_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_0, &[]),
             ],
         );
 
@@ -471,25 +471,25 @@ pub mod desk {
     #[allow(dead_code, unused_imports)]
     mod __redaction {
         use ::crucible_server_runtime_rust::__generated::operation::Redaction;
-        pub(super) static R_0: Redaction = Redaction::Structure(&[("message", &R_19), ("reason", &R_1)]);
-        pub(super) static R_1: Redaction = Redaction::Public;
+        pub(super) static R_0: Redaction = Redaction::Public;
+        pub(super) static R_1: Redaction = Redaction::Structure(&[("message", &R_0), ("reason", &R_2)]);
         pub(super) static R_2: Redaction = Redaction::Public;
-        pub(super) static R_3: Redaction = Redaction::Structure(&[("workspaceId", &R_18), ("roomId", &R_13)]);
-        pub(super) static R_4: Redaction = Redaction::Structure(&[("name", &R_19)]);
-        pub(super) static R_5: Redaction = Redaction::Structure(&[("workspaceId", &R_18)]);
-        pub(super) static R_6: Redaction = Redaction::Structure(&[("name", &R_19)]);
-        pub(super) static R_7: Redaction = Redaction::Structure(&[("message", &R_19)]);
-        pub(super) static R_8: Redaction = Redaction::Structure(&[("workspaceId", &R_18)]);
-        pub(super) static R_9: Redaction = Redaction::Structure(&[("rooms", &R_14)]);
-        pub(super) static R_10: Redaction = Redaction::Structure(&[("workspaceId", &R_18), ("roomId", &R_13)]);
-        pub(super) static R_11: Redaction = Redaction::Structure(&[("name", &R_19)]);
-        pub(super) static R_12: Redaction = Redaction::Structure(&[("message", &R_19), ("resourceType", &R_2), ("resourceId", &R_19), ("requestId", &R_19)]);
-        pub(super) static R_13: Redaction = Redaction::Public;
-        pub(super) static R_14: Redaction = Redaction::List(&R_13);
-        pub(super) static R_15: Redaction = Redaction::Structure(&[("message", &R_19)]);
-        pub(super) static R_16: Redaction = Redaction::Structure(&[("home", &R_18)]);
-        pub(super) static R_17: Redaction = Redaction::Structure(&[("name", &R_19)]);
-        pub(super) static R_18: Redaction = Redaction::Public;
+        pub(super) static R_3: Redaction = Redaction::Public;
+        pub(super) static R_4: Redaction = Redaction::Structure(&[("workspaceId", &R_19), ("roomId", &R_14)]);
+        pub(super) static R_5: Redaction = Redaction::Structure(&[("name", &R_0)]);
+        pub(super) static R_6: Redaction = Redaction::Structure(&[("workspaceId", &R_19)]);
+        pub(super) static R_7: Redaction = Redaction::Structure(&[("name", &R_0)]);
+        pub(super) static R_8: Redaction = Redaction::Structure(&[("message", &R_0)]);
+        pub(super) static R_9: Redaction = Redaction::Structure(&[("workspaceId", &R_19)]);
+        pub(super) static R_10: Redaction = Redaction::Structure(&[("rooms", &R_15)]);
+        pub(super) static R_11: Redaction = Redaction::Structure(&[("workspaceId", &R_19), ("roomId", &R_14)]);
+        pub(super) static R_12: Redaction = Redaction::Structure(&[("name", &R_0)]);
+        pub(super) static R_13: Redaction = Redaction::Structure(&[("message", &R_0), ("resourceType", &R_3), ("resourceId", &R_0), ("requestId", &R_0)]);
+        pub(super) static R_14: Redaction = Redaction::Public;
+        pub(super) static R_15: Redaction = Redaction::List(&R_14);
+        pub(super) static R_16: Redaction = Redaction::Structure(&[("message", &R_0)]);
+        pub(super) static R_17: Redaction = Redaction::Structure(&[("home", &R_19)]);
+        pub(super) static R_18: Redaction = Redaction::Structure(&[("name", &R_0)]);
         pub(super) static R_19: Redaction = Redaction::Public;
     }
 
@@ -505,11 +505,11 @@ pub mod desk {
         &[],
         200,
         &[
-            ::crucible_server_runtime_rust::__generated::member_info("workspaceId", ::crucible_server_runtime_rust::__generated::operation::Location::Label, ::crucible_server_runtime_rust::__generated::operation::Scalar::String, &__redaction::R_18, &[]),
-            ::crucible_server_runtime_rust::__generated::member_info("roomId", ::crucible_server_runtime_rust::__generated::operation::Location::Label, ::crucible_server_runtime_rust::__generated::operation::Scalar::String, &__redaction::R_13, &[]),
+            ::crucible_server_runtime_rust::__generated::member_info("workspaceId", ::crucible_server_runtime_rust::__generated::operation::Location::Label, ::crucible_server_runtime_rust::__generated::operation::Scalar::String, &__redaction::R_19, &[]),
+            ::crucible_server_runtime_rust::__generated::member_info("roomId", ::crucible_server_runtime_rust::__generated::operation::Location::Label, ::crucible_server_runtime_rust::__generated::operation::Scalar::String, &__redaction::R_14, &[]),
         ],
         &[
-            ::crucible_server_runtime_rust::__generated::member_info("name", ::crucible_server_runtime_rust::__generated::operation::Location::Body, ::crucible_server_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_19, &[]),
+            ::crucible_server_runtime_rust::__generated::member_info("name", ::crucible_server_runtime_rust::__generated::operation::Location::Body, ::crucible_server_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_0, &[]),
         ],
         &["ResourceNotFoundException", "AccessDeniedException", "InternalServerException", "ValidationException"],
         true,
@@ -550,10 +550,10 @@ pub mod desk {
         &[],
         200,
         &[
-            ::crucible_server_runtime_rust::__generated::member_info("workspaceId", ::crucible_server_runtime_rust::__generated::operation::Location::Label, ::crucible_server_runtime_rust::__generated::operation::Scalar::String, &__redaction::R_18, &[]),
+            ::crucible_server_runtime_rust::__generated::member_info("workspaceId", ::crucible_server_runtime_rust::__generated::operation::Location::Label, ::crucible_server_runtime_rust::__generated::operation::Scalar::String, &__redaction::R_19, &[]),
         ],
         &[
-            ::crucible_server_runtime_rust::__generated::member_info("name", ::crucible_server_runtime_rust::__generated::operation::Location::Body, ::crucible_server_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_19, &[]),
+            ::crucible_server_runtime_rust::__generated::member_info("name", ::crucible_server_runtime_rust::__generated::operation::Location::Body, ::crucible_server_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_0, &[]),
         ],
         &["ResourceNotFoundException", "AccessDeniedException", "InternalServerException", "ValidationException"],
         true,
@@ -595,10 +595,10 @@ pub mod desk {
         &[],
         200,
         &[
-            ::crucible_server_runtime_rust::__generated::member_info("workspaceId", ::crucible_server_runtime_rust::__generated::operation::Location::Label, ::crucible_server_runtime_rust::__generated::operation::Scalar::String, &__redaction::R_18, &[]),
+            ::crucible_server_runtime_rust::__generated::member_info("workspaceId", ::crucible_server_runtime_rust::__generated::operation::Location::Label, ::crucible_server_runtime_rust::__generated::operation::Scalar::String, &__redaction::R_19, &[]),
         ],
         &[
-            ::crucible_server_runtime_rust::__generated::member_info("rooms", ::crucible_server_runtime_rust::__generated::operation::Location::Body, ::crucible_server_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_14, &[]),
+            ::crucible_server_runtime_rust::__generated::member_info("rooms", ::crucible_server_runtime_rust::__generated::operation::Location::Body, ::crucible_server_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_15, &[]),
         ],
         &["ResourceNotFoundException", "AccessDeniedException", "InternalServerException", "ValidationException"],
         true,
@@ -642,11 +642,11 @@ pub mod desk {
         &[],
         200,
         &[
-            ::crucible_server_runtime_rust::__generated::member_info("workspaceId", ::crucible_server_runtime_rust::__generated::operation::Location::Label, ::crucible_server_runtime_rust::__generated::operation::Scalar::String, &__redaction::R_18, &[]),
-            ::crucible_server_runtime_rust::__generated::member_info("roomId", ::crucible_server_runtime_rust::__generated::operation::Location::Label, ::crucible_server_runtime_rust::__generated::operation::Scalar::String, &__redaction::R_13, &[]),
+            ::crucible_server_runtime_rust::__generated::member_info("workspaceId", ::crucible_server_runtime_rust::__generated::operation::Location::Label, ::crucible_server_runtime_rust::__generated::operation::Scalar::String, &__redaction::R_19, &[]),
+            ::crucible_server_runtime_rust::__generated::member_info("roomId", ::crucible_server_runtime_rust::__generated::operation::Location::Label, ::crucible_server_runtime_rust::__generated::operation::Scalar::String, &__redaction::R_14, &[]),
         ],
         &[
-            ::crucible_server_runtime_rust::__generated::member_info("name", ::crucible_server_runtime_rust::__generated::operation::Location::Body, ::crucible_server_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_19, &[]),
+            ::crucible_server_runtime_rust::__generated::member_info("name", ::crucible_server_runtime_rust::__generated::operation::Location::Body, ::crucible_server_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_0, &[]),
         ],
         &["ResourceNotFoundException", "AccessDeniedException", "InternalServerException", "ValidationException"],
         false,
@@ -684,10 +684,10 @@ pub mod desk {
         &[],
         200,
         &[
-            ::crucible_server_runtime_rust::__generated::member_info("home", ::crucible_server_runtime_rust::__generated::operation::Location::Query("home"), ::crucible_server_runtime_rust::__generated::operation::Scalar::String, &__redaction::R_18, &[]),
+            ::crucible_server_runtime_rust::__generated::member_info("home", ::crucible_server_runtime_rust::__generated::operation::Location::Query("home"), ::crucible_server_runtime_rust::__generated::operation::Scalar::String, &__redaction::R_19, &[]),
         ],
         &[
-            ::crucible_server_runtime_rust::__generated::member_info("name", ::crucible_server_runtime_rust::__generated::operation::Location::Body, ::crucible_server_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_19, &[]),
+            ::crucible_server_runtime_rust::__generated::member_info("name", ::crucible_server_runtime_rust::__generated::operation::Location::Body, ::crucible_server_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_0, &[]),
         ],
         &["AccessDeniedException", "InternalServerException", "ValidationException"],
         true,

@@ -1,5 +1,5 @@
-//! Documentation-only traits (`@deprecated`, `@since`, `@unstable`,
-//! `@externalDocumentation`), settled once so no generator re-reads them raw.
+//! Documentation-only annotations (`@deprecated`, `@since`, `@unstable`,
+//! `@externalDocs`), settled once so no generator re-reads them raw.
 //!
 //! `@deprecated` is the one a consumer must see, so every native generator
 //! renders it; the others are documentation and may be ignored by a target
@@ -7,7 +7,7 @@
 
 use std::collections::BTreeMap;
 
-/// `smithy.api#deprecated`: both fields are optional in Smithy.
+/// `@deprecated`: both the message and the version are optional.
 #[derive(Debug, Clone, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct Deprecation {
     pub message: Option<String>,
@@ -49,11 +49,11 @@ impl Deprecation {
 #[derive(Debug, Clone, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct DocNotes {
     pub deprecated: Option<Deprecation>,
-    /// `smithy.api#since`: the version that introduced the element.
+    /// `@since`: the version that introduced the element.
     pub since: Option<String>,
-    /// `smithy.api#unstable`: the element may change incompatibly.
+    /// `@unstable`: the element may change incompatibly.
     pub unstable: bool,
-    /// `smithy.api#externalDocumentation`, sorted by name.
+    /// `@externalDocs`, sorted by name.
     pub external_docs: BTreeMap<String, String>,
 }
 

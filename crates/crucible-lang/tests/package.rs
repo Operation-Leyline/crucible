@@ -498,7 +498,7 @@ fn the_manifest_checks_cover_language_naming_and_namespaces() {
             .map(|d| d.message)
             .collect()
     };
-    assert!(messages("[model]\nnamespace = \"smithy.api\"\n")[0].contains("reserved"));
+    assert!(messages("[model]\nnamespace = \"crucible.api\"\n")[0].contains("reserved"));
     assert!(messages("[model]\nnamespace = \"crucible.errors\"\n")[0].contains("reserved"));
     assert!(
         messages("[model]\nnamespace = \"a\"\nlanguage = 999\n")[0].contains("language version 1")
@@ -537,6 +537,6 @@ fn a_syntax_error_in_one_file_does_not_hide_another_files_problems() {
 
 #[test]
 fn a_bad_namespace_is_reported_when_compiling() {
-    let rendered = compile(&crucible_lang::Package::new("smithy.api", vec![]), None).render();
+    let rendered = compile(&crucible_lang::Package::new("crucible.api", vec![]), None).render();
     assert!(rendered.contains("reserved"), "{rendered}");
 }

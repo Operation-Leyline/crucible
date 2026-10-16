@@ -112,7 +112,7 @@ internal final class ClientRuntime: Sendable {
         let values = try op["input"]?.text.map { try codec.encode($0, input) } ?? .object([:])
         let result = try await send(prepare(name, op, input: values))
         let context = try op["output"]?.text.map { try codec.context($0) }
-            ?? WireContext(codec: codec, target: "smithy.api#Unit", format: "date-time")
+            ?? WireContext(codec: codec, target: "crucible.api#Unit", format: "date-time")
         return try Output.fromWire(result, context)
     }
     func pages<Input: WireCodable, Output: WireCodable>(_ name: String, input: Input, as: Output.Type) throws -> Pages<Output> {

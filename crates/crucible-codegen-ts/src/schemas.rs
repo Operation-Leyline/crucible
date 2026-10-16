@@ -140,7 +140,7 @@ pub(crate) fn emit(service: &Service) -> String {
                 if structure
                     .members
                     .iter()
-                    .any(|member| member.client_default().is_some())
+                    .any(|member| member.default.as_ref().is_some())
                 {
                     helpers.insert("parseJson");
                 }

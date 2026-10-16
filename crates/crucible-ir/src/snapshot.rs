@@ -18,7 +18,7 @@ use crate::ir::Service;
 /// settings that were never set for Crucible JSON); [`read`] drops them from
 /// a format 1 snapshot of a Crucible JSON service.
 ///
-/// Format 3 dropped what only Smithy models could reach: streaming payloads
+/// Format 3 dropped what only the retired Smithy front end could reach: streaming payloads
 /// and event streams, waiters, endpoint rules, host prefixes and discovery,
 /// HTTP checksums, non-bearer auth schemes, CORS, prefix headers, query-params
 /// and response-code bindings, sets, and the JSON name
@@ -27,7 +27,17 @@ use crate::ir::Service;
 ///
 /// Format 4 dropped the OAuth `scopes` of the service and its operations.
 /// [`read`] drops an empty list and refuses a snapshot that declared any.
-pub const FORMAT: u32 = 4;
+///
+/// Format 5 moved the built-in types and the standard vocabulary from the
+/// `smithy.api` namespace to [`crate::PRELUDE`], `crucible.api` (decision
+/// 62c in docs/idl/decisions.md), and dropped the service's `renames` and
+/// each member's `client_optional`, which a `.cru` model never sets.
+/// [`read`] maps every `smithy.api#..` id of an older snapshot to its
+/// `crucible.api` id, drops `client_optional` and an empty `renames`, and
+/// refuses a snapshot that renamed a shape. The file
+/// itself is never rewritten: a release's lock digest is over its text as
+/// written.
+pub const FORMAT: u32 = 5;
 
 #[derive(Serialize, Deserialize)]
 struct Snapshot {
@@ -180,6 +190,9 @@ pub fn read(text: &str) -> Result<Service, String> {
         migrate_format_2(&mut value)?;
     }
     drop_scopes(&mut value)?;
+    if format <= 4 {
+        migrate_format_4(&mut value)?;
+    }
     value["format"] = serde_json::Value::from(FORMAT);
     let snapshot: Snapshot = serde_json::from_value(value.clone())
         .map_err(|error| format!("release snapshot format {format}: {error}"))?;
@@ -343,22 +356,7 @@ fn migrate_format_2(value: &mut serde_json::Value) -> Result<(), String> {
             }
             _ => {}
         }
-        let members: Vec<&mut Value> = match kind.as_str() {
-            "Structure" | "Union" => body
-                .get_mut("members")
-                .and_then(Value::as_array_mut)
-                .into_iter()
-                .flatten()
-                .collect(),
-            "List" => body.get_mut("member").into_iter().collect(),
-            "Map" => body
-                .iter_mut()
-                .filter(|(field, _)| *field == "key" || *field == "value")
-                .map(|(_, member)| member)
-                .collect(),
-            _ => Vec::new(),
-        };
-        for member in members.into_iter().filter_map(Value::as_object_mut) {
+        for member in members_mut(shape) {
             drop_unused(member, &["event_binding"], id)?;
             let name = member.get("name").cloned();
             match member.get("wire_name") {
@@ -414,6 +412,109 @@ fn drop_scopes_of(
     Ok(())
 }
 
+/// The namespace formats 1 to 4 spelled the built-in types and the standard
+/// vocabulary in.
+const OLD_PRELUDE: &str = "smithy.api";
+
+/// Reads a format 4 (or older, already migrated) snapshot as format 5:
+/// every id in the old prelude namespace becomes its [`crate::PRELUDE`]
+/// id, wherever it appears (a member's target, an auth scheme, a map key),
+/// and the fields a `.cru` model never set are dropped.
+fn migrate_format_4(value: &mut serde_json::Value) -> Result<(), String> {
+    use serde_json::Value;
+    let Some(service) = value.get_mut("service") else {
+        return Ok(());
+    };
+    map_prelude_ids(service);
+    let Some(service) = service.as_object_mut() else {
+        return Ok(());
+    };
+    if service.get("renames").is_some_and(|value| !is_zero(value)) {
+        return Err(unsupported("shape renames"));
+    }
+    service.remove("renames");
+    for shape in service
+        .get_mut("shapes")
+        .and_then(Value::as_object_mut)
+        .into_iter()
+        .flat_map(|shapes| shapes.values_mut())
+    {
+        // A client-optional member only relaxed what a client required,
+        // which a `.cru` release never does: read as the server's
+        // optionality, an older release compares with its `.cru` successor
+        // as the guard compares two `.cru` releases.
+        for member in members_mut(shape) {
+            member.remove("client_optional");
+        }
+    }
+    Ok(())
+}
+
+/// Rewrites, in place, every string and object key of `value` that is an
+/// id in the old prelude namespace. Prose that happens to mention one is
+/// not an id (it does not parse as one) and is left alone.
+fn map_prelude_ids(value: &mut serde_json::Value) {
+    use serde_json::Value;
+    fn mapped(text: &str) -> Option<String> {
+        let rest = text.strip_prefix(OLD_PRELUDE)?.strip_prefix('#')?;
+        text.parse::<crate::ShapeId>()
+            .ok()
+            .map(|_| format!("{}#{rest}", crate::PRELUDE))
+    }
+    match value {
+        Value::String(text) => {
+            if let Some(new) = mapped(text) {
+                *text = new;
+            }
+        }
+        Value::Array(items) => items.iter_mut().for_each(map_prelude_ids),
+        Value::Object(fields) => {
+            let old = std::mem::take(fields);
+            for (key, mut field) in old {
+                map_prelude_ids(&mut field);
+                fields.insert(mapped(&key).unwrap_or(key), field);
+            }
+        }
+        _ => {}
+    }
+}
+
+/// The members of a serialized shape: a structure's or union's, a list's
+/// one, a map's key and value.
+fn members_mut(
+    shape: &mut serde_json::Value,
+) -> Vec<&mut serde_json::Map<String, serde_json::Value>> {
+    use serde_json::Value;
+    let Some((kind, body)) = shape
+        .as_object_mut()
+        .and_then(|shape| shape.iter_mut().next())
+    else {
+        return Vec::new();
+    };
+    let Some(body) = body.as_object_mut() else {
+        return Vec::new();
+    };
+    let members: Vec<&mut Value> = match kind.as_str() {
+        "Structure" | "Union" => body
+            .get_mut("members")
+            .and_then(Value::as_array_mut)
+            .into_iter()
+            .flatten()
+            .collect(),
+        "List" => body.get_mut("member").into_iter().collect(),
+        "Map" => body
+            .iter_mut()
+            .filter(|(field, _)| *field == "key" || *field == "value")
+            .map(|(_, member)| member)
+            .collect(),
+        _ => Vec::new(),
+    };
+    members
+        .into_iter()
+        .filter_map(Value::as_object_mut)
+        .collect()
+}
+
 /// Removes the `fields` of `object` that hold their zero value; one that
 /// holds anything else was used.
 fn drop_unused(
@@ -442,7 +543,7 @@ fn drop_payload(
 
 fn unsupported(what: &str) -> String {
     format!(
-        "the release snapshot uses {what}, which Crucible no longer supports (see the Migration entry for removing Smithy-only features in the changelog)"
+        "the release snapshot uses {what}, which Crucible no longer supports (see the Migration entries in the changelog)"
     )
 }
 

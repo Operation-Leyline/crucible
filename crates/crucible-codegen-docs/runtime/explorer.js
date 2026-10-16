@@ -102,7 +102,7 @@
     };
   }
 
-  const isBuiltin = (id) => id.startsWith("smithy.api#");
+  const isBuiltin = (id) => id.startsWith("crucible.api#");
   const list = (v) => (Array.isArray(v) ? v : []);
   const names = (map) => Object.keys(map).sort();
 
@@ -549,7 +549,7 @@
   }
 
   function shapeRef(m, id) {
-    return m.shapes[id] && !isBuiltin(id) ? link("shape", id, m.shapes[id].name) : code(id.replace(/^smithy\.api#/, ""));
+    return m.shapes[id] && !isBuiltin(id) ? link("shape", id, m.shapes[id].name) : code(id.replace(/^crucible\.api#/, ""));
   }
 
   // `panels` are the extension hook's containers: Explorer fills them in `start`.

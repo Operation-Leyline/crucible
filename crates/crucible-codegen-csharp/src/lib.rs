@@ -414,7 +414,7 @@ pub(crate) fn presence(shape: &Shape, member: &crucible_ir::ir::Member) -> bool 
 /// presence, or the client fills its modeled default when it is left
 /// unset. Only a member with neither is "Required.".
 pub(crate) fn omittable(shape: &Shape, member: &crucible_ir::ir::Member) -> bool {
-    presence(shape, member) || member.client_default().is_some()
+    presence(shape, member) || member.default.as_ref().is_some()
 }
 
 pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnostics> {
@@ -716,7 +716,7 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
                             &links,
                             "    ",
                             Some(&member_summary),
-                            &[if m.client_default().is_some() {
+                            &[if m.default.as_ref().is_some() {
                                 "Has a default value when left unset.".to_string()
                             } else {
                                 "Required.".to_string()

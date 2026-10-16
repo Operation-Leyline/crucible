@@ -87,7 +87,7 @@ int main(void) {
       entries[0].value = parse(source, "null", &error);
       assert(weather_models_forecast_encode(encoded, &forecast, &wire, &error) == weather_invalid);
       assert(weather_models_forecast_decode(decoded, parse(source, "{\"clear\":null}", &error), &copy, &error) == weather_invalid); }
-    { const weather_shape *type = weather_shape_lookup(weather_string_view("smithy.api#Long"));
+    { const weather_shape *type = weather_shape_lookup(weather_string_view("crucible.api#Long"));
       const void *value; int64_t number = INT64_MIN;
       assert(type);
       good(weather_model_encode(encoded, type, &number, &wire, &error), &error);

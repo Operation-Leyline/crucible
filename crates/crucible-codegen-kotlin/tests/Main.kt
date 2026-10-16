@@ -133,7 +133,7 @@ private class Codec {
     }
     fun bound(values: JsonElement): String = invoke("bound", values) as String
     fun checkDenseMapNulls() {
-        instance = type.getConstructor(JsonObject::class.java).newInstance(changed(schema, listOf("shapes", "example.weather#Forecast", "value", "target"), JsonPrimitive("smithy.api#String")))
+        instance = type.getConstructor(JsonObject::class.java).newInstance(changed(schema, listOf("shapes", "example.weather#Forecast", "value", "target"), JsonPrimitive("crucible.api#String")))
         try { decode("example.weather#Forecast", "{\"key\":null}"); error("Dense map null accepted") } catch (_: IllegalArgumentException) {}
         try { encode("example.weather#Forecast", mapOf("key" to null)); error("Dense map null encoded") } catch (_: IllegalArgumentException) {}
     }

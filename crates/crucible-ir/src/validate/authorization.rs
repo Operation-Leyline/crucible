@@ -1109,7 +1109,7 @@ impl<'a> Checker<'a> {
                     (Some(Shape::Simple(a)), None) => {
                         a.kind == SimpleKind::String
                             && a.constraints == Constraints::default()
-                            && expected == &ShapeId::new("smithy.api", "String")
+                            && expected == &ShapeId::prelude("String")
                     }
                     _ => false,
                 };

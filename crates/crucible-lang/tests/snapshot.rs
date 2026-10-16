@@ -89,10 +89,66 @@ fn committed_format_1_snapshots_still_read() {
         let path = entry.unwrap().path();
         let text = std::fs::read_to_string(&path)
             .unwrap_or_else(|error| panic!("{}: {error}", path.display()));
-        snapshot::read(&text).unwrap_or_else(|error| panic!("{}: {error}", path.display()));
+        let read =
+            snapshot::read(&text).unwrap_or_else(|error| panic!("{}: {error}", path.display()));
+        // Their `smithy.api` ids read as the prelude's (decision 62c).
+        let written = snapshot::write(&read, "test");
+        assert!(!written.contains("\"smithy.api#"), "{}", path.display());
+        assert!(written.contains("\"crucible.api#"), "{}", path.display());
         checked += 1;
     }
     assert!(checked >= 5, "only {checked} snapshots");
+}
+
+/// A format 4 snapshot: the current one, as an older compiler spelled the
+/// prelude and the fields a `.cru` model never set.
+fn format_4(service: &Service) -> serde_json::Value {
+    let text = snapshot::write(service, "test").replace("\"crucible.api#", "\"smithy.api#");
+    let mut value: serde_json::Value = serde_json::from_str(&text).unwrap();
+    value["format"] = serde_json::json!(4);
+    value["service"]["renames"] = serde_json::json!({});
+    for shape in value["service"]["shapes"]
+        .as_object_mut()
+        .unwrap()
+        .values_mut()
+    {
+        if let Some(members) = shape
+            .get_mut("Structure")
+            .and_then(|body| body["members"].as_array_mut())
+        {
+            for member in members {
+                member["client_optional"] = serde_json::json!(true);
+            }
+        }
+    }
+    value
+}
+
+/// An older snapshot's `smithy.api` ids, as targets, auth schemes and map
+/// keys, read as the prelude's, and it reads as the model it froze; the
+/// release file itself, and so its lock digest, is never rewritten.
+#[test]
+fn a_format_4_snapshot_reads_with_the_prelude_mapped() {
+    let service = crucible_lang::load_service(&models().join("hardening"))
+        .unwrap_or_else(|error| panic!("{error}"));
+    assert!(!service.auth.is_empty() && service.auth.iter().all(|id| id.is_prelude()));
+    let mut value = format_4(&service);
+    // Prose that mentions an old id is not an id, and is left alone.
+    value["service"]["docs"] = serde_json::json!("smithy.api#String is a string.");
+    let read = snapshot::read(&value.to_string()).unwrap();
+    assert_eq!(read.docs.as_deref(), Some("smithy.api#String is a string."));
+    let mut expected = service.clone();
+    expected.docs = read.docs.clone();
+    assert_eq!(format!("{read:#?}"), format!("{expected:#?}"));
+    assert!(read.auth.iter().all(|id| id.is_prelude()));
+}
+
+#[test]
+fn a_snapshot_that_renamed_a_shape_is_refused() {
+    let mut value = format_4(&weather());
+    value["service"]["renames"] = serde_json::json!({"example.weather#City": "Town"});
+    let error = snapshot::read(&value.to_string()).unwrap_err();
+    assert!(error.contains("shape renames"), "{error}");
 }
 
 /// Debug output with each JSON number spelled by its value: an exact

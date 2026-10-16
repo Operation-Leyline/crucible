@@ -72,7 +72,7 @@ for (const [name, description] of Object.entries(DESCRIPTIONS)) {
       for (const error of op.errors) assert.ok(text.includes(description.shapes[error].name), `${id} error ${error}`);
     }
     for (const id of Object.keys(description.shapes)) {
-      if (id.startsWith("smithy.api#")) continue;
+      if (id.startsWith("crucible.api#")) continue;
       const view = x.shapeView(m, id);
       assert.ok(textOf(view).includes(description.shapes[id].name), id);
       for (const value of description.shapes[id].values || []) assert.ok(textOf(view).includes(value.name), `${id} ${value.name}`);
@@ -154,7 +154,7 @@ test("navigation groups operations by resource, then service operations, then da
   const groups = x.navigation(x.index(WEATHER));
   assert.deepEqual(groups.map((g) => g.label), ["City", "Service operations", "Data types"]);
   assert.deepEqual(groups[0].entries.map((e) => e.item.name), ["CreateCity", "GetCity", "GetCityPhoto", "ListCities", "PutCityPhoto"]);
-  assert.ok(!groups[2].entries.some((e) => e.id.startsWith("smithy.api#")));
+  assert.ok(!groups[2].entries.some((e) => e.id.startsWith("crucible.api#")));
 });
 
 test("search needs every term, keeps matching groups and finds by method or path", () => {

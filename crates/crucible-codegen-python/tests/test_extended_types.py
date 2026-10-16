@@ -40,8 +40,8 @@ class ExtendedTypeTests(unittest.TestCase):
         codec = _Codec(models._SCHEMA, models._CLASSES)
         big = 12345678901234567890123456789012345678901234567890
         self.assertEqual(codec.read_header({"target": "example.types#Mode"}, "2"), Mode(2))
-        self.assertEqual(codec.read_header({"target": "smithy.api#BigInteger"}, str(big)), big)
-        self.assertEqual(codec.read_header({"target": "smithy.api#BigDecimal"}, "1.5"), Decimal("1.5"))
+        self.assertEqual(codec.read_header({"target": "crucible.api#BigInteger"}, str(big)), big)
+        self.assertEqual(codec.read_header({"target": "crucible.api#BigDecimal"}, "1.5"), Decimal("1.5"))
 
     def test_offset_less_date_time_decodes_aware_and_round_trips(self):
         from datetime import timezone
@@ -57,7 +57,7 @@ class ExtendedTypeTests(unittest.TestCase):
                 codec.convert("example.types#Mode", value)
         for value in (0.1, Decimal("NaN"), Decimal("Infinity")):
             with self.assertRaises(ValueError):
-                codec.convert("smithy.api#BigDecimal", value)
+                codec.convert("crucible.api#BigDecimal", value)
         for decode in (False, True):
             for shape, values in (("Integers", [10 ** 80, 10 ** 80]), ("Decimals", [Decimal("1"), Decimal("1.00")])):
                 with self.assertRaisesRegex(ValueError, "duplicate"):

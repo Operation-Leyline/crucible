@@ -187,16 +187,11 @@ pub(crate) fn redactions(service: &Service) -> String {
     out
 }
 
-/// Traits from outside Smithy's and AWS's namespaces: the model's own.
+/// Traits outside the standard vocabulary: the model's own.
 pub(crate) fn custom_traits(traits: &crucible_ir::ir::Traits) -> String {
     let pairs: Vec<String> = traits
         .iter()
-        .filter(|(id, _)| {
-            !id.is_prelude()
-                && !id.namespace().starts_with("aws.")
-                && id.namespace() != "crucible.protocols"
-                && id.namespace() != "smithy.test"
-        })
+        .filter(|(id, _)| !crucible_ir::ir::is_standard_trait(id))
         .map(|(id, value)| {
             format!(
                 "({}, {})",

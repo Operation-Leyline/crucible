@@ -268,22 +268,22 @@ mod tests {
     }
 
     #[test]
-    fn service_exception_identity_and_renamed_model_collisions() {
+    fn service_exception_identity_and_model_collisions() {
         let mut service = load("weather");
         assert_eq!(super::service_exception_name(&service), "WeatherException");
         assert_eq!(
             super::service_exception_runtime(&service, "class ServiceException : ServiceError {}"),
             "class WeatherException : ServiceError {}"
         );
-        service.renames.insert(
-            "example.weather#NotFoundError".parse().unwrap(),
-            "WeatherException".into(),
+        service.rename_shape(
+            &"example.weather#NotFoundError".parse().unwrap(),
+            "WeatherException",
         );
         assert!(
             super::check_service_exception_name(&service)
                 .unwrap_err()
                 .to_string()
-                .contains("example.weather#NotFoundError")
+                .contains("example.weather#WeatherException")
         );
     }
     #[test]
@@ -302,19 +302,6 @@ mod tests {
         assert_eq!(members["ticket"]["sensitive"], true);
         assert!(members["label"].get("sensitive").is_none());
     }
-    #[test]
-    fn renamed_errors_preserve_the_protocol_discriminator() {
-        let mut service = load("weather");
-        service.renames.insert(
-            "example.weather#NotFoundError".parse().unwrap(),
-            "MissingResource".into(),
-        );
-        let schema = super::schema(&service, str::to_owned);
-        let shape = &schema["shapes"]["example.weather#NotFoundError"];
-        assert_eq!(shape["name"], "MissingResource");
-        assert_eq!(shape["error"]["wireCode"], "NotFoundError");
-    }
-
     #[test]
     fn runtime_schema_preserves_effective_client_semantics() {
         let service = load("review-hardening");

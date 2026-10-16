@@ -1,6 +1,6 @@
 //! One service, lowered: what every emitter reads.
 //!
-//! Smithy's rules are settled here, once, so no emitter re-derives them:
+//! The model's rules are settled here, once, so no emitter re-derives them:
 //! which members are optional, the effective constraints on a member, where
 //! each member travels in a request or response, the errors an operation can
 //! return, and its pagination. Traits the IR does not model are kept raw in
@@ -27,7 +27,7 @@ pub type Traits = BTreeMap<ShapeId, Value>;
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct Service {
-    /// Visibility settled from Smithy @internal during lowering.
+    /// Visibility settled from `internal` during lowering.
     pub internal: bool,
     pub recursive_groups: Vec<RecursiveGroup>,
     pub protocol: Protocol,
@@ -57,20 +57,17 @@ pub struct Service {
     /// only a resource's identifier or property names is not among them.
     pub shapes: BTreeMap<ShapeId, Shape>,
     pub traits: Traits,
-    /// Service-local shape renames (Smithy `rename`); [`Service::name_of`]
-    /// reads them. Public so other front ends can build a service.
-    pub renames: BTreeMap<ShapeId, String>,
     /// The older API versions this service still serves, oldest first, each
     /// with the steps that take it to the next (docs/api-versions.md). Empty
     /// for a service with no migrations; `version` is the current one.
     pub versions: Vec<ApiVersion>,
     /// The release a generated client names in its `Crucible-Version`
     /// header (docs/api-versions-clients.md): the service's `version`, for
-    /// a `.cru` service, whose versions are releases. `None` for a Smithy
-    /// model, whose `version` names no release a server serves by.
+    /// a `.cru` service, whose versions are releases. `None` when the
+    /// `version` cannot travel in a header, or for IR built by hand.
     pub api_version: Option<String>,
     /// Custom traits whose definition is `@internal`. An external view drops
-    /// their applications, as Smithy's projection does; nothing else reads it.
+    /// their applications; nothing else reads it.
     #[serde(default, skip_serializing_if = "BTreeSet::is_empty")]
     pub internal_traits: BTreeSet<ShapeId>,
     /// The permissions each resource declares, keyed by resource; only
@@ -369,8 +366,16 @@ pub struct ResourceReference {
     /// Identifier names to member paths; an empty path denotes the string itself.
     pub identifiers: BTreeMap<String, Vec<String>>,
     pub rel: Option<String>,
-    /// External references are valid Smithy and may not resolve in this model.
+    /// An external reference names a resource of another service and may
+    /// not resolve in this model.
     pub resolved: bool,
+}
+
+/// Whether `id` is a standard trait rather than a project's own: one in the
+/// prelude namespace or in `crucible.protocols`. The lowering uses them
+/// while it works; the IR carries their facts as typed fields.
+pub fn is_standard_trait(id: &ShapeId) -> bool {
+    id.is_prelude() || id.namespace() == "crucible.protocols"
 }
 
 impl Service {
@@ -402,15 +407,11 @@ impl Service {
         capabilities.check(&self.requirements)
     }
     /// Keeps only project metadata in every raw `traits` map, dropping
-    /// Smithy's and Crucible's own traits, which the IR already carries as
-    /// typed fields (decision 43). The `.cru` front end emits IR this way.
+    /// the standard vocabulary the lowering used while it worked (the
+    /// prelude's and `crucible.protocols`), which the IR carries as typed
+    /// fields (decision 43). The `.cru` front end emits IR this way.
     pub fn project_metadata_only(&mut self) {
-        self.retain_traits(|id| {
-            !(id.is_prelude()
-                || id.namespace().starts_with("aws.")
-                || id.namespace() == "crucible.protocols"
-                || id.namespace() == "smithy.test")
-        });
+        self.retain_traits(|id| !is_standard_trait(id));
     }
 
     /// Keeps the entries of every raw `traits` map that `keep` accepts.
@@ -472,9 +473,47 @@ impl Service {
         self.shapes.get(id)
     }
 
-    /// The name a shape goes by in this service: its `rename`, else its own.
+    /// The service with the shape `id` called `name` (in its namespace)
+    /// wherever the IR names it: test support for generators' name
+    /// diagnostics, which reach names a `.cru` model cannot spell. The
+    /// wire codes the IR settled are unchanged.
+    #[doc(hidden)]
+    pub fn rename_shape(&mut self, id: &ShapeId, name: &str) {
+        fn walk(value: &mut Value, old: &str, new: &str) {
+            let renamed = |text: &str| {
+                if text == old {
+                    Some(new.to_owned())
+                } else {
+                    text.strip_prefix(old)
+                        .filter(|rest| rest.starts_with('$'))
+                        .map(|rest| format!("{new}{rest}"))
+                }
+            };
+            match value {
+                Value::String(text) => {
+                    if let Some(text_new) = renamed(text) {
+                        *text = text_new;
+                    }
+                }
+                Value::Array(items) => items.iter_mut().for_each(|item| walk(item, old, new)),
+                Value::Object(fields) => {
+                    for (key, mut field) in std::mem::take(fields) {
+                        walk(&mut field, old, new);
+                        fields.insert(renamed(&key).unwrap_or(key), field);
+                    }
+                }
+                _ => {}
+            }
+        }
+        let new = ShapeId::new(id.namespace(), name);
+        let mut value = serde_json::to_value(&*self).expect("the IR serializes");
+        walk(&mut value, &id.to_string(), &new.to_string());
+        *self = serde_json::from_value(value).expect("the renamed IR reads back");
+    }
+
+    /// The name a shape goes by in this service: the name in its id.
     pub fn name_of<'a>(&'a self, id: &'a ShapeId) -> &'a str {
-        self.renames.get(id).map_or(id.name(), String::as_str)
+        id.name()
     }
 
     /// Timestamp encoding inside a document; HTTP annotations have no effect here.
@@ -489,7 +528,7 @@ impl Service {
     }
 
     pub fn document_wire_default(&self, member: &Member) -> Option<Value> {
-        let value = member.client_default()?;
+        let value = member.default.as_ref()?;
         if matches!(
             self.shape(&member.target),
             Some(Shape::Simple(Simple {
@@ -515,7 +554,7 @@ impl Service {
     reason = "built once per shape and only read; boxing would only add indirection for emitters"
 )]
 pub enum Shape {
-    /// `smithy.api#Unit`: no value, as an operation's input or output or as
+    /// `crucible.api#Unit`: no value, as an operation's input or output or as
     /// a union member that carries nothing.
     Unit {
         internal: bool,
@@ -579,7 +618,7 @@ impl Shape {
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct Simple {
-    /// Visibility settled from Smithy @internal during lowering.
+    /// Visibility settled from `internal` during lowering.
     pub internal: bool,
     /// `@sensitive`: values must not be logged; see [`Service::sensitive`].
     pub sensitive: bool,
@@ -612,7 +651,7 @@ pub enum SimpleKind {
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct Enum {
-    /// Visibility settled from Smithy @internal during lowering.
+    /// Visibility settled from `internal` during lowering.
     pub internal: bool,
     /// `@sensitive`: values must not be logged; see [`Service::sensitive`].
     pub sensitive: bool,
@@ -625,7 +664,7 @@ pub struct Enum {
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct EnumValue {
-    /// Visibility settled from Smithy @internal during lowering.
+    /// Visibility settled from `internal` during lowering.
     pub internal: bool,
     /// The member name, for a language symbol.
     pub name: String,
@@ -640,7 +679,7 @@ pub struct EnumValue {
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct IntEnum {
-    /// Visibility settled from Smithy @internal during lowering.
+    /// Visibility settled from `internal` during lowering.
     pub internal: bool,
     /// `@sensitive`: values must not be logged; see [`Service::sensitive`].
     pub sensitive: bool,
@@ -653,7 +692,7 @@ pub struct IntEnum {
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct IntEnumValue {
-    /// Visibility settled from Smithy @internal during lowering.
+    /// Visibility settled from `internal` during lowering.
     pub internal: bool,
     pub name: String,
     pub value: i32,
@@ -666,7 +705,7 @@ pub struct IntEnumValue {
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct List {
-    /// Visibility settled from Smithy @internal during lowering.
+    /// Visibility settled from `internal` during lowering.
     pub internal: bool,
     /// `@sensitive`: values must not be logged; see [`Service::sensitive`].
     pub sensitive: bool,
@@ -682,7 +721,7 @@ pub struct List {
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct Map {
-    /// Visibility settled from Smithy @internal during lowering.
+    /// Visibility settled from `internal` during lowering.
     pub internal: bool,
     /// `@sensitive`: values must not be logged; see [`Service::sensitive`].
     pub sensitive: bool,
@@ -699,15 +738,14 @@ pub struct Map {
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct Structure {
-    /// Visibility settled from Smithy @internal during lowering.
+    /// Visibility settled from `internal` during lowering.
     pub internal: bool,
     /// `@sensitive`: values must not be logged; see [`Service::sensitive`].
     pub sensitive: bool,
     /// Refuses members it does not define (`crucible.protocols#strict`, or a
     /// `strict` structure or input). Server side only.
     pub strict: bool,
-    /// An operation's own input structure (Smithy `@input`, or an anonymous
-    /// `input` body). Generators use it to type members as the model says.
+    /// An operation's own input structure: its anonymous `input` body. Generators use it to type members as the model says.
     pub input: bool,
     pub members: Vec<Member>,
     /// Present on a shape marked `@error`.
@@ -730,7 +768,7 @@ impl Structure {
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct Member {
-    /// Visibility settled from Smithy @internal during lowering.
+    /// Visibility settled from `internal` during lowering.
     pub internal: bool,
     /// `@sensitive` on the member itself; see [`Service::sensitive`].
     pub sensitive: bool,
@@ -740,18 +778,15 @@ pub struct Member {
     pub default: Option<Value>,
     /// The default represented in the member's resolved wire format.
     pub wire_default: Option<Value>,
-    /// `@clientOptional`, or a member of an `@input` structure: a client may
-    /// omit it even when the server requires it.
-    pub client_optional: bool,
     /// The input member a client fills with a fresh idempotency token.
     pub idempotency_token: bool,
     /// The infrastructure mutability of the property this member carries.
     /// A `.cru` package sets it from the property's keyword on every member
     /// that carries the value (views, outputs, and the inputs of `creates`,
     /// `puts` and `updates`), and from `@mutability` on a member that binds
-    /// no property; the Smithy front end sets it only from `@cfnMutability`.
-    /// `None` declares nothing: a filter binding, an identifier, or a
-    /// Smithy member without the trait.
+    /// no property. `None` declares nothing: a filter binding, an
+    /// identifier, or a member that binds no property and has no
+    /// `@mutability`.
     pub mutability: Option<Mutability>,
     /// The target's constraints with the member's own laid over them.
     pub constraints: Constraints,
@@ -767,36 +802,23 @@ pub struct Member {
 }
 
 impl Member {
-    pub fn client_wire_default(&self) -> Option<&Value> {
-        if self.client_optional {
-            None
-        } else {
-            self.wire_default.as_ref()
-        }
-    }
-
-    /// Defaults do not apply to non-authoritative readers of client-optional members.
-    pub fn client_default(&self) -> Option<&Value> {
-        if self.client_optional {
-            None
-        } else {
-            self.default.as_ref()
-        }
-    }
-
     /// Whether a value must carry the member: it is required and the server
     /// has no default to fill in. An example or a request without it fails.
     pub fn required_without_default(&self) -> bool {
         self.required && self.default.is_none()
     }
 
-    /// Smithy 2.0 nullability as the server sees it.
+    /// Whether a value may leave the member out: it is neither required
+    /// nor defaulted.
     pub fn optional_on_server(&self) -> bool {
         !self.required && self.default.is_none()
     }
 
+    /// Whether a client may leave the member out: the same as on the
+    /// server, since a `.cru` member's optionality is one fact for both
+    /// (decision 20 in docs/idl/decisions.md).
     pub fn optional_on_client(&self) -> bool {
-        self.client_optional || self.optional_on_server()
+        self.optional_on_server()
     }
 }
 
@@ -898,14 +920,12 @@ pub struct Operation {
     /// Fixed request headers required by the selected protocol.
     pub protocol_headers: BTreeMap<String, String>,
     pub response_protocol_headers: BTreeMap<String, String>,
-    /// Visibility settled from Smithy @internal during lowering.
+    /// Visibility settled from `internal` during lowering.
     pub internal: bool,
     pub id: ShapeId,
     /// Effective authentication schemes, after service and operation overrides.
     pub auth: Vec<ShapeId>,
-    /// Declared public: Smithy `@auth([])` on the operation (or on the
-    /// service, which the operation does not override), or the `.cru`
-    /// `public` modifier. Empty `auth` alone does not say so: a service that
+    /// Declared public: the `.cru` `public` modifier. Empty `auth` alone does not say so: a service that
     /// declares no scheme leaves every operation without one
     /// (docs/permissions.md §6.1).
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]

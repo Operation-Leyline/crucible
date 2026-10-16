@@ -74,7 +74,8 @@ fn member(
     offset: &str,
 ) -> String {
     let fallback = value
-        .client_wire_default()
+        .wire_default
+        .as_ref()
         .map(|v| names::view(&serde_json::to_string(v).expect("default")))
         .unwrap_or_else(|| "{NULL, 0}".into());
     format!(

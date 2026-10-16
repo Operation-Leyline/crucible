@@ -374,7 +374,7 @@ pub(crate) fn member_field(
         member.optional_on_server()
     };
     let default = if client {
-        member.client_default()
+        member.default.as_ref()
     } else {
         member.default.as_ref()
     };

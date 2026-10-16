@@ -128,9 +128,7 @@ fn enum_union_and_member_collisions_are_diagnosed() {
         ("CitySummary", "NULL"),
     ] {
         let mut service = weather();
-        service
-            .renames
-            .insert(ShapeId::new("example.weather", shape), name.to_owned());
+        service.rename_shape(&ShapeId::new("example.weather", shape), name);
         assert!(emit(&service, &options()).is_err(), "{shape} -> {name}");
     }
     let service = weather_with(
@@ -169,9 +167,9 @@ fn head_request_bodies_are_diagnosed_before_generation() {
 #[test]
 fn service_client_name_is_reserved() {
     let mut service = weather();
-    service.renames.insert(
-        ShapeId::new("example.weather", "CitySummary"),
-        "WeatherClient".to_owned(),
+    service.rename_shape(
+        &ShapeId::new("example.weather", "CitySummary"),
+        "WeatherClient",
     );
     assert!(emit(&service, &options()).is_err());
 }

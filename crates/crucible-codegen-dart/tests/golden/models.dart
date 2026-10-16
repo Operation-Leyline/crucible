@@ -621,6 +621,9 @@ final class ValidationReason implements wire.WireModel {
 }
 core.Object decodeModel(core.String target, core.Object? value, wire.WireContext context) {
   switch (target) {
+    case "crucible.api#Unit":
+      if (wire.wireObject(value).isNotEmpty) { throw const core.FormatException('Unit requires an empty object'); }
+      return const Unit();
     case "example.weather#CitySummaries": return context.codec.collection(value, context.shape).map((item) => context.codec.decode(item, context.child(context.shape['member'])) as CitySummary).toList();
     case "example.weather#CitySummary": return CitySummary.fromWire(value, context);
     case "example.weather#ConflictError": return ConflictError.fromWire(value, context);
@@ -648,9 +651,6 @@ core.Object decodeModel(core.String target, core.Object? value, wire.WireContext
     case "example.weather#ValidationField": return ValidationField.fromWire(value, context);
     case "example.weather#ValidationFieldList": return context.codec.collection(value, context.shape).map((item) => context.codec.decode(item, context.child(context.shape['member'])) as ValidationField).toList();
     case "example.weather#ValidationReason": return ValidationReason(wire.wireString(value));
-    case "smithy.api#Unit":
-      if (wire.wireObject(value).isNotEmpty) { throw const core.FormatException('Unit requires an empty object'); }
-      return const Unit();
     default: throw core.FormatException('Unknown model: $target');
   }
 }

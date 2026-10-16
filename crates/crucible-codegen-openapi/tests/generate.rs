@@ -248,7 +248,7 @@ fn http_members_are_projected_into_their_wire_locations() {
     assert_eq!(create["parameters"][0]["name"], "X-Expected-Revision");
     assert_eq!(
         create["parameters"][0]["schema"]["$ref"],
-        "#/components/schemas/smithy.api.Long"
+        "#/components/schemas/crucible.api.Long"
     );
     let body = &create["requestBody"]["content"]["application/json"]["schema"];
     assert_eq!(body["required"], json!(["name"]));
@@ -433,7 +433,11 @@ fn examples_land_on_the_request_response_and_error_that_carry_them() {
         "req-1"
     );
     // The raw trait is not repeated beside the native examples.
-    assert!(get["x-smithy-traits"].get("smithy.api#examples").is_none());
+    assert!(
+        get["x-smithy-traits"]
+            .get("crucible.api#examples")
+            .is_none()
+    );
 }
 
 #[test]
@@ -492,13 +496,13 @@ fn auth_overrides_are_resolved_per_operation() {
         "public readonly operation Ping",
     )]));
     assert_eq!(
-        doc["components"]["securitySchemes"]["smithy.api.httpBearerAuth"]["scheme"],
+        doc["components"]["securitySchemes"]["crucible.api.httpBearerAuth"]["scheme"],
         "bearer"
     );
     assert_eq!(doc["paths"]["/ping"]["get"]["security"], json!([]));
     assert_eq!(
         doc["paths"]["/status"]["get"]["security"],
-        json!([{"smithy.api.httpBearerAuth": []}])
+        json!([{"crucible.api.httpBearerAuth": []}])
     );
 }
 
@@ -520,8 +524,8 @@ fn sparse_collections_unique_lists_and_large_numbers_are_preserved() {
         shapes["example.types.SparseMap"]["additionalProperties"]["anyOf"][1]["type"],
         "null"
     );
-    assert_eq!(shapes["smithy.api.BigInteger"]["type"], "integer");
-    assert_eq!(shapes["smithy.api.BigDecimal"]["type"], "number");
+    assert_eq!(shapes["crucible.api.BigInteger"]["type"], "integer");
+    assert_eq!(shapes["crucible.api.BigDecimal"]["type"], "number");
 }
 
 #[test]

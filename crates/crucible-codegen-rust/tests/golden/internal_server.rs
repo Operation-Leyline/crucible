@@ -145,7 +145,7 @@ pub mod api {
             false,
             false,
             &[
-                ::crucible_server_runtime_rust::__generated::member_info("message", ::crucible_server_runtime_rust::__generated::operation::Location::Body, ::crucible_server_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_8, &[]),
+                ::crucible_server_runtime_rust::__generated::member_info("message", ::crucible_server_runtime_rust::__generated::operation::Location::Body, ::crucible_server_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_0, &[]),
             ],
         );
 
@@ -194,7 +194,7 @@ pub mod api {
             false,
             false,
             &[
-                ::crucible_server_runtime_rust::__generated::member_info("message", ::crucible_server_runtime_rust::__generated::operation::Location::Body, ::crucible_server_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_8, &[]),
+                ::crucible_server_runtime_rust::__generated::member_info("message", ::crucible_server_runtime_rust::__generated::operation::Location::Body, ::crucible_server_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_0, &[]),
             ],
         );
 
@@ -233,14 +233,14 @@ pub mod api {
     #[allow(dead_code, unused_imports)]
     mod __redaction {
         use ::crucible_server_runtime_rust::__generated::operation::Redaction;
-        pub(super) static R_0: Redaction = Redaction::Structure(&[("public", &R_8), ("private", &R_7)]);
-        pub(super) static R_1: Redaction = Redaction::Structure(&[("message", &R_8)]);
-        pub(super) static R_2: Redaction = Redaction::Structure(&[("value", &R_8)]);
-        pub(super) static R_3: Redaction = Redaction::Structure(&[("message", &R_8)]);
-        pub(super) static R_4: Redaction = Redaction::Structure(&[("value", &R_8), ("privateValue", &R_7), ("privateHeader", &R_8)]);
-        pub(super) static R_5: Redaction = Redaction::Structure(&[("value", &R_8), ("privateValue", &R_7), ("choice", &R_0)]);
-        pub(super) static R_6: Redaction = Redaction::Structure(&[("secret", &R_7), ("details", &R_2)]);
-        pub(super) static R_7: Redaction = Redaction::Public;
+        pub(super) static R_0: Redaction = Redaction::Public;
+        pub(super) static R_1: Redaction = Redaction::Structure(&[("public", &R_0), ("private", &R_8)]);
+        pub(super) static R_2: Redaction = Redaction::Structure(&[("message", &R_0)]);
+        pub(super) static R_3: Redaction = Redaction::Structure(&[("value", &R_0)]);
+        pub(super) static R_4: Redaction = Redaction::Structure(&[("message", &R_0)]);
+        pub(super) static R_5: Redaction = Redaction::Structure(&[("value", &R_0), ("privateValue", &R_8), ("privateHeader", &R_0)]);
+        pub(super) static R_6: Redaction = Redaction::Structure(&[("value", &R_0), ("privateValue", &R_8), ("choice", &R_1)]);
+        pub(super) static R_7: Redaction = Redaction::Structure(&[("secret", &R_8), ("details", &R_3)]);
         pub(super) static R_8: Redaction = Redaction::Public;
     }
 
@@ -256,14 +256,14 @@ pub mod api {
         &[],
         200,
         &[
-            ::crucible_server_runtime_rust::__generated::member_info("value", ::crucible_server_runtime_rust::__generated::operation::Location::Body, ::crucible_server_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_8, &[]),
-            ::crucible_server_runtime_rust::__generated::member_info("privateValue", ::crucible_server_runtime_rust::__generated::operation::Location::Body, ::crucible_server_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_7, &[]),
-            ::crucible_server_runtime_rust::__generated::member_info("privateHeader", ::crucible_server_runtime_rust::__generated::operation::Location::Header("x-private"), ::crucible_server_runtime_rust::__generated::operation::Scalar::String, &__redaction::R_8, &[]),
+            ::crucible_server_runtime_rust::__generated::member_info("value", ::crucible_server_runtime_rust::__generated::operation::Location::Body, ::crucible_server_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_0, &[]),
+            ::crucible_server_runtime_rust::__generated::member_info("privateValue", ::crucible_server_runtime_rust::__generated::operation::Location::Body, ::crucible_server_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_8, &[]),
+            ::crucible_server_runtime_rust::__generated::member_info("privateHeader", ::crucible_server_runtime_rust::__generated::operation::Location::Header("x-private"), ::crucible_server_runtime_rust::__generated::operation::Scalar::String, &__redaction::R_0, &[]),
         ],
         &[
-            ::crucible_server_runtime_rust::__generated::member_info("value", ::crucible_server_runtime_rust::__generated::operation::Location::Body, ::crucible_server_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_8, &[]),
-            ::crucible_server_runtime_rust::__generated::member_info("privateValue", ::crucible_server_runtime_rust::__generated::operation::Location::Body, ::crucible_server_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_7, &[]),
-            ::crucible_server_runtime_rust::__generated::member_info("choice", ::crucible_server_runtime_rust::__generated::operation::Location::Body, ::crucible_server_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_0, &[]),
+            ::crucible_server_runtime_rust::__generated::member_info("value", ::crucible_server_runtime_rust::__generated::operation::Location::Body, ::crucible_server_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_0, &[]),
+            ::crucible_server_runtime_rust::__generated::member_info("privateValue", ::crucible_server_runtime_rust::__generated::operation::Location::Body, ::crucible_server_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_8, &[]),
+            ::crucible_server_runtime_rust::__generated::member_info("choice", ::crucible_server_runtime_rust::__generated::operation::Location::Body, ::crucible_server_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_1, &[]),
         ],
         &["PublicFault", "InternalFault"],
         false,
@@ -297,8 +297,8 @@ pub mod api {
         &[],
         200,
         &[
-            ::crucible_server_runtime_rust::__generated::member_info("secret", ::crucible_server_runtime_rust::__generated::operation::Location::Body, ::crucible_server_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_7, &[]),
-            ::crucible_server_runtime_rust::__generated::member_info("details", ::crucible_server_runtime_rust::__generated::operation::Location::Body, ::crucible_server_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_2, &[]),
+            ::crucible_server_runtime_rust::__generated::member_info("secret", ::crucible_server_runtime_rust::__generated::operation::Location::Body, ::crucible_server_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_8, &[]),
+            ::crucible_server_runtime_rust::__generated::member_info("details", ::crucible_server_runtime_rust::__generated::operation::Location::Body, ::crucible_server_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_3, &[]),
         ],
         &[],
         &["PublicFault"],
