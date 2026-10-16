@@ -108,7 +108,7 @@ reach, keyed by shape id. Lowering settles, once:
 - **Timestamps**: member format, else target format, else the protocol default
   for where the value travels.
 - **Resources**: every resource the service reaches, with its identifiers
-  (inherited first), properties, children, the lifecycle slots its
+  (its ancestors' and its own, keyed by name), properties, children, the lifecycle slots its
   operations' roles fill, and which members of each attached operation's
   input and output carry its entries (decision 67 in
   [idl/decisions.md](idl/decisions.md)). A type only a resource names is

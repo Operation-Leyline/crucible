@@ -49,10 +49,25 @@ impl<'a> Lowerer<'a> {
     /// `reached` (the roots `roots` lists and their descendants), with the
     /// lowered `operations` attached to it.
     pub(super) fn resources(
+        &mut self,
+        reached: &BTreeSet<String>,
+        roots: &[&Ident],
+        operations: &[IrOperation],
+    ) -> (BTreeMap<ShapeId, IrResource>, Vec<ShapeId>) {
+        let mut warnings = Vec::new();
+        let lowered = self.lower_resources(reached, roots, operations, &mut warnings);
+        for (at, message) in warnings {
+            self.warning_at(&at, &message);
+        }
+        lowered
+    }
+
+    fn lower_resources(
         &self,
         reached: &BTreeSet<String>,
         roots: &[&Ident],
         operations: &[IrOperation],
+        warnings: &mut Vec<(ShapeId, String)>,
     ) -> (BTreeMap<ShapeId, IrResource>, Vec<ShapeId>) {
         let mut resources = BTreeMap::new();
         for decl in self.decls.values() {
@@ -140,7 +155,7 @@ impl<'a> Lowerer<'a> {
                 }
                 lowered.bindings.insert(
                     operation.id.clone(),
-                    self.operation_bindings(operation, name),
+                    self.operation_bindings(operation, name, warnings),
                 );
             }
             lowered.operations = instance.into_iter().collect();
@@ -163,10 +178,11 @@ impl<'a> Lowerer<'a> {
         &self,
         operation: &IrOperation,
         resource: &str,
+        warnings: &mut Vec<(ShapeId, String)>,
     ) -> ResourceOperationBindings {
-        let bind = |shape: Option<&ShapeId>, nested: bool| {
+        let mut bind = |shape: Option<&ShapeId>, nested: bool| {
             shape
-                .map(|shape| self.member_bindings(shape, resource, nested))
+                .map(|shape| self.member_bindings(shape, resource, nested, warnings))
                 .unwrap_or_default()
         };
         ResourceOperationBindings {
@@ -175,77 +191,120 @@ impl<'a> Lowerer<'a> {
         }
     }
 
-    /// The bindings of `shape`'s members for `resource`, as paths from
-    /// `shape`: its own members first, then, with `nested`, the members of
-    /// a structure a member is typed by. The first member to carry an entry
-    /// keeps it.
-    fn member_bindings(
-        &self,
-        shape: &ShapeId,
-        resource: &str,
-        nested: bool,
-    ) -> ResourceMemberBindings {
-        let mut out = ResourceMemberBindings::default();
+    /// Every member of `shape` that carries one of `resource`'s entries, in
+    /// member order, as a path from `shape`: its own members, then, with
+    /// `nested`, the members of a structure a member is typed by.
+    fn carriers(&self, shape: &ShapeId, resource: &str, nested: bool) -> Vec<Carrier> {
+        let mut out = Vec::new();
         let Some(Shape::Structure(structure)) = self.shapes.get(shape) else {
             return out;
         };
         let carried = self.carried.get(shape);
         for member in &structure.members {
-            let Some((entry, kind)) = carried
+            if let Some((entry, kind)) = carried
                 .and_then(|members| members.get(&member.name))
                 .and_then(|resources| resources.get(resource))
-            else {
-                continue;
-            };
-            let slot = match kind {
-                ResourceEntryKind::Id => &mut out.identifiers,
-                ResourceEntryKind::Property => &mut out.properties,
-            };
-            slot.entry(entry.clone())
-                .or_insert_with(|| vec![member.name.clone()]);
+            {
+                out.push(Carrier {
+                    entry: entry.clone(),
+                    kind: *kind,
+                    path: vec![member.name.clone()],
+                    internal: member.internal,
+                    at: shape.with_member(&member.name),
+                });
+            }
         }
         if !nested {
             return out;
         }
         for member in &structure.members {
-            match self.shapes.get(&member.target) {
-                Some(Shape::Structure(_)) => {
-                    let inner = self.member_bindings(&member.target, resource, false);
-                    for (from, into) in [
-                        (inner.identifiers, &mut out.identifiers),
-                        (inner.properties, &mut out.properties),
-                    ] {
-                        for (entry, path) in from {
-                            into.entry(entry).or_insert_with(|| {
-                                std::iter::once(member.name.clone()).chain(path).collect()
-                            });
-                        }
-                    }
-                }
-                Some(Shape::List(list)) => {
-                    self.collection(&mut out, &member.name, &list.member.target, resource);
-                }
-                Some(Shape::Map(map)) => {
-                    self.collection(&mut out, &member.name, &map.value.target, resource);
-                }
-                _ => {}
+            if !matches!(self.shapes.get(&member.target), Some(Shape::Structure(_))) {
+                continue;
+            }
+            for inner in self.carriers(&member.target, resource, false) {
+                out.push(Carrier {
+                    path: std::iter::once(member.name.clone())
+                        .chain(inner.path)
+                        .collect(),
+                    internal: member.internal || inner.internal,
+                    at: shape.with_member(&member.name),
+                    ..inner
+                });
             }
         }
         out
     }
 
-    /// A list or map member whose elements carry `resource`'s entries: the
-    /// bindings of each element, under the member's name.
-    fn collection(
+    /// The bindings of `shape`'s members for `resource` ([`Self::carriers`]),
+    /// and of the elements of its list and map members with `nested`. An
+    /// entry several members carry binds at the first public one, which the
+    /// external projection keeps; the others are reported.
+    fn member_bindings(
         &self,
-        out: &mut ResourceMemberBindings,
-        member: &str,
-        element: &ShapeId,
+        shape: &ShapeId,
         resource: &str,
-    ) {
-        let inner = self.member_bindings(element, resource, false);
-        if !(inner.identifiers.is_empty() && inner.properties.is_empty()) {
-            out.collections.insert(member.to_owned(), inner);
+        nested: bool,
+        warnings: &mut Vec<(ShapeId, String)>,
+    ) -> ResourceMemberBindings {
+        let mut out = ResourceMemberBindings::default();
+        let mut by_entry: BTreeMap<(String, bool), Vec<Carrier>> = BTreeMap::new();
+        for carrier in self.carriers(shape, resource, nested) {
+            let key = (carrier.entry.clone(), carrier.kind == ResourceEntryKind::Id);
+            by_entry.entry(key).or_default().push(carrier);
         }
+        for ((entry, identifier), carriers) in by_entry {
+            let chosen = carriers
+                .iter()
+                .position(|c| !c.internal)
+                .unwrap_or_default();
+            let path = carriers[chosen].path.join(".");
+            for (index, other) in carriers.iter().enumerate() {
+                if index != chosen {
+                    warnings.push((
+                        other.at.clone(),
+                        format!(
+                            "`{path}` and `{}` both carry `{resource}`'s `{entry}`, which the resource binds once, at `{path}`; make the other a plain member",
+                            other.path.join("."),
+                        ),
+                    ));
+                }
+            }
+            let slot = if identifier {
+                &mut out.identifiers
+            } else {
+                &mut out.properties
+            };
+            slot.insert(entry, carriers[chosen].path.clone());
+        }
+        if !nested {
+            return out;
+        }
+        let Some(Shape::Structure(structure)) = self.shapes.get(shape) else {
+            return out;
+        };
+        for member in &structure.members {
+            let element = match self.shapes.get(&member.target) {
+                Some(Shape::List(list)) => &list.member.target,
+                Some(Shape::Map(map)) => &map.value.target,
+                _ => continue,
+            };
+            let inner = self.member_bindings(element, resource, false, warnings);
+            if !(inner.identifiers.is_empty() && inner.properties.is_empty()) {
+                out.collections.insert(member.name.clone(), inner);
+            }
+        }
+        out
     }
+}
+
+/// A member, at `path` from the input or output, that carries an entry.
+struct Carrier {
+    entry: String,
+    kind: ResourceEntryKind,
+    path: Vec<String>,
+    /// The path passes through an internal member, which the external
+    /// projection removes.
+    internal: bool,
+    /// The top-level member, where a problem with it is reported.
+    at: ShapeId,
 }

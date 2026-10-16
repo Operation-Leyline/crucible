@@ -1368,8 +1368,9 @@ these are working choices, changed freely as implementation teaches.
 67. **Every compile lowers the service's resources, and a type only a
     resource names stays out of the shapes.** Each resource the service
     reaches, a root it lists in `resources [..]` or a descendant through
-    `in`, becomes an `ir::Resource`: its identifiers, inherited first
-    (decision 31), and its own properties, each with its resolved type;
+    `in`, becomes an `ir::Resource`: its identifiers, its ancestors' and its
+    own (decision 31), and its own properties, each keyed by name with its
+    resolved type;
     its children the service reaches, sorted; its doc comment; and the
     documentation notes `@deprecated`, `@since`, `@unstable` and
     `@externalDocs`, which a resource now takes beside
@@ -1394,9 +1395,12 @@ these are working choices, changed freely as implementation teaches.
     `[member, viewMember]` for a member typed by a structure that carries
     the resource's entries, and the element's bindings under
     `collections[member]` for a list or map of one. A view `for A, B`
-    (34j) binds for each resource it lists. The first member to carry an
-    entry keeps it. Nothing binds by name, so, unlike Smithy, a `lists`
-    output whose items are a plain structure binds no collection, and a
+    (34j) binds for each resource it lists. An entry several members
+    carry binds at the first public one, so the external projection keeps
+    the path, and the compiler warns about the others; the projection
+    drops a binding whose path it removes. Nothing binds by name, so,
+    unlike Smithy, a `lists` output whose items are a plain structure
+    binds no collection, and a
     collection operation's elided properties bind as an instance
     operation's do.
 
@@ -1413,7 +1417,11 @@ these are working choices, changed freely as implementation teaches.
     the resource maps by id, and the CDK and Terraform bindings name
     member paths, whose targets are always reached. Release snapshots
     written since carry the resources; one frozen before has none and
-    still reads, and the guard does not compare resources. Since a
+    still reads, and the guard does not compare resources; `crucible
+    freeze` can no longer restore the deleted file of such a release, since
+    the snapshot it writes differs from the digest its lock records. Since a resource cannot be `internal`, neither may an
+    identifier or property have an internal type: the compiler refuses it,
+    so the external contract never names a type it leaves out. And since a
     resource cannot be `internal`, an internal operation in a lifecycle
     slot of a public resource fails external projection
     (`audience.resource_lifecycle`), as it did from Smithy; an internal

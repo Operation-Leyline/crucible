@@ -538,6 +538,22 @@ impl<'a> Lowerer<'a> {
         }
     }
 
+    /// A warning against an IR id, located as [`Self::error_at`] locates.
+    fn warning_at(&mut self, id: &ShapeId, message: &str) {
+        let location = self
+            .source_map
+            .get(id)
+            .or_else(|| self.source_map.get(&id.root()))
+            .copied();
+        match location {
+            Some(Location { file, span }) => self.warning(file, span, message),
+            None => self.diagnostics.push(FileDiagnostic {
+                file: None,
+                diagnostic: Diagnostic::warning(Span::default(), format!("{id}: {message}")),
+            }),
+        }
+    }
+
     /// A doc comment's text, after warning about `[Name]` links that name
     /// nothing: documentation generators would render them dangling.
     fn doc(&mut self, file: usize, doc: Option<&Doc>) -> Option<String> {
@@ -795,6 +811,26 @@ impl<'a> Lowerer<'a> {
                     continue;
                 };
                 self.named_types.insert(target.clone());
+                // A resource is never internal, so neither is what it holds
+                // (decision 67): the external contract would name a type it
+                // leaves out.
+                if self
+                    .decl(target.name())
+                    .is_some_and(|d| d.item.modifiers.iter().any(|m| m.name == "internal"))
+                {
+                    let what = match entry.kind {
+                        ResourceEntryKind::Id => "identifier",
+                        ResourceEntryKind::Property => "property",
+                    };
+                    self.error(
+                        file,
+                        entry.ty.span,
+                        format!(
+                            "`{}` is internal, and a resource is part of the external contract: its {what} `{}` cannot have an internal type",
+                            entry.ty.name.name, entry.name.name
+                        ),
+                    );
+                }
                 if entry.kind == ResourceEntryKind::Id {
                     let text = target == smithy("String")
                         || match self.decl(target.name()).map(|d| &d.item.decl) {

@@ -1,0 +1,20 @@
+service Refusals {
+    version "1"
+    protocol json
+    resources [Counter]
+}
+
+/// Visible only to the service's own callers.
+internal string Secret
+
+resource Counter {
+    id counterId: integer
+    property secret?: Secret
+}
+
+operation GetCounter reads Counter {
+    http GET "/counters/{counterId}"
+    input {
+        $counterId
+    }
+}

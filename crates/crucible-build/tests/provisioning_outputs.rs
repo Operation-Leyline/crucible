@@ -232,7 +232,8 @@ fn failed_generation_preserves_exports() {
     assert_eq!(fs::read("exports/terraform/main.go").unwrap(), old_provider);
 
     // A malformed resource (an integer identifier, say) no longer reaches
-    // provisioning: the compiler refuses it for every output.
+    // provisioning: the compiler refuses it for every output
+    // (tests/models/resource-entry-refusals, crucible-lang's resources test).
     assert_eq!(fs::read("exports/cdk/package.json").unwrap(), old_cdk);
     for name in [
         "missing",

@@ -334,8 +334,8 @@ in mdBook layout, `describe.json`, and the static HTML reference (`index.html`).
 [service API references](docs.md) for the stable description schema and wire
 rendering diagnostics.
 
-CDK and Terraform lazily lower the resource projection from the same assembled
-model; ordinary SDKs keep the operation-only projection. They require explicit provisioning bindings in the same format as
+CDK and Terraform read the same lowered model as SDKs, which carries the
+resources but no shape only a resource names. They require explicit provisioning bindings in the same format as
 the CLI generators. `.bindings(...)` watches and reads a JSON file relative to
 the producer's Cargo manifest; `.bindings_value(...)` accepts parsed bindings.
 The existing binding resolver and emitters diagnose unsupported resources and

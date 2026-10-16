@@ -7,7 +7,7 @@ use std::path::{Path, PathBuf};
 
 use crucible_ir::ir::{Resource, ResourceMemberBindings, Service};
 use crucible_ir::{Audience, ShapeId, project, snapshot};
-use crucible_lang::{compile, load_package, load_service};
+use crucible_lang::{Compiled, compile, load_package, load_service};
 
 fn package_dir() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("../../tests/models/resource-lowering")
@@ -17,8 +17,8 @@ fn library() -> Service {
     load_service(&package_dir()).unwrap_or_else(|rendered| panic!("resource-lowering:\n{rendered}"))
 }
 
-/// The package with `old` replaced by `new` in its sources.
-fn edited(old: &str, new: &str) -> Result<Service, String> {
+/// The package with `old` replaced by `new` in its sources, compiled.
+fn compiled_with(old: &str, new: &str) -> Compiled {
     let mut package = load_package(&package_dir()).unwrap();
     let mut found = false;
     for file in &mut package.files {
@@ -29,9 +29,25 @@ fn edited(old: &str, new: &str) -> Result<Service, String> {
         }
     }
     assert!(found, "the package has no `{old}`");
-    let compiled = compile(&package, None);
+    compile(&package, None)
+}
+
+fn edited(old: &str, new: &str) -> Result<Service, String> {
+    let compiled = compiled_with(old, new);
     compiled.service.clone().ok_or_else(|| compiled.render())
 }
+
+/// The warnings a compile reports.
+fn warnings(compiled: &Compiled) -> Vec<String> {
+    compiled
+        .diagnostics
+        .iter()
+        .filter(|item| !item.diagnostic.is_error())
+        .map(|item| item.diagnostic.message.clone())
+        .collect()
+}
+
+const GET_SHELF_OUTPUT: &str = "    output {\n        $shelfId\n        $label\n    }";
 
 fn id(name: &str) -> ShapeId {
     ShapeId::new("example.resources", name)
@@ -386,4 +402,104 @@ fn raw_traits_are_kept_or_dropped_on_resources_too() {
     }
     service.retain_traits(|id| id != &custom);
     assert!(service.resources.values().all(|r| r.traits.is_empty()));
+}
+
+#[test]
+fn an_included_view_binds_where_it_lands() {
+    // In an input, through `include`; in an output, through a plain
+    // structure that includes a view.
+    let service = edited(
+        "    input {\n        $label\n    }\n    output {\n        shelf: ShelfData\n    }\n}",
+        "    input {\n        include ShelfLabel\n    }\n    output {\n        envelope: ShelfEnvelope\n    }\n}\n\nstructure ShelfLabel for Shelf {\n    $label\n}\n\nstructure ShelfEnvelope {\n    include ShelfData\n    note?: string\n}",
+    )
+    .unwrap();
+    let create = &resource(&service, "Shelf").bindings[&id("CreateShelf")];
+    assert_eq!(
+        bound(&create.input),
+        (table(&[]), table(&[("label", &["label"])]))
+    );
+    assert_eq!(
+        bound(&create.output),
+        (
+            table(&[("shelfId", &["envelope", "id"])]),
+            table(&[("label", &["envelope", "label"])])
+        )
+    );
+}
+
+#[test]
+fn a_role_template_binds_for_each_operation_of_its_role() {
+    let service = edited(
+        "operation DeleteShelf deletes Shelf {\n    http DELETE \"/shelves/{shelfId}\"\n    input {\n        $shelfId\n    }\n}",
+        "template deletes {\n    input {\n        $shelfId\n    }\n}\n\noperation DeleteShelf deletes Shelf {\n    http DELETE \"/shelves/{shelfId}\"\n    input {\n    }\n}",
+    )
+    .unwrap();
+    let delete = &resource(&service, "Shelf").bindings[&id("DeleteShelf")];
+    assert_eq!(
+        bound(&delete.input),
+        (table(&[("shelfId", &["shelfId"])]), table(&[]))
+    );
+}
+
+#[test]
+fn an_entry_binds_at_its_first_public_carrier_and_the_others_are_reported() {
+    let compiled = compiled_with(
+        GET_SHELF_OUTPUT,
+        "    output {\n        internal copy?: ShelfData\n        shelf: ShelfData\n    }",
+    );
+    let service = compiled
+        .service
+        .clone()
+        .unwrap_or_else(|| panic!("{}", compiled.render()));
+    let get = &resource(&service, "Shelf").bindings[&id("GetShelf")];
+    // `copy` comes first, but the external contract has no `copy`.
+    assert_eq!(
+        bound(&get.output),
+        (
+            table(&[("shelfId", &["shelf", "id"])]),
+            table(&[("label", &["shelf", "label"])])
+        )
+    );
+    let warned = warnings(&compiled);
+    assert!(
+        warned
+            .iter()
+            .any(|w| w.contains("`shelf.id` and `copy.id` both carry `Shelf`'s `shelfId`")),
+        "{warned:#?}"
+    );
+    let external = project(&service, Audience::External).unwrap();
+    let get = &resource(&external, "Shelf").bindings[&id("GetShelf")];
+    assert_eq!(get.output.identifiers["shelfId"], ["shelf", "id"]);
+}
+
+#[test]
+fn the_external_projection_drops_a_binding_through_an_internal_member() {
+    let service = edited(
+        GET_SHELF_OUTPUT,
+        "    output {\n        $shelfId\n        internal copy?: ShelfData\n    }",
+    )
+    .unwrap();
+    let full = &resource(&service, "Shelf").bindings[&id("GetShelf")];
+    assert_eq!(full.output.properties["label"], ["copy", "label"]);
+    let external = project(&service, Audience::External).unwrap();
+    let get = &resource(&external, "Shelf").bindings[&id("GetShelf")];
+    assert_eq!(
+        bound(&get.output),
+        (table(&[("shelfId", &["id"])]), table(&[]))
+    );
+}
+
+#[test]
+fn an_identifier_is_a_string_and_no_entry_has_an_internal_type() {
+    let dir =
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("../../tests/models/resource-entry-refusals");
+    let refused = load_service(&dir).unwrap_err();
+    assert!(
+        refused.contains("a resource identifier is a string or a string enum"),
+        "{refused}"
+    );
+    assert!(
+        refused.contains("`Secret` is internal, and a resource is part of the external contract: its property `secret` cannot have an internal type"),
+        "{refused}"
+    );
 }

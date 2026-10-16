@@ -206,7 +206,8 @@ pub enum Hook {
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct Resource {
-    /// Visibility settled from Smithy @internal during lowering.
+    /// Whether the resource is left out of the external contract. A `.cru`
+    /// resource cannot be internal, so the language always writes `false`.
     pub internal: bool,
     pub id: ShapeId,
     pub identifiers: BTreeMap<String, ShapeId>,
@@ -245,8 +246,9 @@ pub struct ResourceMemberBindings {
     pub identifiers: BTreeMap<String, Vec<String>>,
     /// Resource property name to member path, starting at the input/output.
     pub properties: BTreeMap<String, Vec<String>>,
-    /// Collection member name to bindings relative to each list element.
-    /// These are repeated resource instances, not scalar member paths.
+    /// Collection member name to bindings relative to each element: each
+    /// item of a list, or each value of a map. These are repeated resource
+    /// instances, not scalar member paths.
     pub collections: BTreeMap<String, ResourceMemberBindings>,
 }
 

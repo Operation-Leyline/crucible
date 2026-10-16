@@ -154,3 +154,16 @@ fn rejects_unmapped_required_inputs_and_unknown_error_names() {
     assert!(errors.contains("unmapped required input `owner`"));
     assert!(errors.contains("must be modelled"));
 }
+
+#[test]
+fn an_identifier_type_no_operation_reaches_is_its_own_diagnostic() {
+    let (mut service, bindings) = fixture();
+    let plan = resolve(&service, &bindings).unwrap();
+    service.shapes.remove(&"example.infra#Id".parse().unwrap());
+    let errors = emit(&service, &plan, &options()).err().unwrap().to_string();
+    assert!(errors.contains("which no operation reaches"), "{errors}");
+    assert!(
+        !errors.contains("Terraform identifier must be a string"),
+        "{errors}"
+    );
+}

@@ -17,12 +17,8 @@ fn package_dir(name: &str) -> std::path::PathBuf {
 
 /// The package's lowered service, operations tied to their resources.
 fn documented(name: &str) -> crucible_ir::ir::Service {
-    crucible_lang::load_service(&package_dir(name)).unwrap_or_else(|rendered| {
-        panic!(
-            "{name}:
-{rendered}"
-        )
-    })
+    crucible_lang::load_service(&package_dir(name))
+        .unwrap_or_else(|rendered| panic!("{name}:\n{rendered}"))
 }
 
 fn files(name: &str, audience: Audience) -> Vec<crucible_codegen_docs::File> {
