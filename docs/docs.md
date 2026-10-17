@@ -260,8 +260,8 @@ since*: the operations, data types, members and enum values added after
 the older release, up to the newer. An addition reaches older releases
 too, so an entry also names any release from the older to the newer that
 cannot see it ([Release history](#release-history)'s `missing`). The input
-and output of an operation added, and the members of a new type, come with
-it; what a change introduces (an added value or error, a reshape's new
+and output of an operation added, and the members a new type had when it
+was added, come with it (a member it gained later is listed); what a change introduces (an added value or error, a reshape's new
 member) is in its section. An element is dated by when the audience's view
 first has it, so one an older release had under another name, or as
 internal API, is listed too.
@@ -282,9 +282,16 @@ the next and to the current one: each release name escaped as its page's
 file is, listed under the release it starts from in `SUMMARY.md`, linked
 from that release's page (*Upgrading*) and from `llms.txt`, with their
 links and doc links to the reference's pages. A release's own reference
-(`--api-version`) carries the same guides, linking that release's pages.
-`crucible_codegen_docs::upgrade_guide` is the library form. Per-language
-symbol names are not in the guide yet.
+(`--api-version`) carries no guides: its view of the model leaves out what
+its release cannot see, so its guides would differ from the current
+reference's. Its release pages and `llms.txt` link the current reference's
+guides instead, at `../<current>/src/upgrade/..` from its root, where the
+references of every release sit side by side.
+`crucible_codegen_docs::upgrade_guide` is the library form, and refuses a
+release's line. A release name whose escaped form passes 120 bytes is cut
+to 103, followed by `~` and a 16-digit hash of the name, in its release
+page's file too, so no file name passes 255 bytes. Per-language symbol
+names are not in the guide yet.
 
 ## Static HTML reference
 

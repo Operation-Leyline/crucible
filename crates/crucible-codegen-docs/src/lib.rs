@@ -323,14 +323,28 @@ fn site(description: &str) -> [File; 4] {
 /// internal step or element. It stands on its own, so it links no
 /// reference page, and a doc link is its text. A reference generated with
 /// more than one release carries the same guides as pages
-/// (`src/upgrade/<from>_to_<to>.md`), linked from its release pages.
-/// Refused, naming the supported releases, unless both are supported
-/// releases and `from` is older than `to`.
+/// (`src/upgrade/<from>_to_<to>.md`), linked from its release pages; a
+/// release's own reference links those of the current release's.
+/// `service` is the current model: a release's line is refused, since its
+/// view leaves out what its release cannot see. Refused too, naming the
+/// supported releases, unless both are supported releases and `from` is
+/// older than `to`.
 pub fn upgrade_guide(
     service: &Service,
     from: &str,
     to: Option<&str>,
 ) -> Result<String, Diagnostics> {
+    if crucible_ir::versions::is_line(service) {
+        let mut diagnostics = Diagnostics::default();
+        diagnostics.push(
+            &service.id,
+            format!(
+                "upgrade guide: this is release {:?}'s view of the model; a guide is written from the current model",
+                service.version
+            ),
+        );
+        return Err(diagnostics);
+    }
     let description = describe::describe(service)?;
     let (older, newer) = markdown::upgrade::select(&description, from, to).map_err(|message| {
         let mut diagnostics = Diagnostics::default();

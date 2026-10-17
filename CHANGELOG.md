@@ -75,7 +75,9 @@ version's section when it is prepared.
   each release to the next and to the current one, listed in
   `SUMMARY.md` and `llms.txt` and linked from the release pages
   (*Upgrading*): a versioned service's generated reference gains these
-  pages. Per-language symbol names are a follow-up. See
+  pages. A release's own reference (`--api-version`) carries none and links
+  the current reference's, beside it; `upgrade_guide` refuses a release's
+  line. Per-language symbol names are a follow-up. See
   [docs/docs.md](docs/docs.md#upgrade-guides).
 
 - `crucible_build::model(..).report_warnings(false)`: a build that
@@ -1250,6 +1252,17 @@ version's section when it is prepared.
   feature is refused with a message naming it.
 
 ### Fixed
+
+- The Markdown reference keeps model text inert in more places.
+  Documentation HTML is one HTML block: a blank line in a code block
+  ended it, and the rest was read as Markdown, so a `javascript:` link
+  there was live in mdBook (a line break inside `<pre>` is now `&#10;`).
+  A member's default in a member table, and a required member's default
+  on a release page, are code with their punctuation as character
+  references, so a string default opens no link. A heading escapes every
+  ASCII punctuation character, so `|` and `~` read as written. A release
+  name whose escaped file name passes 120 bytes is cut, with a hash of
+  the name, so its page's file stays under 255 bytes.
 
 - A generated Rust SDK's README.md and AGENTS.md show `use <crate>::*;`
   once in the client block, not twice. The shared guide drops a line of a

@@ -125,15 +125,10 @@ fn escaped(text: &str) -> String {
         .replace('|', "&#124;")
         .replace(['\n', '\r'], " ")
 }
+/// Model text as a heading's text: [`literal`], so every ASCII punctuation
+/// character, `|`, `~`, `<` and `&` among them, reads back as written.
 fn heading(text: &str) -> String {
-    let mut out = String::new();
-    for c in escaped(text).chars() {
-        if "\\`*_[]()#!".contains(c) {
-            out.push('\\');
-        }
-        out.push(c);
-    }
-    out
+    literal(text)
 }
 fn code(text: &str) -> String {
     format!("<code>{}</code>", escaped(text))
@@ -154,7 +149,43 @@ fn fence(language: &str, text: &str) -> String {
     format!("{fence}{language}\n{text}\n{fence}\n\n")
 }
 fn docs(item: &Value) -> String {
-    format!("{}\n", string(&item["documentation"]["html"]))
+    format!("{}\n", html_block(string(&item["documentation"]["html"])))
+}
+/// Documentation HTML as one CommonMark HTML block, which ends at the first
+/// blank line: a code block's blank lines would end it inside `<pre>`, and
+/// the rest would be read as Markdown, its links live. Inside `<pre>`, a
+/// line break is `&#10;`, which the browser reads as one; elsewhere a blank
+/// line separates nothing HTML needs.
+fn html_block(html: &str) -> String {
+    fn no_blank(text: &str) -> String {
+        let mut out = String::with_capacity(text.len());
+        let mut lines = text.split('\n').peekable();
+        let mut first = true;
+        while let Some(line) = lines.next() {
+            let last = lines.peek().is_none();
+            if line.trim().is_empty() && !first && !last {
+                continue;
+            }
+            if !first {
+                out.push('\n');
+            }
+            out.push_str(line);
+            first = false;
+        }
+        out
+    }
+    let mut out = String::with_capacity(html.len());
+    let mut rest = html;
+    while let Some(start) = rest.find("<pre") {
+        out.push_str(&no_blank(&rest[..start]));
+        let end = rest[start..]
+            .find("</pre>")
+            .map_or(rest.len(), |end| start + end + "</pre>".len());
+        out.push_str(&rest[start..end].replace('\n', "&#10;"));
+        rest = &rest[end..];
+    }
+    out.push_str(&no_blank(rest));
+    out
 }
 fn badge(item: &Value) -> &'static str {
     if item["internal"] == true {
@@ -411,7 +442,13 @@ pub(super) fn render(service: &Service, d: &Description) -> Vec<File> {
             contents: releases_page(d),
         });
         let releases = list(&d.versions["releases"]);
-        let guides = upgrade::pairs(d);
+        // A release's own reference links the current reference's guides
+        // instead of carrying its own (`upgrade::here`).
+        let guides = if upgrade::here(d) {
+            upgrade::pairs(d)
+        } else {
+            Vec::new()
+        };
         for (index, release) in releases.iter().enumerate() {
             let name = string(&release["name"]);
             summary.push_str(&format!("  - {}\n", release_link(name, "")));
@@ -654,12 +691,17 @@ fn llms(d: &Description, pages: &[File]) -> [File; 2] {
                 string(&releases[to]["name"]),
             );
             out.push_str(&format!(
-                "- [Upgrading from {} to {}](src/{}): every change a client of {} meets at {}, and what was added since\n",
+                "- [Upgrading from {} to {}]({}): every change a client of {} meets at {}, and what was added since{}\n",
                 literal(from),
                 literal(to),
-                upgrade::path(from, to),
+                upgrade::href(d, from, to, ""),
                 literal(from),
-                literal(to)
+                literal(to),
+                if upgrade::here(d) {
+                    ""
+                } else {
+                    ", in the current release's reference"
+                }
             ));
         }
     }
@@ -695,7 +737,12 @@ fn llms(d: &Description, pages: &[File]) -> [File; 2] {
                 .map(|release| format!("src/{}", release_path(string(&release["name"])))),
         );
         let releases = list(&d.versions["releases"]);
-        order.extend(upgrade::pairs(d).into_iter().map(|(from, to)| {
+        let guides = if upgrade::here(d) {
+            upgrade::pairs(d)
+        } else {
+            Vec::new()
+        };
+        order.extend(guides.into_iter().map(|(from, to)| {
             format!(
                 "src/{}",
                 upgrade::path(
@@ -1039,7 +1086,8 @@ fn members(
         let default = if m["default"].is_null() {
             "—".into()
         } else {
-            code(&m["default"].to_string())
+            // A string default is model text: inert in code.
+            release_code(&m["default"].to_string())
         };
         let mut detail = cell_docs(&m, "../");
         if m["sensitive"] == true {
@@ -1399,7 +1447,7 @@ fn authorization(op: &Value) -> String {
         "internal" => out.push_str("Requires permissions internal to the service.\n\n"),
         _ => {
             for sentence in list(&op["requirementDocumentation"]) {
-                out.push_str(string(&sentence["html"]));
+                out.push_str(&html_block(string(&sentence["html"])));
                 out.push('\n');
             }
             out.push_str(
@@ -1581,7 +1629,29 @@ pub(crate) fn release_file(name: &str) -> String {
             out.push(char::from(byte));
         }
     }
+    // Every file system takes a name of 255 bytes; an upgrade guide's file
+    // holds two of these. A longer one keeps its start, then `~`, which the
+    // escaping never writes, and a hash of the whole name.
+    if out.len() > RELEASE_FILE_MAX {
+        let keep = RELEASE_FILE_MAX - 17;
+        out = format!("{}~{:016x}", &out[..keep], fnv1a(name.as_bytes()));
+    }
     out
+}
+
+/// The longest [`release_file`] name, in bytes: two, `_to_` and `.md` stay
+/// under 255.
+const RELEASE_FILE_MAX: usize = 120;
+
+/// The 64-bit FNV-1a hash: a fixed function, so a file name is the same on
+/// every build.
+fn fnv1a(bytes: &[u8]) -> u64 {
+    let mut hash: u64 = 0xcbf2_9ce4_8422_2325;
+    for byte in bytes {
+        hash ^= u64::from(*byte);
+        hash = hash.wrapping_mul(0x0100_0000_01b3);
+    }
+    hash
 }
 
 /// Whether the chain has more than the current release: only then does the
@@ -1761,15 +1831,20 @@ fn upgrading(d: &Description, name: &str) -> String {
             let target = string(&releases[to]["name"]);
             link(
                 &format!("to {target}"),
-                &format!("../{}", upgrade::path(name, target)),
+                &upgrade::href(d, name, target, "src/releases"),
             )
         })
         .collect();
     if guides.is_empty() {
         return String::new();
     }
+    let whose = if upgrade::here(d) {
+        ""
+    } else {
+        ", in the current release's reference"
+    };
     format!(
-        "## Upgrading\n\nWhat a client of this release meets when it moves to a newer one, and what was added since: {}.\n\n",
+        "## Upgrading\n\nWhat a client of this release meets when it moves to a newer one, and what was added since{whose}: {}.\n\n",
         guides.join(", ")
     )
 }

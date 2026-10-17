@@ -245,14 +245,19 @@ fn elements(html: &str) -> Vec<String> {
 }
 
 /// Model text with Markdown and HTML in it (release names, a title,
-/// migration and sunset documentation, a required member's default) reads
-/// back as written and opens no link, tag or heading of its own, in the
-/// guide alone and in the reference's guide pages. A guide alone keeps
-/// only the documentation's web links.
+/// migration and sunset documentation, a code block with a blank line in
+/// it, a required member's default, a member's default) reads back as
+/// written and opens no link, tag or heading of its own, in the guide alone
+/// and in every page of the reference. A guide alone keeps only the
+/// documentation's web links.
 #[test]
 fn model_text_in_a_guide_stays_text() {
     let mut service = versioned(&package_dir("version-history"));
-    let names = ["[v1](https://evil.example)", "<b>v2</b>&amp;", "`v3`*_x_*"];
+    let names = [
+        "[v1](https://evil.example)",
+        "<b>v2</b>&amp;|~",
+        "`v3`*_x_*",
+    ];
     service.versions[0].name = names[0].into();
     service.versions[1].name = names[1].into();
     service.version = names[2].into();
@@ -261,6 +266,19 @@ fn model_text_in_a_guide_stays_text() {
     let hostile = "Moved <script>alert(1)</script> [here](javascript:alert(1)) ![i](javascript:alert(2)) [ListItems] [site](https://docs.example/a) [frag](#x) [root](/y)";
     service.versions[1].docs = Some(hostile.into());
     service.versions[0].sunset_docs = Some("# Not a heading <img src=x onerror=alert(1)>".into());
+    // A blank line inside a code block would end the documentation's HTML
+    // block, and the rest would be Markdown.
+    let block =
+        "Intro paragraph.\n\n    code line one\n\n    [x](javascript:alert(4)) *em*\n\nAfter.";
+    service.versions[0].docs = Some(block.into());
+    let sort: crucible_ir::ShapeId = "example.history#ListItemsInput".parse().unwrap();
+    let crucible_ir::ir::Shape::Structure(input) = service.shapes.get_mut(&sort).unwrap() else {
+        panic!("ListItemsInput");
+    };
+    let member = input.members.iter_mut().find(|m| m.name == "sort").unwrap();
+    member.default = Some(serde_json::Value::String(
+        "[m](javascript:alert(5)) *f*".into(),
+    ));
     let default = "[d](javascript:alert(3)) *e*";
     let mut defaults = 0;
     for step in &mut service.versions[0].steps {
@@ -272,8 +290,38 @@ fn model_text_in_a_guide_stays_text() {
     assert_eq!(defaults, 1, "the fixture requires a member by default");
     let projected = project(&service, Audience::External).unwrap();
     let alone = upgrade_guide(&projected, names[0], None).unwrap();
-    let pages: Vec<String> = generate(&projected)
+    let reference = generate(&projected).unwrap();
+    // No page of the reference opens a link or tag of the model's.
+    for file in reference.iter().filter(|file| file.path.ends_with(".md")) {
+        let (destinations, tags) = links_and_tags(&file.contents);
+        for destination in destinations {
+            assert!(
+                !destination.to_ascii_lowercase().contains("javascript"),
+                "{destination} in {}",
+                file.path
+            );
+        }
+        for tag in tags.iter().flat_map(|html| elements(html)) {
+            let lower = tag.to_ascii_lowercase();
+            assert!(
+                !lower.contains("javascript:")
+                    && !lower.contains("<script")
+                    && !lower.contains("onerror"),
+                "{tag} in {}",
+                file.path
+            );
+        }
+    }
+    let operation = &reference
+        .iter()
+        .find(|file| file.path == "src/operations/API_ListItems.md")
         .unwrap()
+        .contents;
+    assert!(
+        shown(operation).contains("\"[m](javascript:alert(5)) *f*\""),
+        "{operation}"
+    );
+    let pages: Vec<String> = reference
         .into_iter()
         .filter(|file| file.path.starts_with("src/upgrade/"))
         .map(|file| file.contents)
@@ -329,10 +377,17 @@ fn model_text_in_a_guide_stays_text() {
             !text.starts_with(&titles[0]),
             "{text}"
         );
-        // v1's sunset, in each guide from v1.
+        // v1's sunset and the migration to v2's documentation, its code
+        // block whole, in each guide from v1.
+        let from_v1 = text.starts_with(&format!("Upgrading from {} ", names[0]));
         assert_eq!(
             text.contains("Not a heading <img src=x onerror=alert(1)>"),
-            text.starts_with(&format!("Upgrading from {} ", names[0])),
+            from_v1,
+            "{text}"
+        );
+        assert_eq!(
+            text.contains("code line one\n\n[x](javascript:alert(4)) *em*\n"),
+            from_v1,
             "{text}"
         );
         // No heading but the generator's.
@@ -443,4 +498,105 @@ fn a_reference_carries_its_guides_and_links_them() {
         checked += 1;
     }
     assert!(checked > 10, "{checked} links");
+}
+
+/// A release's own reference (decision 79) carries no guide: its view
+/// leaves out what its release cannot see, so its guides would differ from
+/// the current reference's. Its release pages and `llms.txt` link the
+/// current reference's guides instead, in its directory beside this one,
+/// and `upgrade_guide` refuses the line.
+#[test]
+fn a_releases_own_reference_links_the_current_references_guides() {
+    let current = versioned(&shop_dir());
+    let line = crucible_ir::versions::line(&current, "v1").unwrap();
+    let line = project(&line, Audience::External).unwrap();
+    let files = generate(&line).unwrap();
+    assert!(
+        !files.iter().any(|file| file.path.contains("upgrade/")),
+        "no guide pages"
+    );
+    let file = |path: &str| {
+        files
+            .iter()
+            .find(|file| file.path == path)
+            .unwrap_or_else(|| panic!("no {path}"))
+            .contents
+            .as_str()
+    };
+    assert!(!file("src/SUMMARY.md").contains("Upgrading"));
+    let v1 = file("src/releases/v1.md");
+    assert!(
+        v1.contains(
+            "[to v2](../../../v4/src/upgrade/v1_to_v2.md), [to v4](../../../v4/src/upgrade/v1_to_v4.md)."
+        ),
+        "{v1}"
+    );
+    assert!(v1.contains("in the current release's reference"), "{v1}");
+    let llms = file("llms.txt");
+    assert!(
+        llms.contains("- [Upgrading from v3 to v4](../v4/src/upgrade/v3_to_v4.md)"),
+        "{llms}"
+    );
+    let message = upgrade_guide(&line, "v1", None)
+        .expect_err("a line")
+        .to_string();
+    assert!(message.contains("current model"), "{message}");
+}
+
+/// A release name too long for a file name keeps the start of its escaped
+/// form and a hash of the name, so a guide's file stays under 255 bytes
+/// and two such names do not share one.
+#[test]
+fn long_release_names_have_short_file_names() {
+    let mut service = versioned(&package_dir("version-history"));
+    let long = |c: char| format!("{}{}", "r".repeat(150), c);
+    service.versions[0].name = long('a');
+    service.versions[1].name = long('b');
+    let files = generate(&project(&service, Audience::External).unwrap()).unwrap();
+    let mut seen = std::collections::BTreeSet::new();
+    for file in files.iter().filter(|file| {
+        file.path.starts_with("src/upgrade/") || file.path.starts_with("src/releases/")
+    }) {
+        let name = file.path.rsplit('/').next().unwrap();
+        assert!(name.len() <= 255, "{name}");
+        assert!(seen.insert(name.to_ascii_lowercase()), "{name} twice");
+    }
+    assert_eq!(
+        seen.len(),
+        6,
+        "three release pages and three guides: {seen:?}"
+    );
+}
+
+/// A migration whose only change is an operation retired under an
+/// exception is not "no change", and a member a type gained in a later
+/// release than the type is listed although the type is new too.
+#[test]
+fn a_retired_operation_and_a_later_member_are_changes() {
+    let retired = versioned(&package_dir("version-retired-operation"));
+    let text = guide(&retired, Audience::External, "v1", None);
+    assert!(text.contains("### Retired operations"), "{text}");
+    let section = |release: &str| {
+        let start = text.find(&format!("## Release {release}")).unwrap();
+        let rest = &text[start + 3..];
+        rest[..rest.find("\n## ").unwrap_or(rest.len())].to_owned()
+    };
+    for release in ["v2", "v3"] {
+        let section = section(release);
+        if section.contains("### Retired operations") {
+            assert!(!section.contains("No change"), "{section}");
+        }
+    }
+    let shop = versioned(&shop_dir());
+    let text = guide(&shop, Audience::External, "v1", None);
+    // `Label` is new in v3, its `color` in v4.
+    assert!(
+        text.contains("- Data type <code>Label</code>: added in v3."),
+        "{text}"
+    );
+    assert!(
+        text.contains("- Member <code>Label.color</code>: added in v4."),
+        "{text}"
+    );
+    assert!(!text.contains("<code>Label.title</code>: added"), "{text}");
 }

@@ -1,6 +1,6 @@
 # Upgrading from v1 to v3
 
-Moving a client of the Shop API from release <code>v1</code> to release <code>v3</code>, the current release. A client names its release in the <code>Crucible-Version</code> header, and a generated client sends the release it was generated for, so a client moves by being generated, or its SDK installed, for <code>v3</code>. Each section below is one migration, oldest first: what it changed, and what a client of the release before it sees instead.
+Moving a client of the Shop API from release <code>v1</code> to release <code>v3</code>, the current release. A client names its release in the <code>Crucible-Version</code> header, and a generated client sends the release it was generated for, so a client moves by being generated, or its SDK installed, for <code>v3</code>. Below, each release's section is the migration that made it, oldest first: what it changed, and what a client of the release before it sees instead. Any sunset on the way comes first, and what was added since comes last.
 
 ## Sunset
 
@@ -145,7 +145,7 @@ Clients of <code>v2</code> can still call it: <code>GET /count</code>.
 
 ## New since v1
 
-What was added after <code>v1</code>, up to <code>v3</code>. An older release is served as the current model sees it, so an addition reaches it too, except where an entry names a release that does not see it. One added in place of what an older release's own view had (under another name, or as internal API there) may still differ there: its release page says what changed.
+What was added after <code>v1</code>, up to <code>v3</code>. An older release is served as the current model sees it, so an addition generally reaches it too; an entry names a release that does not see it. What an older release had in another form, under another name or not in this audience's view, may be listed here as well.
 
 - Operation <code>DeleteItem</code>: added in v3.
 - Member <code>Size.unit</code>: added in v3. Clients of v1 do not see it.

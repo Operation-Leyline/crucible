@@ -566,8 +566,11 @@ test("an operation states what the caller must hold, and the overview lists the 
 });
 
 test("the test fixtures cover all goldens the generator ships", () => {
-  // `schemas` holds Weather's description in the other schema modes.
-  const dirs = readdirSync(join(crate, "tests", "golden")).filter((d) => d !== "site" && d !== "schemas").sort();
+  // `schemas` holds Weather's description in the other schema modes, and
+  // `upgrade` upgrade guides, Markdown with no description.
+  const dirs = readdirSync(join(crate, "tests", "golden"))
+    .filter((d) => d !== "site" && d !== "schemas" && d !== "upgrade")
+    .sort();
   assert.deepEqual(dirs, [
     "catalog-external",
     "catalog-internal",

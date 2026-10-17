@@ -19,8 +19,8 @@ use crucible_codegen_common::describe::Description;
 use serde_json::Value;
 
 use super::{
-    change_section, code, docs, element, heading, json_doc, label, list, literal, release_code,
-    release_file, release_link, string,
+    change_section, code, docs, element, heading, json_doc, label, list, literal, older_release,
+    release_code, release_file, release_link, string,
 };
 
 /// A guide's page, relative to `src/`: `upgrade/<from>_to_<to>.md`, each
@@ -30,6 +30,37 @@ use super::{
 /// fold to one file are refused already).
 pub(in crate::markdown) fn path(from: &str, to: &str) -> String {
     format!("upgrade/{}_to_{}.md", release_file(from), release_file(to))
+}
+
+/// Whether this reference carries the guides: the current release's does.
+/// A release's own reference (decision 79) is its line's view, where what
+/// that release cannot see drops out of the elements a guide dates, so it
+/// links the current reference's guides instead, beside it as every
+/// release's references are laid out side by side.
+pub(in crate::markdown) fn here(d: &Description) -> bool {
+    older_release(d).is_none()
+}
+
+/// The link to the guide from release `from` to `to`, from a page in the
+/// directory `dir` of this reference (`""` for its root, `src/releases`):
+/// this reference's page when it carries the guides ([`here`]), else the
+/// current reference's, in its directory beside this one.
+pub(in crate::markdown) fn href(d: &Description, from: &str, to: &str, dir: &str) -> String {
+    let depth = dir.split('/').filter(|part| !part.is_empty()).count();
+    let page = path(from, to);
+    if here(d) {
+        // From `src/<dir>`, `src/` is one level up per directory below it.
+        return match depth {
+            0 => format!("src/{page}"),
+            depth => format!("{}{page}", "../".repeat(depth - 1)),
+        };
+    }
+    let current = string(&d.versions["current"]);
+    format!(
+        "{}../{}/src/{page}",
+        "../".repeat(depth),
+        release_file(current)
+    )
 }
 
 /// The supported releases, oldest first, current last.
@@ -109,7 +140,7 @@ pub(in crate::markdown) fn page(d: &Description, from: usize, to: usize) -> Stri
         ""
     };
     out.push_str(&format!(
-        "Moving a client of the {} API from release {} to release {}{current}. A client names its release in the {} header, and a generated client sends the release it was generated for, so a client moves by being generated, or its SDK installed, for {}. Each section below is one migration, oldest first: what it changed, and what a client of the release before it sees instead.\n\n",
+        "Moving a client of the {} API from release {} to release {}{current}. A client names its release in the {} header, and a generated client sends the release it was generated for, so a client moves by being generated, or its SDK installed, for {}. Below, each release's section is the migration that made it, oldest first: what it changed, and what a client of the release before it sees instead. Any sunset on the way comes first, and what was added since comes last.\n\n",
         literal(title),
         release_code(old),
         release_code(new),
@@ -154,7 +185,8 @@ fn migration(d: &Description, before: &Value, release: &Value) -> String {
     if !string(&release["documentation"]["html"]).is_empty() {
         out.push_str(&docs(release));
     }
-    if list(&release["changes"]).is_empty() {
+    // A migration that only retires operations changed something too.
+    if list(&release["changes"]).is_empty() && list(&before["retired"]).is_empty() {
         out.push_str("No change a client of the release before it would notice.\n\n");
     }
     for change in list(&release["changes"]) {
@@ -200,7 +232,8 @@ impl Kind {
 /// after `from`, up to `to`. An addition reaches older releases too
 /// (decision 51), unless its history says a release does not see it
 /// (decision 74). Left out: the inputs and outputs of the operations added,
-/// and the members and values of what is new itself, which come with it;
+/// and the members and values a new type had when it was added, which come
+/// with it (one it gained later is listed);
 /// and what a change in the range introduces, which older clients see as
 /// its `older` side says (an added value or error, a reshape's new member
 /// or new structure), and its section lists.
@@ -268,16 +301,20 @@ fn additions(d: &Description, from: usize, to: usize) -> String {
         if crate::builtin(id) {
             continue;
         }
-        if let Some(at) = added(shape) {
-            if !operation_shapes.contains(id.as_str()) && !changed.contains(id) {
-                found.push((at, Kind::Type, id.clone(), &shape["history"]));
-            }
-            continue;
+        let new = added(shape);
+        if let Some(at) = new
+            && !operation_shapes.contains(id.as_str())
+            && !changed.contains(id)
+        {
+            found.push((at, Kind::Type, id.clone(), &shape["history"]));
         }
         for (key, kind) in [("members", Kind::Member), ("values", Kind::Value)] {
             for item in list(&shape[key]) {
                 let element = format!("{id}${}", string(&item["name"]));
+                // What a new type had when it was added comes with it; what
+                // it gained in a later release is an addition of its own.
                 if let Some(at) = added(item)
+                    && new.is_none_or(|parent| at > parent)
                     && !changed.contains(&element)
                 {
                     found.push((at, kind, element, &item["history"]));
@@ -298,13 +335,22 @@ fn additions(d: &Description, from: usize, to: usize) -> String {
         return out;
     }
     out.push_str(&format!(
-        "What was added after {}, up to {}. An older release is served as the current model sees it, so an addition reaches it too, except where an entry names a release that does not see it. One added in place of what an older release's own view had (under another name, or as internal API there) may still differ there: its release page says what changed.\n\n",
+        "What was added after {}, up to {}. An older release is served as the current model sees it, so an addition generally reaches it too; an entry names a release that does not see it. What an older release had in another form, under another name or not in this audience's view, may be listed here as well.\n\n",
         release_code(old),
         release_code(new)
     ));
     for (at, kind, id, history) in found {
+        // A sender-signed operation (decision 81) is delivered by its
+        // sender: a client does not call it.
+        let sender = d
+            .operations
+            .get(&id)
+            .and_then(|op| op["sender"]["name"].as_str())
+            .map_or_else(String::new, |name| {
+                format!(", which {} calls, not a client", literal(name))
+            });
         let mut line = format!(
-            "- {} {}: added in {}.",
+            "- {} {}{sender}: added in {}.",
             kind.noun(),
             element(d, &Value::String(id)),
             release_link(range[at], "../")

@@ -835,8 +835,8 @@ symbol to its own.
   data types, members and enum values whose `history.added` is a release
   after `from`, up to `to`, each with the releases from `from` to `to`
   that its `missing` names. The inputs and outputs of the operations
-  added, and the members and values of a type new itself, come with it
-  and are not listed, nor is what a change in the range introduces (an
+  added, and the members and values a new type had when it was added,
+  come with it and are not listed (one it gained in a later release is), nor is what a change in the range introduces (an
   added value or error, a reshape's new member or new structure), which
   older clients see as its `older` says. `added` dates an element's
   appearance in the audience's view, so an element an older release had
@@ -858,9 +858,18 @@ symbol to its own.
   escaped name), listed under the release it starts from in
   `SUMMARY.md`, linked from that release's page and from `llms.txt`, with
   links to the pages they name and doc links resolved. A release's own
-  reference (`--api-version`) carries the same guides, whose links reach
-  that release's pages. The static HTML reference does not show them
-  yet. Per-language symbol names stay a
+  reference (`--api-version`) carries none: walking its line's view, a
+  guide would leave out what that release cannot see and differ from the
+  current reference's, and every release's reference would write another
+  copy. Its release pages and `llms.txt` link the current reference's
+  guides, beside it (`../<current>/src/upgrade/..`), and `upgrade_guide`
+  refuses a line. Documentation HTML is emitted as one HTML block (a line
+  break inside `<pre>` is `&#10;`), since a blank line in a code block
+  would end the block and turn the rest into live Markdown; member and
+  required defaults are inert code; headings escape every ASCII
+  punctuation character; and a release's file name is capped, with a
+  hash, so a guide's file stays under 255 bytes. The static HTML
+  reference does not show the guides yet. Per-language symbol names stay a
   follow-up: `crucible.sdks/1` names each operation's methods and its
   input and output types and top-level members, but not nested types,
   enum values or errors, so a guide built on it would name some changed

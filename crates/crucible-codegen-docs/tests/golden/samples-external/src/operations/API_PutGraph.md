@@ -59,7 +59,7 @@ If-Modified-Since: {modifiedSince}
 |---|---|---|---|---|---|---|
 | <code>clientToken</code> | <code>body: clientToken</code> | <code>string</code> | No | — | — |  |
 | <code>name</code> | <code>body: name</code> | [GraphName](../shapes/GraphName.md) | Yes | — | length: <code>{&quot;max&quot;:63,&quot;min&quot;:3}</code>; pattern: <code>&quot;^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$&quot;</code> |  |
-| <code>tier</code> | <code>body: tier</code> | [Tier](../shapes/Tier.md) | No | <code>&quot;small&quot;</code> | — |  |
+| <code>tier</code> | <code>body: tier</code> | [Tier](../shapes/Tier.md) | No | <code>&#34;small&#34;</code> | — |  |
 | <code>priority</code> | <code>body: priority</code> | [Priority](../shapes/Priority.md) | No | — | — |  |
 | <code>port</code> | <code>body: port</code> | [Port](../shapes/Port.md) | No | — | range: <code>{&quot;max&quot;:65535,&quot;min&quot;:1024}</code> |  |
 | <code>negative</code> | <code>body: negative</code> | [Negative](../shapes/Negative.md) | No | — | range: <code>{&quot;max&quot;:-5,&quot;min&quot;:null}</code> |  |
