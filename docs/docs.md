@@ -187,7 +187,9 @@ whose directories would share a name where case folds are refused
 directory would be one of the root's files (`index.html`, `llms.txt`) or a
 directory the output writer refuses (`dist`, `target`), in any case. `--all-releases` takes no
 `--api-version`: it selects every release, from the current model, as a
-build does from a package that `api_version` made a line.
+build does from a package that `api_version` made a line. The upgrade
+guides are in the current release's directory alone, and every older
+release's pages link them there ([Upgrade guides](#upgrade-guides)).
 
 ## Markdown for agents
 
@@ -289,8 +291,9 @@ guides instead, at `../<current>/src/upgrade/..` from its root, where the
 references of every release sit side by side.
 `crucible_codegen_docs::upgrade_guide` is the library form, and refuses a
 release's line. A release name whose escaped form passes 120 bytes is cut
-to 103, followed by `~` and a 16-digit hash of the name, in its release
-page's file too, so no file name passes 255 bytes. Per-language symbol
+to 103, followed by `~` and its 64-bit FNV-1a hash in 16 hex digits, in
+its release page's file and its directory too (and in
+`CrucibleExplorer.releaseDirectory`), so no file name passes 255 bytes. Per-language symbol
 names are not in the guide yet.
 
 ## Static HTML reference

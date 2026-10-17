@@ -19,8 +19,8 @@ use crucible_codegen_common::describe::Description;
 use serde_json::Value;
 
 use super::{
-    change_section, code, docs, element, heading, json_doc, label, list, literal, older_release,
-    release_code, release_file, release_link, string,
+    change_section, code, current_reference, docs, element, heading, json_doc, label, list,
+    literal, older_release, release_code, release_file, release_link, string,
 };
 
 /// A guide's page, relative to `src/`: `upgrade/<from>_to_<to>.md`, each
@@ -55,11 +55,12 @@ pub(in crate::markdown) fn href(d: &Description, from: &str, to: &str, dir: &str
             depth => format!("{}{page}", "../".repeat(depth - 1)),
         };
     }
-    let current = string(&d.versions["current"]);
+    // From this reference's root to the current one's, as the notice on
+    // every page of an older release's reference links it.
     format!(
-        "{}../{}/src/{page}",
+        "{}{}src/{page}",
         "../".repeat(depth),
-        release_file(current)
+        current_reference(string(&d.versions["current"]))
     )
 }
 
@@ -335,7 +336,7 @@ fn additions(d: &Description, from: usize, to: usize) -> String {
         return out;
     }
     out.push_str(&format!(
-        "What was added after {}, up to {}. An older release is served as the current model sees it, so an addition generally reaches it too; an entry names a release that does not see it. What an older release had in another form, under another name or not in this audience's view, may be listed here as well.\n\n",
+        "What was added after {}, up to {}. Older releases are served as the current model sees them, so an addition generally reaches them too; an entry names a release that does not see it. What an older release had in another form, under another name or not in this audience's view, may be listed here as well.\n\n",
         release_code(old),
         release_code(new)
     ));

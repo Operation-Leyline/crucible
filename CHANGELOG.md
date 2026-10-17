@@ -1262,7 +1262,10 @@ version's section when it is prepared.
   references, so a string default opens no link. A heading escapes every
   ASCII punctuation character, so `|` and `~` read as written. A release
   name whose escaped file name passes 120 bytes is cut, with a hash of
-  the name, so its page's file stays under 255 bytes.
+  the name, so its page's file, its `--all-releases` directory
+  (`release_directory`, and the static reference's
+  `CrucibleExplorer.releaseDirectory`) and an upgrade guide's file stay
+  under 255 bytes.
 
 - A generated Rust SDK's README.md and AGENTS.md show `use <crate>::*;`
   once in the client block, not twice. The shared guide drops a line of a

@@ -66,7 +66,7 @@ Clients of <code>v1</code> use <code>integer</code>, converted by the service's 
 
 ## New since v1
 
-What was added after <code>v1</code>, up to <code>v2</code>. An older release is served as the current model sees it, so an addition generally reaches it too; an entry names a release that does not see it. What an older release had in another form, under another name or not in this audience's view, may be listed here as well.
+What was added after <code>v1</code>, up to <code>v2</code>. Older releases are served as the current model sees them, so an addition generally reaches them too; an entry names a release that does not see it. What an older release had in another form, under another name or not in this audience's view, may be listed here as well.
 
 - Member <code>GetItemOutput.note</code>: added in v2.
 - Member <code>PutItemInput.priority</code>: added in v2.

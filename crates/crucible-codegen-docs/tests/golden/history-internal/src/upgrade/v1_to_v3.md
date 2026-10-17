@@ -145,7 +145,7 @@ Clients of <code>v2</code> can still call it: <code>GET /count</code>.
 
 ## New since v1
 
-What was added after <code>v1</code>, up to <code>v3</code>. An older release is served as the current model sees it, so an addition generally reaches it too; an entry names a release that does not see it. What an older release had in another form, under another name or not in this audience's view, may be listed here as well.
+What was added after <code>v1</code>, up to <code>v3</code>. Older releases are served as the current model sees them, so an addition generally reaches them too; an entry names a release that does not see it. What an older release had in another form, under another name or not in this audience's view, may be listed here as well.
 
 - Operation <a href="../operations/API_DeleteItem.md"><code>DeleteItem</code></a>: added in [v3](../releases/v3.md).
 - Member <a href="../shapes/Size.md"><code>Size.unit</code></a>: added in [v3](../releases/v3.md). Clients of [v1](../releases/v1.md) do not see it.

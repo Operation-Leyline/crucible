@@ -537,6 +537,12 @@ fn a_releases_own_reference_links_the_current_references_guides() {
         llms.contains("- [Upgrading from v3 to v4](../v4/src/upgrade/v3_to_v4.md)"),
         "{llms}"
     );
+    // In one file at the root, the links are rebased onto the root.
+    let full = file("llms-full.txt");
+    assert!(
+        full.contains("[to v4](../v4/src/upgrade/v1_to_v4.md)"),
+        "{full}"
+    );
     let message = upgrade_guide(&line, "v1", None)
         .expect_err("a line")
         .to_string();
@@ -599,4 +605,57 @@ fn a_retired_operation_and_a_later_member_are_changes() {
         "{text}"
     );
     assert!(!text.contains("<code>Label.title</code>: added"), "{text}");
+}
+
+/// Every release's reference in one output (`--all-releases`): the guides
+/// are in the current release's directory alone, and every older release's
+/// links to them resolve to those files.
+#[test]
+fn every_releases_reference_links_the_current_ones_guides() {
+    let current = versioned(&shop_dir());
+    let files = crucible_codegen_docs::generate_releases(
+        &current,
+        Audience::External,
+        &crucible_codegen_docs::Options::default(),
+    )
+    .unwrap();
+    let paths: std::collections::BTreeSet<&str> =
+        files.iter().map(|file| file.path.as_str()).collect();
+    let guides: Vec<&str> = paths
+        .iter()
+        .copied()
+        .filter(|path| path.contains("/upgrade/"))
+        .collect();
+    assert_eq!(guides.len(), 5, "{guides:?}");
+    assert!(
+        guides
+            .iter()
+            .all(|path| path.starts_with("v4/src/upgrade/"))
+    );
+    let mut checked = 0;
+    for file in files.iter().filter(|file| file.path.ends_with(".md")) {
+        let dir = file.path.rsplit_once('/').map_or("", |(dir, _)| dir);
+        let (destinations, _) = links_and_tags(&file.contents);
+        for destination in destinations.iter().filter(|d| d.contains("upgrade/")) {
+            let mut parts: Vec<&str> = dir.split('/').filter(|p| !p.is_empty()).collect();
+            for part in destination.split('/') {
+                match part {
+                    ".." => {
+                        parts
+                            .pop()
+                            .unwrap_or_else(|| panic!("{destination} leaves the output"));
+                    }
+                    part => parts.push(part),
+                }
+            }
+            let target = parts.join("/");
+            assert!(
+                paths.contains(target.as_str()),
+                "{destination} in {}",
+                file.path
+            );
+            checked += 1;
+        }
+    }
+    assert!(checked > 20, "{checked} links");
 }
