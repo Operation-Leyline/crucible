@@ -43,6 +43,16 @@ with `index.html` and `llms.txt` at the root) is stable as described in
 [the docs guide](docs.md#every-releases-reference), and the index's prose
 is not.
 
+Upgrade guides ([the docs guide](docs.md#upgrade-guides)) add `crucible
+upgrade-guide`, `crucible_codegen_docs::upgrade_guide` and the
+`src/upgrade/<from>_to_<to>.md` pages of a reference with more than one
+release, linked from `llms.txt`; they are additive. A pair's page path
+is stable while the reference carries that pair, but which pairs it
+carries moves with the chain: a release to the next and to the current
+one, so `v1_to_v3.md` gives way to `v1_to_v4.md` once `v4` is current. A
+guide's prose and layout are not stable, and neither is its refusal
+text.
+
 `DocsOutput::sdks`, `crucible generate docs --sdks` and `crucible sdk
 describe` add the `crucible.sdks/1` contract (`sdks.json`), stable as
 described in [the docs guide](docs.md#the-cruciblesdks1-contract) under

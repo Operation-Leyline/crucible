@@ -8,6 +8,7 @@ mod policy;
 mod scaffold;
 mod sdk;
 mod starter;
+mod upgrade_guide;
 
 use clap::{Args, Parser, Subcommand, ValueEnum};
 use crucible_ir::ShapeId;
@@ -142,6 +143,12 @@ enum Command {
         #[arg(long, default_value = "crate::operations::Service")]
         service_type: String,
     },
+    /// Write the upgrade guide between two supported releases of a `.cru`
+    /// package as Markdown: each migration between them, oldest first, with
+    /// its documentation, every change in model terms and what a client of
+    /// the release before it sees instead, the operations it retired, the
+    /// sunsets on the way, and what was added since.
+    UpgradeGuide(upgrade_guide::Args),
 }
 
 #[derive(Clone, Copy, ValueEnum)]
@@ -783,6 +790,7 @@ fn run(command: Command) -> ExitCode {
             };
             scaffold::run(&service, &out, &options)
         }),
+        Command::UpgradeGuide(args) => upgrade_guide::run(args),
     };
     match result {
         Ok(()) => ExitCode::SUCCESS,

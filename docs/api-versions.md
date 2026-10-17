@@ -31,8 +31,9 @@ them), with an SDK line per version (built: `model(..).api_version(..)`,
 version), a reference per version (built: each page of an older
 version's reference names it, and `crucible generate docs --all-releases`
 writes every version's reference into one output,
-[docs.md](docs.md#every-releases-reference)), and upgrade guides
-(settled in decisions 68-79).
+[docs.md](docs.md#every-releases-reference)), and upgrade guides (built:
+`crucible upgrade-guide`, and a page per pair of releases in the current
+release's reference, [docs.md](docs.md#upgrade-guides)).
 
 ## Versions
 

@@ -566,8 +566,11 @@ test("an operation states what the caller must hold, and the overview lists the 
 });
 
 test("the test fixtures cover all goldens the generator ships", () => {
-  // `schemas` holds Weather's description in the other schema modes.
-  const dirs = readdirSync(join(crate, "tests", "golden")).filter((d) => d !== "site" && d !== "schemas").sort();
+  // `schemas` holds Weather's description in the other schema modes, and
+  // `upgrade` upgrade guides, Markdown with no description.
+  const dirs = readdirSync(join(crate, "tests", "golden"))
+    .filter((d) => d !== "site" && d !== "schemas" && d !== "upgrade")
+    .sort();
   assert.deepEqual(dirs, [
     "catalog-external",
     "catalog-internal",
@@ -646,6 +649,8 @@ test("a release's directory is named as the generator names it", () => {
     [".hidden.", "_2Ehidden_2E"],
     ["x](https://example.com)", "x_5D_28https_3A_2F_2Fexample.com_29"],
     ["v3/../../evil`*", "v3_2F.._2F.._2Fevil_60_2A"],
+    ["r".repeat(150) + "a", "rrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrr~c6273117e8b0b0ec"],
+    ["_".repeat(50), "_5F_5F_5F_5F_5F_5F_5F_5F_5F_5F_5F_5F_5F_5F_5F_5F_5F_5F_5F_5F_5F_5F_5F_5F_5F_5F_5F_5F_5F_5F_5F_5F_5F_5F_~aa349eb153134bb3"],
   ]) {
     assert.equal(x.releaseDirectory(name), directory, name);
   }

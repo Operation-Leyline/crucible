@@ -221,6 +221,15 @@ fn docs_history_probe() {
     assert_eq!(changes["versions"], description["versions"]);
     assert!(reference.files.iter().any(|file| file == "changes.json"));
     assert!(reference.path.join("src/releases/v3.md").is_file());
+    // An upgrade guide from each release to the next and to the current
+    // one (docs/api-versions-clients.md, 5d), linked from the release it
+    // starts from.
+    for guide in ["v1_to_v2", "v1_to_v3", "v2_to_v3"] {
+        let path = format!("src/upgrade/{guide}.md");
+        assert!(reference.files.contains(&path), "{path}");
+    }
+    let v1 = fs::read_to_string(reference.path.join("src/releases/v1.md")).unwrap();
+    assert!(v1.contains("(../upgrade/v1_to_v3.md)"), "{v1}");
 }
 
 /// A build's reference reads the release chain the build serves: every

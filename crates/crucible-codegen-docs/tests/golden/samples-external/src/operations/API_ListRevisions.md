@@ -23,7 +23,7 @@ Crucible-Version: 1
 
 | Member | Wire location | Type | Required | Default | Constraints | Description |
 |---|---|---|---|---|---|---|
-| <code>after</code> | <code>query: after</code> | <code>string</code> | No | <code>&quot;first-page&quot;</code> | — |  |
+| <code>after</code> | <code>query: after</code> | <code>string</code> | No | <code>&#34;first&#45;page&#34;</code> | — |  |
 
 ## Response syntax
 

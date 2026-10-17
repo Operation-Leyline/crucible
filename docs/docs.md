@@ -103,6 +103,7 @@ src/
   shapes/CitySummary.md
   releases.md       (a chain of more than one release)
   releases/v2.md
+  upgrade/v1_to_v2.md
 ```
 
 `SUMMARY.md` groups operations by resource, with a separate group for service
@@ -186,7 +187,9 @@ whose directories would share a name where case folds are refused
 directory would be one of the root's files (`index.html`, `llms.txt`) or a
 directory the output writer refuses (`dist`, `target`), in any case. `--all-releases` takes no
 `--api-version`: it selects every release, from the current model, as a
-build does from a package that `api_version` made a line.
+build does from a package that `api_version` made a line. The upgrade
+guides are in the current release's directory alone, and every older
+release's pages link them there ([Upgrade guides](#upgrade-guides)).
 
 ## Markdown for agents
 
@@ -235,6 +238,73 @@ routes is fixed:
 A site that publishes mdBook's `book/` output alone, without `src/`,
 publishes `src/` beside it, or rewrites `llms.txt`'s `src/` prefix to where
 it puts the pages.
+
+## Upgrade guides
+
+An upgrade guide says what a client moving from one release to a newer
+one meets, in the model's terms (decision 57a in
+[idl/decisions.md](idl/decisions.md);
+[api-versions-clients.md](api-versions-clients.md#5d-upgrade-guides)):
+
+```sh
+crucible upgrade-guide model --from v1 --to v3 --out upgrade-v1-to-v3.md
+```
+
+`--to` defaults to the current release, `--audience` to `external`, and
+without `--out` the guide is printed. It starts with the sunsets of the
+releases from the older to the newer. Then each migration between them is
+a section, oldest first: its documentation, each change with its step's
+documentation and what a client of the release before it sees instead (a
+member's older name, the default an omitted member gets, the value or
+error older clients receive, the older route or definition), each
+`behavior` change, and the operations it retired. Last comes *New
+since*: the operations, data types, members and enum values added after
+the older release, up to the newer. An addition reaches older releases
+too, so an entry also names any release from the older to the newer that
+cannot see it ([Release history](#release-history)'s `missing`). The input
+and output of an operation added, and the members a new type had when it
+was added, come with it (a member it gained later is listed); what a change introduces (an added value or error, a reshape's new
+member) is in its section. An element is dated by when the audience's view
+first has it, so one an older release had under another name, or as
+internal API, is listed too.
+
+The guide is rendered from the `versions` block and the elements'
+`history`, the data the release pages and `changes.json` carry, so they
+cannot disagree; an external guide names no internal step or element. A
+release outside the chain, or a `--from` that is not older than `--to`, is
+refused, naming the supported releases. On its own a guide links none of
+the reference's pages: a doc link, a link to a page and any other link but
+the documentation's web and mail addresses are their text, and so is an
+image's alternative text, but for a web image. Model text is
+escaped as on the release pages, and documentation is the description's
+sanitized HTML.
+
+A reference whose chain has more than its current release carries the
+same guides as pages, `src/upgrade/<from>_to_<to>.md`, from each release to
+the next and to the current one: each release name escaped as its page's
+file is, listed under the release it starts from in `SUMMARY.md`, linked
+from that release's page (*Upgrading*) and from `llms.txt`, with their
+links and doc links to the reference's pages. A release's own reference
+(`--api-version`) carries no guides: its view of the model leaves out what
+its release cannot see, so its guides would differ from the current
+reference's. It links the current reference's guides instead, beside it
+where the references of every release sit side by side: `llms.txt`, read as
+Markdown, links each guide's source, `../<current>/src/upgrade/<from>_to_<to>.md`
+from its root, and a release page links the page mdBook builds from it,
+`<current>/book/upgrade/<from>_to_<to>.html`, from the release page's
+directory (`../../../` from `src/releases/`). mdBook builds
+`src/<page>.md` into `book/<page>.html` at the same depth and rewrites a
+relative `.md` link to `.html`, so a link to the other reference's source
+would name a `src/` page no build writes; the built page's link resolves
+from `src/` and `book/` alike, as the notice's `../<current>/index.html`
+does. Served without `mdbook build`, those release-page links name pages
+that do not exist; `llms.txt`'s still resolve.
+`crucible_codegen_docs::upgrade_guide` is the library form, and refuses a
+release's line. A release name whose escaped form passes 120 bytes is cut
+to 103, followed by `~` and its 64-bit FNV-1a hash in 16 hex digits, in
+its release page's file and its directory too (and in
+`CrucibleExplorer.releaseDirectory`), so no file name passes 255 bytes. Per-language symbol
+names are not in the guide yet.
 
 ## Static HTML reference
 
@@ -969,6 +1039,11 @@ that runs the real boot path:
 ```sh
 bash tools/test-docs-site.sh
 ```
+
+`tests/golden/upgrade` holds upgrade guides as `crucible upgrade-guide`
+writes them, in both audiences: the e2e versioned service from `v1` and
+from `v3` to `v4`, and the History fixture from `v1` to `v3` and to `v2`.
+The reference goldens of both carry the same guides as pages.
 
 Use `CRUCIBLE_BLESS=1 cargo test -p crucible-codegen-docs` only for an intended
 output change, then review the golden diff. Tests also verify audience isolation,

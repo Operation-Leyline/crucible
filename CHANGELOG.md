@@ -54,6 +54,32 @@ version's section when it is prepared.
   surface. `crucible_codegen_common::describe::describe_cached` is
   `describe` with such a cache (additive).
 
+- **Upgrade guides** (API versions phase 5d; decision 57a in
+  [docs/idl/decisions.md](docs/idl/decisions.md),
+  [docs/api-versions-clients.md](docs/api-versions-clients.md#5d-upgrade-guides)).
+  `crucible upgrade-guide <package> --from <release> [--to <release>]
+  [--audience external|internal] [--out <file>]` writes Markdown saying
+  what a client moving between two supported releases meets: each
+  migration between them, oldest first, with its `///`, every change in
+  model terms with its step's `///` and what a client of the release
+  before it sees instead, each `behavior` change, the operations retired
+  on the way, the sunsets of the releases passed through, and what was
+  added since (operations, data types, members, enum values), with the
+  releases that cannot see an addition. It is rendered from the reference's
+  `versions` block and `history` (`crucible_codegen_docs::upgrade_guide`,
+  additive), so an external guide names no internal API; `--to` defaults
+  to the current release, and an unknown release or a pair in the wrong
+  order is refused naming the supported releases. A reference with more
+  than one release (`crucible generate docs`, a build's docs output) now
+  also carries the guides as pages, `src/upgrade/<from>_to_<to>.md` from
+  each release to the next and to the current one, listed in
+  `SUMMARY.md` and `llms.txt` and linked from the release pages
+  (*Upgrading*): a versioned service's generated reference gains these
+  pages. A release's own reference (`--api-version`) carries none and links
+  the current reference's, beside it; `upgrade_guide` refuses a release's
+  line. Per-language symbol names are a follow-up. See
+  [docs/docs.md](docs/docs.md#upgrade-guides).
+
 - `crucible_build::model(..).report_warnings(false)`: a build that
   compiles a model another build of the same Cargo invocation already
   reports (a service generating from a model crate whose `publish()`
@@ -1226,6 +1252,20 @@ version's section when it is prepared.
   feature is refused with a message naming it.
 
 ### Fixed
+
+- The Markdown reference keeps model text inert in more places.
+  Documentation HTML is one HTML block: a blank line in a code block
+  ended it, and the rest was read as Markdown, so a `javascript:` link
+  there was live in mdBook (a line break inside `<pre>` is now `&#10;`).
+  A member's default in a member table, and a required member's default
+  on a release page, are code with their punctuation as character
+  references, so a string default opens no link. A heading escapes every
+  ASCII punctuation character, so `|` and `~` read as written. A release
+  name whose escaped file name passes 120 bytes is cut, with a hash of
+  the name, so its page's file, its `--all-releases` directory
+  (`release_directory`, and the static reference's
+  `CrucibleExplorer.releaseDirectory`) and an upgrade guide's file stay
+  under 255 bytes.
 
 - A generated Rust SDK's README.md and AGENTS.md show `use <crate>::*;`
   once in the client block, not twice. The shared guide drops a line of a

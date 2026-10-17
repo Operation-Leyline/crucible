@@ -271,6 +271,13 @@
       const escaped = !kept || (i === 0 && escapeFirst) || (i === bytes.length - 1 && b === 0x2e);
       out += escaped ? `_${b.toString(16).toUpperCase().padStart(2, "0")}` : String.fromCharCode(b);
     });
+    // As the generator caps it: past 120 bytes, the start, `~` and the
+    // name's 64-bit FNV-1a hash, so a file name stays under 255 bytes.
+    if (out.length > 120) {
+      let hash = 0xcbf29ce484222325n;
+      for (const b of bytes) hash = ((hash ^ BigInt(b)) * 0x100000001b3n) & 0xffffffffffffffffn;
+      out = `${out.slice(0, 103)}~${hash.toString(16).padStart(16, "0")}`;
+    }
     return out;
   }
 

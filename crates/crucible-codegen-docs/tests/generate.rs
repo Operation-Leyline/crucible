@@ -346,6 +346,23 @@ fn a_releases_directory_is_its_escaped_name() {
             "{name}"
         );
     }
+    // Past 120 bytes: the start, `~` and the name's FNV-1a hash.
+    for (name, directory) in [
+        (
+            format!("{}a", "r".repeat(150)),
+            format!("{}~c6273117e8b0b0ec", "r".repeat(103)),
+        ),
+        (
+            "_".repeat(50),
+            format!("{}~aa349eb153134bb3", &"_5F".repeat(50)[..103]),
+        ),
+    ] {
+        assert_eq!(
+            crucible_codegen_docs::release_directory(&name),
+            directory,
+            "{name}"
+        );
+    }
 }
 
 /// The older release `service.versions[index]` renamed `name`: the entry,

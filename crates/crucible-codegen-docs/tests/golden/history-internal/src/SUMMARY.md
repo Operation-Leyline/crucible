@@ -26,5 +26,8 @@
   - [Size](shapes/Size.md)
 - [Releases](releases.md)
   - [v1](releases/v1.md)
+    - [Upgrading to v2](upgrade/v1_to_v2.md)
+    - [Upgrading to v3](upgrade/v1_to_v3.md)
   - [v2](releases/v2.md)
+    - [Upgrading to v3](upgrade/v2_to_v3.md)
   - [v3](releases/v3.md)

@@ -13,7 +13,7 @@ Type: <code>structure</code>.
 | <code>since</code> | <code>since</code> | <code>timestamp</code> | No | — | — |  |
 | <code>modifiedSince</code> | <code>modifiedSince</code> | <code>timestamp</code> | No | — | — |  |
 | <code>name</code> | <code>name</code> | [GraphName](../shapes/GraphName.md) | Yes | — | length: <code>{&quot;max&quot;:63,&quot;min&quot;:3}</code>; pattern: <code>&quot;^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$&quot;</code> |  |
-| <code>tier</code> | <code>tier</code> | [Tier](../shapes/Tier.md) | No | <code>&quot;small&quot;</code> | — |  |
+| <code>tier</code> | <code>tier</code> | [Tier](../shapes/Tier.md) | No | <code>&#34;small&#34;</code> | — |  |
 | <code>priority</code> | <code>priority</code> | [Priority](../shapes/Priority.md) | No | — | — |  |
 | <code>port</code> | <code>port</code> | [Port](../shapes/Port.md) | No | — | range: <code>{&quot;max&quot;:65535,&quot;min&quot;:1024}</code> |  |
 | <code>negative</code> | <code>negative</code> | [Negative](../shapes/Negative.md) | No | — | range: <code>{&quot;max&quot;:-5,&quot;min&quot;:null}</code> |  |

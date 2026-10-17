@@ -310,3 +310,49 @@ fn site(description: &str) -> [File; 4] {
         },
     ]
 }
+
+/// The upgrade guide from release `from` to release `to` of `service`, or
+/// to its current release when `to` is `None` (`crucible upgrade-guide`;
+/// docs/api-versions-clients.md, 5d): Markdown listing each migration
+/// between them, oldest first, with its documentation, every change in
+/// model terms and what a client of the release before it sees instead,
+/// the operations it retired, the sunsets of the releases a client passes
+/// through, and what was added since. It reads the same `versions` block
+/// the reference and `changes.json` carry, so the caller projects the
+/// audience first, as for [`generate`]: an external guide names no
+/// internal step or element. It stands on its own, so it links no
+/// reference page, and a doc link is its text. A reference generated with
+/// more than one release carries the same guides as pages
+/// (`src/upgrade/<from>_to_<to>.md`), linked from its release pages; a
+/// release's own reference links those of the current release's.
+/// `service` is the current model: a release's line is refused, since its
+/// view leaves out what its release cannot see. Refused too, naming the
+/// supported releases, unless both are supported releases and `from` is
+/// older than `to`.
+pub fn upgrade_guide(
+    service: &Service,
+    from: &str,
+    to: Option<&str>,
+) -> Result<String, Diagnostics> {
+    if crucible_ir::versions::is_line(service) {
+        let mut diagnostics = Diagnostics::default();
+        diagnostics.push(
+            &service.id,
+            format!(
+                "upgrade guide: this is release {:?}'s view of the model; a guide is written from the current model",
+                service.version
+            ),
+        );
+        return Err(diagnostics);
+    }
+    let description = describe::describe(service)?;
+    let (older, newer) = markdown::upgrade::select(&description, from, to).map_err(|message| {
+        let mut diagnostics = Diagnostics::default();
+        diagnostics.push(&service.id, message);
+        diagnostics
+    })?;
+    let mut guide = markdown::upgrade::standalone(&description, older, newer);
+    guide.truncate(guide.trim_end().len());
+    guide.push('\n');
+    Ok(guide)
+}
