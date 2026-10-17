@@ -1221,7 +1221,10 @@ pass in `reports/`.
 
 57a. *(Settled for implementation in decisions 68-79: releases are
     projections of the current model, checked against their frozen
-    releases.)* **Every supported version keeps its own SDK line, and additive
+    releases. The upgrade guide is built at the model level, from the
+    migration steps (`crucible upgrade-guide`, 5d of
+    [api-versions-clients.md](../api-versions-clients.md#5d-upgrade-guides));
+    its per-language symbol names are a follow-up.)* **Every supported version keeps its own SDK line, and additive
     changes reach all of them.** Because additive changes apply to every
     version (decision 51), the compiler can produce the current model as
     seen at any supported version by running the migrations backwards,

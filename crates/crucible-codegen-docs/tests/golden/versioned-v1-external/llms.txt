@@ -56,6 +56,11 @@ Every page below is Markdown. Requests are JSON over HTTP; each operation's page
 - [v2](src/releases/v2.md): what changed in v2
 - [v3](src/releases/v3.md): what changed in v3
 - [v4](src/releases/v4.md): what changed in v4, the current release
+- [Upgrading from v1 to v2](src/upgrade/v1_to_v2.md): every change a client of v1 meets at v2, and what was added since
+- [Upgrading from v1 to v4](src/upgrade/v1_to_v4.md): every change a client of v1 meets at v4, and what was added since
+- [Upgrading from v2 to v3](src/upgrade/v2_to_v3.md): every change a client of v2 meets at v3, and what was added since
+- [Upgrading from v2 to v4](src/upgrade/v2_to_v4.md): every change a client of v2 meets at v4, and what was added since
+- [Upgrading from v3 to v4](src/upgrade/v3_to_v4.md): every change a client of v3 meets at v4, and what was added since
 
 ## Optional
 

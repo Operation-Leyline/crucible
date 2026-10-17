@@ -3,8 +3,8 @@
 **Status: 5a built (clients send their release), the reference's
 release history (PR 3), 5b built: the projections (PR 4), checked by
 the compiler (PR 5) and served by the Rust server (PR 6), 5c built:
-one SDK line per release (PR 7), and a reference per release (PR 8); 5d
-designed (decisions 68-79, 82).** Phases 1-4 are built: a `.cru` service declares its breaking changes as
+one SDK line per release (PR 7), a reference per release (PR 8), and 5d
+built: upgrade guides (PR 9) (decisions 68-79, 82).** Phases 1-4 are built: a `.cru` service declares its breaking changes as
 migrations, and a Rust service serves every supported release from its
 current handlers ([api-versions.md](api-versions.md)). This document is
 how clients take part, following decisions 51, 57 and 57a in
@@ -806,9 +806,9 @@ decision 67 lowered resources. The per-release reference needs 5b and 5c.
 
 ## 5d. Upgrade guides
 
-`crucible upgrade-guide <package> --from <release> [--to <release>]`
-writes Markdown from the `versions` block: each change between the two
-releases, in model terms:
+*Built (PR 9).* `crucible upgrade-guide <package> --from <release> [--to
+<release>]` writes Markdown from the `versions` block: each change between
+the two releases, in model terms:
 - the operation, shape or member it changes;
 - what an older client sees instead;
 - each `behavior` change, with its documentation.
@@ -818,10 +818,58 @@ Per-language symbol names (decision 57a's "every changed symbol") are a
 follow-up: each generator knows its own naming, and can map a model
 symbol to its own.
 
+- **What PR 9 settled in building it.** The guide is
+  `crucible_codegen_docs::upgrade_guide(service, from, to)`, rendered
+  from `describe()`'s `versions` block and the elements' `history`, so it
+  reads what `crucible_ir::versions` settled for the reference and
+  `changes.json`, and derives nothing of its own; the caller projects the
+  audience first (`--audience`, external by default), so an external
+  guide names no internal step or element. It starts with the sunsets of
+  the releases from `from` to `to`, with their `///`. Each migration from
+  `from` to `to` is then a section, oldest first, with its `///`, each
+  change rendered as its release page renders it (its step's `///`, and
+  what a client of the release before that migration sees instead), and
+  the operations retired by it (those on the `retired` of the release
+  before it; an operation `to` itself retires is dropped by a later
+  migration, outside the guide). Last comes *New since*: the operations,
+  data types, members and enum values whose `history.added` is a release
+  after `from`, up to `to`, each with the releases from `from` to `to`
+  that its `missing` names. The inputs and outputs of the operations
+  added, and the members and values of a type new itself, come with it
+  and are not listed, nor is what a change in the range introduces (an
+  added value or error, a reshape's new member or new structure), which
+  older clients see as its `older` says. `added` dates an element's
+  appearance in the audience's view, so an element an older release had
+  under another name or as internal API is listed too; the entries'
+  wording says so rather than claiming every older client can use it. `to` defaults to the
+  current release; a release outside the chain, a `from` that is not older
+  than `to`, and a service without releases are refused, naming the
+  supported releases. Model text is escaped as on the release pages:
+  release names and identifiers as code or with every ASCII punctuation
+  character escaped, documentation as the description's sanitized `html`.
+  A guide on its own links none of the reference's pages: a doc link is
+  its text (decision 80), and so is every link but the documentation's web
+  and mail addresses. A required member's default is code with its
+  punctuation as character references, so a string default cannot open a
+  link. A reference with more than one
+  release carries the same guides as pages, from each release to the next
+  and to the current one: `src/upgrade/<from>_to_<to>.md` (each name
+  escaped as its release page's file is, and `_to_` cannot occur in an
+  escaped name), listed under the release it starts from in
+  `SUMMARY.md`, linked from that release's page and from `llms.txt`, with
+  links to the pages they name and doc links resolved. A release's own
+  reference (`--api-version`) carries the same guides, whose links reach
+  that release's pages. The static HTML reference does not show them
+  yet. Per-language symbol names stay a
+  follow-up: `crucible.sdks/1` names each operation's methods and its
+  input and output types and top-level members, but not nested types,
+  enum values or errors, so a guide built on it would name some changed
+  symbols and not others; the surface needs a symbol table first.
+
 ## Order
 
 Each line is one pull request, in this order unless it says otherwise. 5a
-is built, and so are PRs 1 to 8.
+is built, and so are PRs 1 to 9.
 
 1. **Steps carry both sides.** *Built.* `VersionStep::Require` gains `old`
    and `from`, `Hook::Require` gains `from`, `AddEnumValue` gains `old`,
@@ -1044,8 +1092,22 @@ is built, and so are PRs 1 to 8.
    all-releases output, with an `sdks.json` per release
    (`crucible-build/tests/{api_versions,docs_outputs}.rs`,
    `crucible-cli/tests/api_versions.rs`).
-9. **Upgrade guides (5d).** *Crate:* crucible-cli. *Tests:* the guide
-   from `v1` to `v3` of the fixture, as a golden.
+9. **Upgrade guides (5d).** *Built.* *Crate:* crucible-cli. *Tests:* the guide
+   from `v1` to `v3` of the fixture, as a golden. *As built:* the guide is
+   rendered in crucible-codegen-docs (`upgrade_guide`, and the pages a
+   reference carries), which the CLI's `crucible upgrade-guide` and a
+   build's docs output share; see *What PR 9 settled*, under 5d. The
+   goldens (`crucible-codegen-docs/tests/golden/upgrade/`) are the e2e
+   shop from `v1` and from `v3` to `v4`, and `tests/models/version-history`
+   from `v1` to `v3` and to `v2`, each in both audiences;
+   `crucible-codegen-docs/tests/upgrade.rs` also checks the refusals,
+   hostile model text (release names, a title, migration and sunset
+   documentation) in a guide and in a reference's guide pages, that the
+   external guide names no internal API, and that a reference links its
+   guides; `crucible-cli/tests/upgrade_guide.rs` that the command writes
+   the same guide, to standard output or `--out`, and refuses an unknown
+   or reversed pair; `crucible-build/tests/docs_outputs.rs` that a build's
+   reference carries them.
 
 PRs 1-3 need no projection, and 3 ships the documentation history before
 5b.
@@ -1073,5 +1135,5 @@ PRs 1-3 need no projection, and 3 ships the documentation history before
 7. **The reference dates every element** from the release chain, and
    `describe.json` carries the chain and its changes (decisions 77-79).
 8. **Upgrade guides** are model-level Markdown, rendered from that block
-   first. Per-language symbol names, decision 57a's "every changed
-   symbol", follow.
+   (built, PR 9). Per-language symbol names, decision 57a's "every
+   changed symbol", follow.

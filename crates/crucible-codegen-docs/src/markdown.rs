@@ -5,6 +5,8 @@ use serde_json::Value;
 
 use crate::File;
 
+pub(crate) mod upgrade;
+
 /// What a generated sample is, as the static reference says it too.
 const GENERATED_NOTE: &str = "Generated from the model's types and constraints, not written by the API's authors. Nothing beyond those constraints was checked, so the service may still refuse a value (a query its parser rejects, an id that does not exist).";
 
@@ -408,13 +410,28 @@ pub(super) fn render(service: &Service, d: &Description) -> Vec<File> {
             path: "src/releases.md".into(),
             contents: releases_page(d),
         });
-        for release in list(&d.versions["releases"]) {
+        let releases = list(&d.versions["releases"]);
+        let guides = upgrade::pairs(d);
+        for (index, release) in releases.iter().enumerate() {
             let name = string(&release["name"]);
             summary.push_str(&format!("  - {}\n", release_link(name, "")));
             files.push(File {
                 path: format!("src/{}", release_path(name)),
                 contents: release_page(d, release),
             });
+            // Each upgrade guide under the release it starts from.
+            for &(from, to) in guides.iter().filter(|(from, _)| *from == index) {
+                let target = string(&releases[to]["name"]);
+                let path = upgrade::path(name, target);
+                summary.push_str(&format!(
+                    "    - {}\n",
+                    link(&format!("Upgrading to {target}"), &path)
+                ));
+                files.push(File {
+                    path: format!("src/{path}"),
+                    contents: upgrade::page(d, from, to),
+                });
+            }
         }
     }
     files.push(File {
@@ -630,6 +647,21 @@ fn llms(d: &Description, pages: &[File]) -> [File; 2] {
                 }
             ));
         }
+        let releases = list(&d.versions["releases"]);
+        for (from, to) in upgrade::pairs(d) {
+            let (from, to) = (
+                string(&releases[from]["name"]),
+                string(&releases[to]["name"]),
+            );
+            out.push_str(&format!(
+                "- [Upgrading from {} to {}](src/{}): every change a client of {} meets at {}, and what was added since\n",
+                literal(from),
+                literal(to),
+                upgrade::path(from, to),
+                literal(from),
+                literal(to)
+            ));
+        }
     }
     out.push_str("\n## Optional\n\n");
     out.push_str("- [llms-full.txt](llms-full.txt): every page above in one file\n");
@@ -662,6 +694,16 @@ fn llms(d: &Description, pages: &[File]) -> [File; 2] {
                 .iter()
                 .map(|release| format!("src/{}", release_path(string(&release["name"])))),
         );
+        let releases = list(&d.versions["releases"]);
+        order.extend(upgrade::pairs(d).into_iter().map(|(from, to)| {
+            format!(
+                "src/{}",
+                upgrade::path(
+                    string(&releases[from]["name"]),
+                    string(&releases[to]["name"])
+                )
+            )
+        }));
     }
     // Each page starts at a comment naming its file, its `=` runs longer
     // than any in the pages, so no page's text (a code block, an example)
@@ -1695,6 +1737,7 @@ fn release_page(d: &Description, release: &Value) -> String {
             retired.join(", ")
         ));
     }
+    out.push_str(&upgrading(d, name));
     let Some(from) = release["from"].as_str() else {
         return out;
     };
@@ -1706,6 +1749,29 @@ fn release_page(d: &Description, release: &Value) -> String {
         out.push_str(&change_section(d, change, from));
     }
     out
+}
+
+/// A release page's links to the upgrade guides that start from it.
+fn upgrading(d: &Description, name: &str) -> String {
+    let releases = list(&d.versions["releases"]);
+    let guides: Vec<String> = upgrade::pairs(d)
+        .into_iter()
+        .filter(|(from, _)| string(&releases[*from]["name"]) == name)
+        .map(|(_, to)| {
+            let target = string(&releases[to]["name"]);
+            link(
+                &format!("to {target}"),
+                &format!("../{}", upgrade::path(name, target)),
+            )
+        })
+        .collect();
+    if guides.is_empty() {
+        return String::new();
+    }
+    format!(
+        "## Upgrading\n\nWhat a client of this release meets when it moves to a newer one, and what was added since: {}.\n\n",
+        guides.join(", ")
+    )
 }
 
 /// A documentation object as an item's `documentation`, for [`docs`].
@@ -1733,7 +1799,9 @@ fn change_section(d: &Description, change: &Value, from: &str) -> String {
             if older["filled"] == "default" {
                 format!(
                     "{clients} may leave it out: the service uses {}.",
-                    code(&older["default"].to_string())
+                    // A string default is model text: inert in code, as a
+                    // release name is.
+                    release_code(&older["default"].to_string())
                 )
             } else {
                 format!("{clients} may leave it out: the service fills it in.")
