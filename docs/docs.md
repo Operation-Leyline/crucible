@@ -657,6 +657,13 @@ version 1.
 
 A reference's `sdks.json` lists the SDKs its audience may see: an
 external reference lists the external SDKs, an internal one every SDK.
+Of those, it lists the SDKs of the release it documents: a reference of
+the current release lists the SDKs without `api_version`, and one
+generated with `--api-version v1` the SDK lines of `v1`
+([api-versions-clients.md](api-versions-clients.md#5c-one-sdk-line-per-release)),
+so every snippet names the types its pages do; `http` is that release's
+request. `crucible sdk describe` describes every SDK it selects, each
+from its own release's line.
 Each SDK describes its own audience's operations, so an operation may be
 absent from an SDK that does not expose it; a sender-signed operation
 (`sender` in `describe.json`) is in no SDK. The document is refused when
@@ -668,9 +675,17 @@ neither the environment nor the SDKs' README and license files.
   "format": "crucible.sdks/1",
   "service": "example.weather#Weather",
   "sdks": { "ts": {} },
-  "http": { "endpointEnv": "WEATHER_ENDPOINT", "tokenEnv": "WEATHER_TOKEN", "operations": {} }
+  "http": { "endpointEnv": "WEATHER_ENDPOINT", "tokenEnv": "WEATHER_TOKEN", "operations": {} },
+  "lines": { "v1": ["ts-v1"] }
 }
 ```
+
+`lines` (additive, always present) names the SDKs of the other releases
+this audience may see, by release name, each list sorted: the SDK lines a
+reference does not describe, so a site that renders only the current
+release's reference knows they exist and can link the reference
+generated for each. It is empty in a document from `crucible sdk
+describe`, which describes every SDK it selects.
 
 | Field of each SDK (keyed by its `[sdk.<name>]`) | Type and meaning |
 |---|---|

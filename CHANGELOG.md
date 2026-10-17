@@ -28,6 +28,38 @@ version's section when it is prepared.
   `client()`. See
   [docs/api-policy.md](docs/api-policy.md#in-a-cru-packages-manifest).
 
+- **One SDK line per release** (API versions phase 5c; decision 76 in
+  [docs/idl/decisions.md](docs/idl/decisions.md),
+  [docs/api-versions-clients.md](docs/api-versions-clients.md#5c-one-sdk-line-per-release)).
+  Any supported release of a `.cru` service can be generated, from the
+  current model as that release sees it: `crucible_build::model(..)
+  .api_version("v1")` (and `ModelPackage::api_version()`, the release a
+  package's outputs are for), `crucible generate <output> --api-version
+  v1` (also on `check`), and `api_version = "v1"` on an `[sdk.<name>]`
+  entry of `crucible-sdk.toml` (a line has its own name, so it sets
+  `language`: `[sdk.ts-v1]` with `language = "ts"`). Every client, the
+  reference, OpenAPI, the service CLI, infrastructure and `sdks.json`
+  are generated from that release's projection in the chosen audience:
+  its types and routes, what it had that a later release removed, and
+  what was added since. Its clients send the release in
+  `Crucible-Version` and record it as `serviceVersion` in `crucible.json`
+  (schema 2 with the line's own `crucible-model.json` for Rust and
+  TypeScript, schema 1 for the other twelve). A release's reference says
+  `service.version` is the release while `versions.current` is the
+  current one. A reference's `sdks.json` describes the SDKs of its own
+  release (`crucible_codegen::sdks::lines_of`, additive), names the other
+  releases' SDKs by release in `lines` (`crucible.sdks/1`, additive,
+  always present), and each SDK is described from its own line. The default is the current release, and
+  nothing changes without the new key or option. A sunset release can be
+  generated until its migration is removed; a release outside the chain
+  fails naming the supported ones; a server (and `crucible scaffold`) is
+  refused one, since a server serves every release from the current
+  model. In the IR, `crucible_ir::versions::{line, is_line,
+  line_current, releases}`: a line is the release's projection carrying
+  the chain, the current release last, so it is recognized by its
+  `version` naming one of its own `versions`. crucible-ir internals,
+  outside the stable surface.
+
 - Sender-signed operations (decision 81 in
   [docs/idl/decisions.md](docs/idl/decisions.md)): `@sender("Stripe",
   signature: signature)` on a `public` operation says a third party calls
@@ -710,6 +742,30 @@ version's section when it is prepared.
   `Prepare::operations()` is unchanged: each id once.
 
 ### Changed
+
+- `crucible sdk plan` and `build` compare the model an SDK exposes with
+  its last release's: the release's `crucible-model.json` (Rust and
+  TypeScript packages) against the SDK's model now, with the
+  compatibility guard's comparison, both families at error and no
+  exception applied. A finding makes the release breaking, with a
+  `model-break` reason listing the findings in `plan.json`
+  (`crucible_sdk_release::Reason::ModelBreak`,
+  `version::Inputs::model_breaks`): an excepted break is still a break
+  (docs/sdk-packaging.md, "Evidence for the kind"). Before, every change
+  was a patch unless `--bump` said more. A last release whose model this
+  crucible cannot read, or an SDK line's last release without one (every
+  language but Rust and TypeScript), needs `--bump <name>=<kind>`
+  (`VersionError::NeedsBump`, `version::Inputs::unjudged`); a
+  current-release SDK without a model is planned as before. The
+  version-changed warning reads the SDK's own release, which on an SDK
+  line never changes.
+
+- OpenAPI: every operation a client calls takes `Crucible-Version` as a
+  required header parameter fixed to the document's release
+  (`{"type": "string", "const": "<release>"}`), so a third-party generator
+  sends the header Crucible's clients send; a document of an SDK line
+  fixes it to that line's release. A sender-signed operation takes none.
+  See [docs/openapi.md](docs/openapi.md#supported-contract).
 
 - `.cru`: the compiler projects the current model back to every older
   release it serves and checks the projection against the frozen release
@@ -1725,6 +1781,18 @@ version's section when it is prepared.
   they named client text: see *Migration*.
 
 ### Migration
+
+- **An SDK release after an excepted break is a major.** `crucible sdk
+  plan` now compares the model each Rust or TypeScript SDK exposes with
+  its last release's `crucible-model.json`, and a compatibility finding is
+  a break even when a manifest exception lets the model build. So after
+  upgrading, the first release after any excepted guard finding moves the
+  major (below 1.0, the minor): Leyline's TypeScript SDK goes from 0.1.x
+  to 0.2.0 after leyline#401's excepted changes. Nothing to do but expect
+  it; to release it otherwise, the finding has to go. A last release whose
+  `crucible-model.json` this crucible cannot read, and an SDK line in a
+  language without one, now stop the plan until `--bump <name>=<kind>`
+  says how much the release moves.
 
 - **Older releases are checked as the current model sees them.** Once a
   package declares any migration, every finding against an older release

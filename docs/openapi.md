@@ -31,6 +31,13 @@ The emitter supports Crucible JSON. It exports:
 
 - HTTP methods, paths, literal query parameters, labels, query parameters,
   request and response headers, and successful response status codes.
+- The release: `info.version` is the release the document describes, and
+  every operation takes `Crucible-Version` as a required header parameter
+  whose schema is `{"type": "string", "const": "<release>"}`, the header
+  every generated client sends ([api-versions-clients.md](api-versions-clients.md)).
+  A document generated with `--api-version v1` describes release `v1`
+  (an SDK line) and fixes the header to `v1`. A sender-signed operation,
+  which a third party calls, takes none.
 - JSON body projections, raw blob payloads, UTF-8 string payloads, and
   structure, union, and document payloads with their resolved media types.
 - Recursive schemas, JSON property names, enums, integer enums, integer widths,

@@ -240,6 +240,8 @@ fn lower(file: &SdkFile) -> Result<crucible_ir::ir::Service, String> {
             .service
             .as_ref()
             .map(|id| id.parse().expect("the resolver checked the service ID")),
+        // Each SDK selects its own release from the current model.
+        api_version: None,
     };
     let all = crucible_ir::Capabilities::new(crucible_ir::Feature::ALL.iter().copied());
     crate::lower_with_capabilities(&source, &all)
@@ -283,7 +285,7 @@ fn generate(file: &SdkFile, names: &[String]) -> Result<(), String> {
             source: None,
         };
         let files = client
-            .emit_with_provenance(&full, sdk.audience, &stamp)
+            .emit_with_provenance(&*sdk.model(&full)?, sdk.audience, &stamp)
             .map_err(|diagnostics| format!("cannot generate sdk.{}:\n{diagnostics}", sdk.name))?;
         // Writing an earlier SDK may have created a directory this one's
         // `out` aliases (an 8.3 name, a link): checked again right before.

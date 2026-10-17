@@ -163,6 +163,7 @@
     },
     "tokenEnv": "WEATHER_TOKEN"
   },
+  "lines": {},
   "sdks": {
     "c": {
       "audience": "external",

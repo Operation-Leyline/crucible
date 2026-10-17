@@ -19,6 +19,11 @@ impl Service {
     /// A service repository whose SDK file declares `sdks` (appended to a
     /// header naming the model and README), committed.
     fn new(sdks: &str) -> Self {
+        Self::of(&common::shared_package("weather"), "weather", sdks)
+    }
+
+    /// [`Service::new`] for the model package at `model`, as `<name>/`.
+    fn of(model: &Path, name: &str, sdks: &str) -> Self {
         let root = tempfile::tempdir_in(env!("CARGO_TARGET_TMPDIR")).unwrap();
         let service = Self { root };
         fs::write(service.root.path().join("gitconfig"), "").unwrap();
@@ -27,11 +32,11 @@ impl Service {
         let repo = service.repo();
         fs::create_dir_all(repo.join("sdk")).unwrap();
         fs::create_dir_all(repo.join("consumer")).unwrap();
-        common::install_shared(&repo, "weather");
+        common::copy_package(model, &repo.join(name));
         fs::write(repo.join("sdk/README.md"), "# Weather\n\nThe SDK.\n").unwrap();
         fs::write(repo.join("consumer/Cargo.lock"), lock("0.6.1")).unwrap();
         let file = format!(
-            "schema_version = 1\nmodel = \"weather\"\n\n[defaults]\ndescription = \"Client for the Weather API.\"\nreadme = \"sdk/README.md\"\n\n{}",
+            "schema_version = 1\nmodel = \"{name}\"\n\n[defaults]\ndescription = \"Client for the Weather API.\"\nreadme = \"sdk/README.md\"\n\n{}",
             sdks.replace("{remote}", &service.remote_url())
                 .replace(
                     "{remote2}",
@@ -616,4 +621,121 @@ fn an_unversioned_sdk_without_a_channel_round_trips() {
     assert!(verified.contains("sdk.go unversioned"), "{verified}");
     let published = success(service.crucible(&["sdk", "publish", release_arg]));
     assert!(published.contains("sdk.go: no channel"), "{published}");
+}
+
+/// An SDK line of an older release (decision 76) is released like any
+/// SDK. It records its release as `serviceVersion` in every release, so the
+/// version-changed warning never fires on it; an addition that reaches it
+/// is a patch, and a break that reaches it, found by comparing the last
+/// release's `crucible-model.json` with the line now, is a major.
+#[test]
+fn an_sdk_line_is_released_and_classified_by_its_model() {
+    let shop = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../e2e/weather-service/versioned");
+    let service = Service::of(
+        &shop,
+        "shop",
+        "[sdk.rust-v1]\nlanguage = \"rust\"\napi_version = \"v1\"\npackage = \"shop-v1-sdk\"\nout = \"generated/rust-v1\"\n{runtime}\nchannel = { git = \"{remote}\" }\n",
+    );
+    let repo = service.repo();
+    let release = service.release();
+    let release_arg = release.to_str().unwrap();
+    success(service.crucible(&[
+        "sdk",
+        "build",
+        "--out",
+        release_arg,
+        "--first-release",
+        "rust-v1",
+    ]));
+    let provenance =
+        json(&fs::read_to_string(release.join("rust-v1/package/crucible.json")).unwrap());
+    assert_eq!(provenance["serviceVersion"], "v1");
+    let model = crucible_ir::snapshot::read(
+        &fs::read_to_string(release.join("rust-v1/package/crucible-model.json")).unwrap(),
+    )
+    .unwrap();
+    assert_eq!(model.version, "v1");
+    success(service.crucible(&["sdk", "publish", release_arg, "--execute"]));
+    assert_eq!(service.remote_tags(), "v0.1.0");
+
+    // An optional member appended to `Label` reaches v1: a patch, without
+    // a word about the service's version.
+    let source = repo.join("shop/shop.cru");
+    let text = fs::read_to_string(&source).unwrap().replace("\r\n", "\n");
+    let added = text.replacen(
+        "    color?: string\n}",
+        "    color?: string\n    shelf?: string\n}",
+        1,
+    );
+    assert_ne!(added, text);
+    fs::write(&source, &added).unwrap();
+    service.commit("shelf");
+    let output = service.crucible(&["sdk", "plan", "--json"]);
+    let stderr = String::from_utf8_lossy(&output.stderr).into_owned();
+    let plan = json(&success(output));
+    assert_eq!(plan["sdks"]["rust-v1"]["version"], "0.1.1", "{plan}");
+    assert!(!stderr.contains("service version changed"), "{stderr}");
+
+    // Removing `color`, which v4 added and the v1 line received, breaks
+    // the line: a major, with the finding as its reason.
+    fs::write(&source, text.replacen("    color?: string\n", "", 1)).unwrap();
+    service.commit("no color");
+    let plan = json(&success(service.crucible(&["sdk", "plan", "--json"])));
+    assert_eq!(plan["sdks"]["rust-v1"]["version"], "0.2.0", "{plan}");
+    let decision = &plan["sdks"]["rust-v1"]["decision"];
+    let reasons: Vec<&str> = decision["reasons"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|reason| reason["reason"].as_str().unwrap())
+        .collect();
+    assert_eq!(
+        reasons,
+        ["content-changed", "model-break", "change"],
+        "{plan}"
+    );
+    let findings = decision["reasons"][1]["findings"].to_string();
+    assert!(findings.contains("Label$color"), "{findings}");
+}
+
+/// An SDK line in a language whose package carries no
+/// `crucible-model.json` (Go, like the other eleven) cannot have its model
+/// compared, and its `serviceVersion` never changes: its next release is
+/// never planned on its own, but needs `--bump`.
+#[test]
+fn a_line_without_a_model_snapshot_needs_a_bump() {
+    let shop = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../e2e/weather-service/versioned");
+    let service = Service::of(
+        &shop,
+        "shop",
+        "[sdk.go-v1]\nlanguage = \"go\"\napi_version = \"v1\"\npackage = \"shop\"\nmodule_path = \"example.com/shop/v1\"\nout = \"generated/go-v1\"\nchannel = { git = \"{remote}\" }\n",
+    );
+    let repo = service.repo();
+    let release = service.release();
+    let release_arg = release.to_str().unwrap();
+    success(service.crucible(&[
+        "sdk",
+        "build",
+        "--out",
+        release_arg,
+        "--first-release",
+        "go-v1",
+    ]));
+    success(service.crucible(&["sdk", "publish", release_arg, "--execute"]));
+    // Any change since: the plan asks, rather than calling it a patch.
+    let source = repo.join("shop/shop.cru");
+    let text = fs::read_to_string(&source).unwrap().replace("\r\n", "\n");
+    fs::write(&source, text.replacen("    color?: string\n", "", 1)).unwrap();
+    service.commit("no color");
+    let error = failure(service.crucible(&["sdk", "plan", "--json"]));
+    assert!(error.contains("without crucible-model.json"), "{error}");
+    assert!(error.contains("--bump go-v1="), "{error}");
+    let plan = json(&success(service.crucible(&[
+        "sdk",
+        "plan",
+        "--json",
+        "--bump",
+        "go-v1=major",
+    ])));
+    assert_eq!(plan["sdks"]["go-v1"]["version"], "0.2.0", "{plan}");
 }

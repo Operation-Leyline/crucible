@@ -36,6 +36,7 @@ pub(crate) const COMMON_KEYS: &[&str] = &[
 const SDK_KEYS: &[&str] = &[
     "language",
     "audience",
+    "api_version",
     "out",
     "version",
     "test",
@@ -303,6 +304,23 @@ fn sdk(context: &mut Context<'_>, name: &str, table: &Table, defaults: &Common) 
             None => crucible_ir::Audience::External,
         },
     };
+    // The release this SDK is a line of (decision 76). Whether the model
+    // serves it is the generator's to say, against the chain it lowers.
+    let api_version = table
+        .get("api_version")
+        .and_then(|value| string(context, &at("api_version"), value))
+        .filter(|release| {
+            let valid = !release.is_empty() && release.bytes().all(|byte| byte.is_ascii_graphic());
+            if !valid {
+                context.error(
+                    &at("api_version"),
+                    format!(
+                        "{release:?} is not a release name: one a client sends in Crucible-Version, of visible ASCII"
+                    ),
+                );
+            }
+            valid
+        });
     let out = match table.get("out") {
         Some(value) => path_value(context, &at("out"), value),
         None => {
@@ -410,6 +428,7 @@ fn sdk(context: &mut Context<'_>, name: &str, table: &Table, defaults: &Common) 
         name: name.into(),
         language: language?,
         audience,
+        api_version,
         out: out?,
         version,
         options,

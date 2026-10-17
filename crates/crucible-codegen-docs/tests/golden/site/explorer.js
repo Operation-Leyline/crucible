@@ -593,7 +593,11 @@
       const carrier = m.versions.carrier || {};
       out.push(
         h("h2", {}, "Releases"),
-        h("p", {}, "The current release is ", code(m.versions.current), ". A client names the release it was built for in the ", code(carrier.name), " header."),
+        // A reference of an older release (an SDK line) documents that
+        // release, and says which is current.
+        s.version !== m.versions.current
+          ? h("p", {}, "This reference documents release ", code(s.version), "; the current release is ", code(m.versions.current), ". A client names the release it was built for in the ", code(carrier.name), " header.")
+          : h("p", {}, "The current release is ", code(m.versions.current), ". A client names the release it was built for in the ", code(carrier.name), " header."),
         h("ul", { class: "cx-list" }, m.releases.map((r) => h("li", {}, link("release", r.name, r.name), " ", releaseBadges(r), r.sunset ? h("span", { class: "cx-muted" }, " — supported until ", code(r.sunset)) : null))),
       );
     }

@@ -29,6 +29,7 @@ fn load(path: &Path, service: Option<&ShapeId>) -> Result<Service, String> {
         &crate::Source {
             model: path.to_path_buf(),
             service: service.cloned(),
+            api_version: None,
         },
         false,
     )

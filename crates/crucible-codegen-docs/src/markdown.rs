@@ -11,12 +11,29 @@ const GENERATED_NOTE: &str = "Generated from the model's types and constraints, 
 /// What a request without the release header gets (docs/api-versions.md).
 const VERSION_NOTE: &str = "A request without it is served at the release the service chooses for unversioned requests, which may be an older one.";
 
-/// The `Crucible-Version: <current>` line every request of a versioned
-/// service sends, or nothing for a service without an `api_version`.
+/// The release this reference documents: the service's `version`, which a
+/// reference of an older release (an SDK line, decision 79) names while
+/// `versions.current` names the current one. `None` for a service without
+/// an `api_version`.
+fn documented(d: &Description) -> Option<&str> {
+    d.versions["current"].as_str()?;
+    d.service["version"].as_str()
+}
+
+/// The documented and current releases, when this reference documents an
+/// older release than the current one.
+fn older_release(d: &Description) -> Option<(&str, &str)> {
+    let current = d.versions["current"].as_str()?;
+    let documented = documented(d)?;
+    (documented != current).then_some((documented, current))
+}
+
+/// The `Crucible-Version: <release>` line every request of a versioned
+/// service sends at the release this reference documents, or nothing for a
+/// service without an `api_version`.
 fn version_header(d: &Description) -> Option<String> {
     let name = d.versions["carrier"]["name"].as_str()?;
-    let current = d.versions["current"].as_str()?;
-    Some(format!("{name}: {current}"))
+    Some(format!("{name}: {}", documented(d)?))
 }
 
 /// The request header an authentication scheme puts on the wire, as the
@@ -220,8 +237,16 @@ pub(super) fn render(service: &Service, d: &Description) -> Vec<File> {
         code(string(&d.service["protocol"]))
     );
     if let Some(header) = version_header(d) {
+        let which = match older_release(d) {
+            Some((documented, current)) => format!(
+                ". This reference documents release {}; the current release is {}.",
+                release_code(documented),
+                release_code(current)
+            ),
+            None => ", the current release.".to_owned(),
+        };
         index.push_str(&format!(
-            "Every request names the release it is written for in a header: {}, the current release. {}\n\n",
+            "Every request names the release it is written for in a header: {}{which} {}\n\n",
             release_code(&header),
             VERSION_NOTE
         ));
@@ -461,6 +486,13 @@ fn llms(d: &Description, pages: &[File]) -> [File; 2] {
             "Send `Authorization: Bearer <token>` unless an operation's page says it takes no credential."
                 .into(),
         );
+    }
+    if let Some((documented, current)) = older_release(d) {
+        facts.push(format!(
+            "This reference documents release {}; the current release is {}, which has a reference of its own.",
+            code_span(documented),
+            code_span(current)
+        ));
     }
     if let Some(header) = version_header(d) {
         // A third party's request names no release (decision 81).
@@ -1534,8 +1566,14 @@ fn type_of(d: &Description, id: &Value) -> String {
 /// `releases.md`: every supported release, oldest first.
 fn releases_page(d: &Description) -> String {
     let versions = &d.versions;
+    let documents = older_release(d).map_or_else(String::new, |(documented, _)| {
+        format!(
+            " This reference documents release {}.",
+            release_code(documented)
+        )
+    });
     let mut out = format!(
-        "# Releases\n\nThe current release is {}. A client names the release it was built for in the {} header.\n\n| Release | Follows | Sunset | Changes |\n|---|---|---|---|\n",
+        "# Releases\n\nThe current release is {}.{documents} A client names the release it was built for in the {} header.\n\n| Release | Follows | Sunset | Changes |\n|---|---|---|---|\n",
         release_code(string(&versions["current"])),
         code(string(&versions["carrier"]["name"]))
     );

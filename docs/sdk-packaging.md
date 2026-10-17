@@ -99,6 +99,18 @@ Rules:
   (`rust`, `ts`, `python`, ... as `crucible generate` spells them), so
   `[sdk.java-internal]` sets `language = "java"` and
   `audience = "internal"`.
+- **`api_version`** *(built)* makes the SDK a line of that supported
+  release of a `.cru` service ([api-versions-clients.md](api-versions-clients.md#5c-one-sdk-line-per-release),
+  decision 76): it is generated from the current model as the release
+  sees it, sends the release in `Crucible-Version` and records it as
+  `serviceVersion`. Unset, the SDK is the current release's. A line has
+  its own name, so it names its language: `[sdk.ts-v1]` sets
+  `language = "ts"` and `api_version = "v1"`, with its own `out`,
+  channel and tag. A release the model does not serve is an error at
+  `sdk.<name>.api_version` naming the supported ones, when the SDK is
+  generated; a sunset release is served until its migration is removed.
+  Whether a line shares a package name with the current one is the
+  publisher's choice.
 - **`package`** is what the language's builder `.package(..)` sets: the
   Cargo, npm, Python, Ruby or R package, or for Java and Kotlin, the Java
   package.
@@ -240,8 +252,10 @@ the floor to `1.0.0` makes it.
 says more, with the floor in the file or `--bump rust=minor` on the run.
 Both are recorded in the release record. For a `.cru` service, it warns
 when `serviceVersion` changed since the last release (schema-1
-`crucible.json` records it) and suggests `--bump major`. Computed kinds
-come later, and only ever raise the bump.
+`crucible.json` records it) and suggests `--bump major`; it compares the
+SDK's own release, which on an SDK line never changes. Computed kinds
+come later, and only ever raise the bump; the model check (below) is
+built.
 
 **First release.** An empty channel looks the same as a private channel
 read without credentials: npm answers 404 to both. So the first release
@@ -272,6 +286,12 @@ plan collects every signal, and the kind is the strongest one:
 - **The model check always runs both families, at error.** The service's
   `[compatibility]` settings tune its build, not its releases. An
   excepted finding is still a break: the exception only lets it compile.
+  *(Built: `crucible sdk plan` compares the last release's
+  `crucible-model.json` with the SDK's model now, its line's for an SDK
+  line, and a finding is a `model-break` reason that makes the release
+  breaking. A snapshot this crucible cannot read needs `--bump`, as a
+  release without one does where the plan must judge it (an SDK line,
+  below); a current-release SDK without one is not compared yet.)*
 - **Both models are seen as the SDK's audience sees them,** so a change to
   `@internal` API never moves an external SDK.
 - **The baseline is the snapshot the last release carries.** Every package
@@ -305,10 +325,18 @@ entry `0` *(built)*. The *stable-surface diff* checklist in
 [releases.md](releases.md) gains the rule: a PR that changes a generator's
 public output or a runtime's public API adds an entry.
 
-Per-release SDK lines ([api-versions-clients.md](api-versions-clients.md),
-phase 5c) come later. Each has its own identity on its channel (a
-package, tag prefix or dist-tag), and only the current line moves npm's
-`latest`.
+**Per-release SDK lines** *(built: [api-versions-clients.md](api-versions-clients.md#5c-one-sdk-line-per-release),
+phase 5c)*. An SDK with `api_version` is a line of an older release, with
+its own identity on its channel (a package, tag prefix or dist-tag); only
+the current line should move npm's `latest`. Its `serviceVersion` is its
+release in every release it makes, so the "`version` changed" signal
+never fires on it, and its releases are classified by the other signals:
+an excepted break that reaches the release's projection is a major of
+that line, found by the model check above *(built)*. Only Rust and
+TypeScript packages carry `crucible-model.json` today, so a line in any of
+the other twelve languages has nothing to compare: its next release is
+never planned on its own, but needs `--bump <name>=patch|minor|major`
+*(built)*.
 
 ### Planned state and published state *(built)*
 

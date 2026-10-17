@@ -1237,3 +1237,48 @@ fn an_operation_a_projection_lost_is_reported() {
         ]
     );
 }
+
+/// An SDK line (decision 76) is one release as the current model sees it;
+/// a server serves every release from the current model, so the generator
+/// refuses one, and generates the current release as always.
+#[test]
+fn a_server_is_never_generated_from_an_sdk_line() {
+    let fixture = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../e2e/weather-service/versioned");
+    let current = lower(&fixture);
+    let line = crucible_ir::versions::line(&current, "v2").unwrap();
+    let error = generate(&line, &Options::default())
+        .unwrap_err()
+        .to_string();
+    assert!(
+        error.contains("this model is release \"v2\" as the current model sees it, an SDK line"),
+        "{error}"
+    );
+    let same = crucible_ir::versions::line(&current, "v4").unwrap();
+    assert!(generate(&same, &Options::default()).is_ok());
+}
+
+/// The client of release v1, an SDK line: v1's types and routes, the
+/// operation v3 removed, the operations added since, and v1 as the release
+/// every operation names.
+#[test]
+fn the_versioned_fixtures_v1_client_matches_golden() {
+    let fixture = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../e2e/weather-service/versioned");
+    let line = crucible_ir::versions::line(&lower(&fixture), "v1").unwrap();
+    let client = crucible_ir::client_view(
+        &crucible_ir::project(&line, crucible_ir::Audience::External).unwrap(),
+    );
+    let code = crucible_codegen_rust::generate_client(&client).unwrap();
+    assert!(code.contains(r#"::std::option::Option::Some("v1")"#));
+    assert!(!code.contains(r#"::std::option::Option::Some("v4")"#));
+    assert!(code.contains("CountItems"));
+    let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/golden/versioned_v1_client.rs");
+    if std::env::var_os("CRUCIBLE_BLESS").is_some() {
+        fs::write(&path, &code).unwrap();
+    }
+    let golden = fs::read_to_string(&path).expect("golden exists; bless to create it");
+    assert!(
+        golden.replace("\r\n", "\n") == code,
+        "generated code differs from {}; rerun with CRUCIBLE_BLESS=1 and read the diff",
+        path.display()
+    );
+}

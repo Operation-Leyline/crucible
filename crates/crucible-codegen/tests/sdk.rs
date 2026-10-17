@@ -416,6 +416,109 @@ fn the_effective_configuration_is_json_with_digests() {
     assert_eq!(json["sdks"]["java-internal"]["audience"], "internal");
 }
 
+/// `api_version` makes an entry a line of an older release (decision 76).
+/// A line has its own name, so it names its `language`; the key is in its
+/// effective configuration, and an entry without it keeps the digest it had
+/// before the key existed.
+#[test]
+fn an_sdk_names_the_release_it_is_a_line_of() {
+    let text = r#"
+schema_version = 1
+model = "model"
+
+[sdk.ts]
+package = "@example/weather"
+out = "generated/ts"
+
+[sdk.ts-v1]
+language = "ts"
+api_version = "2026-01-01"
+package = "@example/weather-v1"
+out = "generated/ts-v1"
+"#;
+    let (_directory, path) = repository(text);
+    let file = sdk::load(&path).unwrap();
+    assert_eq!(file.sdks["ts"].api_version, None);
+    let line = &file.sdks["ts-v1"];
+    assert_eq!(line.language, Language::Ts);
+    assert_eq!(line.api_version.as_deref(), Some("2026-01-01"));
+    let json = file.to_json();
+    assert_eq!(json["sdks"]["ts-v1"]["api_version"], "2026-01-01");
+    assert!(json["sdks"]["ts"].get("api_version").is_none());
+    // The key is part of the configuration: another release is another SDK.
+    let other = text.replace("2026-01-01", "2026-06-01");
+    let (_other_directory, other_path) = repository(&other);
+    let other = sdk::load(&other_path).unwrap();
+    assert_ne!(
+        line.config_sha256(&file),
+        other.sdks["ts-v1"].config_sha256(&other)
+    );
+    assert_eq!(
+        file.sdks["ts"].config_sha256(&file),
+        other.sdks["ts"].config_sha256(&other)
+    );
+
+    // A line named for no language says which it is.
+    let found = errors(&text.replace("language = \"ts\"\n", ""));
+    assert!(
+        found
+            .iter()
+            .any(|error| error.contains("sdk.ts-v1") && error.contains("set `language`")),
+        "{found:#?}"
+    );
+    // A release name travels in a header, so it is visible ASCII; and it is
+    // a string, never empty.
+    for (value, message) in [
+        ("\"v 1\"", "is not a release name"),
+        ("\"\"", "is empty"),
+        ("1", "must be a string"),
+    ] {
+        let found = errors(&text.replace("\"2026-01-01\"", value));
+        assert_error(&found, "sdk.ts-v1.api_version", message);
+    }
+    // `[defaults]` holds only the common keys.
+    let found = errors(&text.replace(
+        "[sdk.ts]",
+        "[defaults]\napi_version = \"2026-01-01\"\n\n[sdk.ts]",
+    ));
+    assert_error(
+        &found,
+        "defaults.api_version",
+        "[defaults] holds only the common keys",
+    );
+}
+
+/// Each SDK generates from its own line of the model; a release the model
+/// does not serve is an error at the SDK's key naming those it does.
+#[test]
+fn an_sdks_model_is_its_line() {
+    let service = common::load("weather");
+    let text = r#"
+schema_version = 1
+model = "model"
+
+[sdk.ts]
+package = "@example/weather"
+out = "generated/ts"
+
+[sdk.ts-old]
+language = "ts"
+api_version = "0"
+package = "@example/weather-old"
+out = "generated/ts-old"
+"#;
+    let (_directory, path) = repository(text);
+    let file = sdk::load(&path).unwrap();
+    assert_eq!(
+        file.sdks["ts"].model(&service).unwrap().version,
+        service.version
+    );
+    let error = file.sdks["ts-old"].model(&service).unwrap_err();
+    assert!(error.starts_with("sdk.ts-old.api_version: "), "{error}");
+    assert!(error.contains(r#"release "0" is not one"#), "{error}");
+    assert!(error.contains(&format!("{:?}", service.version)), "{error}");
+}
+
 #[test]
 fn the_file_is_found_up_to_the_repository_root() {
     let (directory, path) = repository("schema_version = 1\nmodel = \"m\"\n");

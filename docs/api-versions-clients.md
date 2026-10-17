@@ -1,9 +1,10 @@
 # API versions and clients
 
 **Status: 5a built (clients send their release), the reference's
-release history (PR 3), and 5b built: the projections (PR 4), checked by
-the compiler (PR 5) and served by the Rust server (PR 6); 5c settled and
-ready to build (decisions 68-79, 82); 5d designed.** Phases 1-4 are built: a `.cru` service declares its breaking changes as
+release history (PR 3), 5b built: the projections (PR 4), checked by
+the compiler (PR 5) and served by the Rust server (PR 6), and 5c built:
+one SDK line per release (PR 7); a reference per release (PR 8) and 5d
+designed (decisions 68-79, 82).** Phases 1-4 are built: a `.cru` service declares its breaking changes as
 migrations, and a Rust service serves every supported release from its
 current handlers ([api-versions.md](api-versions.md)). This document is
 how clients take part, following decisions 51, 57 and 57a in
@@ -564,6 +565,44 @@ A client, document or CLI can be generated for any supported release
 - **The CLI shares the build's lowering:** `crucible_lang::versions` and
   the same projection, so the two cannot produce different lines.
 - A sunset release can still be generated until its migration is removed.
+- **What PR 7 settled in building it.** A line is
+  `crucible_ir::versions::line(service, release)`: the release's
+  projection (`ApiVersion::service`) carrying the whole chain, every
+  older release as lowered and then the current release as one more
+  entry whose `service` and `release` are the current model. So a line
+  is recognized as decision 76 says (`is_line`: its `version` names one of
+  its own `versions`), and what reads one can still find the current
+  release (`line_current`): the reference's `versions` block is the
+  current reference's, `versions.current` naming the current release
+  while `service.version` names the line's, and its elements are dated as
+  the current model dates them (PR 8 dates what undo restored within the
+  chain that ends at its release). The current release's line is the
+  current model itself, and a line is never projected again. A release
+  outside the chain is a diagnostic naming the supported releases, oldest
+  first (`releases`). The build (`Model::api_version`, with
+  `ModelPackage::api_version()` naming the package's release), the CLI
+  (`--api-version` on every `generate` target and on `check`) and the
+  SDK file (`Sdk::model`) call that one function on the model as
+  `check_in` lowers it, so the three cannot produce different lines;
+  policy runs on the current model, as written. The Rust server
+  generator refuses a line, and so does `crucible scaffold`. A line's
+  audience is projected after the release (release first, audience
+  second). `sdks.json` describes each SDK from its own line, and a
+  reference describes the SDKs of its own release
+  (`crucible_codegen::sdks::lines_of`), so its snippets name its types.
+  The release rule compares the model an SDK exposes with its last
+  release's `crucible-model.json` at error for both families, with no
+  exception (`model-break`), and the version-changed warning reads the
+  SDK's own release, which a line never changes; that comparison runs for
+  every SDK whose last release carries the snapshot, not only lines. A
+  line whose last release has none (every language but Rust and
+  TypeScript), or any SDK whose snapshot cannot be read, needs `--bump`:
+  nothing else would see a break that reaches it. A line's reference
+  shows `Crucible-Version: <its release>` on every request it documents
+  and says which release is current (the index, `llms.txt`, the releases
+  page and the Explorer); OpenAPI declares the header as a required
+  parameter fixed to the document's release, for the current release too;
+  and `sdks.json` names the other releases' SDKs in `lines`.
 
 ## API documentation across releases
 
@@ -739,7 +778,7 @@ symbol to its own.
 ## Order
 
 Each line is one pull request, in this order unless it says otherwise. 5a
-is built, and so are PRs 1 to 6.
+is built, and so are PRs 1 to 7.
 
 1. **Steps carry both sides.** *Built.* `VersionStep::Require` gains `old`
    and `from`, `Hook::Require` gains `from`, `AddEnumValue` gains `old`,
@@ -901,13 +940,40 @@ is built, and so are PRs 1 to 6.
    them. Leyline's and Pigeon's generated servers, which have
    no migrations, are byte-identical before and after.
 7. **One SDK line per release (5c),** after PR 5 (it needs projections,
-   not the server). `ModelPackage::api_version`, `--api-version`, the SDK
+   not the server). *Built.* `ModelPackage::api_version`, `--api-version`, the SDK
    file's `api_version` (listed in sdk-packaging.md section 1), the server
    refusal. *Crates:* crucible-lang, crucible-build, crucible-cli,
    crucible-codegen. *Tests:* a TypeScript golden at `v1` (header value,
    types); an unknown release; SDK file resolution;
    `tools/test_api_version_clients.py`; once PR 6 lands,
    `tools/test-e2e.sh` builds the Rust client at `v1` and calls the server.
+   *As built:* the line is `crucible_ir::versions::line` (see *What PR 7
+   settled*, above), with the server refusal in crucible-codegen-rust,
+   the reference's `versions` block for a line in crucible-codegen-common,
+   and the release rule's model comparison in crucible-sdk-release and the
+   CLI. The tests are `crucible-lang/tests/lines.rs` (the line is its
+   release's projection, recognized, the current release itself, an
+   unknown release, a sunset release); goldens of the e2e shop's `v1`
+   line in TypeScript (`crucible-codegen-ts/tests/golden/shop-v1`) and
+   Rust (`crucible-codegen-rust/tests/golden/versioned_v1_client.rs`,
+   with the server refusal), and `crucible-codegen/tests/lines.rs`, which
+   checks that all 14 clients record `serviceVersion` `v1` and send only
+   `v1`, and checks in every language's `v1` surface
+   (`tests/golden/shop-v1.sdks.json`); SDK file parsing of `api_version`
+   and `language` in `crucible-codegen/tests/sdk.rs`; the build
+   (`crucible-build/tests/api_versions.rs`) and the CLI
+   (`crucible-cli/tests/api_versions.rs`: every output, the refusals, the
+   SDK file, a reference's `sdks.json`); the release rule's unit tests and
+   `crucible-cli/tests/sdk_release.rs`, which releases a `v1` line on a
+   git channel, then plans a patch for an addition and a major for a
+   break that reaches it. Over HTTP, `e2e/weather-service/tests/api_versions.rs`
+   calls the shop at `v1` with its generated Rust `v1` line, and
+   `tools/test-e2e.sh` generates the TypeScript `v1` line with
+   `--api-version`, serves the shop
+   (`e2e/weather-service/examples/versioned_shop.rs`, refusing requests
+   that name no release) and drives it (`e2e/ts/shop-v1.e2e.test.ts`).
+   `tools/test_api_version_clients.py` is unchanged: the generated
+   packages are checked in Rust instead.
 8. **A reference per release.** History for projections (an element
    restored from frozen `r` dated within the chain that ends at `r`;
    `missing` is computed since PR 3), and the renderer's release banner. *Crates:* crucible-ir,

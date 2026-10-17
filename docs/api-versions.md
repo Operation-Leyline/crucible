@@ -25,8 +25,11 @@ Phase 4 adds the hooked steps (`by hook`, `reshape`, `retype`,
 [api-versions-clients.md](api-versions-clients.md): generated clients
 send their version (built), older versions are projections of the
 current model (built: the compiler checks them and the Rust server serves
-them), with an SDK line and a reference per version, and upgrade guides
-(settled in decisions 68-79).
+them), with an SDK line per version (built: `model(..).api_version(..)`,
+`crucible generate <output> --api-version` and an SDK file entry's
+`api_version` generate every output but a server for a supported
+version), a reference per version, and upgrade guides (settled in
+decisions 68-79).
 
 ## Versions
 

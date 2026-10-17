@@ -284,6 +284,16 @@
                 "description": "Creates Lisbon with coordinates."
               }
             }
+          },
+          {
+            "name": "Crucible-Version",
+            "in": "header",
+            "required": true,
+            "description": "The release this request is written for: 2026-10-01, the release this document describes.",
+            "schema": {
+              "type": "string",
+              "const": "2026-10-01"
+            }
           }
         ]
       },
@@ -504,6 +514,16 @@
                   "capital"
                 ]
               }
+            }
+          },
+          {
+            "name": "Crucible-Version",
+            "in": "header",
+            "required": true,
+            "description": "The release this request is written for: 2026-10-01, the release this document describes.",
+            "schema": {
+              "type": "string",
+              "const": "2026-10-01"
             }
           }
         ]
@@ -778,6 +798,16 @@
                 "value": "2026-01-02T03:04:05Z"
               }
             }
+          },
+          {
+            "name": "Crucible-Version",
+            "in": "header",
+            "required": true,
+            "description": "The release this request is written for: 2026-10-01, the release this document describes.",
+            "schema": {
+              "type": "string",
+              "const": "2026-10-01"
+            }
           }
         ]
       }
@@ -980,6 +1010,16 @@
             },
             "style": "simple",
             "explode": false
+          },
+          {
+            "name": "Crucible-Version",
+            "in": "header",
+            "required": true,
+            "description": "The release this request is written for: 2026-10-01, the release this document describes.",
+            "schema": {
+              "type": "string",
+              "const": "2026-10-01"
+            }
           }
         ]
       },
@@ -1200,6 +1240,16 @@
             },
             "style": "simple",
             "explode": false
+          },
+          {
+            "name": "Crucible-Version",
+            "in": "header",
+            "required": true,
+            "description": "The release this request is written for: 2026-10-01, the release this document describes.",
+            "schema": {
+              "type": "string",
+              "const": "2026-10-01"
+            }
           }
         ]
       }
@@ -1326,7 +1376,19 @@
           "message": "Use Status instead.",
           "since": "2026-09"
         },
-        "x-crucible-readonly": true
+        "x-crucible-readonly": true,
+        "parameters": [
+          {
+            "name": "Crucible-Version",
+            "in": "header",
+            "required": true,
+            "description": "The release this request is written for: 2026-10-01, the release this document describes.",
+            "schema": {
+              "type": "string",
+              "const": "2026-10-01"
+            }
+          }
+        ]
       }
     },
     "/status": {
@@ -1454,7 +1516,19 @@
         ],
         "x-crucible-shape": "example.weather#Status",
         "x-crucible-traits": {},
-        "x-crucible-readonly": true
+        "x-crucible-readonly": true,
+        "parameters": [
+          {
+            "name": "Crucible-Version",
+            "in": "header",
+            "required": true,
+            "description": "The release this request is written for: 2026-10-01, the release this document describes.",
+            "schema": {
+              "type": "string",
+              "const": "2026-10-01"
+            }
+          }
+        ]
       }
     }
   },

@@ -427,6 +427,9 @@ pub struct ServerOutput {
     pub(crate) policy: Option<PathBuf>,
     /// Show the model's warnings and policy findings ([`Model::report_warnings`]).
     pub(crate) report: bool,
+    /// The release a client is generated for (`Model::api_version`); a
+    /// server refuses any but the current one.
+    pub(crate) api_version: Option<String>,
     model_output: Option<PathBuf>,
 }
 
@@ -451,6 +454,7 @@ impl ServerOutput {
             explorer_audience: Audience::Internal,
             policy: None,
             report: true,
+            api_version: None,
             model_output: None,
         }
     }
@@ -593,6 +597,9 @@ impl ServerOutput {
         if let Some(policy) = &self.policy {
             check_policy(&service, policy, self.report)?;
         }
+        // A client of an older release is that release's line; a server
+        // is refused one, by the generator, since it serves every release.
+        let service = line(service, self.api_version.as_deref())?;
         let service = if self.side == Side::Client {
             // A client never calls a sender-signed operation (decision 81).
             crucible_ir::client_view(
@@ -624,6 +631,19 @@ impl ServerOutput {
                 self.model.display()
             )
         })
+    }
+}
+
+/// `service` as the supported release `release` sees it (an SDK line,
+/// decision 76), or `service` itself without one. A release outside the
+/// chain is an error naming the supported releases.
+fn line(
+    service: crucible_ir::ir::Service,
+    release: Option<&str>,
+) -> Result<crucible_ir::ir::Service, String> {
+    match release {
+        None => Ok(service),
+        Some(release) => crucible_ir::versions::line(&service, release).map_err(|d| d.to_string()),
     }
 }
 

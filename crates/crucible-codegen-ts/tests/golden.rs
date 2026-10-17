@@ -903,3 +903,72 @@ fn doc_links_are_tsdoc_link_tags() {
         );
     }
 }
+
+/// Release v1 of the e2e versioned shop, an SDK line (docs/api-versions-
+/// clients.md, 5c): the current model (v4) as v1 sees it. Its operations
+/// send v1 in `Crucible-Version`, and its types are v1's: `max` where v2
+/// renamed it `limit`, `name` where v2 renamed it `title`, the operation v3
+/// removed, and the operations added since, in v1's shapes.
+#[test]
+fn a_v1_line_matches_golden_files() {
+    let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../e2e/weather-service/versioned");
+    let current = crucible_lang::load_versioned_service(&dir).unwrap_or_else(|e| panic!("{e}"));
+    let line = crucible_ir::versions::line(&current, "v1").unwrap();
+    let service = crucible_ir::client_view(
+        &crucible_ir::project(&line, crucible_ir::Audience::External).unwrap(),
+    );
+    let options = Options {
+        package_name: "@example/shop-v1".into(),
+        package_version: "0.0.0-dev".into(),
+        client_name: None,
+        endpoint: None,
+        middleware: vec![],
+        package_json: None,
+        metadata: Default::default(),
+    };
+    let files = emit(&service, &options).unwrap();
+    let file = |path: &str| {
+        files
+            .iter()
+            .find(|file| file.path == path)
+            .unwrap_or_else(|| panic!("no {path}"))
+            .contents
+            .as_str()
+    };
+    let schemas = file("src/schemas.ts");
+    assert!(schemas.contains(r#"apiVersion: "v1""#), "{schemas}");
+    assert!(!schemas.contains(r#"apiVersion: "v4""#), "{schemas}");
+    let client = file("src/client.ts");
+    for method in ["countItems(", "getLabel(", "putLabel(", "listLabels("] {
+        assert!(client.contains(method), "{method}");
+    }
+    let models = file("src/models.ts");
+    assert!(models.contains("  max?: number;"), "{models}");
+    assert!(models.contains("  name: string;"), "{models}");
+    assert!(!file("src/errors.ts").contains("ItemGoneException"));
+    let golden = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/golden/shop-v1");
+    let bless = std::env::var_os("CRUCIBLE_BLESS").is_some();
+    let mut stale = Vec::new();
+    for file in &files {
+        if file.path == "src/runtime.ts" {
+            continue;
+        }
+        let path = golden.join(&file.path);
+        if bless {
+            fs::create_dir_all(path.parent().unwrap()).unwrap();
+            fs::write(&path, &file.contents).unwrap();
+        } else if fs::read_to_string(&path)
+            .map(|s| s.replace("\r\n", "\n"))
+            .ok()
+            .as_ref()
+            != Some(&file.contents)
+        {
+            stale.push(file.path.clone());
+        }
+    }
+    assert!(
+        stale.is_empty(),
+        "generated output differs from tests/golden/shop-v1 in {stale:?}; \
+         review the change and rerun with CRUCIBLE_BLESS=1"
+    );
+}

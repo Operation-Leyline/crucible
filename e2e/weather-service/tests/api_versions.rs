@@ -7,130 +7,12 @@ use std::sync::Arc;
 
 use axum::body::Body;
 use axum::http::{HeaderMap, Request, StatusCode};
-use crucible_server_runtime_rust::{Crucible, Result, Unversioned, WithContext};
+use crucible_server_runtime_rust::{Crucible, Unversioned};
 use serde_json::{Value, json};
 
 include!(concat!(env!("OUT_DIR"), "/versioned.rs"));
-use shop::{
-    DeleteItemInput, DeleteItemOperation, DeleteItemOutput, GetItemInput, GetItemOperation,
-    GetItemOutput, GetLabelInput, GetLabelOperation, GetLabelOutput, ItemGoneException, Kind,
-    Label, ListItemsInput, ListItemsOperation, ListItemsOutput, ListLabelsOperation,
-    ListLabelsOutput, PutLabelInput, PutLabelOperation, PutLabelOutput, RecordPaymentInput,
-    RecordPaymentOperation, RecordPaymentOutput,
-};
-
-struct Shop;
-
-/// Item `id`'s label: a big item has a size and a color.
-fn label(id: &str) -> Label {
-    let big = id == "big";
-    Label {
-        title: format!("item {id}"),
-        size: big.then(|| "9".to_owned()),
-        color: big.then(|| "red".to_owned()),
-    }
-}
-
-impl GetItemOperation for Shop {
-    async fn get_item(&self, input: GetItemInput) -> Result<GetItemOutput> {
-        if input.id == "gone" {
-            return Err(ItemGoneException {
-                message: "sold out".to_owned(),
-            }
-            .into());
-        }
-        Ok(GetItemOutput {
-            label: label(&input.id),
-            kind: if input.id == "big" {
-                Kind::Huge
-            } else {
-                Kind::Small
-            },
-        })
-    }
-}
-
-impl ListItemsOperation for Shop {
-    async fn list_items(&self, input: ListItemsInput) -> Result<ListItemsOutput> {
-        // The version the request is served at, and what the
-        // implementation sees.
-        let version = self.context().api_version().map(|v| v.name());
-        Ok(ListItemsOutput {
-            names: vec![
-                version.unwrap_or("none").to_owned(),
-                input.limit.to_string(),
-                input.sort,
-            ],
-            kinds: vec![Kind::Small, Kind::Huge],
-        })
-    }
-}
-
-impl ListLabelsOperation for Shop {
-    async fn list_labels(&self) -> Result<ListLabelsOutput> {
-        Ok(ListLabelsOutput {
-            labels: vec![label("big"), label("a")],
-            kinds: vec![Kind::Huge, Kind::Small],
-        })
-    }
-}
-
-impl GetLabelOperation for Shop {
-    async fn get_label(&self, input: GetLabelInput) -> Result<GetLabelOutput> {
-        Ok(GetLabelOutput {
-            label: label(&input.id),
-        })
-    }
-}
-
-impl PutLabelOperation for Shop {
-    async fn put_label(&self, input: PutLabelInput) -> Result<PutLabelOutput> {
-        // The current size is a word: say which release's client sent it.
-        let version = self.context().api_version().map(|v| v.name());
-        let mut label = input.label;
-        assert!(
-            label
-                .size
-                .as_deref()
-                .is_none_or(|size| size.parse::<i32>().is_ok()),
-            "{version:?}: {label:?}"
-        );
-        label.color = Some(format!("{} for {}", version.unwrap_or("none"), input.id));
-        Ok(PutLabelOutput { label })
-    }
-}
-
-impl DeleteItemOperation for Shop {
-    async fn delete_item(&self, input: DeleteItemInput) -> Result<DeleteItemOutput> {
-        // v3's force is a word; older clients sent a boolean.
-        Ok(DeleteItemOutput {
-            deleted: format!("gone {}", input.force.as_deref().unwrap_or("-")),
-        })
-    }
-}
-
-impl RecordPaymentOperation for Shop {
-    async fn record_payment(&self, input: RecordPaymentInput) -> Result<RecordPaymentOutput> {
-        // The handler verifies the signature; here, that it arrived.
-        assert_eq!(input.signature, "t=1,v1=abc");
-        let version = self.context().api_version().map(|v| v.name());
-        Ok(RecordPaymentOutput {
-            release: version.unwrap_or("none").to_owned(),
-        })
-    }
-}
-
-// Every migration's hooks, which tests/api_versions_additive.rs compiles
-// unchanged against the model with an addition that reaches a hooked shape.
-include!("support/versioned_hooks.rs");
-
-fn service(unversioned: Unversioned) -> Crucible {
-    Crucible::builder(shop::operations(Arc::new(Shop)))
-        .defaults()
-        .api_version(unversioned)
-        .build()
-        .unwrap()
-}
+include!("support/versioned_shop.rs");
+use versioned_shop::{Shop, service};
 
 async fn call(
     service: &Crucible,
@@ -552,6 +434,74 @@ async fn a_generated_client_names_its_release() {
         serde_json::to_value(&output).unwrap(),
         json!({ "label": { "title": "item big", "size": "9", "color": "red" }, "kind": "HUGE" })
     );
+}
+
+/// A generated input, from its JSON.
+fn input<T: serde::de::DeserializeOwned>(value: Value) -> T {
+    serde_json::from_value(value).unwrap()
+}
+
+// Release v1's SDK line (decision 76): the current model as v1 sees it.
+#[allow(clippy::enum_variant_names)]
+mod shop_v1_client {
+    include!(concat!(env!("OUT_DIR"), "/versioned_v1_client.rs"));
+}
+
+/// A client of release v1, generated with `.api_version("v1")` from the
+/// current model (docs/api-versions-clients.md, 5c): v1's routes and
+/// shapes, what v1 had that a later release removed, what was added since,
+/// and v1 in `Crucible-Version`. The server refuses a request that names
+/// no release, so every call below names v1.
+#[tokio::test]
+async fn a_release_v1_sdk_line_calls_the_server_at_v1() {
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let endpoint = format!("http://{}", listener.local_addr().unwrap());
+    let server = tokio::spawn(crucible_server_runtime_rust::host::http_on(
+        service(Unversioned::Required),
+        listener,
+    ));
+    let client =
+        shop_v1_client::ShopClient::new(crucible_client_runtime_rust::Config::new(endpoint));
+    // v1's route and names: the item's `name`, its size a number, no HUGE.
+    let item = client
+        .get_item(input(json!({ "id": "big" })))
+        .await
+        .unwrap();
+    // v1's page size is `max`, and the hook supplies the sort order it
+    // never sent.
+    let items = client.list_items(input(json!({ "max": 1 }))).await.unwrap();
+    // Removed in v3, still v1's.
+    let count = client.count_items(input(json!({}))).await.unwrap();
+    // Added in v3 and v4, they reach v1 in its shapes.
+    let labels = client.list_labels().await.unwrap();
+    let label = client
+        .get_label(input(json!({ "id": "big" })))
+        .await
+        .unwrap();
+    let gone = client
+        .get_item(input(json!({ "id": "gone" })))
+        .await
+        .unwrap_err();
+    server.abort();
+    assert_eq!(
+        serde_json::to_value(&item).unwrap(),
+        json!({ "name": "item big", "size": 9, "kind": "LARGE" })
+    );
+    assert_eq!(
+        serde_json::to_value(&items).unwrap(),
+        json!({ "names": ["v1", "1", "newest"], "kinds": ["SMALL", "LARGE"] })
+    );
+    assert_eq!(serde_json::to_value(&count).unwrap(), json!({ "count": 3 }));
+    assert_eq!(
+        serde_json::to_value(&labels).unwrap()["kinds"],
+        json!(["LARGE", "SMALL"])
+    );
+    assert_eq!(
+        serde_json::to_value(&label).unwrap(),
+        json!({ "label": { "title": "item big", "size": 9, "color": "red" } })
+    );
+    // v3's ItemGoneException is v1's ItemNotFoundException.
+    assert!(format!("{gone:?}").contains("ItemNotFound"), "{gone:?}");
 }
 
 #[test]

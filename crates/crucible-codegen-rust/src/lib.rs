@@ -135,6 +135,20 @@ pub fn generate_with_explorer_model(
     options: &Options,
     explorer_service: &Service,
 ) -> Result<String, Diagnostics> {
+    // An SDK line (decision 76) is one release as the current model sees
+    // it; a server serves every release from the current model, so it is
+    // never generated from one.
+    if crucible_ir::versions::is_line(service) {
+        let mut diagnostics = Diagnostics::default();
+        diagnostics.push(
+            &service.id,
+            format!(
+                "this model is release \"{}\" as the current model sees it, an SDK line: a server serves every release from the current model, so generate it without an API version",
+                service.version
+            ),
+        );
+        return Err(diagnostics);
+    }
     service.require_capabilities(&capabilities())?;
     for version in &service.versions {
         version.service.require_capabilities(&capabilities())?;

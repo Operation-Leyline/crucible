@@ -172,6 +172,74 @@ fn release_history_matches_reviewed_goldens() {
     );
 }
 
+/// The reference of release v1 of the e2e versioned service, an SDK line
+/// (decision 79): v1's shapes and routes, and the header every request
+/// sends at v1, while the releases still name v4 as current.
+#[test]
+fn an_older_releases_reference_documents_its_own_release() {
+    let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../e2e/weather-service/versioned");
+    let current = crucible_lang::load_versioned_service(&dir).unwrap_or_else(|e| panic!("{e}"));
+    let line = crucible_ir::versions::line(&current, "v1").unwrap();
+    let files = generate(&project(&line, Audience::External).unwrap()).unwrap();
+    golden_files("versioned-v1-external", files.clone());
+    let file = |path: &str| {
+        files
+            .iter()
+            .find(|file| file.path == path)
+            .unwrap_or_else(|| panic!("no {path}"))
+            .contents
+            .clone()
+    };
+    let index = file("src/index.md");
+    assert!(
+        index.contains("in a header: <code>Crucible&#45;Version&#58; v1</code>. This reference documents release <code>v1</code>; the current release is <code>v4</code>."),
+        "{index}"
+    );
+    let llms = file("llms.txt");
+    assert!(
+        llms.contains("Send `Crucible-Version: v1` on every request"),
+        "{llms}"
+    );
+    assert!(
+        llms.contains("This reference documents release `v1`; the current release is `v4`"),
+        "{llms}"
+    );
+    assert!(!llms.contains("Crucible-Version: v4"), "{llms}");
+    let releases = file("src/releases.md");
+    assert!(
+        releases.contains(
+            "The current release is <code>v4</code>. This reference documents release <code>v1</code>."
+        ),
+        "{releases}"
+    );
+    // Every request this reference shows names v1, at v1's route.
+    for page in files
+        .iter()
+        .filter(|file| file.path.starts_with("src/operations/"))
+    {
+        assert!(
+            !page.contents.contains("Crucible-Version: v4"),
+            "{}: {}",
+            page.path,
+            page.contents
+        );
+    }
+    let get_item = files
+        .iter()
+        .find(|file| file.path.starts_with("src/operations/") && file.path.contains("GetItem"))
+        .expect("a GetItem page");
+    assert!(
+        get_item.contents.contains("GET /items/{id}"),
+        "{}",
+        get_item.contents
+    );
+    assert!(
+        get_item.contents.contains("Crucible-Version: v1"),
+        "{}",
+        get_item.contents
+    );
+}
+
 /// The e2e versioned service's reference: renames, a reshape, a removal
 /// and a sunset, as its build serves them.
 #[test]
