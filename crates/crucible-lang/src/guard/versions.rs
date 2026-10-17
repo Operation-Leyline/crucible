@@ -494,16 +494,20 @@ impl<'c> Release<'_, 'c> {
             sunset_docs,
             docs: doc_text(link.doc),
             retired,
+            restored: Vec::new(),
             external: false,
         };
         let mut errors = crucible_ir::Diagnostics::default();
         let mut warnings = crucible_ir::Diagnostics::default();
-        let projection =
-            crucible_ir::versions::undo(self.newer, &version, &mut errors, &mut warnings);
+        let (projection, restored) =
+            crucible_ir::versions::undo_restoring(self.newer, &version, &mut errors, &mut warnings);
         version.steps = steps.iter().map(|step| step.lowered.clone()).collect();
         // The release is served from its projection (decision 75), so what
         // was added since reaches it (decision 51); `release` stays frozen.
         version.service = Box::new(projection.clone());
+        // What the reference dates and documents as the release had it
+        // (decision 79).
+        version.restored = restored;
 
         // What undo could not do, at the step that asked for it.
         let mut broken = collided.clone();

@@ -15,9 +15,41 @@ pub struct Output<'a> {
     /// A reference's settings (`DocsOutput::schemas`).
     #[cfg(feature = "docs")]
     pub(crate) docs: crucible_codegen::DocsOptions,
+    /// Every supported release's reference (`DocsOutput::all_releases`).
+    #[cfg(feature = "docs")]
+    pub(crate) all_releases: bool,
 }
 
 impl Output<'_> {
+    /// `sdks.json` for the reference, or with `all_releases` one in each
+    /// release's directory, describing that release's SDKs.
+    #[cfg(feature = "docs")]
+    fn sdks_files(&self, path: &Path) -> Result<Vec<crucible_codegen::File>, String> {
+        let service = &self.model.service;
+        if !self.all_releases {
+            return Ok(vec![crate::docs_output::sdks_file(
+                path,
+                self.model,
+                service,
+                self.audience,
+            )?]);
+        }
+        let current = crucible_ir::versions::line_current(service);
+        let current = current.as_ref().unwrap_or(service);
+        let mut files = Vec::new();
+        for release in crucible_ir::versions::releases(current) {
+            let line = crucible_ir::versions::line(current, release).map_err(|d| d.to_string())?;
+            let mut file = crate::docs_output::sdks_file(path, self.model, &line, self.audience)?;
+            file.path = format!(
+                "{}/{}",
+                crucible_codegen::release_directory(release),
+                file.path
+            );
+            files.push(file);
+        }
+        Ok(files)
+    }
+
     /// Select client visibility. Server outputs always implement the full model.
     pub fn audience(mut self, audience: crucible_codegen::Audience) -> Self {
         self.audience = audience;
@@ -102,6 +134,10 @@ impl Output<'_> {
         // documentation and infrastructure generators read (decision 67).
         let files = match self.generator {
             #[cfg(feature = "docs")]
+            Generator::Docs if self.all_releases => {
+                crucible_codegen::docs_releases(&self.model.service, self.audience, &self.docs)
+            }
+            #[cfg(feature = "docs")]
             Generator::Docs => {
                 crucible_codegen::docs(&self.model.service, self.audience, &self.docs)
             }
@@ -113,8 +149,8 @@ impl Output<'_> {
         let mut files = files.map_err(|e| format!("output {}: {e}", self.name))?;
         #[cfg(feature = "docs")]
         if let Some(path) = &self.sdks {
-            files.push(
-                crate::docs_output::sdks_file(path, self.model, self.audience)
+            files.extend(
+                self.sdks_files(path)
                     .map_err(|e| format!("output {}: {e}", self.name))?,
             );
         }

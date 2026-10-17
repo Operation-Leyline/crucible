@@ -34,7 +34,14 @@ are stable file names; their prose is not. `DocsOutput::schemas`,
 Schemas}`, `crucible_codegen_docs::{generate_with, Options, Schemas}`,
 `Description::schemas` (the method and the field) and
 `CrucibleExplorer.operationSchema` are additive; `Schemas` and the options
-are non-exhaustive.
+are non-exhaustive. `DocsOutput::all_releases`, `crucible generate docs
+--all-releases`, `crucible_codegen::{docs_releases, release_directory}`,
+`crucible_codegen_docs::{generate_releases, release_directory}` and
+`CrucibleExplorer.{releaseBanner, releaseDirectory}` are additive; the
+layout they write (a directory per release, named by `release_directory`,
+with `index.html` and `llms.txt` at the root) is stable as described in
+[the docs guide](docs.md#every-releases-reference), and the index's prose
+is not.
 
 `DocsOutput::sdks`, `crucible generate docs --sdks` and `crucible sdk
 describe` add the `crucible.sdks/1` contract (`sdks.json`), stable as

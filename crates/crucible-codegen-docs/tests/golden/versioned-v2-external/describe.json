@@ -1,0 +1,4919 @@
+{
+  "format": "crucible.describe/1",
+  "operations": {
+    "example.shop#CountItems": {
+      "auth": [],
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "errors": [
+        "example.shop#CountUnavailableException",
+        "crucible.errors#ValidationException",
+        "crucible.errors#InternalServerException"
+      ],
+      "examples": [],
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
+      "id": "example.shop#CountItems",
+      "idempotencyToken": null,
+      "idempotent": false,
+      "input": "example.shop#CountItemsInput",
+      "inputSchema": {
+        "$defs": {
+          "crucible.api.String": {
+            "type": "string"
+          },
+          "example.shop.CountItemsInput": {
+            "properties": {
+              "shelf": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/crucible.api.String"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "type": "object"
+          }
+        },
+        "properties": {
+          "shelf": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/crucible.api.String"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object"
+      },
+      "internal": false,
+      "method": "GET",
+      "name": "CountItems",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "output": "example.shop#CountItemsOutput",
+      "outputSchema": {
+        "$defs": {
+          "crucible.api.Integer": {
+            "format": "int32",
+            "maximum": 2147483647,
+            "minimum": -2147483648,
+            "type": "integer"
+          },
+          "example.shop.CountItemsOutput": {
+            "properties": {
+              "count": {
+                "$ref": "#/$defs/crucible.api.Integer"
+              }
+            },
+            "required": [
+              "count"
+            ],
+            "type": "object"
+          }
+        },
+        "properties": {
+          "count": {
+            "$ref": "#/$defs/crucible.api.Integer"
+          }
+        },
+        "required": [
+          "count"
+        ],
+        "type": "object"
+      },
+      "pagination": null,
+      "protocol": "crucibleJson",
+      "protocolHeaders": {},
+      "readonly": true,
+      "request": {
+        "body": [],
+        "headerEncodings": {},
+        "headers": [],
+        "labels": [],
+        "payload": null,
+        "query": [
+          {
+            "member": "shelf",
+            "name": "shelf"
+          }
+        ],
+        "timestampFormats": {}
+      },
+      "resources": [],
+      "response": {
+        "body": [
+          "count"
+        ],
+        "headerEncodings": {},
+        "headers": [],
+        "labels": [],
+        "payload": null,
+        "query": [],
+        "timestampFormats": {}
+      },
+      "responseProtocolHeaders": {
+        "Content-Type": "application/json"
+      },
+      "sample": {
+        "fallbacks": [],
+        "generated": true,
+        "input": {
+          "body": null,
+          "headers": {},
+          "labels": {},
+          "method": "GET",
+          "payload": null,
+          "query": [
+            {
+              "name": "shelf",
+              "value": "shelf"
+            }
+          ],
+          "uri": "/count?shelf=shelf"
+        },
+        "minimalInput": {
+          "body": null,
+          "headers": {},
+          "labels": {},
+          "method": "GET",
+          "payload": null,
+          "query": [],
+          "uri": "/count"
+        },
+        "output": {
+          "body": {
+            "count": 1
+          },
+          "headers": {
+            "Content-Type": "application/json"
+          },
+          "labels": {},
+          "payload": null,
+          "query": []
+        }
+      },
+      "status": 200,
+      "uri": "/count"
+    },
+    "example.shop#DeleteItem": {
+      "auth": [],
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "errors": [
+        "crucible.errors#ValidationException",
+        "crucible.errors#InternalServerException"
+      ],
+      "examples": [],
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
+      "id": "example.shop#DeleteItem",
+      "idempotencyToken": null,
+      "idempotent": true,
+      "input": "example.shop#DeleteItemInput",
+      "inputSchema": {
+        "$defs": {
+          "crucible.api.Boolean": {
+            "type": "boolean"
+          },
+          "crucible.api.String": {
+            "type": "string"
+          },
+          "example.shop.DeleteItemInput": {
+            "properties": {
+              "force": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/crucible.api.Boolean"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "id": {
+                "$ref": "#/$defs/crucible.api.String"
+              }
+            },
+            "required": [
+              "id"
+            ],
+            "type": "object"
+          }
+        },
+        "properties": {
+          "force": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/crucible.api.Boolean"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "id": {
+            "$ref": "#/$defs/crucible.api.String"
+          }
+        },
+        "required": [
+          "id"
+        ],
+        "type": "object"
+      },
+      "internal": false,
+      "method": "DELETE",
+      "name": "DeleteItem",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "output": "example.shop#DeleteItemOutput",
+      "outputSchema": {
+        "$defs": {
+          "crucible.api.Boolean": {
+            "type": "boolean"
+          },
+          "example.shop.DeleteItemOutput": {
+            "properties": {
+              "deleted": {
+                "$ref": "#/$defs/crucible.api.Boolean"
+              }
+            },
+            "required": [
+              "deleted"
+            ],
+            "type": "object"
+          }
+        },
+        "properties": {
+          "deleted": {
+            "$ref": "#/$defs/crucible.api.Boolean"
+          }
+        },
+        "required": [
+          "deleted"
+        ],
+        "type": "object"
+      },
+      "pagination": null,
+      "protocol": "crucibleJson",
+      "protocolHeaders": {},
+      "readonly": false,
+      "request": {
+        "body": [],
+        "headerEncodings": {},
+        "headers": [],
+        "labels": [
+          "id"
+        ],
+        "payload": null,
+        "query": [
+          {
+            "member": "force",
+            "name": "force"
+          }
+        ],
+        "timestampFormats": {}
+      },
+      "resources": [],
+      "response": {
+        "body": [
+          "deleted"
+        ],
+        "headerEncodings": {},
+        "headers": [],
+        "labels": [],
+        "payload": null,
+        "query": [],
+        "timestampFormats": {}
+      },
+      "responseProtocolHeaders": {
+        "Content-Type": "application/json"
+      },
+      "sample": {
+        "fallbacks": [],
+        "generated": true,
+        "input": {
+          "body": null,
+          "headers": {},
+          "labels": {
+            "id": "id"
+          },
+          "method": "DELETE",
+          "payload": null,
+          "query": [
+            {
+              "name": "force",
+              "value": "false"
+            }
+          ],
+          "uri": "/items/id?force=false"
+        },
+        "minimalInput": {
+          "body": null,
+          "headers": {},
+          "labels": {
+            "id": "id"
+          },
+          "method": "DELETE",
+          "payload": null,
+          "query": [],
+          "uri": "/items/id"
+        },
+        "output": {
+          "body": {
+            "deleted": false
+          },
+          "headers": {
+            "Content-Type": "application/json"
+          },
+          "labels": {},
+          "payload": null,
+          "query": []
+        }
+      },
+      "status": 200,
+      "uri": "/items/{id}"
+    },
+    "example.shop#GetItem": {
+      "auth": [],
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "errors": [
+        "example.shop#ItemNotFoundException",
+        "crucible.errors#ValidationException",
+        "crucible.errors#InternalServerException"
+      ],
+      "examples": [],
+      "history": {
+        "added": null,
+        "changed": [
+          "v3"
+        ],
+        "missing": []
+      },
+      "id": "example.shop#GetItem",
+      "idempotencyToken": null,
+      "idempotent": false,
+      "input": "example.shop#GetItemInput",
+      "inputSchema": {
+        "$defs": {
+          "crucible.api.String": {
+            "type": "string"
+          },
+          "example.shop.GetItemInput": {
+            "properties": {
+              "id": {
+                "$ref": "#/$defs/crucible.api.String"
+              }
+            },
+            "required": [
+              "id"
+            ],
+            "type": "object"
+          }
+        },
+        "properties": {
+          "id": {
+            "$ref": "#/$defs/crucible.api.String"
+          }
+        },
+        "required": [
+          "id"
+        ],
+        "type": "object"
+      },
+      "internal": false,
+      "method": "GET",
+      "name": "GetItem",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "output": "example.shop#GetItemOutput",
+      "outputSchema": {
+        "$defs": {
+          "crucible.api.Integer": {
+            "format": "int32",
+            "maximum": 2147483647,
+            "minimum": -2147483648,
+            "type": "integer"
+          },
+          "crucible.api.String": {
+            "type": "string"
+          },
+          "example.shop.GetItemOutput": {
+            "properties": {
+              "kind": {
+                "$ref": "#/$defs/example.shop.Kind"
+              },
+              "size": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/crucible.api.Integer"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "title": {
+                "$ref": "#/$defs/crucible.api.String"
+              }
+            },
+            "required": [
+              "title",
+              "kind"
+            ],
+            "type": "object"
+          },
+          "example.shop.Kind": {
+            "enum": [
+              "SMALL",
+              "LARGE"
+            ],
+            "type": "string"
+          }
+        },
+        "properties": {
+          "kind": {
+            "$ref": "#/$defs/example.shop.Kind"
+          },
+          "size": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/crucible.api.Integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "title": {
+            "$ref": "#/$defs/crucible.api.String"
+          }
+        },
+        "required": [
+          "title",
+          "kind"
+        ],
+        "type": "object"
+      },
+      "pagination": null,
+      "protocol": "crucibleJson",
+      "protocolHeaders": {},
+      "readonly": true,
+      "request": {
+        "body": [],
+        "headerEncodings": {},
+        "headers": [],
+        "labels": [
+          "id"
+        ],
+        "payload": null,
+        "query": [],
+        "timestampFormats": {}
+      },
+      "resources": [],
+      "response": {
+        "body": [
+          "title",
+          "size",
+          "kind"
+        ],
+        "headerEncodings": {},
+        "headers": [],
+        "labels": [],
+        "payload": null,
+        "query": [],
+        "timestampFormats": {}
+      },
+      "responseProtocolHeaders": {
+        "Content-Type": "application/json"
+      },
+      "sample": {
+        "fallbacks": [],
+        "generated": true,
+        "input": {
+          "body": null,
+          "headers": {},
+          "labels": {
+            "id": "id"
+          },
+          "method": "GET",
+          "payload": null,
+          "query": [],
+          "uri": "/items/id"
+        },
+        "minimalInput": {
+          "body": null,
+          "headers": {},
+          "labels": {
+            "id": "id"
+          },
+          "method": "GET",
+          "payload": null,
+          "query": [],
+          "uri": "/items/id"
+        },
+        "output": {
+          "body": {
+            "kind": "SMALL",
+            "size": 1,
+            "title": "title"
+          },
+          "headers": {
+            "Content-Type": "application/json"
+          },
+          "labels": {},
+          "payload": null,
+          "query": []
+        }
+      },
+      "status": 200,
+      "uri": "/items/{id}"
+    },
+    "example.shop#GetLabel": {
+      "auth": [],
+      "documentation": {
+        "html": "<p>One label. Added in v4, and served at every release.</p>\n",
+        "markdown": "One label. Added in v4, and served at every release.",
+        "text": "One label. Added in v4, and served at every release."
+      },
+      "errors": [
+        "crucible.errors#ValidationException",
+        "crucible.errors#InternalServerException"
+      ],
+      "examples": [],
+      "history": {
+        "added": "v4",
+        "changed": [],
+        "missing": []
+      },
+      "id": "example.shop#GetLabel",
+      "idempotencyToken": null,
+      "idempotent": false,
+      "input": "example.shop#GetLabelInput",
+      "inputSchema": {
+        "$defs": {
+          "crucible.api.String": {
+            "type": "string"
+          },
+          "example.shop.GetLabelInput": {
+            "properties": {
+              "id": {
+                "$ref": "#/$defs/crucible.api.String"
+              }
+            },
+            "required": [
+              "id"
+            ],
+            "type": "object"
+          }
+        },
+        "properties": {
+          "id": {
+            "$ref": "#/$defs/crucible.api.String"
+          }
+        },
+        "required": [
+          "id"
+        ],
+        "type": "object"
+      },
+      "internal": false,
+      "method": "GET",
+      "name": "GetLabel",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "output": "example.shop#GetLabelOutput",
+      "outputSchema": {
+        "$defs": {
+          "crucible.api.Integer": {
+            "format": "int32",
+            "maximum": 2147483647,
+            "minimum": -2147483648,
+            "type": "integer"
+          },
+          "crucible.api.String": {
+            "type": "string"
+          },
+          "example.shop.GetLabelOutput": {
+            "properties": {
+              "label": {
+                "$ref": "#/$defs/example.shop.Label"
+              }
+            },
+            "required": [
+              "label"
+            ],
+            "type": "object"
+          },
+          "example.shop.Label": {
+            "additionalProperties": false,
+            "description": "An item's label. Strict: a request naming a member it does not have\nis refused, at the current release; an older release's outputs reach it\ntoo, so there it reads what it does not know.",
+            "properties": {
+              "color": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/crucible.api.String"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "size": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/crucible.api.Integer"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "title": {
+                "$ref": "#/$defs/crucible.api.String"
+              }
+            },
+            "required": [
+              "title"
+            ],
+            "type": "object"
+          }
+        },
+        "properties": {
+          "label": {
+            "$ref": "#/$defs/example.shop.Label"
+          }
+        },
+        "required": [
+          "label"
+        ],
+        "type": "object"
+      },
+      "pagination": null,
+      "protocol": "crucibleJson",
+      "protocolHeaders": {},
+      "readonly": true,
+      "request": {
+        "body": [],
+        "headerEncodings": {},
+        "headers": [],
+        "labels": [
+          "id"
+        ],
+        "payload": null,
+        "query": [],
+        "timestampFormats": {}
+      },
+      "resources": [],
+      "response": {
+        "body": [
+          "label"
+        ],
+        "headerEncodings": {},
+        "headers": [],
+        "labels": [],
+        "payload": null,
+        "query": [],
+        "timestampFormats": {}
+      },
+      "responseProtocolHeaders": {
+        "Content-Type": "application/json"
+      },
+      "sample": {
+        "fallbacks": [],
+        "generated": true,
+        "input": {
+          "body": null,
+          "headers": {},
+          "labels": {
+            "id": "id"
+          },
+          "method": "GET",
+          "payload": null,
+          "query": [],
+          "uri": "/labels/id"
+        },
+        "minimalInput": {
+          "body": null,
+          "headers": {},
+          "labels": {
+            "id": "id"
+          },
+          "method": "GET",
+          "payload": null,
+          "query": [],
+          "uri": "/labels/id"
+        },
+        "output": {
+          "body": {
+            "label": {
+              "color": "color",
+              "size": 1,
+              "title": "title"
+            }
+          },
+          "headers": {
+            "Content-Type": "application/json"
+          },
+          "labels": {},
+          "payload": null,
+          "query": []
+        }
+      },
+      "status": 200,
+      "uri": "/labels/{id}"
+    },
+    "example.shop#ListItems": {
+      "auth": [],
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "errors": [
+        "crucible.errors#ValidationException",
+        "crucible.errors#InternalServerException"
+      ],
+      "examples": [],
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
+      "id": "example.shop#ListItems",
+      "idempotencyToken": null,
+      "idempotent": false,
+      "input": "example.shop#ListItemsInput",
+      "inputSchema": {
+        "$defs": {
+          "crucible.api.Integer": {
+            "format": "int32",
+            "maximum": 2147483647,
+            "minimum": -2147483648,
+            "type": "integer"
+          },
+          "crucible.api.String": {
+            "type": "string"
+          },
+          "example.shop.ListItemsInput": {
+            "properties": {
+              "limit": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/crucible.api.Integer"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "sort": {
+                "$ref": "#/$defs/crucible.api.String"
+              }
+            },
+            "required": [
+              "sort"
+            ],
+            "type": "object"
+          }
+        },
+        "properties": {
+          "limit": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/crucible.api.Integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "sort": {
+            "$ref": "#/$defs/crucible.api.String"
+          }
+        },
+        "required": [
+          "sort"
+        ],
+        "type": "object"
+      },
+      "internal": false,
+      "method": "GET",
+      "name": "ListItems",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "output": "example.shop#ListItemsOutput",
+      "outputSchema": {
+        "$defs": {
+          "crucible.api.String": {
+            "type": "string"
+          },
+          "example.shop.Kind": {
+            "enum": [
+              "SMALL",
+              "LARGE"
+            ],
+            "type": "string"
+          },
+          "example.shop.Kinds": {
+            "items": {
+              "$ref": "#/$defs/example.shop.Kind"
+            },
+            "type": "array",
+            "uniqueItems": false
+          },
+          "example.shop.ListItemsOutput": {
+            "properties": {
+              "kinds": {
+                "$ref": "#/$defs/example.shop.Kinds"
+              },
+              "names": {
+                "$ref": "#/$defs/example.shop.Names"
+              }
+            },
+            "required": [
+              "names",
+              "kinds"
+            ],
+            "type": "object"
+          },
+          "example.shop.Names": {
+            "items": {
+              "$ref": "#/$defs/crucible.api.String"
+            },
+            "type": "array",
+            "uniqueItems": false
+          }
+        },
+        "properties": {
+          "kinds": {
+            "$ref": "#/$defs/example.shop.Kinds"
+          },
+          "names": {
+            "$ref": "#/$defs/example.shop.Names"
+          }
+        },
+        "required": [
+          "names",
+          "kinds"
+        ],
+        "type": "object"
+      },
+      "pagination": null,
+      "protocol": "crucibleJson",
+      "protocolHeaders": {},
+      "readonly": true,
+      "request": {
+        "body": [],
+        "headerEncodings": {},
+        "headers": [],
+        "labels": [],
+        "payload": null,
+        "query": [
+          {
+            "member": "limit",
+            "name": "limit"
+          },
+          {
+            "member": "sort",
+            "name": "sort"
+          }
+        ],
+        "timestampFormats": {}
+      },
+      "resources": [],
+      "response": {
+        "body": [
+          "names",
+          "kinds"
+        ],
+        "headerEncodings": {},
+        "headers": [],
+        "labels": [],
+        "payload": null,
+        "query": [],
+        "timestampFormats": {}
+      },
+      "responseProtocolHeaders": {
+        "Content-Type": "application/json"
+      },
+      "sample": {
+        "fallbacks": [],
+        "generated": true,
+        "input": {
+          "body": null,
+          "headers": {},
+          "labels": {},
+          "method": "GET",
+          "payload": null,
+          "query": [
+            {
+              "name": "limit",
+              "value": "1"
+            },
+            {
+              "name": "sort",
+              "value": "sort"
+            }
+          ],
+          "uri": "/items?limit=1&sort=sort"
+        },
+        "minimalInput": {
+          "body": null,
+          "headers": {},
+          "labels": {},
+          "method": "GET",
+          "payload": null,
+          "query": [
+            {
+              "name": "sort",
+              "value": "sort"
+            }
+          ],
+          "uri": "/items?sort=sort"
+        },
+        "output": {
+          "body": {
+            "kinds": [
+              "SMALL"
+            ],
+            "names": [
+              "names"
+            ]
+          },
+          "headers": {
+            "Content-Type": "application/json"
+          },
+          "labels": {},
+          "payload": null,
+          "query": []
+        }
+      },
+      "status": 200,
+      "uri": "/items"
+    },
+    "example.shop#ListLabels": {
+      "auth": [],
+      "documentation": {
+        "html": "<p>Every label on the shelf, and the kinds of item they mark. Added in v3,\nit reaches v1 and v2 clients too (decision 51), its kinds as they know\nthem.</p>\n",
+        "markdown": "Every label on the shelf, and the kinds of item they mark. Added in v3,\nit reaches v1 and v2 clients too (decision 51), its kinds as they know\nthem.",
+        "text": "Every label on the shelf, and the kinds of item they mark. Added in v3,\nit reaches v1 and v2 clients too (decision 51), its kinds as they know\nthem."
+      },
+      "errors": [
+        "crucible.errors#ValidationException",
+        "crucible.errors#InternalServerException"
+      ],
+      "examples": [],
+      "history": {
+        "added": "v3",
+        "changed": [],
+        "missing": []
+      },
+      "id": "example.shop#ListLabels",
+      "idempotencyToken": null,
+      "idempotent": false,
+      "input": null,
+      "inputSchema": {
+        "$defs": {},
+        "maxProperties": 0,
+        "type": "object"
+      },
+      "internal": false,
+      "method": "GET",
+      "name": "ListLabels",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "output": "example.shop#ListLabelsOutput",
+      "outputSchema": {
+        "$defs": {
+          "crucible.api.Integer": {
+            "format": "int32",
+            "maximum": 2147483647,
+            "minimum": -2147483648,
+            "type": "integer"
+          },
+          "crucible.api.String": {
+            "type": "string"
+          },
+          "example.shop.Kind": {
+            "enum": [
+              "SMALL",
+              "LARGE"
+            ],
+            "type": "string"
+          },
+          "example.shop.Kinds": {
+            "items": {
+              "$ref": "#/$defs/example.shop.Kind"
+            },
+            "type": "array",
+            "uniqueItems": false
+          },
+          "example.shop.Label": {
+            "additionalProperties": false,
+            "description": "An item's label. Strict: a request naming a member it does not have\nis refused, at the current release; an older release's outputs reach it\ntoo, so there it reads what it does not know.",
+            "properties": {
+              "color": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/crucible.api.String"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "size": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/crucible.api.Integer"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "title": {
+                "$ref": "#/$defs/crucible.api.String"
+              }
+            },
+            "required": [
+              "title"
+            ],
+            "type": "object"
+          },
+          "example.shop.Labels": {
+            "items": {
+              "$ref": "#/$defs/example.shop.Label"
+            },
+            "type": "array",
+            "uniqueItems": false
+          },
+          "example.shop.ListLabelsOutput": {
+            "properties": {
+              "kinds": {
+                "$ref": "#/$defs/example.shop.Kinds"
+              },
+              "labels": {
+                "$ref": "#/$defs/example.shop.Labels"
+              }
+            },
+            "required": [
+              "labels",
+              "kinds"
+            ],
+            "type": "object"
+          }
+        },
+        "properties": {
+          "kinds": {
+            "$ref": "#/$defs/example.shop.Kinds"
+          },
+          "labels": {
+            "$ref": "#/$defs/example.shop.Labels"
+          }
+        },
+        "required": [
+          "labels",
+          "kinds"
+        ],
+        "type": "object"
+      },
+      "pagination": null,
+      "protocol": "crucibleJson",
+      "protocolHeaders": {},
+      "readonly": true,
+      "request": {
+        "body": [],
+        "headerEncodings": {},
+        "headers": [],
+        "labels": [],
+        "payload": null,
+        "query": [],
+        "timestampFormats": {}
+      },
+      "resources": [],
+      "response": {
+        "body": [
+          "labels",
+          "kinds"
+        ],
+        "headerEncodings": {},
+        "headers": [],
+        "labels": [],
+        "payload": null,
+        "query": [],
+        "timestampFormats": {}
+      },
+      "responseProtocolHeaders": {
+        "Content-Type": "application/json"
+      },
+      "sample": {
+        "fallbacks": [],
+        "generated": true,
+        "input": {
+          "body": null,
+          "headers": {},
+          "labels": {},
+          "method": "GET",
+          "payload": null,
+          "query": [],
+          "uri": "/labels"
+        },
+        "minimalInput": {
+          "body": null,
+          "headers": {},
+          "labels": {},
+          "method": "GET",
+          "payload": null,
+          "query": [],
+          "uri": "/labels"
+        },
+        "output": {
+          "body": {
+            "kinds": [
+              "SMALL"
+            ],
+            "labels": [
+              {
+                "color": "color",
+                "size": 1,
+                "title": "title"
+              }
+            ]
+          },
+          "headers": {
+            "Content-Type": "application/json"
+          },
+          "labels": {},
+          "payload": null,
+          "query": []
+        }
+      },
+      "status": 200,
+      "uri": "/labels"
+    },
+    "example.shop#PutLabel": {
+      "auth": [],
+      "documentation": {
+        "html": "<p>Replaces a label. Added in v4: its input reaches <code>Label</code>, so the\nmigration to v4 converts a size older clients send, as well as one\nthey receive.</p>\n",
+        "markdown": "Replaces a label. Added in v4: its input reaches `Label`, so the\nmigration to v4 converts a size older clients send, as well as one\nthey receive.",
+        "text": "Replaces a label. Added in v4: its input reaches Label, so the\nmigration to v4 converts a size older clients send, as well as one\nthey receive."
+      },
+      "errors": [
+        "crucible.errors#ValidationException",
+        "crucible.errors#InternalServerException"
+      ],
+      "examples": [],
+      "history": {
+        "added": "v4",
+        "changed": [],
+        "missing": []
+      },
+      "id": "example.shop#PutLabel",
+      "idempotencyToken": null,
+      "idempotent": true,
+      "input": "example.shop#PutLabelInput",
+      "inputSchema": {
+        "$defs": {
+          "crucible.api.Integer": {
+            "format": "int32",
+            "maximum": 2147483647,
+            "minimum": -2147483648,
+            "type": "integer"
+          },
+          "crucible.api.String": {
+            "type": "string"
+          },
+          "example.shop.Label": {
+            "additionalProperties": false,
+            "description": "An item's label. Strict: a request naming a member it does not have\nis refused, at the current release; an older release's outputs reach it\ntoo, so there it reads what it does not know.",
+            "properties": {
+              "color": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/crucible.api.String"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "size": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/crucible.api.Integer"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "title": {
+                "$ref": "#/$defs/crucible.api.String"
+              }
+            },
+            "required": [
+              "title"
+            ],
+            "type": "object"
+          },
+          "example.shop.PutLabelInput": {
+            "properties": {
+              "id": {
+                "$ref": "#/$defs/crucible.api.String"
+              },
+              "label": {
+                "$ref": "#/$defs/example.shop.Label"
+              }
+            },
+            "required": [
+              "id",
+              "label"
+            ],
+            "type": "object"
+          }
+        },
+        "properties": {
+          "id": {
+            "$ref": "#/$defs/crucible.api.String"
+          },
+          "label": {
+            "$ref": "#/$defs/example.shop.Label"
+          }
+        },
+        "required": [
+          "id",
+          "label"
+        ],
+        "type": "object"
+      },
+      "internal": false,
+      "method": "PUT",
+      "name": "PutLabel",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "output": "example.shop#PutLabelOutput",
+      "outputSchema": {
+        "$defs": {
+          "crucible.api.Integer": {
+            "format": "int32",
+            "maximum": 2147483647,
+            "minimum": -2147483648,
+            "type": "integer"
+          },
+          "crucible.api.String": {
+            "type": "string"
+          },
+          "example.shop.Label": {
+            "additionalProperties": false,
+            "description": "An item's label. Strict: a request naming a member it does not have\nis refused, at the current release; an older release's outputs reach it\ntoo, so there it reads what it does not know.",
+            "properties": {
+              "color": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/crucible.api.String"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "size": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/crucible.api.Integer"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "title": {
+                "$ref": "#/$defs/crucible.api.String"
+              }
+            },
+            "required": [
+              "title"
+            ],
+            "type": "object"
+          },
+          "example.shop.PutLabelOutput": {
+            "properties": {
+              "label": {
+                "$ref": "#/$defs/example.shop.Label"
+              }
+            },
+            "required": [
+              "label"
+            ],
+            "type": "object"
+          }
+        },
+        "properties": {
+          "label": {
+            "$ref": "#/$defs/example.shop.Label"
+          }
+        },
+        "required": [
+          "label"
+        ],
+        "type": "object"
+      },
+      "pagination": null,
+      "protocol": "crucibleJson",
+      "protocolHeaders": {
+        "Content-Type": "application/json"
+      },
+      "readonly": false,
+      "request": {
+        "body": [
+          "label"
+        ],
+        "headerEncodings": {},
+        "headers": [],
+        "labels": [
+          "id"
+        ],
+        "payload": null,
+        "query": [],
+        "timestampFormats": {}
+      },
+      "resources": [],
+      "response": {
+        "body": [
+          "label"
+        ],
+        "headerEncodings": {},
+        "headers": [],
+        "labels": [],
+        "payload": null,
+        "query": [],
+        "timestampFormats": {}
+      },
+      "responseProtocolHeaders": {
+        "Content-Type": "application/json"
+      },
+      "sample": {
+        "fallbacks": [],
+        "generated": true,
+        "input": {
+          "body": {
+            "label": {
+              "color": "color",
+              "size": 1,
+              "title": "title"
+            }
+          },
+          "headers": {
+            "Content-Type": "application/json"
+          },
+          "labels": {
+            "id": "id"
+          },
+          "method": "PUT",
+          "payload": null,
+          "query": [],
+          "uri": "/labels/id"
+        },
+        "minimalInput": {
+          "body": {
+            "label": {
+              "title": "title"
+            }
+          },
+          "headers": {
+            "Content-Type": "application/json"
+          },
+          "labels": {
+            "id": "id"
+          },
+          "method": "PUT",
+          "payload": null,
+          "query": [],
+          "uri": "/labels/id"
+        },
+        "output": {
+          "body": {
+            "label": {
+              "color": "color",
+              "size": 1,
+              "title": "title"
+            }
+          },
+          "headers": {
+            "Content-Type": "application/json"
+          },
+          "labels": {},
+          "payload": null,
+          "query": []
+        }
+      },
+      "status": 200,
+      "uri": "/labels/{id}"
+    },
+    "example.shop#RecordPayment": {
+      "auth": [],
+      "documentation": {
+        "html": "<p>A payment processor's delivery (decision 81). The processor names no\nrelease of the shop: it is served at the current one, v4, whatever the\nservice does with a client's request that names none.</p>\n",
+        "markdown": "A payment processor's delivery (decision 81). The processor names no\nrelease of the shop: it is served at the current one, v4, whatever the\nservice does with a client's request that names none.",
+        "text": "A payment processor's delivery (decision 81). The processor names no\nrelease of the shop: it is served at the current one, v4, whatever the\nservice does with a client's request that names none."
+      },
+      "errors": [
+        "crucible.errors#ValidationException",
+        "crucible.errors#InternalServerException"
+      ],
+      "examples": [],
+      "history": {
+        "added": "v3",
+        "changed": [],
+        "missing": []
+      },
+      "id": "example.shop#RecordPayment",
+      "idempotencyToken": null,
+      "idempotent": false,
+      "input": "example.shop#RecordPaymentInput",
+      "inputSchema": {
+        "$defs": {
+          "crucible.api.String": {
+            "type": "string"
+          },
+          "example.shop.RecordPaymentInput": {
+            "properties": {
+              "signature": {
+                "$ref": "#/$defs/crucible.api.String"
+              }
+            },
+            "required": [
+              "signature"
+            ],
+            "type": "object"
+          }
+        },
+        "properties": {
+          "signature": {
+            "$ref": "#/$defs/crucible.api.String"
+          }
+        },
+        "required": [
+          "signature"
+        ],
+        "type": "object"
+      },
+      "internal": false,
+      "method": "POST",
+      "name": "RecordPayment",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "output": "example.shop#RecordPaymentOutput",
+      "outputSchema": {
+        "$defs": {
+          "crucible.api.String": {
+            "type": "string"
+          },
+          "example.shop.RecordPaymentOutput": {
+            "properties": {
+              "release": {
+                "$ref": "#/$defs/crucible.api.String"
+              }
+            },
+            "required": [
+              "release"
+            ],
+            "type": "object"
+          }
+        },
+        "properties": {
+          "release": {
+            "$ref": "#/$defs/crucible.api.String"
+          }
+        },
+        "required": [
+          "release"
+        ],
+        "type": "object"
+      },
+      "pagination": null,
+      "protocol": "crucibleJson",
+      "protocolHeaders": {},
+      "readonly": false,
+      "request": {
+        "body": [],
+        "headerEncodings": {},
+        "headers": [
+          {
+            "member": "signature",
+            "name": "Payment-Signature"
+          }
+        ],
+        "labels": [],
+        "payload": null,
+        "query": [],
+        "timestampFormats": {}
+      },
+      "resources": [],
+      "response": {
+        "body": [
+          "release"
+        ],
+        "headerEncodings": {},
+        "headers": [],
+        "labels": [],
+        "payload": null,
+        "query": [],
+        "timestampFormats": {}
+      },
+      "responseProtocolHeaders": {
+        "Content-Type": "application/json"
+      },
+      "sample": {
+        "fallbacks": [],
+        "generated": true,
+        "input": {
+          "body": null,
+          "headers": {
+            "Payment-Signature": "signature"
+          },
+          "labels": {},
+          "method": "POST",
+          "payload": null,
+          "query": [],
+          "uri": "/payments"
+        },
+        "minimalInput": {
+          "body": null,
+          "headers": {
+            "Payment-Signature": "signature"
+          },
+          "labels": {},
+          "method": "POST",
+          "payload": null,
+          "query": [],
+          "uri": "/payments"
+        },
+        "output": {
+          "body": {
+            "release": "release"
+          },
+          "headers": {
+            "Content-Type": "application/json"
+          },
+          "labels": {},
+          "payload": null,
+          "query": []
+        }
+      },
+      "sender": {
+        "header": "Payment-Signature",
+        "member": "signature",
+        "name": "Payments"
+      },
+      "status": 200,
+      "uri": "/payments"
+    }
+  },
+  "resources": {},
+  "service": {
+    "auth": [],
+    "authSchemes": {},
+    "documentation": {
+      "html": "",
+      "markdown": "",
+      "text": ""
+    },
+    "errors": [
+      "crucible.errors#ValidationException",
+      "crucible.errors#InternalServerException"
+    ],
+    "id": "example.shop#Shop",
+    "internal": false,
+    "name": "Shop",
+    "notes": {
+      "deprecated": null,
+      "externalDocs": {},
+      "since": null,
+      "unstable": false
+    },
+    "protocol": "crucibleJson",
+    "resourceRoots": [],
+    "title": "Shop",
+    "version": "v2"
+  },
+  "shapes": {
+    "crucible.api#Boolean": {
+      "constraints": {
+        "length": null,
+        "pattern": null,
+        "range": null,
+        "uniqueItems": false
+      },
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
+      "id": "crucible.api#Boolean",
+      "internal": false,
+      "kind": "boolean",
+      "members": [],
+      "name": "Boolean",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false
+    },
+    "crucible.api#Integer": {
+      "constraints": {
+        "length": null,
+        "pattern": null,
+        "range": null,
+        "uniqueItems": false
+      },
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
+      "id": "crucible.api#Integer",
+      "internal": false,
+      "kind": "integer",
+      "members": [],
+      "name": "Integer",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false
+    },
+    "crucible.api#String": {
+      "constraints": {
+        "length": null,
+        "pattern": null,
+        "range": null,
+        "uniqueItems": false
+      },
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
+      "id": "crucible.api#String",
+      "internal": false,
+      "kind": "string",
+      "members": [],
+      "name": "String",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false
+    },
+    "crucible.errors#InternalServerException": {
+      "documentation": {
+        "html": "<p>An unexpected server failure. Its message never exposes the underlying cause.</p>\n",
+        "markdown": "An unexpected server failure. Its message never exposes the underlying cause.",
+        "text": "An unexpected server failure. Its message never exposes the underlying cause."
+      },
+      "error": {
+        "bindings": {
+          "body": [
+            "message"
+          ],
+          "headerEncodings": {},
+          "headers": [
+            {
+              "member": "retryAfterSeconds",
+              "name": "Retry-After"
+            }
+          ],
+          "labels": [],
+          "payload": null,
+          "query": [],
+          "timestampFormats": {}
+        },
+        "bodyDiscriminator": "InternalServerException",
+        "discriminatorHeader": "X-Crucible-Error",
+        "fault": "server",
+        "protocolHeaders": {
+          "Content-Type": "application/json"
+        },
+        "retryable": {
+          "throttling": false
+        },
+        "sample": {
+          "fallbacks": [],
+          "generated": true,
+          "message": {
+            "body": {
+              "__type": "InternalServerException",
+              "message": "message"
+            },
+            "headers": {
+              "Content-Type": "application/json",
+              "Retry-After": "1",
+              "X-Crucible-Error": "InternalServerException"
+            },
+            "labels": {},
+            "payload": null,
+            "query": []
+          }
+        },
+        "shape": "crucible.errors#InternalServerException",
+        "status": 500,
+        "wireCode": "InternalServerException"
+      },
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
+      "id": "crucible.errors#InternalServerException",
+      "internal": false,
+      "kind": "structure",
+      "members": [
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "message",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": false,
+          "required": true,
+          "sensitive": false,
+          "target": "crucible.api#String",
+          "targetName": "String",
+          "targetType": "string",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "message"
+        },
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "retryAfterSeconds",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": true,
+          "required": false,
+          "sensitive": false,
+          "target": "crucible.api#Integer",
+          "targetName": "Integer",
+          "targetType": "integer",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "retryAfterSeconds"
+        }
+      ],
+      "name": "InternalServerException",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false
+    },
+    "crucible.errors#ValidationException": {
+      "documentation": {
+        "html": "<p>A request cannot be parsed or does not satisfy the service's input model.</p>\n",
+        "markdown": "A request cannot be parsed or does not satisfy the service's input model.",
+        "text": "A request cannot be parsed or does not satisfy the service's input model."
+      },
+      "error": {
+        "bindings": {
+          "body": [
+            "message",
+            "reason",
+            "fieldList"
+          ],
+          "headerEncodings": {},
+          "headers": [],
+          "labels": [],
+          "payload": null,
+          "query": [],
+          "timestampFormats": {}
+        },
+        "bodyDiscriminator": "ValidationException",
+        "discriminatorHeader": "X-Crucible-Error",
+        "fault": "client",
+        "protocolHeaders": {
+          "Content-Type": "application/json"
+        },
+        "retryable": null,
+        "sample": {
+          "fallbacks": [],
+          "generated": true,
+          "message": {
+            "body": {
+              "__type": "ValidationException",
+              "fieldList": [
+                {
+                  "message": "message",
+                  "name": "name"
+                }
+              ],
+              "message": "message",
+              "reason": "unknownOperation"
+            },
+            "headers": {
+              "Content-Type": "application/json",
+              "X-Crucible-Error": "ValidationException"
+            },
+            "labels": {},
+            "payload": null,
+            "query": []
+          }
+        },
+        "shape": "crucible.errors#ValidationException",
+        "status": 400,
+        "wireCode": "ValidationException"
+      },
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
+      "id": "crucible.errors#ValidationException",
+      "internal": false,
+      "kind": "structure",
+      "members": [
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "message",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": false,
+          "required": true,
+          "sensitive": false,
+          "target": "crucible.api#String",
+          "targetName": "String",
+          "targetType": "string",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "message"
+        },
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "reason",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": false,
+          "required": true,
+          "sensitive": false,
+          "target": "crucible.errors#ValidationExceptionReason",
+          "targetName": "ValidationExceptionReason",
+          "targetType": "enum",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "reason"
+        },
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "fieldList",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": true,
+          "required": false,
+          "sensitive": false,
+          "target": "crucible.errors#ValidationExceptionFieldList",
+          "targetName": "ValidationExceptionFieldList",
+          "targetType": "list",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "fieldList"
+        }
+      ],
+      "name": "ValidationException",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false
+    },
+    "crucible.errors#ValidationExceptionField": {
+      "documentation": {
+        "html": "<p>A request field that failed validation.</p>\n",
+        "markdown": "A request field that failed validation.",
+        "text": "A request field that failed validation."
+      },
+      "error": null,
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
+      "id": "crucible.errors#ValidationExceptionField",
+      "internal": false,
+      "kind": "structure",
+      "members": [
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "name",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": false,
+          "required": true,
+          "sensitive": false,
+          "target": "crucible.api#String",
+          "targetName": "String",
+          "targetType": "string",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "name"
+        },
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "message",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": false,
+          "required": true,
+          "sensitive": false,
+          "target": "crucible.api#String",
+          "targetName": "String",
+          "targetType": "string",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "message"
+        }
+      ],
+      "name": "ValidationExceptionField",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false
+    },
+    "crucible.errors#ValidationExceptionFieldList": {
+      "constraints": {
+        "length": null,
+        "pattern": null,
+        "range": null,
+        "uniqueItems": false
+      },
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
+      "id": "crucible.errors#ValidationExceptionFieldList",
+      "internal": false,
+      "kind": "list",
+      "members": [
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "member",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": true,
+          "required": false,
+          "sensitive": false,
+          "target": "crucible.errors#ValidationExceptionField",
+          "targetName": "ValidationExceptionField",
+          "targetType": "structure",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "member"
+        }
+      ],
+      "name": "ValidationExceptionFieldList",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false,
+      "set": false,
+      "sparse": false
+    },
+    "crucible.errors#ValidationExceptionReason": {
+      "documentation": {
+        "html": "<p>A machine-readable reason; clients never need to parse message text.</p>\n",
+        "markdown": "A machine-readable reason; clients never need to parse message text.",
+        "text": "A machine-readable reason; clients never need to parse message text."
+      },
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
+      "id": "crucible.errors#ValidationExceptionReason",
+      "internal": false,
+      "kind": "enum",
+      "members": [],
+      "name": "ValidationExceptionReason",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false,
+      "values": [
+        {
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "UNKNOWN_OPERATION",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "value": "unknownOperation"
+        },
+        {
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "CANNOT_PARSE",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "value": "cannotParse"
+        },
+        {
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "FIELD_VALIDATION_FAILED",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "value": "fieldValidationFailed"
+        },
+        {
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "OTHER",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "value": "other"
+        }
+      ]
+    },
+    "example.shop#CountItemsInput": {
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "error": null,
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
+      "id": "example.shop#CountItemsInput",
+      "internal": false,
+      "kind": "structure",
+      "members": [
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "shelf",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": true,
+          "required": false,
+          "sensitive": false,
+          "target": "crucible.api#String",
+          "targetName": "String",
+          "targetType": "string",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "shelf"
+        }
+      ],
+      "name": "CountItemsInput",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false
+    },
+    "example.shop#CountItemsOutput": {
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "error": null,
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
+      "id": "example.shop#CountItemsOutput",
+      "internal": false,
+      "kind": "structure",
+      "members": [
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "count",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": false,
+          "required": true,
+          "sensitive": false,
+          "target": "crucible.api#Integer",
+          "targetName": "Integer",
+          "targetType": "integer",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "count"
+        }
+      ],
+      "name": "CountItemsOutput",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false
+    },
+    "example.shop#CountUnavailableException": {
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "error": {
+        "bindings": {
+          "body": [
+            "message"
+          ],
+          "headerEncodings": {},
+          "headers": [],
+          "labels": [],
+          "payload": null,
+          "query": [],
+          "timestampFormats": {}
+        },
+        "bodyDiscriminator": "CountUnavailableException",
+        "discriminatorHeader": "X-Crucible-Error",
+        "fault": "server",
+        "protocolHeaders": {
+          "Content-Type": "application/json"
+        },
+        "retryable": null,
+        "sample": {
+          "fallbacks": [],
+          "generated": true,
+          "message": {
+            "body": {
+              "__type": "CountUnavailableException",
+              "message": "message"
+            },
+            "headers": {
+              "Content-Type": "application/json",
+              "X-Crucible-Error": "CountUnavailableException"
+            },
+            "labels": {},
+            "payload": null,
+            "query": []
+          }
+        },
+        "shape": "example.shop#CountUnavailableException",
+        "status": 503,
+        "wireCode": "CountUnavailableException"
+      },
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
+      "id": "example.shop#CountUnavailableException",
+      "internal": false,
+      "kind": "structure",
+      "members": [
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "message",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": false,
+          "required": true,
+          "sensitive": false,
+          "target": "crucible.api#String",
+          "targetName": "String",
+          "targetType": "string",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "message"
+        }
+      ],
+      "name": "CountUnavailableException",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false
+    },
+    "example.shop#DeleteItemInput": {
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "error": null,
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
+      "id": "example.shop#DeleteItemInput",
+      "internal": false,
+      "kind": "structure",
+      "members": [
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "id",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": false,
+          "required": true,
+          "sensitive": false,
+          "target": "crucible.api#String",
+          "targetName": "String",
+          "targetType": "string",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "id"
+        },
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "force",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": true,
+          "required": false,
+          "sensitive": false,
+          "target": "crucible.api#Boolean",
+          "targetName": "Boolean",
+          "targetType": "boolean",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "force"
+        }
+      ],
+      "name": "DeleteItemInput",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false
+    },
+    "example.shop#DeleteItemOutput": {
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "error": null,
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
+      "id": "example.shop#DeleteItemOutput",
+      "internal": false,
+      "kind": "structure",
+      "members": [
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "deleted",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": false,
+          "required": true,
+          "sensitive": false,
+          "target": "crucible.api#Boolean",
+          "targetName": "Boolean",
+          "targetType": "boolean",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "deleted"
+        }
+      ],
+      "name": "DeleteItemOutput",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false
+    },
+    "example.shop#GetItemInput": {
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "error": null,
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
+      "id": "example.shop#GetItemInput",
+      "internal": false,
+      "kind": "structure",
+      "members": [
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "id",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": false,
+          "required": true,
+          "sensitive": false,
+          "target": "crucible.api#String",
+          "targetName": "String",
+          "targetType": "string",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "id"
+        }
+      ],
+      "name": "GetItemInput",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false
+    },
+    "example.shop#GetItemOutput": {
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "error": null,
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
+      "id": "example.shop#GetItemOutput",
+      "internal": false,
+      "kind": "structure",
+      "members": [
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [
+              "v2"
+            ],
+            "missing": []
+          },
+          "internal": false,
+          "name": "title",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": false,
+          "required": true,
+          "sensitive": false,
+          "target": "crucible.api#String",
+          "targetName": "String",
+          "targetType": "string",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "title"
+        },
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "size",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": true,
+          "required": false,
+          "sensitive": false,
+          "target": "crucible.api#Integer",
+          "targetName": "Integer",
+          "targetType": "integer",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "size"
+        },
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "kind",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": false,
+          "required": true,
+          "sensitive": false,
+          "target": "example.shop#Kind",
+          "targetName": "Kind",
+          "targetType": "enum",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "kind"
+        }
+      ],
+      "name": "GetItemOutput",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false
+    },
+    "example.shop#GetLabelInput": {
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "error": null,
+      "history": {
+        "added": "v4",
+        "changed": [],
+        "missing": []
+      },
+      "id": "example.shop#GetLabelInput",
+      "internal": false,
+      "kind": "structure",
+      "members": [
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": "v4",
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "id",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": false,
+          "required": true,
+          "sensitive": false,
+          "target": "crucible.api#String",
+          "targetName": "String",
+          "targetType": "string",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "id"
+        }
+      ],
+      "name": "GetLabelInput",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false
+    },
+    "example.shop#GetLabelOutput": {
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "error": null,
+      "history": {
+        "added": "v4",
+        "changed": [],
+        "missing": []
+      },
+      "id": "example.shop#GetLabelOutput",
+      "internal": false,
+      "kind": "structure",
+      "members": [
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": "v4",
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "label",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": false,
+          "required": true,
+          "sensitive": false,
+          "target": "example.shop#Label",
+          "targetName": "Label",
+          "targetType": "structure",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "label"
+        }
+      ],
+      "name": "GetLabelOutput",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false
+    },
+    "example.shop#ItemNotFoundException": {
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "error": {
+        "bindings": {
+          "body": [
+            "message"
+          ],
+          "headerEncodings": {},
+          "headers": [],
+          "labels": [],
+          "payload": null,
+          "query": [],
+          "timestampFormats": {}
+        },
+        "bodyDiscriminator": "ItemNotFoundException",
+        "discriminatorHeader": "X-Crucible-Error",
+        "fault": "client",
+        "protocolHeaders": {
+          "Content-Type": "application/json"
+        },
+        "retryable": null,
+        "sample": {
+          "fallbacks": [],
+          "generated": true,
+          "message": {
+            "body": {
+              "__type": "ItemNotFoundException",
+              "message": "message"
+            },
+            "headers": {
+              "Content-Type": "application/json",
+              "X-Crucible-Error": "ItemNotFoundException"
+            },
+            "labels": {},
+            "payload": null,
+            "query": []
+          }
+        },
+        "shape": "example.shop#ItemNotFoundException",
+        "status": 404,
+        "wireCode": "ItemNotFoundException"
+      },
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
+      "id": "example.shop#ItemNotFoundException",
+      "internal": false,
+      "kind": "structure",
+      "members": [
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "message",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": false,
+          "required": true,
+          "sensitive": false,
+          "target": "crucible.api#String",
+          "targetName": "String",
+          "targetType": "string",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "message"
+        }
+      ],
+      "name": "ItemNotFoundException",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false
+    },
+    "example.shop#Kind": {
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "history": {
+        "added": null,
+        "changed": [
+          "v3"
+        ],
+        "missing": []
+      },
+      "id": "example.shop#Kind",
+      "internal": false,
+      "kind": "enum",
+      "members": [],
+      "name": "Kind",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false,
+      "values": [
+        {
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "SMALL",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "value": "SMALL"
+        },
+        {
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "LARGE",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "value": "LARGE"
+        }
+      ]
+    },
+    "example.shop#Kinds": {
+      "constraints": {
+        "length": null,
+        "pattern": null,
+        "range": null,
+        "uniqueItems": false
+      },
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
+      "id": "example.shop#Kinds",
+      "internal": false,
+      "kind": "list",
+      "members": [
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "member",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": true,
+          "required": false,
+          "sensitive": false,
+          "target": "example.shop#Kind",
+          "targetName": "Kind",
+          "targetType": "enum",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "member"
+        }
+      ],
+      "name": "Kinds",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false,
+      "set": false,
+      "sparse": false
+    },
+    "example.shop#Label": {
+      "documentation": {
+        "html": "<p>An item's label. Strict: a request naming a member it does not have\nis refused, at the current release; an older release's outputs reach it\ntoo, so there it reads what it does not know.</p>\n",
+        "markdown": "An item's label. Strict: a request naming a member it does not have\nis refused, at the current release; an older release's outputs reach it\ntoo, so there it reads what it does not know.",
+        "text": "An item's label. Strict: a request naming a member it does not have\nis refused, at the current release; an older release's outputs reach it\ntoo, so there it reads what it does not know."
+      },
+      "error": null,
+      "history": {
+        "added": "v3",
+        "changed": [],
+        "missing": []
+      },
+      "id": "example.shop#Label",
+      "internal": false,
+      "kind": "structure",
+      "members": [
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": "v3",
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "title",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": false,
+          "required": true,
+          "sensitive": false,
+          "target": "crucible.api#String",
+          "targetName": "String",
+          "targetType": "string",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "title"
+        },
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": "v3",
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "size",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": true,
+          "required": false,
+          "sensitive": false,
+          "target": "crucible.api#Integer",
+          "targetName": "Integer",
+          "targetType": "integer",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "size"
+        },
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": "v4",
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "color",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": true,
+          "required": false,
+          "sensitive": false,
+          "target": "crucible.api#String",
+          "targetName": "String",
+          "targetType": "string",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "color"
+        }
+      ],
+      "name": "Label",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false
+    },
+    "example.shop#Labels": {
+      "constraints": {
+        "length": null,
+        "pattern": null,
+        "range": null,
+        "uniqueItems": false
+      },
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "history": {
+        "added": "v3",
+        "changed": [],
+        "missing": []
+      },
+      "id": "example.shop#Labels",
+      "internal": false,
+      "kind": "list",
+      "members": [
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": "v3",
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "member",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": true,
+          "required": false,
+          "sensitive": false,
+          "target": "example.shop#Label",
+          "targetName": "Label",
+          "targetType": "structure",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "member"
+        }
+      ],
+      "name": "Labels",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false,
+      "set": false,
+      "sparse": false
+    },
+    "example.shop#ListItemsInput": {
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "error": null,
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
+      "id": "example.shop#ListItemsInput",
+      "internal": false,
+      "kind": "structure",
+      "members": [
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [
+              "v2",
+              "v3"
+            ],
+            "missing": []
+          },
+          "internal": false,
+          "name": "limit",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": true,
+          "required": false,
+          "sensitive": false,
+          "target": "crucible.api#Integer",
+          "targetName": "Integer",
+          "targetType": "integer",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "limit"
+        },
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [
+              "v2"
+            ],
+            "missing": []
+          },
+          "internal": false,
+          "name": "sort",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": false,
+          "required": true,
+          "sensitive": false,
+          "target": "crucible.api#String",
+          "targetName": "String",
+          "targetType": "string",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "sort"
+        }
+      ],
+      "name": "ListItemsInput",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false
+    },
+    "example.shop#ListItemsOutput": {
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "error": null,
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
+      "id": "example.shop#ListItemsOutput",
+      "internal": false,
+      "kind": "structure",
+      "members": [
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "names",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": false,
+          "required": true,
+          "sensitive": false,
+          "target": "example.shop#Names",
+          "targetName": "Names",
+          "targetType": "list",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "names"
+        },
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "kinds",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": false,
+          "required": true,
+          "sensitive": false,
+          "target": "example.shop#Kinds",
+          "targetName": "Kinds",
+          "targetType": "list",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "kinds"
+        }
+      ],
+      "name": "ListItemsOutput",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false
+    },
+    "example.shop#ListLabelsOutput": {
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "error": null,
+      "history": {
+        "added": "v3",
+        "changed": [],
+        "missing": []
+      },
+      "id": "example.shop#ListLabelsOutput",
+      "internal": false,
+      "kind": "structure",
+      "members": [
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": "v3",
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "labels",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": false,
+          "required": true,
+          "sensitive": false,
+          "target": "example.shop#Labels",
+          "targetName": "Labels",
+          "targetType": "list",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "labels"
+        },
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": "v3",
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "kinds",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": false,
+          "required": true,
+          "sensitive": false,
+          "target": "example.shop#Kinds",
+          "targetName": "Kinds",
+          "targetType": "list",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "kinds"
+        }
+      ],
+      "name": "ListLabelsOutput",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false
+    },
+    "example.shop#Names": {
+      "constraints": {
+        "length": null,
+        "pattern": null,
+        "range": null,
+        "uniqueItems": false
+      },
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
+      "id": "example.shop#Names",
+      "internal": false,
+      "kind": "list",
+      "members": [
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "member",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": true,
+          "required": false,
+          "sensitive": false,
+          "target": "crucible.api#String",
+          "targetName": "String",
+          "targetType": "string",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "member"
+        }
+      ],
+      "name": "Names",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false,
+      "set": false,
+      "sparse": false
+    },
+    "example.shop#PutLabelInput": {
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "error": null,
+      "history": {
+        "added": "v4",
+        "changed": [],
+        "missing": []
+      },
+      "id": "example.shop#PutLabelInput",
+      "internal": false,
+      "kind": "structure",
+      "members": [
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": "v4",
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "id",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": false,
+          "required": true,
+          "sensitive": false,
+          "target": "crucible.api#String",
+          "targetName": "String",
+          "targetType": "string",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "id"
+        },
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": "v4",
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "label",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": false,
+          "required": true,
+          "sensitive": false,
+          "target": "example.shop#Label",
+          "targetName": "Label",
+          "targetType": "structure",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "label"
+        }
+      ],
+      "name": "PutLabelInput",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false
+    },
+    "example.shop#PutLabelOutput": {
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "error": null,
+      "history": {
+        "added": "v4",
+        "changed": [],
+        "missing": []
+      },
+      "id": "example.shop#PutLabelOutput",
+      "internal": false,
+      "kind": "structure",
+      "members": [
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": "v4",
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "label",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": false,
+          "required": true,
+          "sensitive": false,
+          "target": "example.shop#Label",
+          "targetName": "Label",
+          "targetType": "structure",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "label"
+        }
+      ],
+      "name": "PutLabelOutput",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false
+    },
+    "example.shop#RecordPaymentInput": {
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "error": null,
+      "history": {
+        "added": "v3",
+        "changed": [],
+        "missing": []
+      },
+      "id": "example.shop#RecordPaymentInput",
+      "internal": false,
+      "kind": "structure",
+      "members": [
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": "v3",
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "signature",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": false,
+          "required": true,
+          "sensitive": false,
+          "target": "crucible.api#String",
+          "targetName": "String",
+          "targetType": "string",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "signature"
+        }
+      ],
+      "name": "RecordPaymentInput",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false
+    },
+    "example.shop#RecordPaymentOutput": {
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "error": null,
+      "history": {
+        "added": "v3",
+        "changed": [],
+        "missing": []
+      },
+      "id": "example.shop#RecordPaymentOutput",
+      "internal": false,
+      "kind": "structure",
+      "members": [
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": "v3",
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "release",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": false,
+          "required": true,
+          "sensitive": false,
+          "target": "crucible.api#String",
+          "targetName": "String",
+          "targetType": "string",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "release"
+        }
+      ],
+      "name": "RecordPaymentOutput",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false
+    }
+  },
+  "versions": {
+    "carrier": {
+      "kind": "header",
+      "name": "Crucible-Version"
+    },
+    "current": "v4",
+    "releases": [
+      {
+        "changes": [],
+        "current": false,
+        "documentation": {
+          "html": "",
+          "markdown": "",
+          "text": ""
+        },
+        "from": null,
+        "name": "v1",
+        "retired": [],
+        "sunset": "2027-01-01",
+        "sunsetDocumentation": {
+          "html": "",
+          "markdown": "",
+          "text": ""
+        }
+      },
+      {
+        "changes": [
+          {
+            "documentation": {
+              "html": "",
+              "markdown": "",
+              "text": ""
+            },
+            "kind": "rename",
+            "member": "title",
+            "older": {
+              "member": "name",
+              "shapes": {}
+            },
+            "shape": "example.shop#GetItemOutput",
+            "subjects": [
+              "example.shop#GetItemOutput$title"
+            ]
+          },
+          {
+            "documentation": {
+              "html": "",
+              "markdown": "",
+              "text": ""
+            },
+            "kind": "rename",
+            "member": "limit",
+            "older": {
+              "member": "max",
+              "shapes": {}
+            },
+            "shape": "example.shop#ListItemsInput",
+            "subjects": [
+              "example.shop#ListItemsInput$limit"
+            ]
+          },
+          {
+            "documentation": {
+              "html": "",
+              "markdown": "",
+              "text": ""
+            },
+            "kind": "require",
+            "member": "sort",
+            "older": {
+              "default": null,
+              "filled": "service",
+              "required": false,
+              "shapes": {}
+            },
+            "shape": "example.shop#ListItemsInput",
+            "subjects": [
+              "example.shop#ListItemsInput$sort"
+            ]
+          }
+        ],
+        "current": false,
+        "documentation": {
+          "html": "",
+          "markdown": "",
+          "text": ""
+        },
+        "from": "v1",
+        "name": "v2",
+        "retired": [],
+        "sunset": null,
+        "sunsetDocumentation": {
+          "html": "",
+          "markdown": "",
+          "text": ""
+        }
+      },
+      {
+        "changes": [
+          {
+            "documentation": {
+              "html": "",
+              "markdown": "",
+              "text": ""
+            },
+            "kind": "move",
+            "method": "GET",
+            "older": {
+              "method": "GET",
+              "shapes": {},
+              "uri": "/items/{id}"
+            },
+            "operation": "example.shop#GetItem",
+            "subjects": [
+              "example.shop#GetItem"
+            ],
+            "uri": "/things/{id}"
+          },
+          {
+            "documentation": {
+              "html": "",
+              "markdown": "",
+              "text": ""
+            },
+            "into": "label",
+            "kind": "reshape",
+            "members": [
+              "title",
+              "size"
+            ],
+            "older": {
+              "shape": "example.shop#GetItemOutput",
+              "shapes": {
+                "example.shop#GetItemOutput": {
+                  "documentation": {
+                    "html": "",
+                    "markdown": "",
+                    "text": ""
+                  },
+                  "error": null,
+                  "history": {
+                    "added": null,
+                    "changed": [],
+                    "missing": []
+                  },
+                  "id": "example.shop#GetItemOutput",
+                  "internal": false,
+                  "kind": "structure",
+                  "members": [
+                    {
+                      "clientOptional": false,
+                      "constraints": {
+                        "length": null,
+                        "pattern": null,
+                        "range": null,
+                        "uniqueItems": false
+                      },
+                      "default": null,
+                      "documentation": {
+                        "html": "",
+                        "markdown": "",
+                        "text": ""
+                      },
+                      "history": {
+                        "added": null,
+                        "changed": [
+                          "v2"
+                        ],
+                        "missing": []
+                      },
+                      "internal": false,
+                      "name": "title",
+                      "notes": {
+                        "deprecated": null,
+                        "externalDocs": {},
+                        "since": null,
+                        "unstable": false
+                      },
+                      "nullable": false,
+                      "required": true,
+                      "sensitive": false,
+                      "target": "crucible.api#String",
+                      "targetName": "String",
+                      "targetType": "string",
+                      "timestampFormat": "date-time",
+                      "wireDefault": null,
+                      "wireName": "title"
+                    },
+                    {
+                      "clientOptional": false,
+                      "constraints": {
+                        "length": null,
+                        "pattern": null,
+                        "range": null,
+                        "uniqueItems": false
+                      },
+                      "default": null,
+                      "documentation": {
+                        "html": "",
+                        "markdown": "",
+                        "text": ""
+                      },
+                      "history": {
+                        "added": null,
+                        "changed": [],
+                        "missing": []
+                      },
+                      "internal": false,
+                      "name": "size",
+                      "notes": {
+                        "deprecated": null,
+                        "externalDocs": {},
+                        "since": null,
+                        "unstable": false
+                      },
+                      "nullable": true,
+                      "required": false,
+                      "sensitive": false,
+                      "target": "crucible.api#Integer",
+                      "targetName": "Integer",
+                      "targetType": "integer",
+                      "timestampFormat": "date-time",
+                      "wireDefault": null,
+                      "wireName": "size"
+                    },
+                    {
+                      "clientOptional": false,
+                      "constraints": {
+                        "length": null,
+                        "pattern": null,
+                        "range": null,
+                        "uniqueItems": false
+                      },
+                      "default": null,
+                      "documentation": {
+                        "html": "",
+                        "markdown": "",
+                        "text": ""
+                      },
+                      "history": {
+                        "added": null,
+                        "changed": [],
+                        "missing": []
+                      },
+                      "internal": false,
+                      "name": "kind",
+                      "notes": {
+                        "deprecated": null,
+                        "externalDocs": {},
+                        "since": null,
+                        "unstable": false
+                      },
+                      "nullable": false,
+                      "required": true,
+                      "sensitive": false,
+                      "target": "example.shop#Kind",
+                      "targetName": "Kind",
+                      "targetType": "enum",
+                      "timestampFormat": "date-time",
+                      "wireDefault": null,
+                      "wireName": "kind"
+                    }
+                  ],
+                  "name": "GetItemOutput",
+                  "notes": {
+                    "deprecated": null,
+                    "externalDocs": {},
+                    "since": null,
+                    "unstable": false
+                  },
+                  "sensitive": false
+                }
+              }
+            },
+            "shape": "example.shop#GetItemOutput",
+            "subjects": [
+              "example.shop#GetItemOutput"
+            ]
+          },
+          {
+            "documentation": {
+              "html": "",
+              "markdown": "",
+              "text": ""
+            },
+            "kind": "require",
+            "member": "limit",
+            "older": {
+              "default": 20,
+              "filled": "default",
+              "required": false,
+              "shapes": {}
+            },
+            "shape": "example.shop#ListItemsInput",
+            "subjects": [
+              "example.shop#ListItemsInput$limit"
+            ]
+          },
+          {
+            "documentation": {
+              "html": "",
+              "markdown": "",
+              "text": ""
+            },
+            "kind": "addEnumValue",
+            "older": {
+              "shapes": {},
+              "value": "LARGE"
+            },
+            "shape": "example.shop#Kind",
+            "subjects": [
+              "example.shop#Kind"
+            ],
+            "value": "HUGE"
+          },
+          {
+            "documentation": {
+              "html": "",
+              "markdown": "",
+              "text": ""
+            },
+            "error": "example.shop#ItemGoneException",
+            "kind": "addError",
+            "older": {
+              "error": "example.shop#ItemNotFoundException",
+              "members": [
+                {
+                  "from": "message",
+                  "member": "message"
+                }
+              ],
+              "shapes": {}
+            },
+            "operation": "example.shop#GetItem",
+            "subjects": [
+              "example.shop#GetItem"
+            ]
+          },
+          {
+            "by": "hook",
+            "documentation": {
+              "html": "",
+              "markdown": "",
+              "text": ""
+            },
+            "kind": "retype",
+            "member": "force",
+            "older": {
+              "member": {
+                "clientOptional": false,
+                "constraints": {
+                  "length": null,
+                  "pattern": null,
+                  "range": null,
+                  "uniqueItems": false
+                },
+                "default": null,
+                "documentation": {
+                  "html": "",
+                  "markdown": "",
+                  "text": ""
+                },
+                "history": {
+                  "added": null,
+                  "changed": [],
+                  "missing": []
+                },
+                "internal": false,
+                "name": "force",
+                "notes": {
+                  "deprecated": null,
+                  "externalDocs": {},
+                  "since": null,
+                  "unstable": false
+                },
+                "nullable": true,
+                "required": false,
+                "sensitive": false,
+                "target": "crucible.api#Boolean",
+                "targetName": "Boolean",
+                "targetType": "boolean",
+                "timestampFormat": "date-time",
+                "wireDefault": null,
+                "wireName": "force"
+              },
+              "shapes": {}
+            },
+            "shape": "example.shop#DeleteItemInput",
+            "subjects": [
+              "example.shop#DeleteItemInput$force"
+            ],
+            "target": "crucible.api#String"
+          },
+          {
+            "by": "hook",
+            "documentation": {
+              "html": "",
+              "markdown": "",
+              "text": ""
+            },
+            "kind": "retype",
+            "member": "deleted",
+            "older": {
+              "member": {
+                "clientOptional": false,
+                "constraints": {
+                  "length": null,
+                  "pattern": null,
+                  "range": null,
+                  "uniqueItems": false
+                },
+                "default": null,
+                "documentation": {
+                  "html": "",
+                  "markdown": "",
+                  "text": ""
+                },
+                "history": {
+                  "added": null,
+                  "changed": [],
+                  "missing": []
+                },
+                "internal": false,
+                "name": "deleted",
+                "notes": {
+                  "deprecated": null,
+                  "externalDocs": {},
+                  "since": null,
+                  "unstable": false
+                },
+                "nullable": false,
+                "required": true,
+                "sensitive": false,
+                "target": "crucible.api#Boolean",
+                "targetName": "Boolean",
+                "targetType": "boolean",
+                "timestampFormat": "date-time",
+                "wireDefault": null,
+                "wireName": "deleted"
+              },
+              "shapes": {}
+            },
+            "shape": "example.shop#DeleteItemOutput",
+            "subjects": [
+              "example.shop#DeleteItemOutput$deleted"
+            ],
+            "target": "crucible.api#String"
+          },
+          {
+            "documentation": {
+              "html": "",
+              "markdown": "",
+              "text": ""
+            },
+            "kind": "removeOperation",
+            "older": {
+              "operation": {
+                "auth": [],
+                "documentation": {
+                  "html": "",
+                  "markdown": "",
+                  "text": ""
+                },
+                "errors": [
+                  "example.shop#CountUnavailableException",
+                  "crucible.errors#ValidationException",
+                  "crucible.errors#InternalServerException"
+                ],
+                "examples": [],
+                "history": {
+                  "added": null,
+                  "changed": [],
+                  "missing": []
+                },
+                "id": "example.shop#CountItems",
+                "idempotencyToken": null,
+                "idempotent": false,
+                "input": "example.shop#CountItemsInput",
+                "inputSchema": {
+                  "$defs": {
+                    "crucible.api.String": {
+                      "type": "string"
+                    },
+                    "example.shop.CountItemsInput": {
+                      "properties": {
+                        "shelf": {
+                          "anyOf": [
+                            {
+                              "$ref": "#/$defs/crucible.api.String"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        }
+                      },
+                      "type": "object"
+                    }
+                  },
+                  "properties": {
+                    "shelf": {
+                      "anyOf": [
+                        {
+                          "$ref": "#/$defs/crucible.api.String"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  },
+                  "type": "object"
+                },
+                "internal": false,
+                "method": "GET",
+                "name": "CountItems",
+                "notes": {
+                  "deprecated": null,
+                  "externalDocs": {},
+                  "since": null,
+                  "unstable": false
+                },
+                "output": "example.shop#CountItemsOutput",
+                "outputSchema": {
+                  "$defs": {
+                    "crucible.api.Integer": {
+                      "format": "int32",
+                      "maximum": 2147483647,
+                      "minimum": -2147483648,
+                      "type": "integer"
+                    },
+                    "example.shop.CountItemsOutput": {
+                      "properties": {
+                        "count": {
+                          "$ref": "#/$defs/crucible.api.Integer"
+                        }
+                      },
+                      "required": [
+                        "count"
+                      ],
+                      "type": "object"
+                    }
+                  },
+                  "properties": {
+                    "count": {
+                      "$ref": "#/$defs/crucible.api.Integer"
+                    }
+                  },
+                  "required": [
+                    "count"
+                  ],
+                  "type": "object"
+                },
+                "pagination": null,
+                "protocol": "crucibleJson",
+                "protocolHeaders": {},
+                "readonly": true,
+                "request": {
+                  "body": [],
+                  "headerEncodings": {},
+                  "headers": [],
+                  "labels": [],
+                  "payload": null,
+                  "query": [
+                    {
+                      "member": "shelf",
+                      "name": "shelf"
+                    }
+                  ],
+                  "timestampFormats": {}
+                },
+                "resources": [],
+                "response": {
+                  "body": [
+                    "count"
+                  ],
+                  "headerEncodings": {},
+                  "headers": [],
+                  "labels": [],
+                  "payload": null,
+                  "query": [],
+                  "timestampFormats": {}
+                },
+                "responseProtocolHeaders": {
+                  "Content-Type": "application/json"
+                },
+                "sample": {
+                  "fallbacks": [],
+                  "generated": true,
+                  "input": {
+                    "body": null,
+                    "headers": {},
+                    "labels": {},
+                    "method": "GET",
+                    "payload": null,
+                    "query": [
+                      {
+                        "name": "shelf",
+                        "value": "shelf"
+                      }
+                    ],
+                    "uri": "/count?shelf=shelf"
+                  },
+                  "minimalInput": {
+                    "body": null,
+                    "headers": {},
+                    "labels": {},
+                    "method": "GET",
+                    "payload": null,
+                    "query": [],
+                    "uri": "/count"
+                  },
+                  "output": {
+                    "body": {
+                      "count": 1
+                    },
+                    "headers": {
+                      "Content-Type": "application/json"
+                    },
+                    "labels": {},
+                    "payload": null,
+                    "query": []
+                  }
+                },
+                "status": 200,
+                "uri": "/count"
+              },
+              "shapes": {}
+            },
+            "operation": "example.shop#CountItems",
+            "subjects": [
+              "example.shop#CountItems"
+            ]
+          }
+        ],
+        "current": false,
+        "documentation": {
+          "html": "",
+          "markdown": "",
+          "text": ""
+        },
+        "from": "v2",
+        "name": "v3",
+        "retired": [],
+        "sunset": null,
+        "sunsetDocumentation": {
+          "html": "",
+          "markdown": "",
+          "text": ""
+        }
+      },
+      {
+        "changes": [
+          {
+            "by": "hook",
+            "documentation": {
+              "html": "",
+              "markdown": "",
+              "text": ""
+            },
+            "kind": "retype",
+            "member": "size",
+            "older": {
+              "member": {
+                "clientOptional": false,
+                "constraints": {
+                  "length": null,
+                  "pattern": null,
+                  "range": null,
+                  "uniqueItems": false
+                },
+                "default": null,
+                "documentation": {
+                  "html": "",
+                  "markdown": "",
+                  "text": ""
+                },
+                "history": {
+                  "added": "v3",
+                  "changed": [],
+                  "missing": []
+                },
+                "internal": false,
+                "name": "size",
+                "notes": {
+                  "deprecated": null,
+                  "externalDocs": {},
+                  "since": null,
+                  "unstable": false
+                },
+                "nullable": true,
+                "required": false,
+                "sensitive": false,
+                "target": "crucible.api#Integer",
+                "targetName": "Integer",
+                "targetType": "integer",
+                "timestampFormat": "date-time",
+                "wireDefault": null,
+                "wireName": "size"
+              },
+              "shapes": {}
+            },
+            "shape": "example.shop#Label",
+            "subjects": [
+              "example.shop#Label$size"
+            ],
+            "target": "crucible.api#String"
+          }
+        ],
+        "current": true,
+        "documentation": {
+          "html": "",
+          "markdown": "",
+          "text": ""
+        },
+        "from": "v3",
+        "name": "v4",
+        "retired": [],
+        "sunset": null,
+        "sunsetDocumentation": {
+          "html": "",
+          "markdown": "",
+          "text": ""
+        }
+      }
+    ]
+  }
+}

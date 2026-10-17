@@ -28,8 +28,11 @@ current model (built: the compiler checks them and the Rust server serves
 them), with an SDK line per version (built: `model(..).api_version(..)`,
 `crucible generate <output> --api-version` and an SDK file entry's
 `api_version` generate every output but a server for a supported
-version), a reference per version, and upgrade guides (settled in
-decisions 68-79).
+version), a reference per version (built: each page of an older
+version's reference names it, and `crucible generate docs --all-releases`
+writes every version's reference into one output,
+[docs.md](docs.md#every-releases-reference)), and upgrade guides
+(settled in decisions 68-79).
 
 ## Versions
 

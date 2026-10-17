@@ -27,12 +27,13 @@ const HISTORY = golden("history-internal");
 const HISTORY_EXTERNAL = golden("history-external");
 const VERSIONED = golden("versioned-external");
 const VERSIONED_V1 = golden("versioned-v1-external");
+const VERSIONED_V2 = golden("versioned-v2-external");
 const SENDER = golden("sender-external");
 // Weather's internal description with its schemas shared and omitted.
 const schemas = (name) => JSON.parse(readFileSync(join(crate, "tests", "golden", "schemas", `${name}.json`), "utf8"));
 const WEATHER_SHARED = schemas("weather-shared");
 const WEATHER_OMIT = schemas("weather-omit");
-const DESCRIPTIONS = { WEATHER, WEATHER_EXTERNAL, CATALOG, PERMISSIONS, PERMISSIONS_EXTERNAL, SAMPLES, LINKS, LINKS_EXTERNAL, HISTORY, HISTORY_EXTERNAL, VERSIONED, VERSIONED_V1, WEATHER_SHARED, WEATHER_OMIT, SENDER };
+const DESCRIPTIONS = { WEATHER, WEATHER_EXTERNAL, CATALOG, PERMISSIONS, PERMISSIONS_EXTERNAL, SAMPLES, LINKS, LINKS_EXTERNAL, HISTORY, HISTORY_EXTERNAL, VERSIONED, VERSIONED_V1, VERSIONED_V2, WEATHER_SHARED, WEATHER_OMIT, SENDER };
 
 // ---- walking rendered nodes ----------------------------------------------
 
@@ -580,6 +581,7 @@ test("the test fixtures cover all goldens the generator ships", () => {
     "sender-external",
     "versioned-external",
     "versioned-v1-external",
+    "versioned-v2-external",
     "weather-external",
     "weather-internal",
   ].sort());
@@ -591,6 +593,92 @@ test("an older release's reference says which release it documents and which is 
   const current = textOf(x.overviewView(x.index(VERSIONED))).replace(/\n/g, "");
   assert.match(current, /The current release is v4\./);
   assert.doesNotMatch(current, /This reference documents release/);
+});
+
+// Every route a description has: the overview, each operation, data
+// type, resource and release page.
+function routes(m) {
+  return [
+    { kind: "overview" },
+    ...Object.keys(m.operations).map((id) => ({ kind: "op", id })),
+    ...Object.keys(m.shapes).map((id) => ({ kind: "shape", id })),
+    ...Object.keys(m.resources).map((id) => ({ kind: "resource", id })),
+    ...m.releases.map((r) => ({ kind: "release", id: r.name })),
+  ];
+}
+
+test("every page of an older release's reference names its release and links the current one", () => {
+  for (const [description, banner] of [
+    [VERSIONED_V1, "An older release. This reference documents release v1, which is supported until 2027-01-01. The current release is v4: see its reference."],
+    [VERSIONED_V2, "An older release. This reference documents release v2. The current release is v4: see its reference."],
+  ]) {
+    const m = x.index(description);
+    const pages = routes(m);
+    assert.ok(pages.length > 20, `${pages.length} pages`);
+    for (const route of pages) {
+      const [first] = [x.pageFor(m, route, null).view].flat(Infinity).filter(Boolean);
+      assert.equal(first.attrs.class, "cx-note cx-release-banner", `${route.kind} ${route.id}`);
+      assert.equal(first.attrs.role, "note");
+      assert.equal(textOf(first).replace(/\n/g, ""), banner);
+      assert.deepEqual(elements(first, "a").map((a) => a.attrs.href), ["../v4/index.html"]);
+    }
+  }
+  // The current release's reference has none.
+  const current = x.index(VERSIONED);
+  assert.equal(x.releaseBanner(current), null);
+  for (const route of routes(current)) {
+    assert.ok(!htmlOf(x.pageFor(current, route, null).view).includes("cx-release-banner"), `${route.kind} ${route.id}`);
+  }
+  assert.equal(x.releaseBanner(x.index(WEATHER)), null);
+});
+
+test("a release's directory is named as the generator names it", () => {
+  // The same table as the generator's `release_directory` test.
+  for (const [name, directory] of [
+    ["v2", "v2"],
+    ["2026-09-04", "2026-09-04"],
+    ["1.0+build", "1.0+build"],
+    ["2026<img/src=x>?#q:*|\"_", "2026_3Cimg_2Fsrc_3Dx_3E_3F_23q_3A_2A_7C_22_5F"],
+    ["con", "_63on"],
+    ["Com1.x", "_43om1.x"],
+    [".hidden.", "_2Ehidden_2E"],
+    ["x](https://example.com)", "x_5D_28https_3A_2F_2Fexample.com_29"],
+    ["v3/../../evil`*", "v3_2F.._2F.._2Fevil_60_2A"],
+  ]) {
+    assert.equal(x.releaseDirectory(name), directory, name);
+  }
+});
+
+test("XSS: the release notice shows release names and a sunset as text, linking only the escaped directory", () => {
+  const hostile = structuredClone(VERSIONED_V1);
+  const older = `${PAYLOAD}[v1](javascript:alert(1))`;
+  const newest = `"><svg onload=alert(1)>../x`;
+  hostile.service.version = older;
+  hostile.versions.current = newest;
+  const releases = hostile.versions.releases;
+  releases[0].name = older;
+  releases[0].sunset = `<b>2027</b>${PAYLOAD}`;
+  releases[releases.length - 1].name = newest;
+  const m = x.index(hostile);
+  for (const route of routes(m)) {
+    const view = x.pageFor(m, route, null).view;
+    const [first] = [view].flat(Infinity).filter(Boolean);
+    assert.ok(textOf(first).includes(older) && textOf(first).includes(newest) && textOf(first).includes(`<b>2027</b>${PAYLOAD}`), textOf(first));
+    assert.deepEqual(elements(first, "a").map((a) => a.attrs.href), [`../${x.releaseDirectory(newest)}/index.html`]);
+    assert.match(x.releaseDirectory(newest), /^[A-Za-z0-9._+-]+$/);
+    const serial = x.toHTML(stripHtml(first));
+    assert.ok(!/<img|<script|<b>|<svg/i.test(serial), serial);
+  }
+});
+
+test("the DOM boot path draws the release notice on every page", () => {
+  const { win, app } = createWindow({ description: VERSIONED_V1 });
+  x.start(app, VERSIONED_V1, { window: win });
+  assert.ok(app.textContent.includes("This reference documents release v1, which is supported until 2027-01-01"), app.textContent.slice(0, 300));
+  win.setHash("#/op/example.shop%23GetItem");
+  assert.ok(app.textContent.includes("An older release."), app.textContent.slice(0, 300));
+  const link = app.querySelectorAll("a").filter((a) => a.getAttribute("href") === "../v4/index.html");
+  assert.equal(link.length, 1);
 });
 
 test("doc links become hash routes to the page for their id", () => {

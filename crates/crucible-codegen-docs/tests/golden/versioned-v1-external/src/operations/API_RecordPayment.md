@@ -1,5 +1,7 @@
 # RecordPayment
 
+> **An older release.** This reference documents release <code>v1</code>, which is supported until <code>2027&#45;01&#45;01</code>. The current release is <code>v4</code>: see [its reference](../../../v4/index.html).
+
 <p>A payment processor's delivery (decision 81). The processor names no
 release of the shop: it is served at the current one, v4, whatever the
 service does with a client's request that names none.</p>

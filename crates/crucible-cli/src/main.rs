@@ -253,6 +253,12 @@ enum Target {
         /// outputSchema; every mode is crucible.describe/1.
         #[arg(long, value_enum, default_value = "inline")]
         schemas: SchemasArg,
+        /// Document every supported release: each release's reference in
+        /// a directory named for it, with an index.html and an llms.txt
+        /// that list them, so a site can serve them side by side. Leave
+        /// out --api-version, which selects one release.
+        #[arg(long)]
+        all_releases: bool,
     },
     /// An OpenAPI 3.1 JSON document for a REST JSON service.
     Openapi {
@@ -1073,7 +1079,14 @@ fn generate(target: Target, audience: crucible_codegen::Audience) -> Result<(), 
             out,
             sdks,
             schemas,
+            all_releases,
         } => {
+            if all_releases && source.api_version.is_some() {
+                return Err(
+                    "--all-releases documents every supported release; leave out --api-version"
+                        .into(),
+                );
+            }
             // Checked first: the SDK file must declare this reference's
             // model, not another that happens to share its service ID.
             let sdks = sdks
@@ -1100,11 +1113,15 @@ fn generate(target: Target, audience: crucible_codegen::Audience) -> Result<(), 
             // As in a build: documentation and infrastructure check no
             // client capabilities, only what their generators support.
             let full = select(lower_cru(&source, true)?, &source)?;
-            let service = crucible_ir::project(&full, audience).map_err(|e| e.to_string())?;
             let mut options = crucible_codegen_docs::Options::default();
             options.schemas = schemas.into();
-            let files = crucible_codegen_docs::generate_with(&service, &options)
-                .map_err(|e| e.to_string())?;
+            let files = if all_releases {
+                crucible_codegen_docs::generate_releases(&full, audience, &options)
+            } else {
+                crucible_ir::project(&full, audience)
+                    .and_then(|service| crucible_codegen_docs::generate_with(&service, &options))
+            }
+            .map_err(|e| e.to_string())?;
             let mut files = files
                 .into_iter()
                 .map(|file| crucible_codegen::File {
@@ -1113,7 +1130,22 @@ fn generate(target: Target, audience: crucible_codegen::Audience) -> Result<(), 
                 })
                 .collect::<Vec<_>>();
             if let Some(file) = sdks {
-                files.push(crucible_codegen::sdks::file(&file, &full, audience)?);
+                if all_releases {
+                    // Each release's reference describes that release's SDKs.
+                    for release in crucible_ir::versions::releases(&full) {
+                        let line = crucible_ir::versions::line(&full, release)
+                            .map_err(|e| e.to_string())?;
+                        let mut sdks = crucible_codegen::sdks::file(&file, &line, audience)?;
+                        sdks.path = format!(
+                            "{}/{}",
+                            crucible_codegen_docs::release_directory(release),
+                            sdks.path
+                        );
+                        files.push(sdks);
+                    }
+                } else {
+                    files.push(crucible_codegen::sdks::file(&file, &full, audience)?);
+                }
             }
             crucible_codegen::write(&out, &files).map_err(|e| e.to_string())?;
             println!("wrote API reference to {}", out.display());

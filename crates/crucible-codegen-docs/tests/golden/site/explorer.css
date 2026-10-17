@@ -113,6 +113,7 @@ a.cx-badge { text-decoration: none; }
 .cx-note.cx-deprecated { color: var(--danger); background: var(--danger-bg); }
 .cx-note.cx-unstable { color: var(--warn); background: var(--warn-bg); }
 .cx-note.cx-sensitive { color: var(--muted); background: var(--code-bg); }
+.cx-note.cx-release-banner { color: var(--warn); background: var(--warn-bg); margin: 0 0 1rem; }
 .cx-required { font-weight: 700; }
 
 .cx-table { overflow-x: auto; margin: 0.5rem 0 1rem; border: 1px solid var(--border); border-radius: 6px; }

@@ -17,6 +17,36 @@ version's section when it is prepared.
 
 ### Added
 
+- **A reference per release** (API versions PR 8; decision 79 in
+  [docs/idl/decisions.md](docs/idl/decisions.md),
+  [docs/api-versions-clients.md](docs/api-versions-clients.md#a-reference-for-each-release)).
+  An older release's reference (`--api-version`) dates each element where
+  it comes from: what undo restored from a frozen release (a reshaped
+  structure, a removed operation and its own shapes, a retyped member) within
+  the chain that ends there, everything else as the current reference
+  does, under the release's names. A member renamed since now carries the
+  dates of the member it became (it was undated), and a definition
+  restored from `v2` is dated by `v2`, so an operation `v2` added and `v3`
+  removed is added in `v2` in `v1`'s reference. Every page of an older
+  release's reference says under its title which release it documents,
+  its sunset and where the current release's reference is
+  (`../<current>/index.html`), in the Markdown pages, `llms.txt` and the
+  static reference. `crucible generate docs --all-releases` and
+  `crucible_build::model(..).docs(..).all_releases()` write every
+  supported release's reference into one output, a directory each (named
+  as its changelog page is, `crucible_codegen::release_directory`), each
+  exactly what `--api-version` writes for it with its own `sdks.json`,
+  and an `index.html` and an `llms.txt` at the root that list them, so a
+  site can serve them side by side; see
+  [docs/docs.md](docs/docs.md#every-releases-reference).
+  `history.missing` (`crucible.describe/1`) also dates decision 74's
+  payload case: a member added since to a message an older release sent
+  as a payload is missing at that release and those before it. In the
+  IR, `ApiVersion::restored` (`#[serde(default)]`; versions never reach a
+  snapshot) records what undo restored, which
+  `crucible_ir::versions::undo_restoring` and `Projection::restored`
+  return; crucible-ir internals, not stable surface.
+
 - `crucible_build::model(..).report_warnings(false)`: a build that
   compiles a model another build of the same Cargo invocation already
   reports (a service generating from a model crate whose `publish()`

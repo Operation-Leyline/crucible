@@ -11,6 +11,7 @@ pub struct DocsOutput<'a> {
     audience: crucible_codegen::Audience,
     sdks: Option<PathBuf>,
     schemas: crucible_codegen::Schemas,
+    all_releases: bool,
 }
 
 impl<'a> DocsOutput<'a> {
@@ -21,6 +22,7 @@ impl<'a> DocsOutput<'a> {
             audience: crucible_codegen::Audience::External,
             sdks: None,
             schemas: crucible_codegen::Schemas::default(),
+            all_releases: false,
         }
     }
 
@@ -49,6 +51,20 @@ impl<'a> DocsOutput<'a> {
     /// repeated definitions.
     pub fn schemas(mut self, schemas: crucible_codegen::Schemas) -> Self {
         self.schemas = schemas;
+        self
+    }
+
+    /// Document every supported release, not only the model's own: each
+    /// release's reference, as `Model::api_version` would select it, in a
+    /// directory named for the release
+    /// (`crucible_codegen::release_directory`), with an `index.html` and an
+    /// `llms.txt` at the root that list them, so a documentation site can
+    /// serve them side by side and switch between them. Each reference is
+    /// complete on its own (with its own `sdks.json` when [`Self::sdks`]
+    /// is set), and an older release's links the current one beside it.
+    /// See docs/docs.md, "Every release's reference".
+    pub fn all_releases(mut self) -> Self {
+        self.all_releases = true;
         self
     }
 
@@ -81,15 +97,18 @@ impl<'a> DocsOutput<'a> {
             .audience(self.audience);
         output.sdks = self.sdks;
         output.docs.schemas = self.schemas;
+        output.all_releases = self.all_releases;
         output
     }
 }
 
-/// `sdks.json` for a reference of `model` at `audience`, from the SDK file
-/// at `path`, which must declare `model`'s SDKs.
+/// `sdks.json` for a reference of `service`, `model`'s model or a line of
+/// it, at `audience`, from the SDK file at `path`, which must declare
+/// `model`'s SDKs.
 pub(crate) fn sdks_file(
     path: &Path,
     model: &ModelPackage,
+    service: &crucible_ir::ir::Service,
     audience: crucible_codegen::Audience,
 ) -> Result<crucible_codegen::File, String> {
     println!("cargo::rerun-if-changed={}", path.display());
@@ -108,5 +127,5 @@ pub(crate) fn sdks_file(
             model.source.display()
         ));
     }
-    crucible_codegen::sdks::file(&file, &model.service, audience)
+    crucible_codegen::sdks::file(&file, service, audience)
 }

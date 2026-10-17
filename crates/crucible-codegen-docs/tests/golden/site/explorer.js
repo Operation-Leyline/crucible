@@ -254,6 +254,44 @@
 
   const text = (v) => (typeof v === "string" ? v : "");
   const code = (v) => h("code", {}, v);
+
+  // The directory a release's reference sits in beside the others, as
+  // `crucible_codegen_docs::release_directory` names it (docs/docs.md,
+  // "Every release's reference"): letters, digits, `.`, `-` and `+` kept,
+  // every other byte `_` and two hex digits, and a leading or trailing `.`
+  // or a Windows device name's first character escaped too.
+  const DEVICES = new Set(["con", "prn", "aux", "nul", ..."123456789".split("").flatMap((n) => [`com${n}`, `lpt${n}`])]);
+  function releaseDirectory(name) {
+    const value = text(name);
+    const bytes = new TextEncoder().encode(value);
+    const escapeFirst = DEVICES.has(value.split(".")[0].toLowerCase()) || value.startsWith(".");
+    let out = "";
+    bytes.forEach((b, i) => {
+      const kept = (b >= 0x30 && b <= 0x39) || (b >= 0x41 && b <= 0x5a) || (b >= 0x61 && b <= 0x7a) || b === 0x2e || b === 0x2d || b === 0x2b;
+      const escaped = !kept || (i === 0 && escapeFirst) || (i === bytes.length - 1 && b === 0x2e);
+      out += escaped ? `_${b.toString(16).toUpperCase().padStart(2, "0")}` : String.fromCharCode(b);
+    });
+    return out;
+  }
+
+  // On every page of an older release's reference (decision 79): which
+  // release it documents, until when that release is served, and the
+  // current release's reference, beside this one. Null for the current one.
+  function releaseBanner(m) {
+    const v = m.versions;
+    const documented = m.service.version;
+    if (!v || typeof v.current !== "string" || typeof documented !== "string" || documented === v.current) return null;
+    const release = list(v.releases).find((r) => r.name === documented);
+    const sunset = release && typeof release.sunset === "string" ? [", which is supported until ", code(release.sunset)] : null;
+    return h(
+      "p",
+      { class: "cx-note cx-release-banner", role: "note" },
+      h("strong", {}, "An older release. "),
+      "This reference documents release ", code(documented), sunset, ". The current release is ", code(v.current), ": see ",
+      h("a", { href: `../${releaseDirectory(v.current)}/index.html` }, "its reference"),
+      ".",
+    );
+  }
   const link = (kind, id, label, extra) => h("a", { href: href(kind, id), class: extra }, label);
 
   // Only web links from model data become anchors; anything else stays text.
@@ -828,6 +866,12 @@
   }
 
   function pageFor(m, route, panels) {
+    const page = pageView(m, route, panels);
+    const banner = releaseBanner(m);
+    return banner ? { title: page.title, view: [banner, page.view] } : page;
+  }
+
+  function pageView(m, route, panels) {
     switch (route.kind) {
       case "overview": return { title: text(m.service.title || m.service.name), view: overviewView(m) };
       case "op": return { title: (m.operations[route.id] || {}).name || "Not found", view: operationView(m, route.id, panels) };
@@ -1071,7 +1115,7 @@
     FORMAT,
     h, rich, mount, toHTML,
     index, navigation, filterNavigation, parseRoute, href, refHref,
-    overviewView, operationView, shapeView, resourceView, releaseView, pageFor, navView,
+    overviewView, operationView, shapeView, resourceView, releaseView, pageFor, navView, releaseBanner, releaseDirectory,
     requestSyntax, responseSyntax, exampleMessage, operationSchema,
     operationPanels, registerOperationPanel,
     start, load, boot,
