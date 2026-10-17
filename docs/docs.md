@@ -529,9 +529,11 @@ operation and its own shapes, a retyped member) has the `added` and
 `missing` of the chain that ends at `r`, so an operation `v2` added and
 `v3` removed is added in `v2` in `v1`'s reference too. Its `changed` is
 that chain's, the release whose migration restored it, and every later
-release that changed the current element it became, so a member `v3`
-retyped is changed in `v3`, and in each release that changed it since.
-Anything else is dated as the current reference dates it, under the name the release uses: a member renamed since carries
+release with a step naming what it became, followed through the renames,
+so a member `v3` retyped is changed in `v3`, and in each release that
+renamed or changed it since, also after a later step removed it. Anything
+else is dated as the current reference dates it, under the name the
+release uses: a member renamed since carries
 the dates of the member it became. The `versions` block is the current
 reference's.
 

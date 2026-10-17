@@ -653,8 +653,8 @@ gains `history`, an additive field of `crucible.describe/1`:
 - **In a projection**, an element is dated as in the current model, where
   it comes from; one restored from frozen `r` is added and missing as the
   chain that ends at `r` dates it, and changed in that chain, in the
-  migration from `r` that restored it, and in every later release that
-  changed the current element it became (decision 79).
+  migration from `r` that restored it, and in every later release with a
+  step naming what it became, through the renames (decision 79).
 - **`notes.since`** (`@since`, decision 42) stays the author's. A renderer
   shows `history.added` and falls back to `notes.since` when it is `null`:
   something older than every supported release.
@@ -760,9 +760,10 @@ describes and links the current one.
   up from the line's release, the first undo that restored it, from frozen
   `r`, gives its `added` and `missing` within the chain that ends at `r`
   (`history_at`), and its `changed` is that chain's, the release whose
-  migration restored it, and the current model's later changes of the id
-  the renames give it, when the current model still has it, so a reader of
-  the line sees every break that reached it. An element no undo restored
+  migration restored it, and every later release with a step naming what
+  it became, followed through the renames, even once a later step removed
+  it from the current model, so a reader of the line sees every break that
+  reached it. An element no undo restored
   is the current model's, under the id the renames since give it. So in
   the e2e shop's `v1` reference `max` is `limit` (changed in `v2` and
   `v3`), the `force` that `v3` retyped is `v2`'s (changed in `v3`), and in

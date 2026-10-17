@@ -78,9 +78,9 @@ impl Histories {
 /// what undo restored from frozen release `r` is added and missing as the
 /// chain that ends at `r` dates it ([`history_at`]), and changed in that
 /// chain, in the release whose migration restored it, and in every release
-/// since that changed the current model's element of the id the renames
-/// give it; everything else as the current model dates it, followed
-/// through the renames since the line's release.
+/// since with a step naming what it became, through the renames; everything
+/// else as the current model dates it, followed through the renames since
+/// the line's release.
 pub fn history(service: &Service) -> Histories {
     history_cached(service, &HistoryCache::default())
 }
@@ -158,9 +158,10 @@ pub fn history_at(service: &Service, release: usize) -> Histories {
 /// `versions[release]`. The oldest release at or after it whose undo
 /// restored the element, which is where its definition comes from, dates
 /// its addition and what cannot see it within the chain that ends there.
-/// Its changes are that chain's, the migration that restored it, and those
-/// since of the current model's element it became, so a reader of the
-/// line sees each break that reached it. An element nothing restored is
+/// Its changes are that chain's, the migration that restored it, and each
+/// later migration with a step naming what it became, so a reader of the
+/// line sees each break that reached it, also after a later step removed
+/// it from the current model. An element nothing restored is
 /// the current model's, under its current id.
 fn line_history(line: &Service, release: usize, cache: &HistoryCache) -> Histories {
     let view;
@@ -200,14 +201,29 @@ fn line_history(line: &Service, release: usize, cache: &HistoryCache) -> Histori
         };
         let mut history = cache.at(&current, index).get(&id).clone();
         // The migration from the release it was restored from changed it,
-        // and so did every later one that changed what it became.
+        // and so did every later one with a step naming what it became,
+        // followed through the renames, also once a later step removed it
+        // from the current model. A `remove operation` names the operation
+        // as the release before it has it.
         let mut changed: BTreeSet<&str> = history.changed.iter().map(String::as_str).collect();
         changed.insert(names[index + 1]);
-        let later = line.versions[index..newest]
+        let mut id = newer_id(&line.versions[index].steps, &id);
+        for (later, version) in line
+            .versions
             .iter()
-            .fold(id, |id, version| newer_id(&version.steps, &id));
-        if has(&current, &later) {
-            changed.extend(dates.get(&later).changed.iter().map(String::as_str));
+            .enumerate()
+            .take(newest)
+            .skip(index + 1)
+        {
+            let next = newer_id(&version.steps, &id);
+            if version.steps.iter().any(|step| {
+                subjects(step)
+                    .iter()
+                    .any(|subject| *subject == next || *subject == id)
+            }) {
+                changed.insert(names[later + 1]);
+            }
+            id = next;
         }
         history.changed = names
             .iter()

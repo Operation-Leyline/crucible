@@ -454,6 +454,28 @@ fn a_line_keeps_every_change_through_renames_and_retypes() {
     }
 }
 
+/// A member v2 retyped and v3 renamed, of an operation v4 removed: the v1
+/// line holds v1's member, restored by v2's retype, and its changes follow
+/// it through the rename although the current model has neither.
+#[test]
+fn a_line_follows_a_restored_member_past_its_removal() {
+    let current = package("version-line-removed");
+    let id = |text: &str| -> ShapeId { format!("example.removed#{text}").parse().unwrap() };
+    assert!(!crucible_ir::versions::has(&current, &id("CountItems")));
+    let v1 = history(&line(&current, "v1").unwrap());
+    assert_eq!(
+        v1.get(&id("CountItemsOutput$total")),
+        &dated(None, &["v2", "v3"], &[])
+    );
+    // v4 removed the operation, which every older line has from v3.
+    assert_eq!(v1.get(&id("CountItems")), &dated(None, &["v4"], &[]));
+    let v2 = history(&line(&current, "v2").unwrap());
+    assert_eq!(
+        v2.get(&id("CountItemsOutput$total")),
+        &dated(None, &["v2", "v3", "v4"], &[])
+    );
+}
+
 /// The e2e shop's v1 reference: a member retyped since is the release's
 /// own, changed by the retype; a member renamed and required since is the
 /// current one; and a structure reshaped since is v2's, changed by the
