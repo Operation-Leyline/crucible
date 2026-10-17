@@ -260,7 +260,7 @@
   // "Every release's reference"): letters, digits, `.`, `-` and `+` kept,
   // every other byte `_` and two hex digits, and a leading or trailing `.`
   // or a Windows device name's first character escaped too.
-  const DEVICES = new Set(["con", "prn", "aux", "nul", ..."123456789".split("").flatMap((n) => [`com${n}`, `lpt${n}`])]);
+  const DEVICES = new Set(["con", "prn", "aux", "nul", ..."0123456789".split("").flatMap((n) => [`com${n}`, `lpt${n}`])]);
   function releaseDirectory(name) {
     const value = text(name);
     const bytes = new TextEncoder().encode(value);

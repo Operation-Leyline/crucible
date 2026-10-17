@@ -651,8 +651,10 @@ gains `history`, an additive field of `crucible.describe/1`:
 - **An element not frozen yet** is added in the current version: the
   service's `version`, the release being made.
 - **In a projection**, an element is dated as in the current model, where
-  it comes from; one restored from frozen `r` is dated within the chain
-  that ends at `r`.
+  it comes from; one restored from frozen `r` is added and missing as the
+  chain that ends at `r` dates it, and changed in that chain, in the
+  migration from `r` that restored it, and in every later release that
+  changed the current element it became (decision 79).
 - **`notes.since`** (`@since`, decision 42) stays the author's. A renderer
   shows `history.added` and falls back to `notes.since` when it is `null`:
   something older than every supported release.
@@ -755,19 +757,26 @@ describes and links the current one.
   from `crucible_ir::versions::undo_restoring`) lists, by the projection's
   ids, the operations and shapes restored whole and the members a `retype`
   restored. `history` dates a line where each element comes from: walking
-  up from the line's release, the first undo that restored it dates it
-  within the chain that ends at that release (`history_at`); an element no
-  undo restored is the current model's, under the id the renames since
-  give it. So in the e2e shop's `v1` reference `max` is `limit` (changed in
-  `v2` and `v3`), the `force` that `v3` retyped is `v2`'s (changed in
-  neither), and in `tests/models/version-line-history` an operation `v2`
-  added and `v3` removed is added in `v2`. The projection already copied
+  up from the line's release, the first undo that restored it, from frozen
+  `r`, gives its `added` and `missing` within the chain that ends at `r`
+  (`history_at`), and its `changed` is that chain's, the release whose
+  migration restored it, and the current model's later changes of the id
+  the renames give it, when the current model still has it, so a reader of
+  the line sees every break that reached it. An element no undo restored
+  is the current model's, under the id the renames since give it. So in
+  the e2e shop's `v1` reference `max` is `limit` (changed in `v2` and
+  `v3`), the `force` that `v3` retyped is `v2`'s (changed in `v3`), and in
+  `tests/models/version-line-history` an operation `v2` added and `v3`
+  removed is added in `v2` and changed in `v3`. A run that documents every
+  release computes each older release's history once
+  (`versions::HistoryCache`). The projection already copied
   restored definitions with their documentation, so documentation needed
   nothing more. The payload case of decision 74 is dated from the
   projections: a member a release's projection lacks while the next one
   has it, where that projection sends the message (an operation's input or
-  output, or an error) as a payload, is missing at that release and every
-  one before it; an external reference reads the projections through
+  output) as a payload, is missing at that release and every one before
+  it (an error is checked too, defensively: no `.cru` model can grow a
+  body member beside an error's payload); an external reference reads the projections through
   `visible`, which now projects each `ApiVersion::service` too. Every page
   of an older release's reference carries a notice under its title (the
   Markdown pages, `llms.txt` and the explorer's pages): the release it
@@ -777,6 +786,9 @@ describes and links the current one.
   byte for byte what `--api-version` writes for it, in a directory named
   as its changelog page's file is, with an `index.html` and an `llms.txt`
   at the root that list them ([docs.md](docs.md#every-releases-reference)).
+  A release whose directory would be a root file (`index.html`,
+  `llms.txt`) or a directory the output writer refuses (`dist`, `target`)
+  is refused, and `com0` and `lpt0` are escaped as device names.
   Each reference stays self-contained; a site's version switcher reads
   `versions.releases` and links `../<directory>/`.
 
@@ -1018,8 +1030,10 @@ is built, and so are PRs 1 to 8.
    too. The tests are `crucible-lang/tests/history.rs` (what each undo
    restored; a line's dates for a removed operation, a reshape, a retype
    and a rename from `tests/models/version-line-history` and the e2e
-   shop; restored definitions' documentation; the payload case for an
-   input in both audiences and for an error); goldens of the e2e shop's
+   shop, and through two renames, a retype and an enum the current model
+   dropped from `tests/models/version-line-renames`; restored
+   definitions' documentation; the payload case for an input in both
+   audiences, and the defensive error branch on an edited IR); goldens of the e2e shop's
    `v1` and `v2` references (`versioned-v1-external`,
    `versioned-v2-external`); the notice on every page at each depth, its
    escaping and its link in `llms-full.txt`, every release's output and

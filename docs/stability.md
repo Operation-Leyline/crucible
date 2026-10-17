@@ -37,7 +37,7 @@ Schemas}`, `crucible_codegen_docs::{generate_with, Options, Schemas}`,
 are non-exhaustive. `DocsOutput::all_releases`, `crucible generate docs
 --all-releases`, `crucible_codegen::{docs_releases, release_directory}`,
 `crucible_codegen_docs::{generate_releases, release_directory}` and
-`CrucibleExplorer.{releaseBanner, releaseDirectory}` are additive; the
+`CrucibleExplorer.releaseDirectory` and `describe::describe_cached` are additive; the
 layout they write (a directory per release, named by `release_directory`,
 with `index.html` and `llms.txt` at the root) is stable as described in
 [the docs guide](docs.md#every-releases-reference), and the index's prose

@@ -433,13 +433,13 @@ pub(super) fn render(service: &Service, d: &Description) -> Vec<File> {
         if file.path != "src/SUMMARY.md"
             && let Some(banner) = release_banner(d, depth)
         {
-            // Under the page's title.
-            let at = file
+            // Under the page's title, which every page starts with, and
+            // one blank line before what followed it.
+            let (title, rest) = file
                 .contents
-                .find("\n\n")
-                .filter(|_| file.contents.starts_with("# "))
-                .map_or(0, |at| at + 2);
-            file.contents.insert_str(at, &banner);
+                .split_once('\n')
+                .unwrap_or((&file.contents, ""));
+            file.contents = format!("{title}\n\n{banner}{}", rest.trim_start_matches('\n'));
         }
     }
     let agents = llms(d, &files);
@@ -1518,8 +1518,9 @@ fn release_path(name: &str) -> String {
 /// character escaped too. A release name is any visible ASCII.
 pub(crate) fn release_file(name: &str) -> String {
     const DEVICES: &[&str] = &[
-        "con", "prn", "aux", "nul", "com1", "com2", "com3", "com4", "com5", "com6", "com7", "com8",
-        "com9", "lpt1", "lpt2", "lpt3", "lpt4", "lpt5", "lpt6", "lpt7", "lpt8", "lpt9",
+        "con", "prn", "aux", "nul", "com0", "com1", "com2", "com3", "com4", "com5", "com6", "com7",
+        "com8", "com9", "lpt0", "lpt1", "lpt2", "lpt3", "lpt4", "lpt5", "lpt6", "lpt7", "lpt8",
+        "lpt9",
     ];
     let stem = name
         .split('.')

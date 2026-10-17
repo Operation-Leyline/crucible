@@ -331,6 +331,8 @@ fn a_releases_directory_is_its_escaped_name() {
         ),
         ("con", "_63on"),
         ("Com1.x", "_43om1.x"),
+        ("COM0", "_43OM0"),
+        ("lpt0.x", "_6Cpt0.x"),
         (".hidden.", "_2Ehidden_2E"),
         (
             "x](https://example.com)",
@@ -556,6 +558,22 @@ fn the_index_of_every_release_escapes_model_text() {
         all.iter()
             .any(|f| f.path.starts_with("_3Cb_3Eone_3C_2Fb_3E/src/"))
     );
+    // A release named for a file at the root, or for a directory the
+    // output writer keeps for build tools, in any case, has no directory.
+    for name in ["index.html", "LLMS.txt", "Dist", "target"] {
+        let mut reserved = crucible_lang::load_versioned_service(&dir).unwrap();
+        rename_release(&mut reserved, 0, name);
+        let error =
+            crucible_codegen_docs::generate_releases(&reserved, Audience::External, &options)
+                .unwrap_err()
+                .to_string();
+        assert!(
+            error.contains(&format!(
+                "docs.filename: release {name:?}'s directory would be {name:?}"
+            )),
+            "{error}"
+        );
+    }
     // `V3` and `v3` would share a directory where case folds.
     let mut folded = crucible_lang::load_versioned_service(&dir).unwrap();
     rename_release(&mut folded, 0, "V3");

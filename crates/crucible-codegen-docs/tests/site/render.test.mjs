@@ -641,6 +641,8 @@ test("a release's directory is named as the generator names it", () => {
     ["2026<img/src=x>?#q:*|\"_", "2026_3Cimg_2Fsrc_3Dx_3E_3F_23q_3A_2A_7C_22_5F"],
     ["con", "_63on"],
     ["Com1.x", "_43om1.x"],
+    ["COM0", "_43OM0"],
+    ["lpt0.x", "_6Cpt0.x"],
     [".hidden.", "_2Ehidden_2E"],
     ["x](https://example.com)", "x_5D_28https_3A_2F_2Fexample.com_29"],
     ["v3/../../evil`*", "v3_2F.._2F.._2Fevil_60_2A"],

@@ -61,7 +61,10 @@ impl<'a> DocsOutput<'a> {
     /// `llms.txt` at the root that list them, so a documentation site can
     /// serve them side by side and switch between them. Each reference is
     /// complete on its own (with its own `sdks.json` when [`Self::sdks`]
-    /// is set), and an older release's links the current one beside it.
+    /// is set), and an older release's links the current one beside it,
+    /// at `../<current>/index.html`, the current release's explorer. A
+    /// release whose directory would be a root file (`index.html`,
+    /// `llms.txt`) or `dist` or `target` fails the output.
     /// See docs/docs.md, "Every release's reference".
     pub fn all_releases(mut self) -> Self {
         self.all_releases = true;

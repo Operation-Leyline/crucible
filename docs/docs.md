@@ -182,7 +182,9 @@ escaped too. A version switcher reads the releases from any reference's
 `versions.releases` and links `../<directory>/`; the static reference
 computes the same names (`CrucibleExplorer.releaseDirectory`). Releases
 whose directories would share a name where case folds are refused
-(`docs.filename`), before anything is written. `--all-releases` takes no
+(`docs.filename`), before anything is written, and so is a release whose
+directory would be one of the root's files (`index.html`, `llms.txt`) or a
+directory the output writer refuses (`dist`, `target`), in any case. `--all-releases` takes no
 `--api-version`: it selects every release, from the current model, as a
 build does from a package that `api_version` made a line.
 
@@ -523,11 +525,13 @@ renderer shows `added` and falls back to `notes.since` when it is `null`.
 An older release's reference ([Every release's reference](#every-releases-reference))
 dates each element where it comes from (decision 79). What undo restored
 from frozen release `r` (a reshaped structure and its members, a removed
-operation and its own shapes, a retyped member) is dated within the chain
-that ends at `r`, so an operation `v2` added and `v3` removed is added in
-`v2` in `v1`'s reference too, and a member `v3` retyped is `v2`'s, which no
-step changed before `v2`. Anything else is dated as the current reference
-dates it, under the name the release uses: a member renamed since carries
+operation and its own shapes, a retyped member) has the `added` and
+`missing` of the chain that ends at `r`, so an operation `v2` added and
+`v3` removed is added in `v2` in `v1`'s reference too. Its `changed` is
+that chain's, the release whose migration restored it, and every later
+release that changed the current element it became, so a member `v3`
+retyped is changed in `v3`, and in each release that changed it since.
+Anything else is dated as the current reference dates it, under the name the release uses: a member renamed since carries
 the dates of the member it became. The `versions` block is the current
 reference's.
 

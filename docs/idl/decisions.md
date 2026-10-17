@@ -1625,10 +1625,13 @@ references are to the code as of the design.
     a 5c output.** `generate docs --api-version` renders a projection, with
     current documentation except where undo restored a frozen definition,
     whose documentation is the release's (frozen releases keep `docs`;
-    only `crucible-model.json` strips them, `snapshot.rs:68-155`), and
-    whose dates are the release's chain: each element of a line is dated
-    where it comes from (`ApiVersion::restored` records what undo
-    restored). Every page of an older release's reference names it, its
+    only `crucible-model.json` strips them, `snapshot.rs:68-155`). Each
+    element of a line is dated where it comes from (`ApiVersion::restored`
+    records what undo restored): one restored from frozen `r` is added and
+    missing as the chain that ends at `r` dates it, and changed in that
+    chain, in the migration from `r` that restored it, and in each later
+    release that changed the current element it became, so a reader of
+    an older release sees every break that reached it. Every page of an older release's reference names it, its
     sunset, and the current release's reference beside it; every
     release's reference can be written into one output, a directory each.
     *Why:* new clients read the current release, and documentation fixes

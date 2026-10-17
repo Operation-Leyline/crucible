@@ -346,12 +346,14 @@ fn each_release_records_what_its_undo_restored() {
     }
 }
 
-/// A release's line dates what undo restored within the chain that ends at
-/// the release it was restored from (decision 79), and everything else as
-/// the current model does, through the renames since: an operation added
-/// in v2 and removed in v3 is added in v2 at v1 too, a reshaped structure
-/// and a retyped member are v2's, with v2's members, and a member renamed
-/// in v2 is the current one under its v1 name.
+/// A release's line dates what undo restored where it comes from (decision
+/// 79): added and missing within the chain that ends at the release it was
+/// restored from, and changed there, in the migration that restored it, and
+/// in every later one that changed what it became; everything else as the
+/// current model does, through the renames since. An operation added in v2
+/// and removed in v3 is added in v2 at v1 too and changed in v3; a reshaped
+/// structure and a retyped member are v2's, with v2's members, changed in
+/// v3; a member renamed in v2 is the current one under its v1 name.
 #[test]
 fn a_line_dates_what_undo_restored_within_its_own_chain() {
     let current = package("version-line-history");
@@ -378,22 +380,25 @@ fn a_line_dates_what_undo_restored_within_its_own_chain() {
         // Removed in v3, restored from v2 with its own shapes.
         assert_eq!(
             at(&dates, "CountItems"),
-            dated(Some("v2"), &[], &[]),
+            dated(Some("v2"), &["v3"], &[]),
             "{release}"
         );
         assert_eq!(
             at(&dates, "CountItemsInput$shelf"),
-            dated(Some("v2"), &[], &[])
+            dated(Some("v2"), &["v3"], &[])
         );
-        assert_eq!(at(&dates, "CountItemsOutput"), dated(Some("v2"), &[], &[]));
+        assert_eq!(
+            at(&dates, "CountItemsOutput"),
+            dated(Some("v2"), &["v3"], &[])
+        );
         // Reshaped in v3: v2's definition, with the member v2 added.
-        assert_eq!(at(&dates, "Size"), dated(None, &[], &[]), "{release}");
-        assert_eq!(at(&dates, "Size$width"), dated(None, &[], &[]));
-        assert_eq!(at(&dates, "Size$depth"), dated(Some("v2"), &[], &[]));
-        // Retyped in v3: v2's member, added in v2, unchanged until then.
+        assert_eq!(at(&dates, "Size"), dated(None, &["v3"], &[]), "{release}");
+        assert_eq!(at(&dates, "Size$width"), dated(None, &["v3"], &[]));
+        assert_eq!(at(&dates, "Size$depth"), dated(Some("v2"), &["v3"], &[]));
+        // Retyped in v3: v2's member, added in v2.
         assert_eq!(
             at(&dates, "GetItemOutput$note"),
-            dated(Some("v2"), &[], &[])
+            dated(Some("v2"), &["v3"], &[])
         );
         // Nothing restored it: the current model's dates.
         assert_eq!(at(&dates, "GetItem"), dated(None, &[], &[]));
@@ -409,9 +414,50 @@ fn a_line_dates_what_undo_restored_within_its_own_chain() {
     assert_eq!(at(&v3, "Size"), dated(None, &["v3"], &[]));
 }
 
+/// A member renamed in v2 and again in v3, then retyped in v4, keeps every
+/// change in each older line: v4's retype restores v3's member, dated by
+/// the chain that ends at v3 (both renames), the retype, and the current
+/// member's own changes. The enum v2 added a value to is restored too, as
+/// v4 retyped the member that held it and the current model has none:
+/// changed in v2 and in v4, the value added in v2 where the release has it.
+#[test]
+fn a_line_keeps_every_change_through_renames_and_retypes() {
+    let current = package("version-line-renames");
+    let id = |text: &str| -> ShapeId { format!("example.renames#{text}").parse().unwrap() };
+    let dates = history(&current);
+    assert_eq!(
+        dates.get(&id("GetItemOutput$third")),
+        &dated(None, &["v2", "v3", "v4"], &[])
+    );
+    assert!(!current.shapes.contains_key(&id("Kind")));
+    for (release, member) in [("v1", "first"), ("v2", "second"), ("v3", "third")] {
+        let line = line(&current, release).unwrap();
+        let dates = history(&line);
+        let at = |text: &str| dates.get(&id(text)).clone();
+        assert_eq!(
+            at(&format!("GetItemOutput${member}")),
+            dated(None, &["v2", "v3", "v4"], &[]),
+            "{release}"
+        );
+        assert_eq!(at("GetItemOutput$kind"), dated(None, &["v4"], &[]));
+        assert_eq!(at("Kind"), dated(None, &["v2", "v4"], &[]), "{release}");
+        assert_eq!(at("Kind$SMALL"), dated(None, &["v4"], &[]));
+        // v1's clients see a huge item as large: v1 has no HUGE.
+        assert_eq!(
+            crucible_ir::versions::has(&line, &id("Kind$HUGE")),
+            release != "v1",
+            "{release}"
+        );
+        if release != "v1" {
+            assert_eq!(at("Kind$HUGE"), dated(Some("v2"), &["v4"], &[]));
+        }
+    }
+}
+
 /// The e2e shop's v1 reference: a member retyped since is the release's
-/// own, a member renamed and required since is the current one, and a
-/// structure reshaped since is v2's, its renamed member dated by v2.
+/// own, changed by the retype; a member renamed and required since is the
+/// current one; and a structure reshaped since is v2's, changed by the
+/// reshape, its renamed member by the rename too.
 #[test]
 fn the_shops_v1_line_dates_each_element_where_it_comes_from() {
     let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../e2e/weather-service/versioned");
@@ -420,11 +466,12 @@ fn the_shops_v1_line_dates_each_element_where_it_comes_from() {
     let v1 = history(&line(&current, "v1").unwrap());
     let at = |text: &str| v1.get(&shop(text)).clone();
     assert_eq!(at("ListItemsInput$max"), dated(None, &["v2", "v3"], &[]));
-    assert_eq!(at("DeleteItemInput$force"), dated(None, &[], &[]));
-    assert_eq!(at("GetItemOutput"), dated(None, &[], &[]));
-    assert_eq!(at("GetItemOutput$name"), dated(None, &["v2"], &[]));
-    assert_eq!(at("CountItems"), dated(None, &[], &[]));
-    assert_eq!(at("Label$size"), dated(Some("v3"), &[], &[]));
+    assert_eq!(at("DeleteItemInput$force"), dated(None, &["v3"], &[]));
+    assert_eq!(at("DeleteItemOutput$deleted"), dated(None, &["v3"], &[]));
+    assert_eq!(at("GetItemOutput"), dated(None, &["v3"], &[]));
+    assert_eq!(at("GetItemOutput$name"), dated(None, &["v2", "v3"], &[]));
+    assert_eq!(at("CountItems"), dated(None, &["v3"], &[]));
+    assert_eq!(at("Label$size"), dated(Some("v3"), &["v4"], &[]));
     assert_eq!(at("Label$color"), dated(Some("v4"), &[], &[]));
     assert_eq!(at("GetItem"), dated(None, &["v3"], &[]));
 }

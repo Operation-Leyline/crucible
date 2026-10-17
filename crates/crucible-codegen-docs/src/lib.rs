@@ -38,7 +38,21 @@ pub fn generate(service: &Service) -> Result<Vec<File>, Diagnostics> {
 
 /// [`generate`] with `options`.
 pub fn generate_with(service: &Service, options: &Options) -> Result<Vec<File>, Diagnostics> {
-    let mut description = describe::describe(service)?;
+    generate_cached(
+        service,
+        options,
+        &crucible_ir::versions::HistoryCache::default(),
+    )
+}
+
+/// [`generate_with`], dating elements through `cache`, which every
+/// release's reference of one model at one audience shares.
+fn generate_cached(
+    service: &Service,
+    options: &Options,
+    cache: &crucible_ir::versions::HistoryCache,
+) -> Result<Vec<File>, Diagnostics> {
+    let mut description = describe::describe_cached(service, cache)?;
     description.schemas(options.schemas);
     let mut diagnostics = Diagnostics::default();
     let mut paths = std::collections::BTreeSet::new();
@@ -118,7 +132,10 @@ pub fn release_directory(release: &str) -> String {
 /// current model is used; it is never projected to an audience first, since
 /// a release is selected before an audience (release first, audience
 /// second). Each reference is self-contained; an older one links the
-/// current one beside it. Every release's problems are reported together.
+/// current one beside it. Every release's problems are reported together,
+/// and a release whose directory would collide with another's where case
+/// folds, with a file at the root (`index.html`, `llms.txt`), or with a
+/// directory the output writer refuses (`dist`, `target`) is refused.
 pub fn generate_releases(
     service: &Service,
     audience: crucible_ir::Audience,
@@ -132,8 +149,21 @@ pub fn generate_releases(
     let mut diagnostics = Diagnostics::default();
     let mut files = Vec::new();
     let mut directories = std::collections::BTreeSet::new();
+    // Every reference reads the same older releases' histories.
+    let cache = crucible_ir::versions::HistoryCache::default();
     for release in &releases {
         let directory = release_directory(release);
+        // The root's own files, and the first segments the output writer
+        // keeps for build tools, are no release's directory.
+        if ["index.html", "llms.txt", "dist", "target"]
+            .contains(&directory.to_ascii_lowercase().as_str())
+        {
+            diagnostics.push(
+                &current.id,
+                format!("docs.filename: release {release:?}'s directory would be {directory:?}, which every release's reference keeps for itself; rename the release"),
+            );
+            continue;
+        }
         // A release's page already refuses this inside every reference
         // with more than one release; a lone release has no sibling.
         if !directories.insert(directory.to_ascii_lowercase()) {
@@ -145,7 +175,7 @@ pub fn generate_releases(
         }
         let reference = crucible_ir::versions::line(&current, release)
             .and_then(|line| crucible_ir::project(&line, audience))
-            .and_then(|line| generate_with(&line, options));
+            .and_then(|line| generate_cached(&line, options, &cache));
         match reference {
             Ok(reference) => files.extend(reference.into_iter().map(|file| File {
                 path: format!("{directory}/{}", file.path),

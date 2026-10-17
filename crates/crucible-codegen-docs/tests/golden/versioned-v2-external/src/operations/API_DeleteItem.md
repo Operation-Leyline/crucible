@@ -2,7 +2,6 @@
 
 > **An older release.** This reference documents release <code>v2</code>. The current release is <code>v4</code>: see [its reference](../../../v4/index.html).
 
-
 Protocol: <code>crucibleJson</code>.
 
 ## Authentication
@@ -23,7 +22,7 @@ Crucible-Version: v2
 | Member | Wire location | Type | Required | Default | Constraints | Description |
 |---|---|---|---|---|---|---|
 | <code>id</code> | <code>path: id</code> | <code>string</code> | Yes | — | — |  |
-| <code>force</code> | <code>query: force</code> | <code>boolean</code> | No | — | — |  |
+| <code>force</code> | <code>query: force</code> | <code>boolean</code> | No | — | — |  Changed in [v3](../releases/v3.md). |
 
 ## Response syntax
 
@@ -42,7 +41,7 @@ Content-Type: application/json
 
 | Member | Wire location | Type | Required | Default | Constraints | Description |
 |---|---|---|---|---|---|---|
-| <code>deleted</code> | <code>body: deleted</code> | <code>boolean</code> | Yes | — | — |  |
+| <code>deleted</code> | <code>body: deleted</code> | <code>boolean</code> | Yes | — | — |  Changed in [v3](../releases/v3.md). |
 
 ## Errors
 

@@ -39,8 +39,9 @@ pub struct History {
     /// The supported releases that cannot see the element although it
     /// appeared before them or since: those before a `reshape` of the
     /// structure it is a member of, or a `remove operation` whose own input
-    /// or output it is a member of, when the older definition lacks it
-    /// (decision 74). Oldest first; empty for nearly everything.
+    /// or output it is a member of, when the older definition lacks it,
+    /// and those whose payload-bound message has no body for it (decision
+    /// 74). Oldest first; empty for nearly everything.
     pub missing: Vec<String>,
 }
 
@@ -74,12 +75,22 @@ impl Histories {
 ///
 /// A [`line`] of an older release is dated where each element comes from
 /// (docs/api-versions-clients.md, "Each element's history"; decision 79):
-/// what undo restored from frozen release `r` within the chain that ends
-/// at `r`, as [`history_at`] dates it, and everything else as the current
-/// model dates it, followed through the renames since the line's release.
+/// what undo restored from frozen release `r` is added and missing as the
+/// chain that ends at `r` dates it ([`history_at`]), and changed in that
+/// chain, in the release whose migration restored it, and in every release
+/// since that changed the current model's element of the id the renames
+/// give it; everything else as the current model dates it, followed
+/// through the renames since the line's release.
 pub fn history(service: &Service) -> Histories {
+    history_cached(service, &HistoryCache::default())
+}
+
+/// [`history`], reading and filling `cache`, which must only ever hold the
+/// histories of one current model at one audience: every line of a model a
+/// run documents shares them.
+pub fn history_cached(service: &Service, cache: &HistoryCache) -> Histories {
     if let Some(release) = line::line_index(service) {
-        return line_history(service, release);
+        return line_history(service, release, cache);
     }
     let versions = visible(service);
     let mut chain: Vec<(&str, &Service)> = versions
@@ -93,6 +104,30 @@ pub fn history(service: &Service) -> Histories {
         .collect();
     let projections: Vec<&Service> = versions.iter().map(|version| &*version.service).collect();
     dated(&chain, &steps, &projections, service)
+}
+
+/// What one run computes once and reads many times: the histories of one
+/// current model's older releases ([`history_at`]) and the current model's
+/// own as its lines read it. A reference of each release reads the same
+/// ones, so a run documenting every release computes each once.
+#[derive(Debug, Default)]
+pub struct HistoryCache {
+    current: std::cell::OnceCell<Histories>,
+    at: std::cell::RefCell<BTreeMap<usize, std::rc::Rc<Histories>>>,
+}
+
+impl HistoryCache {
+    /// [`history_at`]`(service, release)`, computed on first use. An older
+    /// release's history reads only the chain, which every line of the
+    /// cache's model and its current reference share.
+    pub fn at(&self, service: &Service, release: usize) -> std::rc::Rc<Histories> {
+        if let Some(found) = self.at.borrow().get(&release) {
+            return found.clone();
+        }
+        let histories = std::rc::Rc::new(history_at(service, release));
+        self.at.borrow_mut().insert(release, histories.clone());
+        histories
+    }
 }
 
 /// The history of every element of the older release `versions[release]`
@@ -120,11 +155,14 @@ pub fn history_at(service: &Service, release: usize) -> Histories {
 }
 
 /// The history of each element of `line`, the line of its release
-/// `versions[release]`: the oldest release at or after it whose undo
-/// restored the element, which is where its definition comes from, dates it
-/// within the chain that ends there; an element nothing restored is the
-/// current model's, under its current id.
-fn line_history(line: &Service, release: usize) -> Histories {
+/// `versions[release]`. The oldest release at or after it whose undo
+/// restored the element, which is where its definition comes from, dates
+/// its addition and what cannot see it within the chain that ends there.
+/// Its changes are that chain's, the migration that restored it, and those
+/// since of the current model's element it became, so a reader of the
+/// line sees each break that reached it. An element nothing restored is
+/// the current model's, under its current id.
+fn line_history(line: &Service, release: usize, cache: &HistoryCache) -> Histories {
     let view;
     let line = match visible(line) {
         std::borrow::Cow::Borrowed(_) => line,
@@ -141,8 +179,8 @@ fn line_history(line: &Service, release: usize) -> Histories {
     };
     // The current release is the chain's last entry.
     let newest = line.versions.len() - 1;
-    let dates = history(&current);
-    let mut older: Vec<Option<Histories>> = vec![None; newest];
+    let names: Vec<&str> = line.versions.iter().map(|v| v.name.as_str()).collect();
+    let dates = cache.current.get_or_init(|| history(&current));
     let mut out = BTreeMap::new();
     for element in elements(line) {
         // The element as each release from the line's on names it, until
@@ -156,13 +194,26 @@ fn line_history(line: &Service, release: usize) -> Histories {
             }
             id = newer_id(&version.steps, &id);
         }
-        let history = match restored_at {
-            Some(index) => older[index]
-                .get_or_insert_with(|| history_at(&current, index))
-                .get(&id)
-                .clone(),
-            None => dates.get(&id).clone(),
+        let Some(index) = restored_at else {
+            out.insert(element, dates.get(&id).clone());
+            continue;
         };
+        let mut history = cache.at(&current, index).get(&id).clone();
+        // The migration from the release it was restored from changed it,
+        // and so did every later one that changed what it became.
+        let mut changed: BTreeSet<&str> = history.changed.iter().map(String::as_str).collect();
+        changed.insert(names[index + 1]);
+        let later = line.versions[index..newest]
+            .iter()
+            .fold(id, |id, version| newer_id(&version.steps, &id));
+        if has(&current, &later) {
+            changed.extend(dates.get(&later).changed.iter().map(String::as_str));
+        }
+        history.changed = names
+            .iter()
+            .filter(|name| changed.contains(*name))
+            .map(|name| (*name).to_owned())
+            .collect();
         out.insert(element, history);
     }
     Histories { elements: out }
@@ -276,6 +327,10 @@ fn payload_bound(model: &Service, shape: &ShapeId) -> bool {
         (op.input.as_ref() == Some(shape) && op.request.payload.is_some())
             || (op.output.as_ref() == Some(shape) && op.response.payload.is_some())
     });
+    // Defensive: no `.cru` model reaches an error here. The guard refuses
+    // a change to an error's wire bindings, and validation refuses a member
+    // beside an error's payload, so an error never gains a body member its
+    // release lacks. Kept so an edited IR is still dated right.
     operation
         || matches!(
             model.shapes.get(shape),

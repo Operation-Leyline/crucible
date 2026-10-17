@@ -1,0 +1,11 @@
+# A line's dates through renames and retypes (decision 79): v2 renames a
+# member and adds an enum value, v3 renames the member again, and v4
+# retypes both the member and the one that held the enum, which the
+# current model no longer has. So each older release's line holds v3's
+# member and enum, restored by v4, dated within the chain that ends at v3
+# and changed in v4 too. v1 to v3 are frozen under releases/; v4 is current.
+[model]
+namespace = "example.renames"
+
+[model.baseline]
+path = "releases/v3.json"
