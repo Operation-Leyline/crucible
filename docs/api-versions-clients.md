@@ -861,9 +861,13 @@ symbol to its own.
   reference (`--api-version`) carries none: walking its line's view, a
   guide would leave out what that release cannot see and differ from the
   current reference's, and every release's reference would write another
-  copy. Its release pages and `llms.txt` link the current reference's
-  guides, beside it (`../<current>/src/upgrade/..`), and `upgrade_guide`
-  refuses a line. Documentation HTML is emitted as one HTML block (a line
+  copy. It links the current reference's guides, beside it: `llms.txt`
+  each guide's source (`../<current>/src/upgrade/..`), and a release page
+  the page mdBook builds (`<current>/book/upgrade/..html`), since mdBook
+  builds `src/` into `book/` and a link to another reference's `src/`
+  page would name nothing it builds. `upgrade_guide` refuses a line, and
+  a guide alone keeps only web images, any other being its alternative
+  text. Documentation HTML is emitted as one HTML block (a line
   break inside `<pre>` is `&#10;`), since a blank line in a code block
   would end the block and turn the rest into live Markdown; member and
   required defaults are inert code; headings escape every ASCII

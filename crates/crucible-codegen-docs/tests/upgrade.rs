@@ -263,7 +263,7 @@ fn model_text_in_a_guide_stays_text() {
     service.version = names[2].into();
     service.api_version = Some(names[2].into());
     service.title = Some("Shop [t](https://title.example) <script>x</script>".into());
-    let hostile = "Moved <script>alert(1)</script> [here](javascript:alert(1)) ![i](javascript:alert(2)) [ListItems] [site](https://docs.example/a) [frag](#x) [root](/y)";
+    let hostile = "Moved <script>alert(1)</script> [here](javascript:alert(1)) ![i](javascript:alert(2)) [ListItems] [site](https://docs.example/a) [frag](#x) [root](/y) ![relative picture](pic.png) ![web picture](https://img.example/p.png)";
     service.versions[1].docs = Some(hostile.into());
     service.versions[0].sunset_docs = Some("# Not a heading <img src=x onerror=alert(1)>".into());
     // A blank line inside a code block would end the documentation's HTML
@@ -344,11 +344,27 @@ fn model_text_in_a_guide_stays_text() {
                 !lower.contains("<script") && !lower.contains("onerror") && !lower.contains("<b>"),
                 "{tag} in guide {index}"
             );
-            // The documentation's image lost its active destination.
-            assert!(
-                !lower.contains("<img") || lower.contains("<img src=\"\""),
-                "{tag} in guide {index}"
-            );
+            // The documentation's images: in a reference, the active one
+            // lost its source; in a guide alone, only the web one stays.
+            if lower.starts_with("<img") {
+                if index == 0 {
+                    assert!(
+                        lower.starts_with("<img src=\"https://img.example/p.png\""),
+                        "{tag}"
+                    );
+                } else {
+                    assert!(
+                        [
+                            "<img src=\"\"",
+                            "<img src=\"pic.png\"",
+                            "<img src=\"https://img.example/p.png\""
+                        ]
+                        .iter()
+                        .any(|start| lower.starts_with(start)),
+                        "{tag} in guide {index}"
+                    );
+                }
+            }
             assert!(!lower.contains("javascript:"), "{tag} in guide {index}");
             if index == 0 && lower.starts_with("<a ") {
                 assert_eq!(
@@ -410,6 +426,10 @@ fn model_text_in_a_guide_stays_text() {
     // reference.
     assert!(shown(&alone).contains("ListItems"), "{alone}");
     assert!(shown(&alone).contains("frag root"), "{alone}");
+    // An image a guide alone cannot show is its alternative text; the
+    // removed one's too.
+    assert!(shown(&alone).contains("root relative picture"), "{alone}");
+    assert!(shown(&alone).contains("here i ListItems"), "{alone}");
     assert!(
         shown(&alone).contains(&format!("the service uses \"{default}\"")),
         "{alone}"
@@ -527,7 +547,7 @@ fn a_releases_own_reference_links_the_current_references_guides() {
     let v1 = file("src/releases/v1.md");
     assert!(
         v1.contains(
-            "[to v2](../../../v4/src/upgrade/v1_to_v2.md), [to v4](../../../v4/src/upgrade/v1_to_v4.md)."
+            "[to v2](../../../v4/book/upgrade/v1_to_v2.html), [to v4](../../../v4/book/upgrade/v1_to_v4.html)."
         ),
         "{v1}"
     );
@@ -540,7 +560,7 @@ fn a_releases_own_reference_links_the_current_references_guides() {
     // In one file at the root, the links are rebased onto the root.
     let full = file("llms-full.txt");
     assert!(
-        full.contains("[to v4](../v4/src/upgrade/v1_to_v4.md)"),
+        full.contains("[to v4](../v4/book/upgrade/v1_to_v4.html)"),
         "{full}"
     );
     let message = upgrade_guide(&line, "v1", None)
@@ -609,7 +629,12 @@ fn a_retired_operation_and_a_later_member_are_changes() {
 
 /// Every release's reference in one output (`--all-releases`): the guides
 /// are in the current release's directory alone, and every older release's
-/// links to them resolve to those files.
+/// links to them resolve where the output is served. A Markdown page is
+/// served as mdBook builds it: `<release>/src/<page>.md` becomes
+/// `<release>/book/<page>.html`, and a relative `.md` link becomes `.html`.
+/// So a page's guide links, and the notice's link to the current
+/// reference, must resolve from `book/` to a built page or a generated
+/// file; `llms.txt`, read as Markdown, links the guides' sources.
 #[test]
 fn every_releases_reference_links_the_current_ones_guides() {
     let current = versioned(&shop_dir());
@@ -632,30 +657,61 @@ fn every_releases_reference_links_the_current_ones_guides() {
             .iter()
             .all(|path| path.starts_with("v4/src/upgrade/"))
     );
-    let mut checked = 0;
-    for file in files.iter().filter(|file| file.path.ends_with(".md")) {
-        let dir = file.path.rsplit_once('/').map_or("", |(dir, _)| dir);
-        let (destinations, _) = links_and_tags(&file.contents);
-        for destination in destinations.iter().filter(|d| d.contains("upgrade/")) {
-            let mut parts: Vec<&str> = dir.split('/').filter(|p| !p.is_empty()).collect();
-            for part in destination.split('/') {
-                match part {
-                    ".." => {
-                        parts
-                            .pop()
-                            .unwrap_or_else(|| panic!("{destination} leaves the output"));
-                    }
-                    part => parts.push(part),
-                }
-            }
-            let target = parts.join("/");
-            assert!(
-                paths.contains(target.as_str()),
-                "{destination} in {}",
-                file.path
-            );
-            checked += 1;
+    // What the output serves once each reference's book is built.
+    let mut served: std::collections::BTreeSet<String> =
+        paths.iter().map(|path| (*path).to_owned()).collect();
+    for path in &paths {
+        if let Some((release, page)) = path.split_once("/src/")
+            && let Some(page) = page.strip_suffix(".md")
+        {
+            served.insert(format!("{release}/book/{page}.html"));
         }
     }
-    assert!(checked > 20, "{checked} links");
+    let resolve = |dir: &str, destination: &str| {
+        let mut parts: Vec<&str> = dir.split('/').filter(|p| !p.is_empty()).collect();
+        for part in destination.split('/') {
+            match part {
+                ".." => {
+                    parts
+                        .pop()
+                        .unwrap_or_else(|| panic!("{destination} leaves the output"));
+                }
+                part => parts.push(part),
+            }
+        }
+        parts.join("/")
+    };
+    let mut checked = 0;
+    for file in &files {
+        let (dir, name) = file.path.rsplit_once('/').unwrap_or(("", &file.path));
+        let (destinations, _) = links_and_tags(&file.contents);
+        let cross = |d: &&String| d.contains("upgrade/") || d.ends_with("index.html");
+        if name == "llms.txt" {
+            for destination in destinations.iter().filter(|d| d.contains("upgrade/")) {
+                let target = resolve(dir, destination);
+                assert!(
+                    paths.contains(target.as_str()),
+                    "{destination} in {}",
+                    file.path
+                );
+                checked += 1;
+            }
+        } else if let Some((release, page)) = file.path.split_once("/src/")
+            && page.ends_with(".md")
+        {
+            let built = format!("{release}/book/{page}");
+            let built_dir = built.rsplit_once('/').map_or("", |(dir, _)| dir);
+            for destination in destinations.iter().filter(cross) {
+                // mdBook's rewrite of a relative `.md` link.
+                let destination = match destination.strip_suffix(".md") {
+                    Some(stem) => format!("{stem}.html"),
+                    None => destination.clone(),
+                };
+                let target = resolve(built_dir, &destination);
+                assert!(served.contains(&target), "{destination} in {}", file.path);
+                checked += 1;
+            }
+        }
+    }
+    assert!(checked > 100, "{checked} links");
 }

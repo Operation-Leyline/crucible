@@ -274,7 +274,8 @@ cannot disagree; an external guide names no internal step or element. A
 release outside the chain, or a `--from` that is not older than `--to`, is
 refused, naming the supported releases. On its own a guide links none of
 the reference's pages: a doc link, a link to a page and any other link but
-the documentation's web and mail addresses are their text. Model text is
+the documentation's web and mail addresses are their text, and so is an
+image's alternative text, but for a web image. Model text is
 escaped as on the release pages, and documentation is the description's
 sanitized HTML.
 
@@ -286,9 +287,18 @@ from that release's page (*Upgrading*) and from `llms.txt`, with their
 links and doc links to the reference's pages. A release's own reference
 (`--api-version`) carries no guides: its view of the model leaves out what
 its release cannot see, so its guides would differ from the current
-reference's. Its release pages and `llms.txt` link the current reference's
-guides instead, at `../<current>/src/upgrade/..` from its root, where the
-references of every release sit side by side.
+reference's. It links the current reference's guides instead, beside it
+where the references of every release sit side by side: `llms.txt`, read as
+Markdown, links each guide's source, `../<current>/src/upgrade/<from>_to_<to>.md`
+from its root, and a release page links the page mdBook builds from it,
+`<current>/book/upgrade/<from>_to_<to>.html`, from the release page's
+directory (`../../../` from `src/releases/`). mdBook builds
+`src/<page>.md` into `book/<page>.html` at the same depth and rewrites a
+relative `.md` link to `.html`, so a link to the other reference's source
+would name a `src/` page no build writes; the built page's link resolves
+from `src/` and `book/` alike, as the notice's `../<current>/index.html`
+does. Served without `mdbook build`, those release-page links name pages
+that do not exist; `llms.txt`'s still resolve.
 `crucible_codegen_docs::upgrade_guide` is the library form, and refuses a
 release's line. A release name whose escaped form passes 120 bytes is cut
 to 103, followed by `~` and its 64-bit FNV-1a hash in 16 hex digits, in

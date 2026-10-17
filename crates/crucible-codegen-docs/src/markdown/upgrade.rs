@@ -41,10 +41,22 @@ pub(in crate::markdown) fn here(d: &Description) -> bool {
     older_release(d).is_none()
 }
 
-/// The link to the guide from release `from` to `to`, from a page in the
-/// directory `dir` of this reference (`""` for its root, `src/releases`):
-/// this reference's page when it carries the guides ([`here`]), else the
-/// current reference's, in its directory beside this one.
+/// The link to the guide from release `from` to `to`, from a file in the
+/// directory `dir` of this reference (`""` for its root, as `llms.txt` is,
+/// or `src/releases`, a Markdown page): this reference's page when it
+/// carries the guides ([`here`]), else the current reference's, in its
+/// directory beside this one.
+///
+/// Within a reference, a page links the guide's `.md` file, which mdBook
+/// rewrites to the `.html` it builds beside the page. Across references it
+/// cannot: mdBook builds `src/<page>.md` into `book/<page>.html` at the
+/// same depth, so a rewritten `../../../<current>/src/upgrade/..` would
+/// name `src/..html`, which no build writes. A Markdown page therefore
+/// links the current reference's built page,
+/// `<current>/book/upgrade/<from>_to_<to>.html`, which mdBook leaves as it
+/// is and which resolves from `src/` and `book/` alike (as the notice on
+/// every page of an older release links the current `index.html`), while
+/// `llms.txt`, read as Markdown, links the guide's `.md` source.
 pub(in crate::markdown) fn href(d: &Description, from: &str, to: &str, dir: &str) -> String {
     let depth = dir.split('/').filter(|part| !part.is_empty()).count();
     let page = path(from, to);
@@ -55,13 +67,12 @@ pub(in crate::markdown) fn href(d: &Description, from: &str, to: &str, dir: &str
             depth => format!("{}{page}", "../".repeat(depth - 1)),
         };
     }
-    // From this reference's root to the current one's, as the notice on
-    // every page of an older release's reference links it.
-    format!(
-        "{}{}src/{page}",
-        "../".repeat(depth),
-        current_reference(string(&d.versions["current"]))
-    )
+    let current = current_reference(string(&d.versions["current"]));
+    if depth == 0 {
+        return format!("{current}src/{page}");
+    }
+    let built = page.strip_suffix(".md").unwrap_or(&page);
+    format!("{}{current}book/{built}.html", "../".repeat(depth))
 }
 
 /// The supported releases, oldest first, current last.
@@ -379,7 +390,8 @@ fn additions(d: &Description, from: usize, to: usize) -> String {
 /// upgrade-guide`): every link to a reference page becomes its text, and
 /// so does every doc link (decision 80), since there is no page for it,
 /// and every other link but the documentation's web and mail addresses,
-/// which are the author's and stay.
+/// which are the author's and stay; an image but a web one is its
+/// alternative text.
 pub(crate) fn standalone(d: &Description, from: usize, to: usize) -> String {
     unlinked(&page(d, from, to))
 }
@@ -455,6 +467,40 @@ fn unlinked(markdown: &str) -> String {
         let end = body.find("</a>").unwrap_or(body.len());
         out.push_str(&body[..end]);
         rest = body.get(end + 4..).unwrap_or_default();
+    }
+    out.push_str(rest);
+    unimaged(&out)
+}
+
+/// `html` with only its web images: an image the documentation names by
+/// a relative path, a root path or a fragment points nowhere in a guide
+/// alone, and one whose unsafe source was removed (`src=""`) shows
+/// nothing, so each is its alternative text, which the documentation's
+/// HTML already escapes. `<img ` is always markup there, since model text
+/// is escaped.
+fn unimaged(html: &str) -> String {
+    let attribute = |tag: &str, name: &str| -> Option<String> {
+        let start = tag.find(&format!(" {name}=\""))? + name.len() + 3;
+        tag[start..].split('"').next().map(str::to_owned)
+    };
+    let mut out = String::with_capacity(html.len());
+    let mut rest = html;
+    while let Some(start) = rest.find("<img ") {
+        out.push_str(&rest[..start]);
+        let tag = &rest[start..];
+        let Some(close) = tag.find('>') else {
+            out.push_str(tag);
+            return out;
+        };
+        let open = &tag[..=close];
+        let source = attribute(open, "src").unwrap_or_default();
+        let lower = source.to_ascii_lowercase();
+        if lower.starts_with("http://") || lower.starts_with("https://") {
+            out.push_str(open);
+        } else {
+            out.push_str(&attribute(open, "alt").unwrap_or_default());
+        }
+        rest = &tag[close + 1..];
     }
     out.push_str(rest);
     out
