@@ -90,6 +90,13 @@ impl Model {
     /// fails the build naming the supported ones, and a server is refused:
     /// it serves every release from the current model. A sunset release can
     /// be generated until its migration is removed.
+    ///
+    /// A docs output of an older release links, on every page, the current
+    /// release's reference at `../<current>/`, from the reference's root:
+    /// where [`crate::DocsOutput::all_releases`] puts it, so the link lands
+    /// on the current release's static reference (its `index.html`, the
+    /// explorer) when the references are served side by side. A reference
+    /// published alone needs the current one beside it for that link.
     pub fn api_version(mut self, release: &str) -> Self {
         self.package.take();
         self.builder = self.builder.api_version(release);

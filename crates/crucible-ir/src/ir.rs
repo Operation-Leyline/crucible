@@ -161,6 +161,15 @@ pub struct ApiVersion {
     /// such a drop without the exception.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub retired: Vec<ShapeId>,
+    /// The elements of `service` whose definition undo took from
+    /// `release` rather than from the newer model, by their ids in
+    /// `service`, sorted: operations and shapes restored whole (a removed
+    /// operation, a reshaped structure, what a restored definition reaches
+    /// that the newer model lacks) and members a `retype` restored. The
+    /// reference dates them within the chain that ends at this release
+    /// (decision 79). Empty until the compiler projects the release.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub restored: Vec<ShapeId>,
     /// Set by an external audience projection, which leaves `service` and
     /// `steps` as lowered: only the reference reads an older release, and
     /// it reads it through [`crate::versions::visible`], which projects it

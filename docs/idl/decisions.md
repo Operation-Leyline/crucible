@@ -1571,8 +1571,9 @@ references are to the code as of the design.
     projection does again, a member added since that would travel in the
     body is not in that release: the message has no body to carry it. One
     bound to a label, query parameter or header still reaches it. The one
-    exception to 51, stated in the reference (`history.missing`; the
-    payload case is not dated there yet). *Why:* the hook converts the
+    exception to 51, stated in the reference (`history.missing`, the
+    payload case included since PR 8 of
+    [api-versions-clients.md](../api-versions-clients.md#order)). *Why:* the hook converts the
     whole value, and the older definition has no place for what came later;
     a payload-bound message has no body, its older clients never sent the
     member, and the release's request must stay valid.
@@ -1603,7 +1604,8 @@ references are to the code as of the design.
     added again), `null` when the oldest supported release has it;
     `history.changed` lists the releases whose steps name it;
     `history.missing` the releases that cannot see it because it sits
-    inside a later reshape or removal. `crucible_ir::versions::history`
+    inside a later reshape or removal, or a payload-bound message has no
+    body for it (74). `crucible_ir::versions::history`
     derives them; `describe.rs` serializes. `@since` stays the author's
     fallback. *Why:* derived, it cannot drift; appearance and availability
     are different facts; `null` stays true when old releases are dropped.
@@ -1618,13 +1620,23 @@ references are to the code as of the design.
     and ships first. *Why:* one source for the reference, the upgrade
     guides and tools, and no leak of internal API.
 
-79. **The current release is the primary reference; an older release's is
+79. *(Built, PR 8 of [api-versions-clients.md](../api-versions-clients.md#order).)*
+    **The current release is the primary reference; an older release's is
     a 5c output.** `generate docs --api-version` renders a projection, with
     current documentation except where undo restored a frozen definition,
     whose documentation is the release's (frozen releases keep `docs`;
-    only `crucible-model.json` strips them, `snapshot.rs:68-155`). *Why:*
-    new clients read the current release, and documentation fixes reach
-    every line.
+    only `crucible-model.json` strips them, `snapshot.rs:68-155`). Each
+    element of a line is dated where it comes from (`ApiVersion::restored`
+    records what undo restored): one restored from frozen `r` is added and
+    missing as the chain that ends at `r` dates it, and changed in that
+    chain, in the migration from `r` that restored it, and in each later
+    release with a step naming what it became, through the renames, so a
+    reader of an older release sees every break that reached it. Every
+    page of an older release's reference names it, its
+    sunset, and the current release's reference beside it; every
+    release's reference can be written into one output, a directory each.
+    *Why:* new clients read the current release, and documentation fixes
+    reach every line.
 
 ## Doc links
 

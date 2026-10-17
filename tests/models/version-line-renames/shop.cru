@@ -1,0 +1,35 @@
+/// Items, across four releases.
+service Shop {
+    version "v4"
+    protocol json
+    operations [GetItem]
+}
+
+/// Reads one item.
+readonly operation GetItem {
+    http GET "/items/{id}"
+    input { id: string }
+    output {
+        /// The item's label, as a number.
+        third: integer
+        /// How big the item is, in words.
+        kind: string
+    }
+}
+
+/// v2 calls the label `second` and has huge items.
+migration "v2" from "v1" {
+    rename GetItem.output.first -> second
+    add Kind.HUGE downgrade LARGE
+}
+
+/// v3 calls it `third`.
+migration "v3" from "v2" {
+    rename GetItem.output.second -> third
+}
+
+/// v4 numbers the label and spells the kind out.
+migration "v4" from "v3" {
+    retype GetItem.output.third -> integer by hook
+    retype GetItem.output.kind -> string by hook
+}

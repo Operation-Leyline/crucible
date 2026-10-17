@@ -146,6 +146,24 @@ fn docs_sdks_probe() {
     let sdks: Value =
         serde_json::from_slice(&fs::read(internal.path.join("sdks.json")).unwrap()).unwrap();
     assert_eq!(sdks["sdks"].as_object().unwrap().len(), 2);
+    // Every release's reference: one release here, its directory holding
+    // the reference and the SDKs it describes.
+    let all = model
+        .docs("all")
+        .all_releases()
+        .sdks("crucible-sdk.toml")
+        .generate();
+    let nested: Vec<&String> = all
+        .files
+        .iter()
+        .filter(|file| file.ends_with("/sdks.json"))
+        .collect();
+    assert_eq!(nested.len(), 1, "{:?}", all.files);
+    assert_eq!(
+        fs::read(all.path.join(nested[0])).unwrap(),
+        fs::read(reference.path.join("sdks.json")).unwrap()
+    );
+    assert!(all.files.iter().any(|file| file == "index.html"));
 }
 
 #[test]

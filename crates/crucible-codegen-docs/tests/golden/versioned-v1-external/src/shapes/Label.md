@@ -1,5 +1,7 @@
 # Label
 
+> **An older release.** This reference documents release <code>v1</code>, which is supported until <code>2027&#45;01&#45;01</code>. The current release is <code>v4</code>: see [its reference](../../../v4/index.html).
+
 <p>An item's label. Strict: a request naming a member it does not have
 is refused, at the current release; an older release's outputs reach it
 too, so there it reads what it does not know.</p>

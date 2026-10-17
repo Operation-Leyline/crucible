@@ -28,6 +28,43 @@ fn older_release(d: &Description) -> Option<(&str, &str)> {
     (documented != current).then_some((documented, current))
 }
 
+/// The sunset date of the release this reference documents, if it has
+/// one: the date its migration declares, after which it may be refused.
+fn documented_sunset(d: &Description) -> Option<&str> {
+    let documented = documented(d)?;
+    list(&d.versions["releases"])
+        .iter()
+        .find(|release| release["name"].as_str() == Some(documented))?["sunset"]
+        .as_str()
+}
+
+/// Where the current release's reference is, from the root of this one:
+/// beside it, in the directory [`crate::release_directory`] names, as
+/// [`crate::generate_releases`] lays every release out.
+pub(crate) fn current_reference(current: &str) -> String {
+    format!("../{}/", crate::release_directory(current))
+}
+
+/// The notice at the top of every page of an older release's reference
+/// (decision 79): which release it documents, until when that release is
+/// served, and a link to the current release's reference, from a page at
+/// `depth` directories below `src/`. Nothing for the current release.
+fn release_banner(d: &Description, depth: usize) -> Option<String> {
+    let (documented, current) = older_release(d)?;
+    let sunset = documented_sunset(d).map_or_else(String::new, |date| {
+        format!(", which is supported until {}", release_code(date))
+    });
+    // `src/` and mdBook's `book/` sit at the same depth below the root, so
+    // one relative link reaches the current reference from either.
+    let root = "../".repeat(depth + 1);
+    Some(format!(
+        "> **An older release.** This reference documents release {}{sunset}. The current release is {}: see [its reference]({root}{}index.html).\n\n",
+        release_code(documented),
+        release_code(current),
+        current_reference(current)
+    ))
+}
+
 /// The `Crucible-Version: <release>` line every request of a versioned
 /// service sends at the release this reference documents, or nothing for a
 /// service without an `api_version`.
@@ -61,7 +98,7 @@ fn scheme_text(d: &Description, scheme: &str) -> String {
 
 /// Text as a Markdown code span, whatever backticks it holds: a code span
 /// reads nothing inside it as Markdown.
-fn code_span(text: &str) -> String {
+pub(crate) fn code_span(text: &str) -> String {
     let longest = text.split(|c| c != '`').map(str::len).max().unwrap_or(0);
     let ticks = "`".repeat(longest + 1);
     let pad = if text.starts_with('`') || text.ends_with('`') {
@@ -391,6 +428,19 @@ pub(super) fn render(service: &Service, d: &Description) -> Vec<File> {
     for file in &mut files {
         let depth = file.path.matches('/').count() - 1;
         file.contents = doc_links(d, &file.contents, &"../".repeat(depth));
+        // Every page a reader can land on says which release it documents;
+        // the table of contents is mdBook's navigation, not a page.
+        if file.path != "src/SUMMARY.md"
+            && let Some(banner) = release_banner(d, depth)
+        {
+            // Under the page's title, which every page starts with, and
+            // one blank line before what followed it.
+            let (title, rest) = file
+                .contents
+                .split_once('\n')
+                .unwrap_or((&file.contents, ""));
+            file.contents = format!("{title}\n\n{banner}{}", rest.trim_start_matches('\n'));
+        }
     }
     let agents = llms(d, &files);
     files.extend(agents);
@@ -421,7 +471,7 @@ fn summary(item: &Value) -> String {
 /// as written: `<`, `>` and `&` as character references, which open no tag,
 /// comment or entity, and every other ASCII punctuation character
 /// backslash-escaped, so none opens a link, emphasis or code span.
-fn plain(text: &str) -> String {
+pub(crate) fn plain(text: &str) -> String {
     let mut out = String::with_capacity(text.len());
     for c in text.chars() {
         match c {
@@ -488,10 +538,15 @@ fn llms(d: &Description, pages: &[File]) -> [File; 2] {
         );
     }
     if let Some((documented, current)) = older_release(d) {
+        let sunset = documented_sunset(d).map_or_else(String::new, |date| {
+            format!(", which is supported until {}", code_span(date))
+        });
         facts.push(format!(
-            "This reference documents release {}; the current release is {}, which has a reference of its own.",
+            "This reference documents release {}{sunset}; the current release is {}, which has a reference of its own: [{}]({}llms.txt).",
             code_span(documented),
-            code_span(current)
+            code_span(current),
+            plain(current),
+            current_reference(current)
         ));
     }
     if let Some(header) = version_header(d) {
@@ -658,6 +713,9 @@ fn rebase(contents: &str, dir: &str) -> String {
         for part in destination.split('/') {
             match part {
                 "." => {}
+                // Past the root, as a link to a reference beside this one
+                // goes, the `..` stays.
+                ".." if parts.last().is_none_or(|last| *last == "..") => parts.push(".."),
                 ".." => {
                     parts.pop();
                 }
@@ -1460,8 +1518,9 @@ fn release_path(name: &str) -> String {
 /// character escaped too. A release name is any visible ASCII.
 pub(crate) fn release_file(name: &str) -> String {
     const DEVICES: &[&str] = &[
-        "con", "prn", "aux", "nul", "com1", "com2", "com3", "com4", "com5", "com6", "com7", "com8",
-        "com9", "lpt1", "lpt2", "lpt3", "lpt4", "lpt5", "lpt6", "lpt7", "lpt8", "lpt9",
+        "con", "prn", "aux", "nul", "com0", "com1", "com2", "com3", "com4", "com5", "com6", "com7",
+        "com8", "com9", "lpt0", "lpt1", "lpt2", "lpt3", "lpt4", "lpt5", "lpt6", "lpt7", "lpt8",
+        "lpt9",
     ];
     let stem = name
         .split('.')

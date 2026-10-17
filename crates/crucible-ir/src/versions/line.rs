@@ -73,6 +73,7 @@ pub fn line(service: &Service, release: &str) -> Result<Service, Diagnostics> {
         sunset_docs: None,
         docs: None,
         retired: Vec::new(),
+        restored: Vec::new(),
         external: false,
     });
     let mut line = (*version.service).clone();
@@ -106,7 +107,7 @@ pub fn is_line(service: &Service) -> bool {
 }
 
 /// The index in `service.versions` of the release a line was made for.
-fn line_index(service: &Service) -> Option<usize> {
+pub(super) fn line_index(service: &Service) -> Option<usize> {
     let name = current_name(service);
     service
         .versions

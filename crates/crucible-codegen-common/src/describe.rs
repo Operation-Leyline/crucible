@@ -376,16 +376,39 @@ fn shape(service: &Service, id: &ShapeId, shape: &Shape) -> Value {
 /// Build from an already projected IR. Refusals are collected before any output
 /// can be published; the caller owns audience selection.
 pub fn describe(service: &Service) -> Result<Description, Diagnostics> {
-    describe_inner(service, false)
+    describe_inner(
+        service,
+        false,
+        &crucible_ir::versions::HistoryCache::default(),
+    )
+}
+
+/// [`describe`], dating elements through `cache`
+/// ([`crucible_ir::versions::history_cached`]): the reference of every
+/// release of one model at one audience shares one cache, so each older
+/// release's history is computed once.
+pub fn describe_cached(
+    service: &Service,
+    cache: &crucible_ir::versions::HistoryCache,
+) -> Result<Description, Diagnostics> {
+    describe_inner(service, false, cache)
 }
 
 /// Explorer retains documentation for non-JSON and streaming operations, but
 /// never advertises them as callable by its buffered JSON request builder.
 pub fn describe_for_explorer(service: &Service) -> Result<Description, Diagnostics> {
-    describe_inner(service, true)
+    describe_inner(
+        service,
+        true,
+        &crucible_ir::versions::HistoryCache::default(),
+    )
 }
 
-fn describe_inner(service: &Service, explorer: bool) -> Result<Description, Diagnostics> {
+fn describe_inner(
+    service: &Service,
+    explorer: bool,
+    cache: &crucible_ir::versions::HistoryCache,
+) -> Result<Description, Diagnostics> {
     // The older releases as this audience sees them (decision 78): an
     // external projection leaves them to the reader, which is this.
     let view;
@@ -464,9 +487,10 @@ fn describe_inner(service: &Service, explorer: bool) -> Result<Description, Diag
         .collect();
     // A line, an older release's reference (decision 79), carries the same
     // `versions` block as the current reference, so its `service.version`
-    // is its release while `versions.current` is the current one; its
-    // elements are dated as the current model dates them, where they come
-    // from.
+    // is its release while `versions.current` is the current one. Its
+    // elements are dated where they come from: what undo restored from a
+    // frozen release within the chain that ends there, the rest as the
+    // current model dates them.
     let current_model;
     let chain = match crucible_ir::versions::line_current(service) {
         Some(current) => {
@@ -477,9 +501,9 @@ fn describe_inner(service: &Service, explorer: bool) -> Result<Description, Diag
     };
     // Older definitions are compared with the current ones before either
     // carries its history.
-    let versions = versions(chain, &shapes);
+    let versions = versions(chain, &shapes, cache);
     let mut operations: BTreeMap<String, Value> = operations;
-    let histories = crucible_ir::versions::history(chain);
+    let histories = crucible_ir::versions::history_cached(service, cache);
     for op in &service.operations {
         if let Some(value) = operations.get_mut(&op.id.to_string()) {
             value["history"] = history(histories.get(&op.id));
@@ -801,7 +825,11 @@ fn date_shape(value: &mut Value, id: &ShapeId, histories: &crucible_ir::versions
 /// without an `api_version`. `current` holds the current shape entries,
 /// before they carry their history, which an older definition is compared
 /// with.
-fn versions(service: &Service, current: &BTreeMap<String, Value>) -> Value {
+fn versions(
+    service: &Service,
+    current: &BTreeMap<String, Value>,
+    cache: &crucible_ir::versions::HistoryCache,
+) -> Value {
     let Some(name) = &service.api_version else {
         return Value::Null;
     };
@@ -813,7 +841,7 @@ fn versions(service: &Service, current: &BTreeMap<String, Value>) -> Value {
         let migration = index.checked_sub(1).map(|from| (from, &chain[from]));
         let changes: Vec<Value> = migration
             .map(|(from, version)| {
-                let older = crucible_ir::versions::history_at(service, from);
+                let older = cache.at(service, from);
                 version
                     .steps
                     .iter()

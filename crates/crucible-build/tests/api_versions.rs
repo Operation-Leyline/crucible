@@ -64,6 +64,21 @@ fn api_version_probe() {
                     .collect();
                 assert_eq!(releases, ["v1", "v2", "v3", "v4"]);
                 assert!(description["operations"]["example.shop#CountItems"].is_object());
+                // Every release's reference, whichever release the package
+                // is a line of, each in its own directory.
+                let all = package.docs("docs-all").all_releases().generate();
+                for release in ["v1", "v2", "v3", "v4"] {
+                    let text =
+                        fs::read_to_string(all.path.join(format!("{release}/describe.json")))
+                            .unwrap();
+                    let description: serde_json::Value = serde_json::from_str(&text).unwrap();
+                    assert_eq!(description["service"]["version"], release);
+                    assert_eq!(description["versions"]["current"], "v4");
+                    assert!(all.files.contains(&format!("{release}/src/index.md")));
+                }
+                let index = fs::read_to_string(all.path.join("index.html")).unwrap();
+                assert!(index.contains("<a href=\"v4/index.html\">"), "{index}");
+                assert!(all.files.contains(&"llms.txt".to_owned()));
             }
             // The current release is the default, and names itself.
             let current = crucible_build::model("shop").api_version("v4").compile();

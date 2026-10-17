@@ -201,7 +201,7 @@ fn an_older_releases_reference_documents_its_own_release() {
         "{llms}"
     );
     assert!(
-        llms.contains("This reference documents release `v1`; the current release is `v4`"),
+        llms.contains("This reference documents release `v1`, which is supported until `2027-01-01`; the current release is `v4`, which has a reference of its own: [v4](../v4/llms.txt)."),
         "{llms}"
     );
     assert!(!llms.contains("Crucible-Version: v4"), "{llms}");
@@ -238,6 +238,349 @@ fn an_older_releases_reference_documents_its_own_release() {
         "{}",
         get_item.contents
     );
+}
+
+/// The e2e versioned service's directory, and a line of one of its
+/// releases.
+fn shop() -> crucible_ir::ir::Service {
+    let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../e2e/weather-service/versioned");
+    crucible_lang::load_versioned_service(&dir).unwrap_or_else(|e| panic!("{e}"))
+}
+
+fn shop_line(release: &str) -> Vec<crucible_codegen_docs::File> {
+    let line = crucible_ir::versions::line(&shop(), release).unwrap();
+    generate(&project(&line, Audience::External).unwrap()).unwrap()
+}
+
+/// The reference of release v2 of the e2e versioned service: no sunset,
+/// v2's names, CountItems restored, and v1's renames behind it.
+#[test]
+fn a_middle_releases_reference_matches_reviewed_goldens() {
+    golden_files("versioned-v2-external", shop_line("v2"));
+}
+
+/// The notice on every page of an older release's reference (decision
+/// 79): which release it documents, its sunset when it has one, and a link
+/// to the current release's reference beside it, from each page's depth.
+/// The current release's reference has none.
+#[test]
+fn every_page_of_an_older_releases_reference_names_its_release() {
+    for (release, sunset) in [
+        (
+            "v1",
+            ", which is supported until <code>2027&#45;01&#45;01</code>",
+        ),
+        ("v2", ""),
+        ("v3", ""),
+    ] {
+        let files = shop_line(release);
+        let mut pages = 0;
+        for file in files
+            .iter()
+            .filter(|f| f.path.starts_with("src/") && f.path != "src/SUMMARY.md")
+        {
+            let depth = file.path.matches('/').count();
+            let banner = format!(
+                "> **An older release.** This reference documents release <code>{release}</code>{sunset}. The current release is <code>v4</code>: see [its reference]({}v4/index.html).\n\n",
+                "../".repeat(depth + 1)
+            );
+            // Under the page's title.
+            let (title, rest) = file.contents.split_once("\n\n").unwrap();
+            assert!(title.starts_with("# "), "{}", file.path);
+            assert!(
+                rest.starts_with(&banner),
+                "{}:\n{}",
+                file.path,
+                file.contents
+            );
+            pages += 1;
+        }
+        assert!(pages > 20, "{pages} pages");
+        let summary = &files.iter().find(|f| f.path == "src/SUMMARY.md").unwrap();
+        assert!(!summary.contents.contains("An older release"));
+        // In one file at the root, the link is rebased onto the root.
+        let full = &files.iter().find(|f| f.path == "llms-full.txt").unwrap();
+        assert!(
+            full.contents
+                .contains("see [its reference](../v4/index.html)."),
+            "{}",
+            full.contents
+        );
+        assert!(!full.contents.contains("(v4/index.html)"));
+    }
+    for file in shop_line("v4")
+        .iter()
+        .filter(|f| !SITE_RUNTIME.contains(&f.path.as_str()))
+    {
+        assert!(!file.contents.contains("An older release"), "{}", file.path);
+    }
+}
+
+/// A release's directory: the explorer computes the same names to link the
+/// current reference (`tests/site`, "a release's directory is named as the
+/// generator names it", holds the same table).
+#[test]
+fn a_releases_directory_is_its_escaped_name() {
+    for (name, directory) in [
+        ("v2", "v2"),
+        ("2026-09-04", "2026-09-04"),
+        ("1.0+build", "1.0+build"),
+        (
+            "2026<img/src=x>?#q:*|\"_",
+            "2026_3Cimg_2Fsrc_3Dx_3E_3F_23q_3A_2A_7C_22_5F",
+        ),
+        ("con", "_63on"),
+        ("Com1.x", "_43om1.x"),
+        ("COM0", "_43OM0"),
+        ("lpt0.x", "_6Cpt0.x"),
+        (".hidden.", "_2Ehidden_2E"),
+        (
+            "x](https://example.com)",
+            "x_5D_28https_3A_2F_2Fexample.com_29",
+        ),
+        ("v3/../../evil`*", "v3_2F.._2F.._2Fevil_60_2A"),
+    ] {
+        assert_eq!(
+            crucible_codegen_docs::release_directory(name),
+            directory,
+            "{name}"
+        );
+    }
+}
+
+/// The older release `service.versions[index]` renamed `name`: the entry,
+/// and its projection's own `version`, which a line names itself by.
+fn rename_release(service: &mut crucible_ir::ir::Service, index: usize, name: &str) {
+    let version = &mut service.versions[index];
+    version.name = name.into();
+    version.service.version = name.into();
+    version.service.api_version = Some(name.into());
+}
+
+/// A release name and a sunset date are model text: in the notice they
+/// read back as written, open no tag or link, and the link to the current
+/// reference is to its escaped directory beside this one.
+#[test]
+fn model_text_in_the_release_notice_is_inert() {
+    let dir = package_dir("version-history");
+    let mut current = crucible_lang::load_versioned_service(&dir).unwrap();
+    let older = "<img src=x onerror=alert(1)>[v1](https://example.com)";
+    let newest = "v3/../../evil`*";
+    let sunset = "<b>2027</b>](javascript:alert(1))";
+    rename_release(&mut current, 0, older);
+    current.versions[0].sunset = Some(sunset.into());
+    current.version = newest.into();
+    current.api_version = Some(newest.into());
+    let line = crucible_ir::versions::line(&current, older).unwrap();
+    let files = generate(&project(&line, Audience::External).unwrap()).unwrap();
+    let escaped_newest = crucible_codegen_docs::release_directory(newest);
+    assert_eq!(escaped_newest, "v3_2F.._2F.._2Fevil_60_2A");
+    let index = &files.iter().find(|f| f.path == "src/index.md").unwrap();
+    let shown_index = shown(&index.contents);
+    assert!(
+        shown_index.contains(&format!(
+            "This reference documents release {older}, which is supported until {sunset}. The current release is {newest}: see its reference."
+        )),
+        "{shown_index}"
+    );
+    for file in files
+        .iter()
+        .filter(|f| f.path.ends_with(".md") || f.path.ends_with(".txt"))
+    {
+        // Raw HTML a reader would run: only the generator's own tags. A
+        // request's code block shows the name as typed, inert.
+        for event in pulldown_cmark::Parser::new(&file.contents) {
+            if let pulldown_cmark::Event::Html(html) | pulldown_cmark::Event::InlineHtml(html) =
+                event
+            {
+                assert!(
+                    !html.contains("<img") && !html.contains("<b>"),
+                    "{html} in {}",
+                    file.path
+                );
+            }
+        }
+        for destination in destinations(&file.contents) {
+            assert!(
+                !destination.contains("://") && !destination.starts_with("javascript"),
+                "{destination} in {}",
+                file.path
+            );
+            assert!(!destination.contains("evil`"), "{destination}");
+        }
+    }
+    assert!(
+        destinations(&index.contents).contains(&format!("../../{escaped_newest}/index.html")),
+        "{}",
+        index.contents
+    );
+    let llms = &files
+        .iter()
+        .find(|f| f.path == "llms.txt")
+        .unwrap()
+        .contents;
+    assert!(
+        llms.contains(&format!("(../{escaped_newest}/llms.txt)")),
+        "{llms}"
+    );
+    // In code spans, as typed: inert.
+    assert!(
+        llms.contains("This reference documents release `<img src=x onerror=alert(1)>[v1](https://example.com)`, which is supported until `<b>2027</b>](javascript:alert(1))`;"),
+        "{llms}"
+    );
+}
+
+/// Every supported release's reference in one output (decision 79): each
+/// release's directory holds exactly the reference generated for that
+/// release alone, and the root an index of them, whatever release the
+/// model given is a line of.
+#[test]
+fn every_releases_reference_sits_in_its_own_directory() {
+    let current = shop();
+    let options = crucible_codegen_docs::Options::default();
+    let all =
+        crucible_codegen_docs::generate_releases(&current, Audience::External, &options).unwrap();
+    let mut expected = Vec::new();
+    for release in ["v1", "v2", "v3", "v4"] {
+        for file in shop_line(release) {
+            expected.push((format!("{release}/{}", file.path), file.contents));
+        }
+    }
+    let index = |path: &str| {
+        all.iter()
+            .find(|f| f.path == path)
+            .unwrap_or_else(|| panic!("{path}"))
+            .contents
+            .clone()
+    };
+    let html = index("index.html");
+    let llms = index("llms.txt");
+    expected.push(("index.html".into(), html.clone()));
+    expected.push(("llms.txt".into(), llms.clone()));
+    expected.sort();
+    let found: Vec<(String, String)> = all
+        .iter()
+        .map(|f| (f.path.clone(), f.contents.clone()))
+        .collect();
+    assert_eq!(found, expected);
+    for release in ["v1", "v2", "v3", "v4"] {
+        assert!(
+            html.contains(&format!(
+                "<li><a href=\"{release}/index.html\"><code>{release}</code></a>: "
+            )),
+            "{html}"
+        );
+        assert!(
+            llms.contains(&format!(
+                "- [{release}]({release}/llms.txt): release `{release}`, "
+            )),
+            "{llms}"
+        );
+    }
+    assert!(html.contains("<code>v1</code></a>: supported until <code>2027-01-01</code></li>"));
+    assert!(html.contains("<code>v4</code></a>: the current release</li>"));
+    assert!(html.contains("<link rel=\"stylesheet\" href=\"v4/explorer.css\">"));
+    // No script: it works under the reference's own CSP.
+    assert!(!html.contains("<script"), "{html}");
+    // A line gives the same output: its current model's releases.
+    let line = crucible_ir::versions::line(&current, "v2").unwrap();
+    let from_line =
+        crucible_codegen_docs::generate_releases(&line, Audience::External, &options).unwrap();
+    assert_eq!(
+        from_line
+            .iter()
+            .map(|f| (&f.path, &f.contents))
+            .collect::<Vec<_>>(),
+        all.iter()
+            .map(|f| (&f.path, &f.contents))
+            .collect::<Vec<_>>()
+    );
+    // A service with one release is one directory.
+    let single = crucible_codegen_docs::generate_releases(
+        &documented(WEATHER),
+        Audience::External,
+        &options,
+    )
+    .unwrap();
+    let roots: BTreeSet<&str> = single
+        .iter()
+        .map(|f| f.path.split('/').next().unwrap())
+        .collect();
+    assert_eq!(roots.len(), 3, "{roots:?}");
+    assert!(roots.contains("index.html") && roots.contains("llms.txt"));
+}
+
+/// The index of every release escapes model text: the service's title and
+/// release names in HTML text and in `llms.txt`, and a release's directory
+/// in its links; releases whose directories case folds would merge are
+/// refused before anything is written.
+#[test]
+fn the_index_of_every_release_escapes_model_text() {
+    let dir = package_dir("version-history");
+    let mut current = crucible_lang::load_versioned_service(&dir).unwrap();
+    current.title = Some("<script>alert(1)</script> & [x](https://example.com)".into());
+    rename_release(&mut current, 0, "<b>one</b>");
+    current.versions[0].sunset = Some("\"><img>".into());
+    let options = crucible_codegen_docs::Options::default();
+    let all =
+        crucible_codegen_docs::generate_releases(&current, Audience::Internal, &options).unwrap();
+    let file = |path: &str| {
+        all.iter()
+            .find(|f| f.path == path)
+            .unwrap_or_else(|| panic!("{path}"))
+            .contents
+            .clone()
+    };
+    let html = file("index.html");
+    assert!(!html.contains("<script>alert"), "{html}");
+    assert!(!html.contains("<b>one"), "{html}");
+    assert!(!html.contains("\"><img>"), "{html}");
+    assert!(html.contains("<title>&lt;script&gt;alert(1)&lt;/script&gt; &amp; [x](https://example.com) API reference</title>"), "{html}");
+    assert!(
+        html.contains("<li><a href=\"_3Cb_3Eone_3C_2Fb_3E/index.html\"><code>&lt;b&gt;one&lt;/b&gt;</code></a>: supported until <code>&quot;&gt;&lt;img&gt;</code></li>"),
+        "{html}"
+    );
+    let llms = file("llms.txt");
+    assert!(
+        llms.starts_with(
+            r"# &lt;script&gt;alert\(1\)&lt;\/script&gt; &amp; \[x\]\(https\:\/\/example\.com\)"
+        ),
+        "{llms}"
+    );
+    assert!(
+        llms.contains(r#"- [&lt;b&gt;one&lt;\/b&gt;](_3Cb_3Eone_3C_2Fb_3E/llms.txt): release `<b>one</b>`, supported until `"><img>`"#),
+        "{llms}"
+    );
+    for destination in destinations(&llms) {
+        assert!(!destination.contains("://"), "{destination}");
+    }
+    assert!(
+        all.iter()
+            .any(|f| f.path.starts_with("_3Cb_3Eone_3C_2Fb_3E/src/"))
+    );
+    // A release named for a file at the root, or for a directory the
+    // output writer keeps for build tools, in any case, has no directory.
+    for name in ["index.html", "LLMS.txt", "Dist", "target"] {
+        let mut reserved = crucible_lang::load_versioned_service(&dir).unwrap();
+        rename_release(&mut reserved, 0, name);
+        let error =
+            crucible_codegen_docs::generate_releases(&reserved, Audience::External, &options)
+                .unwrap_err()
+                .to_string();
+        assert!(
+            error.contains(&format!(
+                "docs.filename: release {name:?}'s directory would be {name:?}"
+            )),
+            "{error}"
+        );
+    }
+    // `V3` and `v3` would share a directory where case folds.
+    let mut folded = crucible_lang::load_versioned_service(&dir).unwrap();
+    rename_release(&mut folded, 0, "V3");
+    let error = crucible_codegen_docs::generate_releases(&folded, Audience::External, &options)
+        .unwrap_err()
+        .to_string();
+    assert!(error.contains("docs.filename"), "{error}");
 }
 
 /// The e2e versioned service's reference: renames, a reshape, a removal

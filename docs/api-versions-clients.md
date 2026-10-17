@@ -2,8 +2,8 @@
 
 **Status: 5a built (clients send their release), the reference's
 release history (PR 3), 5b built: the projections (PR 4), checked by
-the compiler (PR 5) and served by the Rust server (PR 6), and 5c built:
-one SDK line per release (PR 7); a reference per release (PR 8) and 5d
+the compiler (PR 5) and served by the Rust server (PR 6), 5c built:
+one SDK line per release (PR 7), and a reference per release (PR 8); 5d
 designed (decisions 68-79, 82).** Phases 1-4 are built: a `.cru` service declares its breaking changes as
 migrations, and a Rust service serves every supported release from its
 current handlers ([api-versions.md](api-versions.md)). This document is
@@ -170,8 +170,8 @@ references to the code as of this design.
   in that release, which has no body to carry it; one bound to a label,
   query parameter or header still reaches it. This is the one exception to
   "additive changes reach every release" (decision 51), and the reference
-  says so (decision 74; `history.missing` does not date the payload case
-  yet, PR 8).
+  says so (decision 74; `history.missing` dates the payload case too since
+  PR 8).
 - **Everything else is the current model's:** operations, members and enum
   values added since reach the older release. `version` and `api_version`
   are the older release's name.
@@ -633,7 +633,7 @@ gains `history`, an additive field of `crucible.describe/1`:
 |---|---|---|
 | `added` | string or `null` | the release since which every release has the element, following renames (its latest addition, if it was dropped and added again); `null` when the oldest supported release has it |
 | `changed` | string array, oldest first, unique | each release whose migration has a step naming the element among its `subjects` (below) |
-| `missing` | string array, oldest first | the supported releases at which a client cannot see the element although it appeared before them or since: those before a `reshape` or `remove operation` it sits inside (decision 74). Empty for nearly everything |
+| `missing` | string array, oldest first | the supported releases at which a client cannot see the element although it appeared before them or since: those before a `reshape` or `remove operation` it sits inside, and those whose payload-bound message has no body for it (decision 74). Empty for nearly everything |
 
 - **Appeared, not available.** `added` says when the element came into
   the API. Which releases can use it is a separate fact: an addition
@@ -651,8 +651,10 @@ gains `history`, an additive field of `crucible.describe/1`:
 - **An element not frozen yet** is added in the current version: the
   service's `version`, the release being made.
 - **In a projection**, an element is dated as in the current model, where
-  it comes from; one restored from frozen `r` is dated within the chain
-  that ends at `r`.
+  it comes from; one restored from frozen `r` is added and missing as the
+  chain that ends at `r` dates it, and changed in that chain, in the
+  migration from `r` that restored it, and in every later release with a
+  step naming what it became, through the renames (decision 79).
 - **`notes.since`** (`@since`, decision 42) stays the author's. A renderer
   shows `history.added` and falls back to `notes.since` when it is `null`:
   something older than every supported release.
@@ -750,6 +752,47 @@ same `versions` block. Its `service.version` is `v1` while
 `versions.current` is `v3`, so a renderer says which release a page
 describes and links the current one.
 
+- **What PR 8 settled in building it.** Undo records what it took from
+  the frozen release: `ApiVersion::restored` (and `Projection::restored`,
+  from `crucible_ir::versions::undo_restoring`) lists, by the projection's
+  ids, the operations and shapes restored whole and the members a `retype`
+  restored. `history` dates a line where each element comes from: walking
+  up from the line's release, the first undo that restored it, from frozen
+  `r`, gives its `added` and `missing` within the chain that ends at `r`
+  (`history_at`), and its `changed` is that chain's, the release whose
+  migration restored it, and every later release with a step naming what
+  it became, followed through the renames, even once a later step removed
+  it from the current model, so a reader of the line sees every break that
+  reached it. An element no undo restored
+  is the current model's, under the id the renames since give it. So in
+  the e2e shop's `v1` reference `max` is `limit` (changed in `v2` and
+  `v3`), the `force` that `v3` retyped is `v2`'s (changed in `v3`), and in
+  `tests/models/version-line-history` an operation `v2` added and `v3`
+  removed is added in `v2` and changed in `v3`. A run that documents every
+  release computes each older release's history once
+  (`versions::HistoryCache`). The projection already copied
+  restored definitions with their documentation, so documentation needed
+  nothing more. The payload case of decision 74 is dated from the
+  projections: a member a release's projection lacks while the next one
+  has it, where that projection sends the message (an operation's input or
+  output) as a payload, is missing at that release and every one before
+  it (an error is checked too, defensively: no `.cru` model can grow a
+  body member beside an error's payload); an external reference reads the projections through
+  `visible`, which now projects each `ApiVersion::service` too. Every page
+  of an older release's reference carries a notice under its title (the
+  Markdown pages, `llms.txt` and the explorer's pages): the release it
+  documents, its sunset, and a link to the current release's reference at
+  `../<current>/`, where `generate_releases` (`--all-releases`,
+  `DocsOutput::all_releases`) puts it: each supported release's reference,
+  byte for byte what `--api-version` writes for it, in a directory named
+  as its changelog page's file is, with an `index.html` and an `llms.txt`
+  at the root that list them ([docs.md](docs.md#every-releases-reference)).
+  A release whose directory would be a root file (`index.html`,
+  `llms.txt`) or a directory the output writer refuses (`dist`, `target`)
+  is refused, and `com0` and `lpt0` are escaped as device names.
+  Each reference stays self-contained; a site's version switcher reads
+  `versions.releases` and links `../<directory>/`.
+
 ### What ships before 5b
 
 `history` and `versions` read only the frozen chain and the steps, so they
@@ -778,7 +821,7 @@ symbol to its own.
 ## Order
 
 Each line is one pull request, in this order unless it says otherwise. 5a
-is built, and so are PRs 1 to 7.
+is built, and so are PRs 1 to 8.
 
 1. **Steps carry both sides.** *Built.* `VersionStep::Require` gains `old`
    and `from`, `Hook::Require` gains `from`, `AddEnumValue` gains `old`,
@@ -974,11 +1017,33 @@ is built, and so are PRs 1 to 7.
    that name no release) and drives it (`e2e/ts/shop-v1.e2e.test.ts`).
    `tools/test_api_version_clients.py` is unchanged: the generated
    packages are checked in Rust instead.
-8. **A reference per release.** History for projections (an element
+8. **A reference per release.** *Built.* History for projections (an element
    restored from frozen `r` dated within the chain that ends at `r`;
    `missing` is computed since PR 3), and the renderer's release banner. *Crates:* crucible-ir,
    crucible-codegen-common, crucible-codegen-docs. *Tests:* a `describe()`
-   golden of `v1`.
+   golden of `v1`. *As built* (see *What PR 8 settled*, above): undo
+   records what it restored (`ApiVersion::restored`), `history` dates a
+   line from it, and `missing` dates the payload case; the notice is on
+   every page of an older release's reference, and every release's
+   reference can be written in one output (`generate_releases`,
+   `crucible generate docs --all-releases`, `DocsOutput::all_releases`),
+   with crucible-lang, crucible-codegen, crucible-build and crucible-cli
+   too. The tests are `crucible-lang/tests/history.rs` (what each undo
+   restored; a line's dates for a removed operation, a reshape, a retype
+   and a rename from `tests/models/version-line-history` and the e2e
+   shop, and through two renames, a retype and an enum the current model
+   dropped from `tests/models/version-line-renames`; restored
+   definitions' documentation; the payload case for an input in both
+   audiences, and the defensive error branch on an edited IR); goldens of the e2e shop's
+   `v1` and `v2` references (`versioned-v1-external`,
+   `versioned-v2-external`); the notice on every page at each depth, its
+   escaping and its link in `llms-full.txt`, every release's output and
+   its index with hostile text, in `crucible-codegen-docs/tests/generate.rs`;
+   the explorer's notice on every route, its directory names and hostile
+   text under `tools/test-docs-site.sh`; and the build's and the CLI's
+   all-releases output, with an `sdks.json` per release
+   (`crucible-build/tests/{api_versions,docs_outputs}.rs`,
+   `crucible-cli/tests/api_versions.rs`).
 9. **Upgrade guides (5d).** *Crate:* crucible-cli. *Tests:* the guide
    from `v1` to `v3` of the fixture, as a golden.
 

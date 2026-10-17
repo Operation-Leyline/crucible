@@ -405,3 +405,79 @@ fn a_reference_describes_the_sdks_of_its_release() {
         assert_eq!(sdks["lines"], lines, "{out}");
     }
 }
+
+/// `generate docs --all-releases`: each supported release's reference in a
+/// directory of its own, the same files `--api-version <release>` writes
+/// with that release's SDKs in its `sdks.json`, and an index of them at the
+/// root. It selects every release, so `--api-version` is refused with it.
+#[test]
+fn every_releases_reference_is_generated_in_one_output() {
+    let directory = repository();
+    let root = directory.path();
+    fs::write(root.join("crucible-sdk.toml"), SDK_FILE).unwrap();
+    let sdks = ["--sdks", "crucible-sdk.toml"];
+    let mut args = vec!["generate", "docs", "shop", "--out", "all", "--all-releases"];
+    args.extend(sdks);
+    success(crucible(root, &args));
+    for (release, described) in [
+        ("v1", vec!["ts-v1"]),
+        ("v2", vec!["rust-v2"]),
+        ("v3", vec![]),
+        ("v4", vec!["ts"]),
+    ] {
+        let alone = format!("docs-{release}");
+        let mut args = vec!["generate", "docs", "shop", "--out", &alone];
+        args.extend(sdks);
+        if release != "v4" {
+            args.extend(["--api-version", release]);
+        }
+        success(crucible(root, &args));
+        let mut files = 0;
+        for path in walk(&root.join(&alone)) {
+            let relative = path.strip_prefix(root.join(&alone)).unwrap();
+            if relative == Path::new(".crucible") {
+                continue;
+            }
+            let together = root.join("all").join(release).join(relative);
+            assert_eq!(
+                fs::read_to_string(&together)
+                    .unwrap_or_else(|e| panic!("{}: {e}", together.display())),
+                fs::read_to_string(&path).unwrap(),
+                "{}",
+                together.display()
+            );
+            files += 1;
+        }
+        assert!(files > 20, "{release}: {files} files");
+        let description = json(&root.join(format!("all/{release}/describe.json")));
+        assert_eq!(description["service"]["version"], release);
+        let sdks = json(&root.join(format!("all/{release}/sdks.json")));
+        let names: Vec<&String> = sdks["sdks"].as_object().unwrap().keys().collect();
+        assert_eq!(names, described, "{release}");
+    }
+    let index = fs::read_to_string(root.join("all/index.html")).unwrap();
+    assert!(index.contains("<a href=\"v1/index.html\">"), "{index}");
+    let llms = fs::read_to_string(root.join("all/llms.txt")).unwrap();
+    assert!(
+        llms.contains("- [v4](v4/llms.txt): release `v4`, the current release"),
+        "{llms}"
+    );
+
+    let error = failure(crucible(
+        root,
+        &[
+            "generate",
+            "docs",
+            "shop",
+            "--out",
+            "one",
+            "--all-releases",
+            "--api-version",
+            "v1",
+        ],
+    ));
+    assert!(
+        error.contains("--all-releases documents every supported release; leave out --api-version"),
+        "{error}"
+    );
+}

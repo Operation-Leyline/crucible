@@ -38,7 +38,21 @@ pub fn generate(service: &Service) -> Result<Vec<File>, Diagnostics> {
 
 /// [`generate`] with `options`.
 pub fn generate_with(service: &Service, options: &Options) -> Result<Vec<File>, Diagnostics> {
-    let mut description = describe::describe(service)?;
+    generate_cached(
+        service,
+        options,
+        &crucible_ir::versions::HistoryCache::default(),
+    )
+}
+
+/// [`generate_with`], dating elements through `cache`, which every
+/// release's reference of one model at one audience shares.
+fn generate_cached(
+    service: &Service,
+    options: &Options,
+    cache: &crucible_ir::versions::HistoryCache,
+) -> Result<Vec<File>, Diagnostics> {
+    let mut description = describe::describe_cached(service, cache)?;
     description.schemas(options.schemas);
     let mut diagnostics = Diagnostics::default();
     let mut paths = std::collections::BTreeSet::new();
@@ -97,6 +111,167 @@ pub fn generate_with(service: &Service, options: &Options) -> Result<Vec<File>, 
     }
     files.sort_by(|a, b| a.path.cmp(&b.path));
     Ok(files)
+}
+
+/// The directory [`generate_releases`] writes the reference of `release`
+/// into: the release's name with every byte a file name or a link could
+/// misread escaped, as its changelog page's file is (docs/docs.md, "Output
+/// layout"). An older release's reference links the current one at
+/// `../<directory>/`.
+pub fn release_directory(release: &str) -> String {
+    markdown::release_file(release)
+}
+
+/// Every supported release's reference in one output (decision 79;
+/// docs/docs.md, "Every release's reference"): the reference of each
+/// release, oldest first, as [`generate_with`] writes it for that
+/// release's line at `audience`, each in its own [`release_directory`],
+/// and at the root an `index.html` and an `llms.txt` that list them, so a
+/// documentation site can serve them side by side and switch between
+/// them. `service` is the current model as lowered, or a line of it, whose
+/// current model is used; it is never projected to an audience first, since
+/// a release is selected before an audience (release first, audience
+/// second). Each reference is self-contained; an older one links the
+/// current one beside it. Every release's problems are reported together,
+/// and a release whose directory would collide with another's where case
+/// folds, with a file at the root (`index.html`, `llms.txt`), or with a
+/// directory the output writer refuses (`dist`, `target`) is refused.
+pub fn generate_releases(
+    service: &Service,
+    audience: crucible_ir::Audience,
+    options: &Options,
+) -> Result<Vec<File>, Diagnostics> {
+    let current = crucible_ir::versions::line_current(service).unwrap_or_else(|| service.clone());
+    let releases: Vec<String> = crucible_ir::versions::releases(&current)
+        .into_iter()
+        .map(str::to_owned)
+        .collect();
+    let mut diagnostics = Diagnostics::default();
+    let mut files = Vec::new();
+    let mut directories = std::collections::BTreeSet::new();
+    // Every reference reads the same older releases' histories.
+    let cache = crucible_ir::versions::HistoryCache::default();
+    for release in &releases {
+        let directory = release_directory(release);
+        // The root's own files, and the first segments the output writer
+        // keeps for build tools, are no release's directory.
+        if ["index.html", "llms.txt", "dist", "target"]
+            .contains(&directory.to_ascii_lowercase().as_str())
+        {
+            diagnostics.push(
+                &current.id,
+                format!("docs.filename: release {release:?}'s directory would be {directory:?}, which every release's reference keeps for itself; rename the release"),
+            );
+            continue;
+        }
+        // A release's page already refuses this inside every reference
+        // with more than one release; a lone release has no sibling.
+        if !directories.insert(directory.to_ascii_lowercase()) {
+            diagnostics.push(
+                &current.id,
+                format!("docs.filename: release {release:?}'s directory collides with another release's on a case-insensitive filesystem"),
+            );
+            continue;
+        }
+        let reference = crucible_ir::versions::line(&current, release)
+            .and_then(|line| crucible_ir::project(&line, audience))
+            .and_then(|line| generate_cached(&line, options, &cache));
+        match reference {
+            Ok(reference) => files.extend(reference.into_iter().map(|file| File {
+                path: format!("{directory}/{}", file.path),
+                contents: file.contents,
+            })),
+            Err(problems) => {
+                for problem in problems.iter() {
+                    diagnostics.push(
+                        &problem.shape,
+                        format!("release {release:?}: {}", problem.message),
+                    );
+                }
+            }
+        }
+    }
+    if !diagnostics.is_empty() {
+        return Err(diagnostics);
+    }
+    files.extend(releases_index(&current, &releases));
+    files.sort_by(|a, b| a.path.cmp(&b.path));
+    Ok(files)
+}
+
+/// The root of [`generate_releases`]: `index.html`, a page linking each
+/// release's reference, with no script so it works under the reference's
+/// own `Content-Security-Policy`, and `llms.txt`, linking each release's
+/// `llms.txt` for an agent. Model text is escaped as everywhere else: HTML
+/// text in the page, inert Markdown in `llms.txt`.
+fn releases_index(current: &Service, releases: &[String]) -> [File; 2] {
+    let title = current
+        .title
+        .as_deref()
+        .unwrap_or_else(|| current.id.name());
+    let current_name = crucible_ir::versions::current_name(current);
+    let sunset = |release: &str| {
+        current
+            .versions
+            .iter()
+            .find(|version| version.name == release)
+            .and_then(|version| version.sunset.as_deref())
+    };
+    let html = |text: &str| {
+        text.replace('&', "&amp;")
+            .replace('<', "&lt;")
+            .replace('>', "&gt;")
+            .replace('"', "&quot;")
+    };
+    let mut page = format!(
+        "<!doctype html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n<title>{} API reference</title>\n<link rel=\"stylesheet\" href=\"{}/explorer.css\">\n</head>\n<body>\n<main class=\"cx-main\">\n<h1>{}</h1>\n<p>The API reference of every supported release, oldest first. The current release is <code>{}</code>.</p>\n<ul class=\"cx-list\">\n",
+        html(title),
+        release_directory(current_name),
+        html(title),
+        html(current_name)
+    );
+    let mut llms = format!(
+        "# {}\n\n> The API reference of every supported release, one directory each, oldest first.\n\nEach release's reference is complete on its own: its `llms.txt` indexes its Markdown pages, and every request it documents names that release in `Crucible-Version`. The current release is {}.\n\n## Releases\n\n",
+        markdown::plain(title),
+        markdown::code_span(current_name)
+    );
+    for release in releases {
+        let directory = release_directory(release);
+        let (html_fact, llms_fact) = if release == current_name {
+            (
+                "the current release".to_owned(),
+                "the current release".to_owned(),
+            )
+        } else {
+            match sunset(release) {
+                Some(date) => (
+                    format!("supported until <code>{}</code>", html(date)),
+                    format!("supported until {}", markdown::code_span(date)),
+                ),
+                None => ("an older release".to_owned(), "an older release".to_owned()),
+            }
+        };
+        page.push_str(&format!(
+            "<li><a href=\"{directory}/index.html\"><code>{}</code></a>: {html_fact}</li>\n",
+            html(release)
+        ));
+        llms.push_str(&format!(
+            "- [{}]({directory}/llms.txt): release {}, {llms_fact}\n",
+            markdown::plain(release),
+            markdown::code_span(release)
+        ));
+    }
+    page.push_str("</ul>\n<p>For agents: <a href=\"llms.txt\">llms.txt</a> links each release's Markdown index.</p>\n</main>\n</body>\n</html>\n");
+    [
+        File {
+            path: "index.html".into(),
+            contents: page,
+        },
+        File {
+            path: "llms.txt".into(),
+            contents: llms,
+        },
+    ]
 }
 
 /// `changes.json` (`crucible.changes/1`, docs/docs.md): the release chain

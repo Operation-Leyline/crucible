@@ -16,7 +16,9 @@
       "examples": [],
       "history": {
         "added": null,
-        "changed": [],
+        "changed": [
+          "v3"
+        ],
         "missing": []
       },
       "id": "example.shop#CountItems",
@@ -1671,7 +1673,9 @@
       },
       "history": {
         "added": null,
-        "changed": [],
+        "changed": [
+          "v3"
+        ],
         "missing": []
       },
       "id": "crucible.api#Boolean",
@@ -2368,7 +2372,9 @@
       "error": null,
       "history": {
         "added": null,
-        "changed": [],
+        "changed": [
+          "v3"
+        ],
         "missing": []
       },
       "id": "example.shop#CountItemsInput",
@@ -2391,7 +2397,9 @@
           },
           "history": {
             "added": null,
-            "changed": [],
+            "changed": [
+              "v3"
+            ],
             "missing": []
           },
           "internal": false,
@@ -2431,7 +2439,9 @@
       "error": null,
       "history": {
         "added": null,
-        "changed": [],
+        "changed": [
+          "v3"
+        ],
         "missing": []
       },
       "id": "example.shop#CountItemsOutput",
@@ -2454,7 +2464,9 @@
           },
           "history": {
             "added": null,
-            "changed": [],
+            "changed": [
+              "v3"
+            ],
             "missing": []
           },
           "internal": false,
@@ -2533,7 +2545,9 @@
       },
       "history": {
         "added": null,
-        "changed": [],
+        "changed": [
+          "v3"
+        ],
         "missing": []
       },
       "id": "example.shop#CountUnavailableException",
@@ -2556,7 +2570,9 @@
           },
           "history": {
             "added": null,
-            "changed": [],
+            "changed": [
+              "v3"
+            ],
             "missing": []
           },
           "internal": false,
@@ -2851,7 +2867,10 @@
           },
           "history": {
             "added": null,
-            "changed": [],
+            "changed": [
+              "v2",
+              "v3"
+            ],
             "missing": []
           },
           "internal": false,
@@ -2888,7 +2907,9 @@
           },
           "history": {
             "added": null,
-            "changed": [],
+            "changed": [
+              "v3"
+            ],
             "missing": []
           },
           "internal": false,
@@ -2925,7 +2946,9 @@
           },
           "history": {
             "added": null,
-            "changed": [],
+            "changed": [
+              "v3"
+            ],
             "missing": []
           },
           "internal": false,
@@ -3565,7 +3588,10 @@
           },
           "history": {
             "added": null,
-            "changed": [],
+            "changed": [
+              "v2",
+              "v3"
+            ],
             "missing": []
           },
           "internal": false,

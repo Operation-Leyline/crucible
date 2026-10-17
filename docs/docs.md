@@ -62,6 +62,12 @@ document. Its SDK file must declare this model, and the build needs the
 `crucible-build` feature of each SDK's language. `crucible sdk describe`
 prints the same document without a reference.
 
+A versioned service's reference documents its current release.
+`--api-version v1` (`crucible_build::model(..).api_version("v1")` in a
+build) documents an older supported release instead, and `--all-releases`
+(`DocsOutput::all_releases()`) every supported release in one output
+([Every release's reference](#every-releases-reference)).
+
 A large API's `describe.json` repeats each type's JSON Schema in every
 operation that reaches it. `.schemas(crucible_build::Schemas::Shared)`, or
 `--schemas shared`, writes each definition once; `Schemas::Omit`
@@ -120,13 +126,67 @@ case folds are refused (`docs.filename`) before any file is written.
 Each operation page is complete on its own, so a reader that fetches one
 page can call the operation: its method and URI, the headers every request
 sends (the fixed `Content-Type`, `Authorization: Bearer {token}` for each
-bearer scheme, `Crucible-Version` with the current release), the modelled
-parameters and body, the response, the errors with the code each carries
+bearer scheme, `Crucible-Version` with the release the reference
+documents), the modelled parameters and body, the response, the errors with the code each carries
 in `X-Crucible-Error` and the body, idempotency, pagination, and the
 model's examples or, without any, the generated sample.
 
 With mdBook installed, `mdbook build generated/weather-docs` renders the
 Markdown. Crucible does not launch mdBook or serve the HTML reference.
+
+## Every release's reference
+
+`generate docs --api-version v1` documents an older supported release
+from its line (decision 79 in [idl/decisions.md](idl/decisions.md);
+[api-versions-clients.md](api-versions-clients.md#a-reference-for-each-release)):
+v1's operations, types and routes, what was added since and reaches v1,
+and `Crucible-Version: v1` on every request it shows. A definition undo
+restored for the release (a reshaped structure, a removed operation and
+its own shapes, a retyped member) carries the documentation its release
+was frozen with; everything else, a member renamed since included,
+carries the current documentation. Each element is dated where it comes
+from ([Release history](#release-history)).
+
+Every page of an older release's reference says so under its title, in
+the Markdown pages, the static reference and `llms.txt`: the release it
+documents, the sunset its migration declares, if any, and a link to the
+current release's reference. The link is relative: `../<current>/index.html`
+from the reference's root (`../<current>/llms.txt` from `llms.txt`), where
+`<current>` is the current release's directory below, so it holds where the
+references are served side by side, as `--all-releases` writes them. The
+release names and the date are model text, escaped as everywhere else.
+
+`--all-releases` (`DocsOutput::all_releases()` in a build,
+`crucible_codegen::docs_releases` or
+`crucible_codegen_docs::generate_releases`) writes every supported
+release's reference into one output, so a documentation site can serve
+them side by side and switch between them:
+
+```text
+index.html      every release, oldest first, each linked; no script
+llms.txt        each release's llms.txt, for agents
+v1/             release v1's reference: what --api-version v1 writes
+v2/
+v3/
+v4/             the current release's reference
+```
+
+Each directory holds exactly what `--api-version <release>` writes for its
+release, with `--sdks` its own `sdks.json` describing that release's SDKs,
+so each reference is self-contained: its relative links, `describe.json`
+and `llms.txt` work wherever the directory is served. A release's directory
+is named as its changelog page's file is (`release_directory`): letters,
+digits, `.`, `-` and `+` stay, any other byte is `_` and two hex digits, and
+a leading or trailing `.` or a Windows device name has its first character
+escaped too. A version switcher reads the releases from any reference's
+`versions.releases` and links `../<directory>/`; the static reference
+computes the same names (`CrucibleExplorer.releaseDirectory`). Releases
+whose directories would share a name where case folds are refused
+(`docs.filename`), before anything is written, and so is a release whose
+directory would be one of the root's files (`index.html`, `llms.txt`) or a
+directory the output writer refuses (`dist`, `target`), in any case. `--all-releases` takes no
+`--api-version`: it selects every release, from the current model, as a
+build does from a package that `api_version` made a line.
 
 ## Markdown for agents
 
@@ -143,7 +203,9 @@ an `Accept` header. The output's root therefore holds, beside `index.html`:
   first sentence), `Releases` (a chain of more than one release), and
   `Optional` (`llms-full.txt`, `describe.json`, `changes.json`).
   Operations and types are in shape-id order, and internal and deprecated
-  items say so. An agent loads this file as written, so model text in it
+  items say so. An older release's `llms.txt` says which release it
+  documents, its sunset and where the current release's `llms.txt` is.
+  An agent loads this file as written, so model text in it
   (the title, a summary, a sender's name) is inert: `<`, `>` and `&` are
   character references and every other ASCII punctuation character is
   backslash-escaped, so it opens no link, tag, comment or code span;
@@ -183,7 +245,9 @@ pagination, idempotency, examples with copy buttons, or for an operation
 without examples its generated sample, labelled as generated), data-type pages, and
 internal/deprecated/unstable badges, "Added in" and "Changed in" badges
 linked to a page per release (`#/release/v2`) that lists its changes. Light and dark themes follow
-`prefers-color-scheme`; every page has a hash address such as
+`prefers-color-scheme`; an older release's reference shows the notice
+[above](#every-releases-reference) on every page; every page has a hash
+address such as
 `#/op/example.weather%23GetCity/errors`, and the sidebar, search (`/` focuses
 it), and copy buttons work from the keyboard.
 
@@ -447,7 +511,7 @@ Every operation, shape, member and enum value object has `history`:
 |---|---|---|
 | `added` | string or `null` | The release since which every release has the element, following `rename` steps: walking back from the current model through the frozen releases, the oldest one that still has it, so an element dropped and added again is dated by its latest addition. `null` when the oldest supported release has it, which stays true when an old release is dropped. An element not frozen yet is added in the current release |
 | `changed` | string array, oldest first, unique | Each release whose migration has a step naming the element among its `subjects` |
-| `missing` | string array, oldest first | The supported releases that see an older definition without the element, because it is a member of a structure a later `reshape` restores, or of a removed operation's own input or output (decision 74). Empty for nearly everything |
+| `missing` | string array, oldest first | The supported releases that see an older definition without the element, because it is a member of a structure a later `reshape` restores, or of a removed operation's own input or output, or a member added since to a message a release sent as a payload and its projection sends so again, whose body has no place for it: that release and those before it (decision 74). Empty for nearly everything |
 
 An element is identified by its id (`Shape`, `Shape$member`, `Enum$VALUE`,
 an operation's id); a member or enum value renamed in a migration is the
@@ -457,6 +521,21 @@ are served as projections of the current model (phase 5b of
 [api-versions-clients.md](api-versions-clients.md#order)), so an addition
 reaches every supported release except the ones `missing` lists. A
 renderer shows `added` and falls back to `notes.since` when it is `null`.
+
+An older release's reference ([Every release's reference](#every-releases-reference))
+dates each element where it comes from (decision 79). What undo restored
+from frozen release `r` (a reshaped structure and its members, a removed
+operation and its own shapes, a retyped member) has the `added` and
+`missing` of the chain that ends at `r`, so an operation `v2` added and
+`v3` removed is added in `v2` in `v1`'s reference too. Its `changed` is
+that chain's, the release whose migration restored it, and every later
+release with a step naming what it became, followed through the renames,
+so a member `v3` retyped is changed in `v3`, and in each release that
+renamed or changed it since, also after a later step removed it. Anything
+else is dated as the current reference dates it, under the name the
+release uses: a member renamed since carries
+the dates of the member it became. The `versions` block is the current
+reference's.
 
 The root's `versions` is always present: `null` for a service without an
 `api_version`, an object for every `.cru` service, its keys sorted as
@@ -862,7 +941,9 @@ The History goldens (`tests/models/version-history`) cover release history
 in both audiences: three releases, every kind of step, a retired operation
 and two steps on internal API that only the internal reference lists. The
 Versioned golden is the e2e versioned service's reference
-(`e2e/weather-service/versioned`). Both read their releases through
+(`e2e/weather-service/versioned`), and the Versioned v1 and v2 goldens
+the references of its `v1` and `v2` lines, the release notice on every
+page. They read their releases through
 `crucible_lang::load_versioned_service`, as a build does.
 Run the focused tests after intended changes:
 

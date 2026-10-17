@@ -1,0 +1,28 @@
+/// Items, across four releases.
+service Shop {
+    version "v4"
+    protocol json
+    operations [GetItem]
+}
+
+/// Reads one item.
+readonly operation GetItem {
+    http GET "/items/{id}"
+    input { id: string }
+    output { name: string }
+}
+
+/// v2 counts in numbers.
+migration "v2" from "v1" {
+    retype CountItems.output.total -> integer by hook
+}
+
+/// v3 calls the total a count.
+migration "v3" from "v2" {
+    rename CountItems.output.total -> count
+}
+
+/// v4 stops counting.
+migration "v4" from "v3" {
+    remove operation CountItems
+}

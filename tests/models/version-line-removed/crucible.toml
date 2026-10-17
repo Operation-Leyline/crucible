@@ -1,0 +1,10 @@
+# A line's dates after the element left the current model (decision 79):
+# v2 retypes CountItems' total, v3 renames it, and v4 removes CountItems.
+# The v1 line keeps v1's member, restored by v2's retype, changed by the
+# retype and by v3's rename although the current model no longer has it.
+# v1 to v3 are frozen under releases/; v4 is current.
+[model]
+namespace = "example.removed"
+
+[model.baseline]
+path = "releases/v3.json"

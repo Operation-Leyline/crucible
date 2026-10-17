@@ -97,6 +97,8 @@ impl ModelPackage {
             sdks: None,
             #[cfg(feature = "docs")]
             docs: crucible_codegen::DocsOptions::default(),
+            #[cfg(feature = "docs")]
+            all_releases: false,
         }
     }
 

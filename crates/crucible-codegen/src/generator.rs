@@ -133,6 +133,28 @@ pub fn docs(
     docs_projected(&crucible_ir::project(service, audience)?, options)
 }
 
+/// Every supported release's reference in one output, each in its own
+/// directory with an index beside them
+/// ([`crucible_codegen_docs::generate_releases`]): `service` is the
+/// current model (or a line of it), each release's line projected to
+/// `audience` (release first, audience second).
+#[cfg(feature = "docs")]
+pub fn docs_releases(
+    service: &Service,
+    audience: crate::Audience,
+    options: &crate::DocsOptions,
+) -> Result<Vec<File>, Diagnostics> {
+    crucible_codegen_docs::generate_releases(service, audience, options).map(|files| {
+        files
+            .into_iter()
+            .map(|file| File {
+                path: file.path,
+                contents: file.contents,
+            })
+            .collect()
+    })
+}
+
 #[cfg(feature = "docs")]
 fn docs_projected(
     service: &Service,

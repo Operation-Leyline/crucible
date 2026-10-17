@@ -7,7 +7,7 @@ use std::path::Path;
 
 use crucible_ir::ShapeId;
 use crucible_ir::ir::{Hook, Service, VersionStep};
-use crucible_ir::versions::{History, history, history_at, named, subjects, visible};
+use crucible_ir::versions::{History, history, history_at, line, named, subjects, visible};
 use crucible_ir::{Audience, project};
 
 fn package(name: &str) -> Service {
@@ -308,6 +308,301 @@ fn the_versioned_loader_refuses_an_undeclared_break() {
     std::fs::write(&file, edited).unwrap();
     let error = crucible_lang::load_versioned_service(&dir).unwrap_err();
     assert!(error.contains("breaks compatibility"), "{error}");
+}
+
+fn lines_id(text: &str) -> ShapeId {
+    format!("example.lines#{text}").parse().unwrap()
+}
+
+/// What undo restored, as each release of `tests/models/version-line-history`
+/// records it: v3's steps restore at v2 a removed operation with its own
+/// shapes, a reshaped structure and a retyped member; v2's rename restores
+/// nothing.
+#[test]
+fn each_release_records_what_its_undo_restored() {
+    let service = package("version-line-history");
+    let restored = |index: usize| -> Vec<String> {
+        service.versions[index]
+            .restored
+            .iter()
+            .map(ToString::to_string)
+            .collect()
+    };
+    assert_eq!(restored(0), Vec::<String>::new());
+    assert_eq!(
+        restored(1),
+        [
+            "example.lines#CountItems",
+            "example.lines#CountItemsInput",
+            "example.lines#CountItemsOutput",
+            "example.lines#GetItemOutput$note",
+            "example.lines#Size",
+        ]
+    );
+    // The projections the compiler computed record the same.
+    let projections = crucible_ir::versions::projections(&service).unwrap();
+    for (projection, version) in projections.iter().zip(&service.versions) {
+        assert_eq!(projection.restored, version.restored, "{}", version.name);
+    }
+}
+
+/// A release's line dates what undo restored where it comes from (decision
+/// 79): added and missing within the chain that ends at the release it was
+/// restored from, and changed there, in the migration that restored it, and
+/// in every later one that changed what it became; everything else as the
+/// current model does, through the renames since. An operation added in v2
+/// and removed in v3 is added in v2 at v1 too and changed in v3; a reshaped
+/// structure and a retyped member are v2's, with v2's members, changed in
+/// v3; a member renamed in v2 is the current one under its v1 name.
+#[test]
+fn a_line_dates_what_undo_restored_within_its_own_chain() {
+    let current = package("version-line-history");
+    let at = |histories: &crucible_ir::versions::Histories, text: &str| {
+        histories.get(&lines_id(text)).clone()
+    };
+    let dates = history(&current);
+    assert_eq!(at(&dates, "Size"), dated(None, &["v3"], &[]));
+    assert_eq!(
+        at(&dates, "Size$area"),
+        dated(Some("v3"), &[], &["v1", "v2"])
+    );
+    assert_eq!(
+        at(&dates, "GetItemOutput$note"),
+        dated(Some("v2"), &["v3"], &[])
+    );
+    assert_eq!(
+        at(&dates, "ListItemsInput$limit"),
+        dated(None, &["v2"], &[])
+    );
+    for release in ["v1", "v2"] {
+        let line = line(&current, release).unwrap();
+        let dates = history(&line);
+        // Removed in v3, restored from v2 with its own shapes.
+        assert_eq!(
+            at(&dates, "CountItems"),
+            dated(Some("v2"), &["v3"], &[]),
+            "{release}"
+        );
+        assert_eq!(
+            at(&dates, "CountItemsInput$shelf"),
+            dated(Some("v2"), &["v3"], &[])
+        );
+        assert_eq!(
+            at(&dates, "CountItemsOutput"),
+            dated(Some("v2"), &["v3"], &[])
+        );
+        // Reshaped in v3: v2's definition, with the member v2 added.
+        assert_eq!(at(&dates, "Size"), dated(None, &["v3"], &[]), "{release}");
+        assert_eq!(at(&dates, "Size$width"), dated(None, &["v3"], &[]));
+        assert_eq!(at(&dates, "Size$depth"), dated(Some("v2"), &["v3"], &[]));
+        // Retyped in v3: v2's member, added in v2.
+        assert_eq!(
+            at(&dates, "GetItemOutput$note"),
+            dated(Some("v2"), &["v3"], &[])
+        );
+        // Nothing restored it: the current model's dates.
+        assert_eq!(at(&dates, "GetItem"), dated(None, &[], &[]));
+        assert_eq!(at(&dates, "GetItemOutput$name"), dated(None, &[], &[]));
+    }
+    // Renamed in v2: v1's `max` is the current `limit`.
+    let v1 = history(&line(&current, "v1").unwrap());
+    assert_eq!(at(&v1, "ListItemsInput$max"), dated(None, &["v2"], &[]));
+    let v2 = history(&line(&current, "v2").unwrap());
+    assert_eq!(at(&v2, "ListItemsInput$limit"), dated(None, &["v2"], &[]));
+    // The current release's line is the current model.
+    let v3 = history(&line(&current, "v3").unwrap());
+    assert_eq!(at(&v3, "Size"), dated(None, &["v3"], &[]));
+}
+
+/// A member renamed in v2 and again in v3, then retyped in v4, keeps every
+/// change in each older line: v4's retype restores v3's member, dated by
+/// the chain that ends at v3 (both renames), the retype, and the current
+/// member's own changes. The enum v2 added a value to is restored too, as
+/// v4 retyped the member that held it and the current model has none:
+/// changed in v2 and in v4, the value added in v2 where the release has it.
+#[test]
+fn a_line_keeps_every_change_through_renames_and_retypes() {
+    let current = package("version-line-renames");
+    let id = |text: &str| -> ShapeId { format!("example.renames#{text}").parse().unwrap() };
+    let dates = history(&current);
+    assert_eq!(
+        dates.get(&id("GetItemOutput$third")),
+        &dated(None, &["v2", "v3", "v4"], &[])
+    );
+    assert!(!current.shapes.contains_key(&id("Kind")));
+    for (release, member) in [("v1", "first"), ("v2", "second"), ("v3", "third")] {
+        let line = line(&current, release).unwrap();
+        let dates = history(&line);
+        let at = |text: &str| dates.get(&id(text)).clone();
+        assert_eq!(
+            at(&format!("GetItemOutput${member}")),
+            dated(None, &["v2", "v3", "v4"], &[]),
+            "{release}"
+        );
+        assert_eq!(at("GetItemOutput$kind"), dated(None, &["v4"], &[]));
+        assert_eq!(at("Kind"), dated(None, &["v2", "v4"], &[]), "{release}");
+        assert_eq!(at("Kind$SMALL"), dated(None, &["v4"], &[]));
+        // v1's clients see a huge item as large: v1 has no HUGE.
+        assert_eq!(
+            crucible_ir::versions::has(&line, &id("Kind$HUGE")),
+            release != "v1",
+            "{release}"
+        );
+        if release != "v1" {
+            assert_eq!(at("Kind$HUGE"), dated(Some("v2"), &["v4"], &[]));
+        }
+    }
+}
+
+/// A member v2 retyped and v3 renamed, of an operation v4 removed: the v1
+/// line holds v1's member, restored by v2's retype, and its changes follow
+/// it through the rename although the current model has neither.
+#[test]
+fn a_line_follows_a_restored_member_past_its_removal() {
+    let current = package("version-line-removed");
+    let id = |text: &str| -> ShapeId { format!("example.removed#{text}").parse().unwrap() };
+    assert!(!crucible_ir::versions::has(&current, &id("CountItems")));
+    let v1 = history(&line(&current, "v1").unwrap());
+    assert_eq!(
+        v1.get(&id("CountItemsOutput$total")),
+        &dated(None, &["v2", "v3"], &[])
+    );
+    // v4 removed the operation, which every older line has from v3.
+    assert_eq!(v1.get(&id("CountItems")), &dated(None, &["v4"], &[]));
+    let v2 = history(&line(&current, "v2").unwrap());
+    assert_eq!(
+        v2.get(&id("CountItemsOutput$total")),
+        &dated(None, &["v2", "v3", "v4"], &[])
+    );
+}
+
+/// The e2e shop's v1 reference: a member retyped since is the release's
+/// own, changed by the retype; a member renamed and required since is the
+/// current one; and a structure reshaped since is v2's, changed by the
+/// reshape, its renamed member by the rename too.
+#[test]
+fn the_shops_v1_line_dates_each_element_where_it_comes_from() {
+    let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../e2e/weather-service/versioned");
+    let current = crucible_lang::load_versioned_service(&dir).unwrap_or_else(|e| panic!("{e}"));
+    let shop = |text: &str| -> ShapeId { format!("example.shop#{text}").parse().unwrap() };
+    let v1 = history(&line(&current, "v1").unwrap());
+    let at = |text: &str| v1.get(&shop(text)).clone();
+    assert_eq!(at("ListItemsInput$max"), dated(None, &["v2", "v3"], &[]));
+    assert_eq!(at("DeleteItemInput$force"), dated(None, &["v3"], &[]));
+    assert_eq!(at("DeleteItemOutput$deleted"), dated(None, &["v3"], &[]));
+    assert_eq!(at("GetItemOutput"), dated(None, &["v3"], &[]));
+    assert_eq!(at("GetItemOutput$name"), dated(None, &["v2", "v3"], &[]));
+    assert_eq!(at("CountItems"), dated(None, &["v3"], &[]));
+    assert_eq!(at("Label$size"), dated(Some("v3"), &["v4"], &[]));
+    assert_eq!(at("Label$color"), dated(Some("v4"), &[], &[]));
+    assert_eq!(at("GetItem"), dated(None, &["v3"], &[]));
+}
+
+/// The documentation of a definition undo restored is its release's
+/// (decision 79); everything else keeps the current documentation, a
+/// renamed member included.
+#[test]
+fn restored_definitions_keep_their_releases_documentation() {
+    let current = package("version-line-history");
+    fn docs(service: &Service, id: &ShapeId) -> Option<String> {
+        if let Some(op) = service.operations.iter().find(|op| &op.id == id) {
+            return op.docs.clone();
+        }
+        let shape = service.shapes.get(&id.root()).expect("shape");
+        match id.member() {
+            Some(name) => shape
+                .members()
+                .into_iter()
+                .find(|m| m.name == name)
+                .and_then(|m| m.docs.clone()),
+            None => {
+                let value = serde_json::to_value(shape).unwrap();
+                let (_, fields) = value.as_object().unwrap().iter().next().unwrap();
+                fields["docs"].as_str().map(str::to_owned)
+            }
+        }
+    }
+    let v1 = line(&current, "v1").unwrap();
+    let at = |text: &str| docs(&v1, &lines_id(text));
+    assert_eq!(at("Size").as_deref(), Some("A size, as v2 measured it."));
+    assert_eq!(
+        at("Size$depth").as_deref(),
+        Some("How deep the item is, measured since v2.")
+    );
+    assert_eq!(
+        at("GetItemOutput$note").as_deref(),
+        Some("A note about the item, as text.")
+    );
+    assert_eq!(
+        at("CountItems").as_deref(),
+        Some("Counts the items on a shelf, as v2 counts them.")
+    );
+    // Not restored: the current documentation, under the release's name.
+    assert_eq!(
+        at("ListItemsInput$max").as_deref(),
+        Some("The most names to return.")
+    );
+    assert_eq!(at("GetItem").as_deref(), Some("Reads one item."));
+    assert_eq!(
+        docs(&current, &lines_id("Size")).as_deref(),
+        Some("A size, as an area.")
+    );
+}
+
+/// Decision 74's payload case: a member added since to a message an older
+/// release sent as a payload, and its projection sends so again, is not in
+/// that release, which has no body for it; `missing` says so, for an
+/// operation's input and for an error, in either audience.
+#[test]
+fn a_member_a_payload_bound_message_leaves_out_is_missing_there() {
+    let mut service = package("version-projection-payload");
+    let payload = |text: &str| -> ShapeId { format!("example.payload#{text}").parse().unwrap() };
+    for audience in [Audience::Internal, Audience::External] {
+        let projected = project(&service, audience).unwrap();
+        let dates = history(&projected);
+        assert_eq!(
+            dates.get(&payload("PutNoteInput$title")),
+            &dated(Some("v2"), &[], &["v1"]),
+            "{audience:?}"
+        );
+        // The release had them, or they travel outside the body.
+        assert_eq!(
+            dates.get(&payload("PutNoteInput$body")),
+            &dated(None, &["v2"], &[])
+        );
+        assert_eq!(
+            dates.get(&payload("PutNoteInput$id")),
+            &dated(None, &[], &[])
+        );
+    }
+    // An error whose body is a payload at v1, with a member added since.
+    let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../tests/models/error-payloads");
+    let wire = crucible_lang::load_service(&dir).unwrap_or_else(|e| panic!("{e}"));
+    let error: ShapeId = "example.wire#TextError".parse().unwrap();
+    let released = wire.shapes[&error].clone();
+    let mut grown = released.clone();
+    let crucible_ir::ir::Shape::Structure(s) = &mut grown else {
+        panic!("TextError");
+    };
+    assert!(s.error.as_ref().is_some_and(|e| e.payload.is_some()));
+    let mut extra = s.members[0].clone();
+    extra.name = "extra".into();
+    extra.required = false;
+    s.members.push(extra);
+    service.shapes.insert(error.clone(), grown);
+    service.versions[0]
+        .service
+        .shapes
+        .insert(error.clone(), released.clone());
+    service.versions[0]
+        .release
+        .shapes
+        .insert(error.clone(), released);
+    let dates = history(&service);
+    assert_eq!(
+        dates.get(&error.with_member("extra")),
+        &dated(Some("v2"), &[], &["v1"])
+    );
 }
 
 fn copy(from: &Path, to: &Path) {

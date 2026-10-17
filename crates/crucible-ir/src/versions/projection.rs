@@ -36,6 +36,9 @@ pub struct Projection {
     /// loses an example, never a definition; the compiler reports each one
     /// as a warning at the example.
     pub warnings: Diagnostics,
+    /// What undo restored from the frozen release, as
+    /// [`ApiVersion::restored`] records it.
+    pub restored: Vec<ShapeId>,
 }
 
 /// Every older release of `service`, the current model, oldest first, as
@@ -51,7 +54,7 @@ pub fn projections(service: &Service) -> Result<Vec<Projection>, Diagnostics> {
     for version in service.versions.iter().rev() {
         let newer = out.last().map_or(service, |projection| &projection.service);
         let mut warnings = Diagnostics::default();
-        let projected = undo(newer, version, &mut errors, &mut warnings);
+        let (projected, restored) = undo_restoring(newer, version, &mut errors, &mut warnings);
         let mut problems = Diagnostics::default();
         crate::validate::service(&projected, &mut problems);
         for problem in problems.iter() {
@@ -67,6 +70,7 @@ pub fn projections(service: &Service) -> Result<Vec<Projection>, Diagnostics> {
             name: version.name.clone(),
             service: projected,
             warnings,
+            restored,
         });
     }
     out.reverse();
@@ -102,6 +106,18 @@ pub fn undo(
     errors: &mut Diagnostics,
     warnings: &mut Diagnostics,
 ) -> Service {
+    undo_restoring(newer, version, errors, warnings).0
+}
+
+/// [`undo`], with what it restored from the frozen release: the ids
+/// [`ApiVersion::restored`] records, sorted. The reference dates and
+/// documents each as the release had it (decision 79).
+pub fn undo_restoring(
+    newer: &Service,
+    version: &ApiVersion,
+    errors: &mut Diagnostics,
+    warnings: &mut Diagnostics,
+) -> (Service, Vec<ShapeId>) {
     let frozen: &Service = &version.release;
     let mut undo = Undo {
         frozen,
@@ -937,8 +953,9 @@ impl Undo<'_> {
         }
     }
 
-    /// What lowering derived, computed again for the projection.
-    fn finish(mut self, newer: &Service, warnings: &mut Diagnostics) -> Service {
+    /// What lowering derived, computed again for the projection, and what
+    /// the projection holds that undo restored.
+    fn finish(mut self, newer: &Service, warnings: &mut Diagnostics) -> (Service, Vec<ShapeId>) {
         let frozen = self.frozen;
         self.authentication(newer);
         // Where restored input and output structures travel is the
@@ -1045,7 +1062,19 @@ impl Undo<'_> {
             .sort_by(|a, b| a.id.name().cmp(b.id.name()));
         self.out.version = self.release.to_owned();
         self.out.api_version = newer.api_version.as_ref().map(|_| self.release.to_owned());
-        self.out
+        // What undo took from the release and the projection still holds:
+        // a shape nothing reaches any more was left out above.
+        let out = &self.out;
+        let restored = self
+            .restored
+            .iter()
+            .chain(&self.restored_members)
+            .filter(|id| super::has(out, id))
+            .cloned()
+            .collect::<BTreeSet<_>>()
+            .into_iter()
+            .collect();
+        (self.out, restored)
     }
 
     /// Decision 74, for a payload: where the release sent a message's

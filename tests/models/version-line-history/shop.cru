@@ -1,0 +1,50 @@
+/// A shop's items.
+service Shop {
+    version "v3"
+    protocol json
+    operations [GetItem, ListItems]
+}
+
+/// Reads one item.
+readonly operation GetItem {
+    http GET "/items/{id}"
+    input { id: string }
+    output {
+        name: string
+        size: Size
+        /// A note about the item, as a number.
+        note?: integer
+    }
+}
+
+/// A size, as an area.
+structure Size {
+    area: integer
+    /// The unit of the area, added in v3.
+    unit?: string
+}
+
+/// Lists item names.
+readonly operation ListItems {
+    http GET "/items"
+    input {
+        /// The most names to return.
+        @query
+        limit?: integer
+    }
+    output { names: Names }
+}
+
+list Names: string
+
+/// v2 pages by a limit.
+migration "v2" from "v1" {
+    rename ListItems.input.max -> limit
+}
+
+/// v3 measures a size by its area, numbers notes, and stops counting.
+migration "v3" from "v2" {
+    reshape Size { width, height, depth } -> area by hook
+    retype GetItem.output.note -> integer by hook
+    remove operation CountItems
+}

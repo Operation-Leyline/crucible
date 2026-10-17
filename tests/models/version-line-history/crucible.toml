@@ -1,0 +1,13 @@
+# Each release's own reference (docs/api-versions-clients.md, "A reference
+# for each release"; decision 79): what undo restores is dated within the
+# chain that ends at the release it comes from, and documented as that
+# release had it; everything else as the current model has it, followed
+# through the renames since. v2 adds CountItems, a member to Size and a note
+# to GetItem's output, all of which v3 restores at older releases (remove
+# operation, reshape, retype), so a v1 reference dates them added in v2.
+# v1 and v2 are frozen under releases/; v3 is current.
+[model]
+namespace = "example.lines"
+
+[model.baseline]
+path = "releases/v2.json"
