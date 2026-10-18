@@ -21,3 +21,9 @@ id = 1
 languages = ["rust", "ts", "python", "go", "java", "kotlin", "csharp", "swift", "dart", "php", "ruby", "cpp", "c", "r"]
 kind = "patch"
 summary = "Built-in shape ids in bundled schemas are crucible.api, not smithy.api; generated docs and headers name the .cru model; Python and C# spans set rpc.system to crucible."
+
+[[change]]
+id = 2
+languages = ["ts"]
+kind = "breaking"
+summary = "Document integers outside the safe range decode as bigint, Document admits bigint, and stringifyJson takes an optional space."
