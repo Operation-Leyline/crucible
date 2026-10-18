@@ -122,9 +122,15 @@ The wire still uses ordinary, unquoted JSON numbers. Byte, short, and integer
 use `number` with signed 8-, 16-, and 32-bit validation; float and double use
 finite `number` values.
 
-Document numbers use JavaScript `number`; values beyond its safe integer range
-can round. Nonfinite numbers are rejected. Modeled `long` members and the raw
-payload of an unknown union arm preserve their numeric values.
+Document numbers use JavaScript `number`, except an integer token (digits only,
+no fraction or exponent) outside `Number.isSafeInteger`, which decodes as an
+exact `bigint` (`Document` admits `bigint`). Safe integers, `-0`, fractions and
+exponent forms (`1e3`) stay `number`; a number that overflows to infinity
+(`1e999`) is rejected. A `bigint` anywhere inside a document input is written as
+its exact JSON integer, so values round-trip losslessly. Native `JSON.stringify` throws on a `bigint`, so to render a decoded document
+use the exported `stringifyJson(value, space?)`, which writes a `bigint` as its
+exact integer text. Modeled `long` members
+and the raw payload of an unknown union arm preserve their numeric values.
 
 ### Migrating long values to bigint
 

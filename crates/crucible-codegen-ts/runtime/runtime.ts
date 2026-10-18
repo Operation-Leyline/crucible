@@ -4,7 +4,7 @@
 // in a generated package.
 
 /** Any JSON value: what a `document` holds. */
-export type Document = null | boolean | number | string | Document[] | { [key: string]: Document };
+export type Document = null | boolean | number | bigint | string | Document[] | { [key: string]: Document };
 
 /** An exact decimal JSON number. Construct from text to avoid floating-point rounding. */
 export class Decimal {
@@ -132,13 +132,23 @@ function exactInteger(value: unknown, bits: 8 | 16 | 32 | 64 | undefined, encodi
   return result;
 }
 
-/** Restore the documented JavaScript number representation of JSON documents. */
-function jsonValue(value: unknown): unknown {
-  if (value instanceof JsonNumber) return jsonValue(Number(value.text));
+/**
+ * Restore the JavaScript representation of JSON values. With `exact` (a
+ * declared document), an integer token (digits only, no fraction or exponent)
+ * beyond Number.isSafeInteger decodes as an exact bigint, however many digits
+ * it has. Every other number, including "-0", exponent forms and fractions, is
+ * a number, and a non-finite one (1e999) is an error. Without `exact` (an
+ * undeclared member, which has no schema) every number stays a number.
+ */
+function jsonValue(value: unknown, exact = false): unknown {
+  if (value instanceof JsonNumber) {
+    if (exact && /^-?(0|[1-9]\d*)$/.test(value.text) && !Number.isSafeInteger(Number(value.text))) return BigInt(value.text);
+    return jsonValue(Number(value.text));
+  }
   if (typeof value === "number" && !Number.isFinite(value)) throw new TypeError("non-finite JSON number");
   if (value instanceof Uint8Array || value instanceof Date || value instanceof Decimal) return value;
-  if (Array.isArray(value)) return value.map(jsonValue);
-  if (value !== null && typeof value === "object") return mapValues(value as Record<string, unknown>, jsonValue);
+  if (Array.isArray(value)) return value.map(item => jsonValue(item, exact));
+  if (value !== null && typeof value === "object") return mapValues(value as Record<string, unknown>, item => jsonValue(item, exact));
   return value;
 }
 function object(value: unknown): Record<string, unknown> {
@@ -180,7 +190,7 @@ export function toWire(schema: Schema | undefined, value: unknown): unknown {
 
 /** Decode wire values into native model representations and preserve unknown union variants. */
 export function fromWire(schema: Schema | undefined, value: unknown): unknown {
-  if (schema === undefined || schema.kind === "document" || value === undefined || value === null) return jsonValue(value);
+  if (schema === undefined || schema.kind === "document" || value === undefined || value === null) return jsonValue(value, schema?.kind === "document");
   switch (schema.kind) {
     case "bigInteger": return exactInteger(value, undefined, false);
     case "bigDecimal":
@@ -323,8 +333,13 @@ export function parseJson(text: string): unknown {
   return read(0);
 }
 
-/** Write converted model values, including exact unquoted bigint JSON numbers. */
-export function stringifyJson(value: unknown): string {
+/**
+ * Write converted model values, including exact unquoted bigint JSON numbers.
+ * Unlike JSON.stringify, which throws on a bigint, this is safe for decoded
+ * documents. `space` indents like JSON.stringify's (a count, at most 10, or a string).
+ */
+export function stringifyJson(value: unknown, space?: number | string): string {
+  const gap = typeof space === "number" ? " ".repeat(Math.max(0, Math.min(10, Math.trunc(space)))) : (space ?? "").slice(0, 10);
   const active = new Set<object>();
   const write = (item: unknown, depth: number): string => {
     if (depth > 255) throw new TypeError("JSON nesting exceeds 255 levels");
@@ -340,12 +355,16 @@ export function stringifyJson(value: unknown): string {
     if (!Array.isArray(item) && Object.getPrototypeOf(item) !== Object.prototype && Object.getPrototypeOf(item) !== null) throw new TypeError("expected plain JSON object");
     if (active.has(item)) throw new TypeError("circular JSON value");
     active.add(item);
-    const result = Array.isArray(item)
-      ? "[" + Array.from(item, value => write(value === undefined ? null : value, depth + 1)).join(",") + "]"
-      : "{" + Object.entries(item).filter(([, value]) => value !== undefined)
-        .map(([key, value]) => JSON.stringify(key) + ":" + write(value, depth + 1)).join(",") + "}";
+    const parts = Array.isArray(item)
+      ? Array.from(item, value => write(value === undefined ? null : value, depth + 1))
+      : Object.entries(item).filter(([, value]) => value !== undefined)
+        .map(([key, value]) => JSON.stringify(key) + (gap ? ": " : ":") + write(value, depth + 1));
     active.delete(item);
-    return result;
+    const [open, close] = Array.isArray(item) ? ["[", "]"] : ["{", "}"];
+    if (parts.length === 0) return open + close;
+    if (!gap) return open + parts.join(",") + close;
+    const inner = "\n" + gap.repeat(depth + 1);
+    return open + inner + parts.join("," + inner) + "\n" + gap.repeat(depth) + close;
   };
   return write(value, 0);
 }

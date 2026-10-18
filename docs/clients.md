@@ -331,7 +331,7 @@ timestamp or numeric representations.
 |---|---|---|
 | Python, Go, Java, C#, Kotlin, Swift, Dart, PHP, Ruby, C++, C, R | 16 / 16 | See each guide for native precision limits |
 | Rust | 16 / 16 | Epoch-seconds timestamps preserve nanosecond precision |
-| TypeScript / JavaScript | 16 / 16 | Signed 64-bit fields use `bigint`; document numbers use JavaScript `number`, and dates have millisecond precision |
+| TypeScript / JavaScript | 16 / 16 | Signed 64-bit fields use `bigint`; document integers beyond the safe range use `bigint` (other numbers use `number`), and dates have millisecond precision |
 
 The [Rust model migration](clients/rust.md#migrating-client-models) and
 [TypeScript guide](clients/typescript.md) describe the updated presence and numeric

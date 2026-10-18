@@ -65,7 +65,7 @@ test("parser keys stay own data, grammar is strict, and documents reject nonfini
   assert.equal(Object.getPrototypeOf(value), Object.prototype);
   assert.ok(Object.hasOwn(value, "__proto__"));
   assert.equal(({} as Record<string, unknown>).polluted, undefined);
-  assert.equal(value.value, 9007199254740992);
+  assert.equal(value.value, 9007199254740993n);
   assert.ok(stringifyJson(value).includes('"__proto__"'));
   for (const text of ["01", "1.", "[1,]", "true false", '"\\x00"']) rejects(() => parseJson(text));
   rejects(() => parseJson("[".repeat(257) + "0" + "]".repeat(257)));

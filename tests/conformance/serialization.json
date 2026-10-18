@@ -99,11 +99,6 @@
     "wire": "{\"future\":{\"n\":9007199254740993,\"object\":{},\"array\":[]},\"clear\":{\"nil\":null}}",
     "expect": {
       "json": "{\"future\":{\"n\":9007199254740993,\"object\":{},\"array\":[]},\"clear\":{\"nil\":null}}"
-    },
-    "expectByProfile": {
-      "javascript-bigint-date": {
-        "json": "{\"future\":{\"n\":9007199254740992,\"object\":{},\"array\":[]},\"clear\":{\"nil\":null}}"
-      }
     }
   },
   {
