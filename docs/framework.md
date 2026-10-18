@@ -26,31 +26,37 @@ weather-service/    service package
 ## Table of Contents
 
 - [Architecture & Request Lifecycle](#architecture--request-lifecycle)
+  - [The Four Extensibility Tiers](#the-four-extensibility-tiers)
 - [Start with one crate](#start-with-one-crate)
 - [Opinionated Service Layout & Design](#opinionated-service-layout--design)
   - [Directory Structure](#directory-structure)
   - [Dependency Injection & Shared State](#dependency-injection--shared-state)
   - [Implementing Operation Handlers](#implementing-operation-handlers)
-  - [The Request Context & Task Locals](#the-request-context)
-- [The Request Pipeline & Execution Phases](#the-request-pipeline)
-- [Extensibility Model](#extensibility-model)
-  - [The Four Extension Tiers](#the-four-extension-tiers)
-  - [Writing Custom Middleware (Recipes)](#writing-custom-middleware-recipes)
-  - [Extension Combinators & Scoping](#extension-helpers)
-- [Built-in Middlewares & Production Features](#built-in-middlewares--production-features)
-  - [ServiceLog (Structured Logging)](#the-service-log)
-  - [Metrics (OpenTelemetry & Prometheus)](#metrics)
-  - [Idempotency Tokens & Storage](#idempotency-tokens)
-  - [Page Tokens (Cryptographic Cursors)](#pagination-tokens)
-  - [Typed Permissions & ABAC](#typed-permissions)
-  - [Local API Explorer](#local-api-explorer)
-  - [Model Context Protocol (MCP)](#model-context-protocol)
-  - [Exception Translation](#exception-translation)
-- [Protocols & Wire Serialization](#protocols)
-- [Error Handling](#errors)
-- [Hosting & Deployment](#hosting)
+- [The request context](#the-request-context)
+  - [Deadlines](#deadlines)
+- [The request pipeline](#the-request-pipeline)
+  - [Execution Lifecycle & Error Unwinding](#execution-lifecycle--error-unwinding)
+- [Writing Custom Middleware (Recipes)](#writing-custom-middleware-recipes)
+  - [Extension helpers](#extension-helpers)
+  - [Bodies and responses](#bodies-and-responses)
+  - [Pagination tokens](#pagination-tokens)
+  - [Idempotency tokens](#idempotency-tokens)
+  - [Typed permissions](#typed-permissions)
+- [Protocols](#protocols)
+  - [Model-driven authentication](#model-driven-authentication)
+- [Errors](#errors)
+- [The service log](#the-service-log)
+- [Metrics](#metrics)
+- [Hosting](#hosting)
+  - [Local API explorer](#local-api-explorer)
+  - [Host selection](#host-selection)
+- [Model Context Protocol](#model-context-protocol)
 - [Testing Strategies](#testing-strategies)
-- [Performance Guarantees](#performance)
+  - [Unit Testing Operation Handlers Directly](#1-unit-testing-operation-handlers-directly)
+  - [In-Process Pipeline Testing with invoke](#2-in-process-pipeline-testing-with-invoke)
+  - [In-Process HTTP Testing with handle](#3-in-process-http-testing-with-handle)
+- [Clients](#clients)
+- [Performance](#performance)
 
 ---
 
@@ -68,33 +74,37 @@ flowchart TD
 
     subgraph Pipeline["Phased Request Pipeline"]
         direction TB
-        M_Before["1. Middleware::before (Raw Transport)"]
-        P_Identify["2. Protocol::identify (Route & Operation Selection)"]
-        O_Before["3. OperationAwareMiddleware::before (Metadata & Admission)"]
-        P_Decode["4. Protocol::decode (Body Reading & Model Validation)"]
-        I_Before["5. Interceptor::before & TypedInterceptor::before"]
-        Handler["6. Operation Handler (impl OperationTrait for Service)"]
-        I_After["7. TypedInterceptor::after & Interceptor::after"]
-        P_Write["8. Protocol::write (Response Serialization)"]
-        O_After["9. OperationAwareMiddleware::after"]
-        M_After["10. Middleware::after (Transport Headers & Status)"]
-        Complete["11. Completion Observers (Metrics & Logging)"]
+        P_Admit["1. Protocol::admit (Owner Protocol Admission)"]
+        M_Before["2. Middleware::before (Raw Transport)"]
+        P_Identify["3. Protocol::identify (Route & Operation Selection)"]
+        O_Before["4. OperationAwareMiddleware::before (Metadata & Admission)"]
+        P_Decode["5. Protocol::decode (Body Reading & Model Validation)"]
+        I_Before["6. Interceptor::before & TypedInterceptor::before"]
+        Handler["7. Operation Handler (impl OperationTrait for Service)"]
+        I_After["8. TypedInterceptor::after & Interceptor::after"]
+        O_After["9. OperationAwareMiddleware::after (Metadata Unwind)"]
+        P_Write["10. Protocol::write (Response Serialization)"]
+        M_After["11. Middleware::after (Transport Headers & Status)"]
+        Complete_Op["12. Interceptor & Operation Middleware Completion"]
+        Complete_Tx["13. Transport Middleware Completion"]
 
+        P_Admit --> M_Before
         M_Before --> P_Identify
         P_Identify --> O_Before
         O_Before --> P_Decode
         P_Decode --> I_Before
         I_Before --> Handler
         Handler --> I_After
-        I_After --> P_Write
-        P_Write --> O_After
-        O_After --> M_After
-        M_After --> Complete
+        I_After --> O_After
+        O_After --> P_Write
+        P_Write --> M_After
+        M_After --> Complete_Op
+        Complete_Op --> Complete_Tx
     end
 
     Orchestrator --> Pipeline
     Handler <--> Storage[("Application State / Database / Cache")]
-    Complete --> Client
+    Complete_Tx --> Client
 ```
 
 ### The Four Extensibility Tiers
@@ -263,8 +273,8 @@ impl GetCityOperation for Weather {
 
 Registration is checked at compile time: the generated
 `operations(service: Arc<T>)` requires `T` to implement every operation
-trait. For split implementations, `Operations::builder()` takes one operation
-at a time and `build()` names the missing ones.
+trait. For split implementations, the generated module-level `builder()` API
+(e.g. `weather::builder()`) takes one operation at a time and `build()` names the missing ones.
 
 Types are generated with serde and `Validate`. Errors implement
 `crucible_server_runtime_rust::ModelledError` (wire name, status, fault). None of it is
@@ -411,7 +421,7 @@ impl GetCityOperation for WeatherService {
 ```
 
 > [!TIP]
-> Grouping is flexible: a single struct can implement every operation in the service, or you can split operations across separate structs using `Operations::builder()`. If any operation lacks an implementation at build time, the Rust compiler fails with an explicit list of missing operations.
+> Grouping is flexible: a single struct can implement every operation in the service, or you can split operations across separate structs using the generated module-level operations builder (e.g. `weather::builder()`). If any operation lacks an implementation at build time, the Rust compiler fails with an explicit list of missing operations.
 
 ## The request context
 
@@ -487,10 +497,10 @@ sequenceDiagram
     Interceptor->>Handler: invoke(input, context)
     Handler->>Storage: Business logic & DB queries
     Storage-->>Handler: Query results
-    Handler-->>Interceptor: Result<Output, Error>
-    Interceptor-->>Proto: after(Option<&Output>, context)
-    Proto-->>OM: write(outcome) -> Encoded Response
-    OM-->>M: after(OperationJob)
+    Handler-->>Interceptor: Handler outcome (Result<Output, Error>)
+    Interceptor-->>OM: after(OperationJob)
+    OM-->>Proto: after(OperationJob)
+    Proto-->>M: write(outcome) -> Encoded Response
     M-->>Host: after(Job, &mut Response)
     Note over M: Custom response headers, final status
     Host-->>Client: Final Response
@@ -498,9 +508,9 @@ sequenceDiagram
 
 ### Execution Lifecycle & Error Unwinding
 
-1. **Forward Execution (`before`):** Runs through tiers 1 to 5. If any `before` hook returns an `Err(Error)`, forward execution stops immediately.
-2. **Reverse Unwinding (`after`):** Only hooks whose `before` succeeded unwind, in strict reverse order within their respective phases.
-3. **Short-circuiting (`respond`):** Any extension can immediately complete the request by calling `job.respond(response)`. Later forward phases are skipped, and prior `before` hooks unwind cleanly.
+1. **Forward Execution (`before`):** Runs through the forward extension phases in order (transport middleware, route policy middleware, and invocation interceptors). If any `before` hook returns an `Err(Error)`, forward execution stops immediately.
+2. **Reverse Unwinding (`after`):** Only hooks whose `before` succeeded unwind, in strict reverse order within their respective phases (`Interceptor::after`, then `OperationAwareMiddleware::after`, followed by `Protocol::write`, and finally `Middleware::after`).
+3. **Short-circuiting (`respond`):** Extensions receiving a mutable job (`Job`, `OperationJob`, or `DecodedJob`) can immediately complete the request by calling `job.respond(response)`. (Typed interceptors do not receive a mutable job and reject requests by returning `Err(Error)` instead). Later forward phases are skipped, and prior `before` hooks unwind cleanly.
 4. **Error Sanitization:** All errors (whether thrown by handlers, deserializers, or middleware) are normalized through registered `ExceptionTranslator` rules before being serialized into standard wire errors.
 
 ---
@@ -512,7 +522,9 @@ sequenceDiagram
 When authenticating requests, you typically want to know which operation is being called so you can skip authentication for public operations:
 
 ```rust
-use crucible_server_runtime_rust::{Hook, OperationAwareMiddleware, OperationJob, Result, Error};
+use crucible_server_runtime_rust::{
+    Error, FrameworkError, Hook, OperationAwareMiddleware, OperationJob, Result,
+};
 
 #[derive(Clone, Debug)]
 pub struct Principal {
@@ -525,17 +537,19 @@ pub struct BearerAuth;
 impl OperationAwareMiddleware for BearerAuth {
     fn before<'a>(&'a self, job: &'a mut OperationJob<'_>) -> Hook<'a, Result<()>> {
         // Skip auth if operation is marked with @public
-        if job.operation().has_trait("crucible.api#public") {
+        if job.metadata().public {
             return Hook::Ready(Ok(()));
         }
 
-        let auth_header = job.headers()
+        let auth_header = job
+            .request()
+            .headers
             .get("authorization")
             .and_then(|h| h.to_str().ok());
 
         match auth_header {
             Some(header) if header.starts_with("Bearer ") => {
-                let token = &header["Bearer ".len()..];
+                let _token = &header["Bearer ".len()..];
                 // In a real service, decode and verify your JWT here:
                 let principal = Principal {
                     subject: "user_12345".into(),
@@ -545,7 +559,7 @@ impl OperationAwareMiddleware for BearerAuth {
                 job.context().set_attribute(principal);
                 Hook::Ready(Ok(()))
             }
-            _ => Hook::Ready(Err(Error::unauthorized("Missing or invalid Bearer token"))),
+            _ => Hook::Ready(Err(Error::new(FrameworkError::Unauthenticated))),
         }
     }
 }
@@ -562,7 +576,7 @@ use crate::weather::{GetCity, GetCityInput, GetCityOutput};
 
 pub struct CityMetricsInterceptor;
 
-#[async_trait::async_trait]
+#[crucible_server_runtime_rust::async_trait]
 impl TypedInterceptor<GetCity> for CityMetricsInterceptor {
     async fn before(&self, input: &GetCityInput, _context: &Context) -> Result<()> {
         tracing::debug!(city_id = %input.city_id, "Looking up city weather");
@@ -1764,11 +1778,15 @@ Because operation traits (`GetCityOperation`, etc.) are standard Rust async trai
 ```rust
 #[tokio::test]
 async fn test_get_city_handler_directly() {
-    let mock_store = Arc::new(MemoryCities::default());
-    let service = WeatherService::new(mock_store);
+    let state = Arc::new(AppState {
+        db: mock_pool(),
+        cache: mock_cache(),
+        config: AppConfig::default(),
+    });
+    let service = WeatherService::new(state);
 
     let input = GetCityInput {
-        city_id: "c-123".into(),
+        city_id: "c-12345678".into(),
     };
 
     let result = service.get_city(input).await;
@@ -1817,7 +1835,7 @@ async fn test_http_request_handling() {
     let service = weather_service::service(Arc::new(MemoryCities::default()));
 
     let request = axum::http::Request::builder()
-        .uri("/cities/c-12345")
+        .uri("/cities/c-99999999")
         .header("authorization", "Bearer valid-token")
         .body(axum::body::Body::empty())
         .unwrap();
