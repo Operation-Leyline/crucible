@@ -1268,6 +1268,14 @@ version's section when it is prepared.
 
 ### Fixed
 
+- **TypeScript documents keep large integers exactly.** A `document` integer
+  token outside `Number.isSafeInteger` now decodes as `bigint` instead of
+  rounding to a `number` (`9007199254740993` was `9007199254740992`), and a
+  `bigint` inside a document input is written as its exact JSON integer.
+  Safe integers, fractions, `-0` and exponent forms stay `number`; `Document`
+  now includes `bigint`, so code that reads large document integers as
+  `number` must accept `bigint`
+  ([docs/clients/typescript.md](docs/clients/typescript.md)).
 - The Markdown reference keeps model text inert in more places.
   Documentation HTML is one HTML block: a blank line in a code block
   ended it, and the rest was read as Markdown, so a `javascript:` link

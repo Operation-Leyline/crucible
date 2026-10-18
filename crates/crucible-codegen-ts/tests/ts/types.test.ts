@@ -48,3 +48,28 @@ test("sparse containers accept null and dense documents preserve nested null", (
   assert.equal(value.integer, 10n ** 40n); assert.equal(value.decimal.toString(), "0.0000000000000000000000000000001");
   assert.deepEqual(value.sparseNames, [null]);
 });
+
+test("document integers beyond the safe range decode as exact bigint and round-trip", () => {
+  const decode = (text: string) => fromWire(document, parseJson(text));
+  const wire = (value: unknown) => stringifyJson(toWire(document, value));
+  for (const text of ["9007199254740991", "-9007199254740991", "0", "1.5", "-0", "1e3", "1.0", "9007199254740993.5", "1e20"]) {
+    assert.equal(typeof decode(text), "number", text);
+  }
+  assert.ok(Object.is(decode("-0"), -0));
+  assert.equal(decode("1e3"), 1000);
+  assert.equal(decode("1.5"), 1.5);
+  for (const text of ["9007199254740992", "-9007199254740992", "9007199254740993", "-9007199254740993",
+    "9223372036854775807", "-9223372036854775808", "18446744073709551615"]) {
+    assert.equal(decode(text), BigInt(text), text);
+    assert.equal(wire(BigInt(text)), text);
+  }
+  const nested = fromWire(document, parseJson('{"a":[1,9007199254740993,{"b":-9223372036854775808}],"c":2.5}')) as any;
+  assert.equal(nested.a[0], 1);
+  assert.equal(nested.a[1], 9007199254740993n);
+  assert.equal(nested.a[2].b, -9223372036854775808n);
+  assert.equal(nested.c, 2.5);
+  assert.equal(wire(nested), '{"a":[1,9007199254740993,{"b":-9223372036854775808}],"c":2.5}');
+  assert.throws(() => decode("1e999"));
+  assert.throws(() => wire(Number.POSITIVE_INFINITY));
+  assert.throws(() => wire(Number.NaN));
+});

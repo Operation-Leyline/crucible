@@ -4,7 +4,7 @@
 // in a generated package.
 
 /** Any JSON value: what a `document` holds. */
-export type Document = null | boolean | number | string | Document[] | { [key: string]: Document };
+export type Document = null | boolean | number | bigint | string | Document[] | { [key: string]: Document };
 
 /** An exact decimal JSON number. Construct from text to avoid floating-point rounding. */
 export class Decimal {
@@ -132,9 +132,17 @@ function exactInteger(value: unknown, bits: 8 | 16 | 32 | 64 | undefined, encodi
   return result;
 }
 
-/** Restore the documented JavaScript number representation of JSON documents. */
+/**
+ * Restore the JavaScript representation of JSON documents. An integer token
+ * (digits only, no fraction or exponent) beyond Number.isSafeInteger decodes
+ * as an exact bigint; every other number, including "-0", exponent forms and
+ * fractions, is a number, and a non-finite one (1e999) is an error.
+ */
 function jsonValue(value: unknown): unknown {
-  if (value instanceof JsonNumber) return jsonValue(Number(value.text));
+  if (value instanceof JsonNumber) {
+    const number = Number(value.text);
+    return /^-?\d+$/.test(value.text) && Number.isFinite(number) && !Number.isSafeInteger(number) ? BigInt(value.text) : jsonValue(number);
+  }
   if (typeof value === "number" && !Number.isFinite(value)) throw new TypeError("non-finite JSON number");
   if (value instanceof Uint8Array || value instanceof Date || value instanceof Decimal) return value;
   if (Array.isArray(value)) return value.map(jsonValue);
