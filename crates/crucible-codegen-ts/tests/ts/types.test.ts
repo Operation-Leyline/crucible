@@ -69,6 +69,13 @@ test("document integers beyond the safe range decode as exact bigint and round-t
   assert.equal(nested.a[2].b, -9223372036854775808n);
   assert.equal(nested.c, 2.5);
   assert.equal(wire(nested), '{"a":[1,9007199254740993,{"b":-9223372036854775808}],"c":2.5}');
+  const huge = "1" + "0".repeat(400);
+  assert.equal(decode(huge), BigInt(huge));
+  assert.equal(wire(BigInt(huge)), huge);
+  // an undeclared member has no schema: it keeps the plain number
+  assert.equal(fromWire(undefined, parseJson("9007199254740993")), 9007199254740992);
+  assert.equal(stringifyJson({ a: [1n, {}], b: 9007199254740993n }, 2), JSON.stringify({ a: [1, {}], b: 0 }, null, 2).replace("0\n", "9007199254740993\n"));
+  assert.throws(() => JSON.stringify({ n: 1n }));
   assert.throws(() => decode("1e999"));
   assert.throws(() => wire(Number.POSITIVE_INFINITY));
   assert.throws(() => wire(Number.NaN));

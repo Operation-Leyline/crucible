@@ -127,7 +127,9 @@ no fraction or exponent) outside `Number.isSafeInteger`, which decodes as an
 exact `bigint` (`Document` admits `bigint`). Safe integers, `-0`, fractions and
 exponent forms (`1e3`) stay `number`; a number that overflows to infinity
 (`1e999`) is rejected. A `bigint` anywhere inside a document input is written as
-its exact JSON integer, so values round-trip losslessly. Modeled `long` members
+its exact JSON integer, so values round-trip losslessly. Native `JSON.stringify` throws on a `bigint`, so to render a decoded document
+use the exported `stringifyJson(value, space?)`, which writes a `bigint` as its
+exact integer text. Modeled `long` members
 and the raw payload of an unknown union arm preserve their numeric values.
 
 ### Migrating long values to bigint

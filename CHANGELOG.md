@@ -1275,6 +1275,9 @@ version's section when it is prepared.
   Safe integers, fractions, `-0` and exponent forms stay `number`; `Document`
   now includes `bigint`, so code that reads large document integers as
   `number` must accept `bigint`
+  (render decoded documents with the exported `stringifyJson(value, space?)`,
+  since `JSON.stringify` throws on `bigint`). Undeclared response members keep
+  plain numbers; integer tokens of any length decode exactly
   ([docs/clients/typescript.md](docs/clients/typescript.md)).
 - The Markdown reference keeps model text inert in more places.
   Documentation HTML is one HTML block: a blank line in a code block
