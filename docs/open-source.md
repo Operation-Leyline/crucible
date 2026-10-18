@@ -8,16 +8,16 @@ Check items off in a tracking issue, not in this file.
 
 ## 1. Decide
 
-- [ ] **Licence.** Pick the SPDX expression (`Apache-2.0` recommended;
+- [x] **Licence.** Pick the SPDX expression (`Apache-2.0` recommended;
       `MIT OR Apache-2.0` is the usual alternative). Add `LICENSE` (and
       `LICENSE-MIT` if dual) at the repository root.
 - [ ] **Copyright holder** for the licence header and `NOTICE`.
-- [ ] **Leyline and Pigeon references.** Decide keep, generalise or remove for
+- [x] **Leyline and Pigeon references.** Decide keep, generalise or remove for
       each item in the audit's reference table.
-- [ ] **History.** Publish the existing history, or start a fresh public
+- [x] **History.** Publish the existing history, or start a fresh public
       repository from a squashed tree. Branches, tags, `refs/pull/*` and
       closed pull requests are all public once the repository is.
-- [ ] **Names and trademark.** Confirm the crate names and whether the name
+- [x] **Names and trademark.** Confirm the crate names and whether the name
       "Crucible" is acceptable (Atlassian ships an unrelated product of that
       name; the crates.io names `crucible`, `crucible-core` and `crucible-cli`
       are taken by unrelated projects). Decided: the executable is `crucible`,
@@ -28,8 +28,8 @@ Check items off in a tracking issue, not in this file.
 
 - [ ] Add `LICENSE`, `NOTICE`, `SECURITY.md`,
       `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md`.
-- [ ] Replace links to private repositories (`crucible-service-template`, `crucible-actions`) or make those public.
-- [ ] Remove or generalise `examples/infra/leyline.bindings.json` and the
+- [x] Replace links to private repositories (`crucible-service-template`, `crucible-actions`) or make those public.
+- [x] Remove or generalise `examples/infra/leyline.bindings.json` and the
       Leyline/Pigeon prose in `README.md`, `AGENTS.md`, `docs/`.
 - [ ] Remove `.claude`-style or agent scratch files if any appear (none are
       committed today), and decide whether `AGENTS.md`/`CLAUDE.md` stay.

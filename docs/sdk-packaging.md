@@ -538,12 +538,10 @@ records a credential.
 **CI builds once, tests, then publishes those bytes**, after the deploy.
 A client ahead of its API breaks everyone who installs it, and an older
 server refuses an unknown release ([api-versions-clients.md](api-versions-clients.md)).
-`setup-crucible` comes from the private `crucible-actions`, whose Actions
-access is `none`: another organisation cannot `uses:` it, so each job checks
-it out at a pinned commit with an Operation-Leyline app token for `crucible`
-and `crucible-actions` and uses `./crucible-actions/setup-crucible`
-([releasing generated SDKs](sdk-releases.md#release-declared-sdks-crucible-sdk-planbuildverifypublish)
-has the same-organisation form).
+`setup-crucible` comes from
+[crucible-actions](https://github.com/Operation-Leyline/crucible-actions).
+Workflows can resolve it directly:
+`uses: Operation-Leyline/crucible-actions/setup-crucible@<pinned sha>`
 
 ```yaml
 concurrency: { group: sdk-release, cancel-in-progress: false }
@@ -556,27 +554,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with: { ref: '${{ github.event.workflow_run.head_sha || github.sha }}' }
-      # Crucible and crucible-actions are private, and github.token cannot
-      # read another repository: a token from the Operation-Leyline
-      # installation of the crucible-ci-read app can.
-      - id: token
-        uses: actions/create-github-app-token@v2
+      - uses: Operation-Leyline/crucible-actions/setup-crucible@<pinned sha>
         with:
-          app-id: '${{ vars.CRUCIBLE_APP_ID }}'
-          private-key: '${{ secrets.CRUCIBLE_APP_PRIVATE_KEY }}'
-          owner: Operation-Leyline
-          repositories: |
-            crucible
-            crucible-actions
-      # No other repository can `uses:` the private crucible-actions, so it
-      # is checked out with the token and its action used from the path.
-      - uses: actions/checkout@v4
-        with:
-          repository: Operation-Leyline/crucible-actions
-          ref: <pinned sha>
-          token: '${{ steps.token.outputs.token }}'
-          path: crucible-actions
-          persist-credentials: false
+          crucible-ref: '${{ steps.pin.outputs.rev }}'
       # The revision Cargo.lock pins; `crucible sdk` refuses to run at any other.
       - id: pin
         shell: bash
@@ -608,27 +588,9 @@ jobs:
     steps:
       - uses: actions/download-artifact@v4
         with: { name: sdk-release, path: target/sdk-release }
-      - id: token
-        uses: actions/create-github-app-token@v2
-        with:
-          app-id: '${{ vars.CRUCIBLE_APP_ID }}'
-          private-key: '${{ secrets.CRUCIBLE_APP_PRIVATE_KEY }}'
-          owner: Operation-Leyline
-          repositories: |
-            crucible
-            crucible-actions
-      # No other repository can `uses:` the private crucible-actions, so it
-      # is checked out with the token and its action used from the path.
-      - uses: actions/checkout@v4
-        with:
-          repository: Operation-Leyline/crucible-actions
-          ref: <pinned sha>
-          token: '${{ steps.token.outputs.token }}'
-          path: crucible-actions
-          persist-credentials: false
       - id: crucible
-        uses: ./crucible-actions/setup-crucible
-        with: { crucible-ref: '${{ needs.sdk.outputs.crucible-ref }}', token: '${{ steps.token.outputs.token }}' }
+        uses: Operation-Leyline/crucible-actions/setup-crucible@<pinned sha>
+        with: { crucible-ref: '${{ needs.sdk.outputs.crucible-ref }}' }
       - uses: actions/setup-node@v4
         with: { node-version: '22', registry-url: 'https://npm.pkg.github.com' }
       - uses: webfactory/ssh-agent@<pinned sha>

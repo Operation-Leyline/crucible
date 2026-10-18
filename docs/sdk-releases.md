@@ -366,21 +366,10 @@ In CI, build once and publish those bytes after the deploy. The real
 Crucible, and names the CLI in its `cli` output.
 
 `setup-crucible` lives in
-[crucible-actions](https://github.com/Operation-Leyline/crucible-actions),
-which is private with Actions access `none`, so a workflow in another
-organisation (Pigeon's, say) cannot resolve
-`uses: Operation-Leyline/crucible-actions/setup-crucible@<sha>`, and an app
-token does not change that: `uses:` is resolved before any step runs. Check
-the repository out instead, at a pinned commit, with a token from the
-crucible-ci-read app's Operation-Leyline installation that can read both
-`crucible` and `crucible-actions`, and use the action from that path. Set
-the repository variable `CRUCIBLE_APP_ID` and the secret
-`CRUCIBLE_APP_PRIVATE_KEY`; the app need not be installed in the caller's
-organisation (see the crucible-actions README, "Private access across
-organizations"). The example below does that in both jobs. A repository
-that crucible-actions' Actions access admits needs no checkout:
+`setup-crucible` comes from
+[crucible-actions](https://github.com/Operation-Leyline/crucible-actions).
+Workflows can resolve it directly:
 `uses: Operation-Leyline/crucible-actions/setup-crucible@<pinned sha>`
-with the same `with:` inputs, and a token for `crucible` alone.
 
 ```yaml
 concurrency: { group: sdk-release, cancel-in-progress: false }
@@ -393,27 +382,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with: { ref: '${{ github.event.workflow_run.head_sha || github.sha }}' }
-      # Crucible and crucible-actions are private, and github.token cannot
-      # read another repository: a token from the Operation-Leyline
-      # installation of the crucible-ci-read app can.
-      - id: token
-        uses: actions/create-github-app-token@v2
+      - uses: Operation-Leyline/crucible-actions/setup-crucible@<pinned sha>
         with:
-          app-id: '${{ vars.CRUCIBLE_APP_ID }}'
-          private-key: '${{ secrets.CRUCIBLE_APP_PRIVATE_KEY }}'
-          owner: Operation-Leyline
-          repositories: |
-            crucible
-            crucible-actions
-      # No other repository can `uses:` the private crucible-actions, so it
-      # is checked out with the token and its action used from the path.
-      - uses: actions/checkout@v4
-        with:
-          repository: Operation-Leyline/crucible-actions
-          ref: <pinned sha>
-          token: '${{ steps.token.outputs.token }}'
-          path: crucible-actions
-          persist-credentials: false
+          crucible-ref: '${{ steps.pin.outputs.rev }}'
       # The revision Cargo.lock pins; `crucible sdk` refuses to run at any other.
       - id: pin
         shell: bash

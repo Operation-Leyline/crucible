@@ -209,22 +209,17 @@ development-override mechanism. `tools/test-terraform.py` demonstrates an isolat
 development override and full lifecycle against a fake HTTP service. No registry
 publication or service credentials are needed for that test.
 
-## Migrating Leyline
+## Migrating custom CDK providers
 
-[`examples/infra/leyline.bindings.json`](../examples/infra/leyline.bindings.json)
-maps the existing `CfnGraph`, `CfnIndex`, and `CfnGraphBackupSchedule` surface to
-the existing `Custom::Leyline*` provider. Its baseline is `leyline-cdk` commit
-`faaf9df0e9502258cdd2faad0fa71250d052d45a`, which imports a backend model commit
-`6ef539695b378d74e540d16df33167df68cf80e1`.
+[`examples/infra/graph.bindings.json`](../examples/infra/graph.bindings.json)
+maps resource surfaces (`CfnGraph`, `CfnIndex`, and `CfnGraphBackupSchedule`) to
+a custom CloudFormation provider.
 
-The backend baseline predates Crucible's protocol; compatibility qualification
-adds the Crucible protocol annotation to an isolated built model. This proves
-construct synthesis compatibility, not that the old backend speaks the current
-Crucible wire protocol. Neither backend source nor credentials are packaged.
+Compatibility qualification proves construct synthesis compatibility, not that an older backend speaks the current Crucible wire protocol. Neither backend source nor credentials are packaged.
 
 Keep the existing provider implementation, resource type names, physical-ID
 decoder, construct paths, attribute names, dependencies, and retention policies.
-Compare synthesized templates before replacing the old generator. Roll back by
+Compare synthesized templates before replacing an existing generator. Roll back by
 restoring the previous construct package and provider together. Do not migrate
 CloudFormation-managed objects into Terraform implicitly; the engines own
 different state and such a move needs a separate adoption plan.
