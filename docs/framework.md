@@ -23,6 +23,125 @@ weather-service/    service package
   src/                impl GetCityOperation for Weather { ... }   Crucible::builder()...
 ```
 
+## Table of Contents
+
+- [Architecture & Request Lifecycle](#architecture--request-lifecycle)
+  - [The Four Extensibility Tiers](#the-four-extensibility-tiers)
+- [Start with one crate](#start-with-one-crate)
+- [Opinionated Service Layout & Design](#opinionated-service-layout--design)
+  - [Directory Structure](#directory-structure)
+  - [Dependency Injection & Shared State](#dependency-injection--shared-state)
+  - [Implementing Operation Handlers](#implementing-operation-handlers)
+- [The request context](#the-request-context)
+  - [Deadlines](#deadlines)
+- [The request pipeline](#the-request-pipeline)
+  - [Execution Lifecycle & Error Unwinding](#execution-lifecycle--error-unwinding)
+- [Writing Custom Middleware (Recipes)](#writing-custom-middleware-recipes)
+  - [Extension helpers](#extension-helpers)
+  - [Bodies and responses](#bodies-and-responses)
+  - [Pagination tokens](#pagination-tokens)
+  - [Idempotency tokens](#idempotency-tokens)
+  - [Typed permissions](#typed-permissions)
+- [Protocols](#protocols)
+  - [Model-driven authentication](#model-driven-authentication)
+- [Errors](#errors)
+- [The service log](#the-service-log)
+- [Metrics](#metrics)
+- [Hosting](#hosting)
+  - [Local API explorer](#local-api-explorer)
+  - [Host selection](#host-selection)
+- [Model Context Protocol](#model-context-protocol)
+- [Testing Strategies](#testing-strategies)
+  - [Unit Testing Operation Handlers Directly](#1-unit-testing-operation-handlers-directly)
+  - [In-Process Pipeline Testing with invoke](#2-in-process-pipeline-testing-with-invoke)
+  - [In-Process HTTP Testing with handle](#3-in-process-http-testing-with-handle)
+- [Clients](#clients)
+- [Performance](#performance)
+
+---
+
+## Architecture & Request Lifecycle
+
+Crucible is built around a zero-cost, contract-first design:
+- **Contract-first:** Your API is specified in `.cru`. The compiler lowers this contract to an immutable Intermediate Representation (IR), validating types, constraints, HTTP bindings, and version compatibility before any code is generated.
+- **Compiled, thin runtime:** The code generator produces pure Rust traits, data structs, and `'static` operation descriptions. No dynamic reflection, runtime routing tables, or per-request string parsing.
+- **Phased pipeline:** Every inbound request flows through an orchestrated pipeline with strictly ordered phases. Each phase provides exact guarantees about what data has been inspected, decoded, or validated.
+
+```mermaid
+flowchart TD
+    Client["Client / HTTP / Lambda"] --> Host["Host Transport (Hyper / Axum / Lambda)"]
+    Host --> Orchestrator["Crucible Orchestrator"]
+
+    subgraph Pipeline["Phased Request Pipeline"]
+        direction TB
+        P_Admit["1. Protocol::admit (Owner Protocol Admission)"]
+        M_Before["2. Middleware::before (Raw Transport)"]
+        P_Identify["3. Protocol::identify (Route & Operation Selection)"]
+        O_Before["4. OperationAwareMiddleware::before (Metadata & Admission)"]
+        P_Decode["5. Protocol::decode (Body Reading & Model Validation)"]
+        I_Before["6. Interceptor::before & TypedInterceptor::before"]
+        Handler["7. Operation Handler (impl OperationTrait for Service)"]
+        I_After["8. TypedInterceptor::after & Interceptor::after"]
+        O_After["9. OperationAwareMiddleware::after (Metadata Unwind)"]
+        P_Write["10. Protocol::write (Response Serialization)"]
+        M_After["11. Middleware::after (Transport Headers & Status)"]
+        Complete_Op["12. Interceptor & Operation Middleware Completion"]
+        Complete_Tx["13. Transport Middleware Completion"]
+
+        P_Admit --> M_Before
+        M_Before --> P_Identify
+        P_Identify --> O_Before
+        O_Before --> P_Decode
+        P_Decode --> I_Before
+        I_Before --> Handler
+        Handler --> I_After
+        I_After --> O_After
+        O_After --> P_Write
+        P_Write --> M_After
+        M_After --> Complete_Op
+        Complete_Op --> Complete_Tx
+    end
+
+    Orchestrator --> Pipeline
+    Handler <--> Storage[("Application State / Database / Cache")]
+    Complete_Tx --> Client
+```
+
+### The Four Extensibility Tiers
+
+Crucible provides four specialized extension tiers, allowing you to hook into requests at exactly the right level of abstraction:
+
+```mermaid
+flowchart LR
+    subgraph T1["Tier 1: Middleware"]
+        M1["Raw Transport (Job)"]
+        M2["Runs Before Route Selection"]
+    end
+    subgraph T2["Tier 2: OperationAwareMiddleware"]
+        OM1["Route Metadata Known"]
+        OM2["Runs Before Model Decoding"]
+    end
+    subgraph T3["Tier 3: Interceptor"]
+        I1["Payload Decoded & Validated"]
+        I2["Runs Around Execution"]
+    end
+    subgraph T4["Tier 4: TypedInterceptor"]
+        TI1["Strongly Typed Input & Output"]
+        TI2["Per-Operation Hooks"]
+    end
+
+    T1 --> T2 --> T3 --> T4
+```
+
+| Tier | Trait | Before View | After View | Typical Uses |
+|---|---|---|---|---|
+| **1. Transport** | `Middleware` | `&mut Job` (raw request, operation unknown) | `&mut Job`, `&mut Response` (encoded bytes) | TLS enforcement, CORS, custom response headers, IP allowlists |
+| **2. Route Policy** | `OperationAwareMiddleware` | `&mut OperationJob` (operation metadata known, before model decoding/validation) | `&mut OperationJob` (outcome available) | Header authentication, rate limiting, route admission, tenant checks |
+| **3. Invocation** | `Interceptor` | `&mut DecodedJob` (validated input guaranteed) | `&mut OperationJob` (outcome available) | Cross-cutting audit logging, payload encryption, outcome transforms |
+| **4. Typed Hook** | `TypedInterceptor<O>` | `&O::Input`, `&Context` (strongly typed) | `Option<&O::Output>`, `&Context` | Caching operation outputs, operation-specific business metrics |
+
+---
+
 ## Start with one crate
 
 Generate server models and bindings inside the service crate. Add `crucible-server-runtime-rust`
@@ -154,8 +273,8 @@ impl GetCityOperation for Weather {
 
 Registration is checked at compile time: the generated
 `operations(service: Arc<T>)` requires `T` to implement every operation
-trait. For split implementations, `Operations::builder()` takes one operation
-at a time and `build()` names the missing ones.
+trait. For split implementations, the generated module-level `builder()` API
+(e.g. `weather::builder()`) takes one operation at a time and `build()` names the missing ones.
 
 Types are generated with serde and `Validate`. Errors implement
 `crucible_server_runtime_rust::ModelledError` (wire name, status, fault). None of it is
@@ -198,40 +317,111 @@ rejecting an external caller while allowing an internal caller to reach the same
 operation. Its example header is only a test caller marker; production services
 should use their authenticated principal.
 
-## Laying out a service
+## Opinionated Service Layout & Design
 
-One type per file, named for what it holds, Java-package style:
+Crucible enforces a clean, modular structure where operations and extensions are organized like Java packages: one type per file, named for what it holds.
+
+### Directory Structure
 
 ```text
 src/
-  lib.rs or main.rs     include_service!() declares the service-named API module
+  lib.rs or main.rs       // include_service!() declares the API module; boots HTTP/Lambda
+  state.rs                // Shared application state (DB connection pools, clients)
   operations/
-    mod.rs              the service type, and what operations share
-    service/            operations the service itself binds
-      get_me.rs
-    graph/              one folder per resource, its name in snake_case
-      mod.rs            what the graph operations share
-      create_graph.rs   impl CreateGraphOperation for Service
+    mod.rs                // The service struct and what operations share
+    service/              // Operations bound directly to the service
+      get_status.rs       // impl GetStatusOperation for Service
+    city/                 // One sub-folder per modeled resource (in snake_case)
+      mod.rs              // Shared helpers for city operations
+      get_city.rs         // impl GetCityOperation for Service
+      create_city.rs      // impl CreateCityOperation for Service
   middlewares/
-    mod.rs              pub use authenticate::Authenticate; ...
-    authenticate.rs     one middleware per file
-  interceptors/         decoded invocation extensions
+    mod.rs                // pub use auth::BearerAuth; ...
+    auth.rs               // Custom transport or operation middleware
+    headers.rs            // Security and custom header middleware
+  interceptors/
+    mod.rs                // pub use audit::AuditLog; ...
+    audit.rs              // Typed invocation interceptors
+  store/
+    mod.rs                // Database and storage repository traits & adapters
 ```
 
-Each operation file holds one `impl XOperation for Service`; there is no
-dispatch module, and `weather::operations(..)` still refuses to build while
-any operation lacks one. `crucible scaffold <package-dir>` writes a stub for
-every operation that has no file yet, in its resource's folder, and adds missing
-`mod` declarations without replacing existing operation code. (`--out` is the
-operations folder, `src/operations` by default; `--service-type` the
-implementing type, `crate::operations::Service` by default.) With that default,
-a newly created root `mod.rs` also declares `pub struct Service;`; existing
-service types are preserved. Custom service types must be declared by the
-application. Rust keyword identifiers are escaped in module declarations and
-generated stubs. `--contract` optionally overrides the derived namespace path
-when bindings live in another Rust crate. Crucible's own
-built-ins follow the same rule: `middlewares::ServiceLog` is
-`middlewares/service_log.rs`, `JsonProtocol` is `protocol/json_protocol.rs`.
+`crucible scaffold <package-dir>` inspects your compiled `.cru` model and automatically creates stubs for all un-implemented operations in their respective resource folders, adding missing `mod` statements without overwriting existing code.
+
+### Dependency Injection & Shared State
+
+A Crucible service struct holds long-lived dependencies (database connection pools, cache clients, external HTTP clients), **never per-request data**. Because `&self` is shared across concurrent requests, your service struct should wrap its state in `Arc<T>`:
+
+```rust
+use std::sync::Arc;
+
+pub struct AppState {
+    pub db: sqlx::PgPool,
+    pub cache: redis::aio::ConnectionManager,
+    pub config: AppConfig,
+}
+
+pub struct WeatherService {
+    state: Arc<AppState>,
+}
+
+impl WeatherService {
+    pub fn new(state: Arc<AppState>) -> Self {
+        Self { state }
+    }
+}
+```
+
+When building the server, pass your service instance wrapped in `Arc::new(service)` to `weather::operations(...)`:
+
+```rust
+let state = Arc::new(AppState { db, cache, config });
+let service = Arc::new(WeatherService::new(state));
+
+let crucible = Crucible::builder(weather::operations(service))
+    .middleware(ServiceLog::default())
+    .protocol(JsonProtocol)
+    .build()?;
+```
+
+### Implementing Operation Handlers
+
+Each operation file contains exactly one trait implementation. Handlers are asynchronous, take their generated input struct by value, and return `Result<Output>`:
+
+```rust
+use crate::operations::WeatherService;
+use crate::weather::{GetCityInput, GetCityOperation, GetCityOutput, NotFoundError};
+use crucible_server_runtime_rust::Result;
+
+impl GetCityOperation for WeatherService {
+    async fn get_city(&self, input: GetCityInput) -> Result<GetCityOutput> {
+        // 1. Read request context attributes (e.g. caller identity)
+        let caller = self.context().attribute::<Principal>();
+        let request_id = self.context().request_id();
+
+        // 2. Query application storage via shared state
+        let row = sqlx::query_as!(CityRecord, "SELECT name, temp FROM cities WHERE id = $1", input.city_id)
+            .fetch_optional(&self.state.db)
+            .await?;
+
+        // 3. Return modeled error if not found
+        let record = row.ok_or_else(|| NotFoundError {
+            message: format!("City '{}' was not found", input.city_id),
+            resource_id: Some(input.city_id),
+        })?;
+
+        // 4. Return generated output
+        Ok(GetCityOutput {
+            city: record.into(),
+            forecast: None,
+            request_id: Some(request_id.to_string()),
+        })
+    }
+}
+```
+
+> [!TIP]
+> Grouping is flexible: a single struct can implement every operation in the service, or you can split operations across separate structs using the generated module-level operations builder (e.g. `weather::builder()`). If any operation lacks an implementation at build time, the Rust compiler fails with an explicit list of missing operations.
 
 ## The request context
 
@@ -278,73 +468,162 @@ it its own timeout from `context.deadline()`.
 
 ## The request pipeline
 
-The orchestrator owns the phase order. Registration order matters within a
-phase; a protocol is selected from alternatives, rather than placed between
-arbitrary extensions.
+The orchestrator strictly enforces phase order. Registration order matters within each phase; protocols are negotiated based on capabilities rather than placed arbitrarily.
 
-```text
-Host
-  -> Middleware.before (raw transport)
-  -> Protocol.identify (choose operation)
-  -> OperationAwareMiddleware.before (metadata and raw transport)
-  -> Protocol.decode (read and validate input)
-  -> Interceptor.before (decoded invocation)
-  -> Operation implementation
-  <- Interceptor.after
-  <- OperationAwareMiddleware.after
-  <- Protocol.write (encode outcome)
-  <- Middleware.after (encoded response)
-  <- Completion observers (response ready)
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Client
+    participant Host as "Host Transport"
+    participant M as "Middleware (Raw)"
+    participant Router as "Protocol (Identify)"
+    participant OM as "OperationAwareMiddleware"
+    participant Proto as "Protocol (Decode/Write)"
+    participant Interceptor as "Interceptor (Typed)"
+    participant Handler as "Operation Handler"
+    participant Storage as "Database / State"
+
+    Client->>Host: Inbound Request (HTTP / Lambda)
+    Host->>M: before(Job)
+    Note over M: Headers, IP filtering, raw transport checks
+    M->>Router: identify(Job)
+    Note over Router: Match route to OperationInfo
+    Router->>OM: before(OperationJob)
+    Note over OM: Metadata known: Auth, admission, rate limiting
+    OM->>Proto: decode(OperationJob)
+    Note over Proto: Read body, deserialize, validate model constraints
+    Proto->>Interceptor: before(DecodedJob)
+    Note over Interceptor: Validated input: Typed checks, audit
+    Interceptor->>Handler: invoke(input, context)
+    Handler->>Storage: Business logic & DB queries
+    Storage-->>Handler: Query results
+    Handler-->>Interceptor: Handler outcome (Result<Output, Error>)
+    Interceptor-->>OM: after(OperationJob)
+    OM-->>Proto: after(OperationJob)
+    Proto-->>M: write(outcome) -> Encoded Response
+    M-->>Host: after(Job, &mut Response)
+    Note over M: Custom response headers, final status
+    Interceptor-->>OM: complete(OperationJob, &Response)
+    OM-->>M: complete(OperationJob, &Response)
+    Note over Interceptor, OM: Interceptor & operation completion observers
+    M-->>Host: complete(Job, &Response)
+    Note over M: Transport completion observers (Metrics, Logging)
+    Host-->>Client: Final Response
 ```
 
-Each family has `before`, `after`, `complete`, and `prepare` defaults. A failing
-`before` stops forward execution. Only entries whose `before` succeeded unwind,
-in reverse order within each phase. An extension answering with `respond`
-also unwinds itself, skips later phases, and bypasses protocol encoding.
-The orchestrator classifies and sanitizes every failure, including failures
-before identification; configured exception rules normalize failures before outcome
-extensions unwind, regardless of where the failure originated. If a return hook
-replaces an error, the new failure is normalized before the next outer hook.
-Rules are not run repeatedly on an unchanged failure.
+### Execution Lifecycle & Error Unwinding
 
-| Interface | Before view | After view | Use |
-|---|---|---|---|
-| `Middleware` | `Job`, operation not yet selected | `Job` and mutable encoded `Response` | Headers, transport rejection, body wrappers, final-status observation |
-| `OperationAwareMiddleware` | `OperationJob`, operation guaranteed | `OperationJob`, outcome available | Model-driven authentication, admission, relay, audit of invalid input |
-| `Interceptor` | `DecodedJob`, validated input and operation guaranteed | `OperationJob`, outcome available | Typed authorization, invocation policy, outcome inspection and error changes |
-| `TypedInterceptor<O>` | `&O::Input` and `&Context` | `after(Option<&O::Output>, &Context)`; on failure, `failed(&Error, &Context)` runs first | One operation's typed extension |
+1. **Forward Execution (`before`):** Runs through the forward extension phases in order (transport middleware, route policy middleware, and invocation interceptors). If any `before` hook returns an `Err(Error)`, forward execution stops immediately.
+2. **Reverse Unwinding (`after`):** Only hooks whose `before` succeeded unwind, in strict reverse order within their respective phases (`Interceptor::after`, then `OperationAwareMiddleware::after`, followed by `Protocol::write`, and finally `Middleware::after`).
+3. **Short-circuiting (`respond`):** Extensions receiving a mutable job (`Job`, `OperationJob`, or `DecodedJob`) can immediately complete the request by calling `job.respond(response)`. (Typed interceptors do not receive a mutable job and reject requests by returning `Err(Error)` instead). Later forward phases are skipped, and prior `before` hooks unwind cleanly.
+4. **Error Sanitization:** All errors (whether thrown by handlers, deserializers, or middleware) are normalized through registered `ExceptionTranslator` rules before being serialized into standard wire errors.
 
-`OperationJob` and `DecodedJob` cannot be constructed by consumers and do not
-expose unrestricted decoding or input replacement. Operation-aware middleware
-cannot be registered as raw middleware. An unknown operation or failed
-identification skips operation-aware middleware and interceptors. Decoding
-failure skips interceptors, while earlier operation policies still unwind.
-The request context, attributes, request id and deadline survive selection;
-its tracing span is updated when the operation becomes known.
+---
+
+## Writing Custom Middleware (Recipes)
+
+### Recipe 1: Bearer Token Authentication (`OperationAwareMiddleware`)
+
+When authenticating requests, you typically want to know which operation is being called so you can skip authentication for public operations:
 
 ```rust
-Crucible::builder(weather::operations(Arc::new(service)))
-    .middleware(ServiceLog::errors_only())
-    .middleware(MyHeaderAuthentication)
-    .operation_middleware(MyThrottle.when_trait("acme#operationClass"))
-    .protocol(JsonProtocol)
-    .protocol(InvokeProtocol)
-    .interceptor(for_operation(MyTypedAuthorization))
-    .exception_translator(ExceptionTranslator::new().translate(|e: &DdbError| ...))
-    .build()?
+use crucible_server_runtime_rust::{
+    Error, FrameworkError, Hook, OperationAwareMiddleware, OperationJob, Result,
+};
+
+#[derive(Clone, Debug)]
+pub struct Principal {
+    pub subject: String,
+    pub scopes: Vec<String>,
+}
+
+pub struct BearerAuth;
+
+impl OperationAwareMiddleware for BearerAuth {
+    fn before<'a>(&'a self, job: &'a mut OperationJob<'_>) -> Hook<'a, Result<()>> {
+        // Skip auth if operation is marked with @public
+        if job.metadata().public {
+            return Hook::Ready(Ok(()));
+        }
+
+        let auth_header = job
+            .request()
+            .headers
+            .get("authorization")
+            .and_then(|h| h.to_str().ok());
+
+        match auth_header {
+            Some(header) if header.starts_with("Bearer ") => {
+                let _token = &header["Bearer ".len()..];
+                // In a real service, decode and verify your JWT here:
+                let principal = Principal {
+                    subject: "user_12345".into(),
+                    scopes: vec!["read".into(), "write".into()],
+                };
+                // Store on task-local request context:
+                job.context().set_attribute(principal);
+                Hook::Ready(Ok(()))
+            }
+            _ => Hook::Ready(Err(Error::new(FrameworkError::Unauthenticated))),
+        }
+    }
+}
 ```
 
-`defaults()` adds the error-only service log, the HTTP protocol selected by
-the registered operations, and `InvokeProtocol`. Empty services use
-`JsonProtocol` as their HTTP default.
-It does not add authentication, admission policies, interceptors, or metrics.
-`Middleware`, `OperationAwareMiddleware`, and `Interceptor` return `Hook::Ready`
-for synchronous work and `Hook::wait` for asynchronous work. The corresponding
-`AsyncMiddleware`, `AsyncOperationAwareMiddleware`, and `AsyncInterceptor`
-helpers let extensions write `async fn` hooks, boxing their futures. A `Job`
-is `Send`, not `Sync`; do not retain `&Job`
-across an asynchronous suspension. Borrow a mutable phase view or extract
-shared input/context references first.
+### Recipe 2: Operation-Specific Hook (`TypedInterceptor<O>`)
+
+To inspect or mutate the strongly-typed input and output of a specific operation (e.g. logging metrics or cache invalidation):
+
+```rust
+use crucible_server_runtime_rust::interceptors::TypedInterceptor;
+use crucible_server_runtime_rust::{Context, Result};
+use crate::weather::{GetCity, GetCityInput, GetCityOutput};
+
+pub struct CityMetricsInterceptor;
+
+#[crucible_server_runtime_rust::async_trait]
+impl TypedInterceptor<GetCity> for CityMetricsInterceptor {
+    async fn before(&self, input: &GetCityInput, _context: &Context) -> Result<()> {
+        tracing::debug!(city_id = %input.city_id, "Looking up city weather");
+        Ok(())
+    }
+
+    async fn after(&self, output: Option<&GetCityOutput>, _context: &Context) {
+        if let Some(out) = output {
+            tracing::info!(city = %out.city.name, "Successfully resolved city weather");
+        }
+    }
+}
+```
+
+Register it on the service builder using `for_operation`:
+
+```rust
+Crucible::builder(weather::operations(service))
+    .interceptor(crucible_server_runtime_rust::interceptors::for_operation(CityMetricsInterceptor))
+    .build()?;
+```
+
+### Recipe 3: Custom Response Headers (`Middleware`)
+
+To set security headers (HSTS, CSP) or correlation IDs on every outgoing HTTP response:
+
+```rust
+use crucible_server_runtime_rust::{Hook, Job, Middleware};
+use axum::response::Response;
+use axum::http::HeaderValue;
+
+pub struct SecurityHeaders;
+
+impl Middleware for SecurityHeaders {
+    fn after<'a>(&'a self, _job: &'a mut Job, response: &'a mut Response) -> Hook<'a, ()> {
+        let headers = response.headers_mut();
+        headers.insert("x-content-type-options", HeaderValue::from_static("nosniff"));
+        headers.insert("x-frame-options", HeaderValue::from_static("DENY"));
+        Hook::Ready(())
+    }
+}
+```
 
 ### Extension helpers
 
@@ -1492,6 +1771,84 @@ deployment change. `host::serve(service, Host::..)` picks explicitly,
 runtime loop of your own). Layers given to `Builder::tower_layer` run on every
 host, so they move with the service; `into_router()` gives an
 `axum::Router` for layers that belong to one HTTP deployment only.
+
+## Testing Strategies
+
+Crucible services can be tested at three distinct levels, ranging from pure unit tests to end-to-end HTTP integration tests.
+
+### 1. Unit Testing Operation Handlers Directly
+
+Because operation traits (`GetCityOperation`, etc.) are standard Rust async traits on your service struct, you can test them directly in isolation by injecting mock or in-memory repositories:
+
+```rust
+#[tokio::test]
+async fn test_get_city_handler_directly() {
+    let state = Arc::new(AppState {
+        db: mock_pool(),
+        cache: mock_cache(),
+        config: AppConfig::default(),
+    });
+    let service = WeatherService::new(state);
+
+    let input = GetCityInput {
+        city_id: "c-12345678".into(),
+    };
+
+    let result = service.get_city(input).await;
+    assert!(result.is_err()); // City does not exist yet
+}
+```
+
+### 2. In-Process Pipeline Testing with `invoke`
+
+Crucible provides `service.invoke(operation_name, json_payload).await` to test the full framework pipeline (routing, model validation, middleware, interceptors, error translation, and serialization) in memory without binding a TCP socket:
+
+```rust
+use serde_json::json;
+
+#[tokio::test]
+async fn test_operation_through_pipeline() {
+    let service = weather_service::service(Arc::new(MemoryCities::default()));
+
+    // 1. Successful creation
+    let created = service
+        .invoke("CreateCity", json!({ "name": "Stockholm" }))
+        .await;
+    assert_eq!(created["output"]["city"]["name"], "Stockholm");
+
+    // 2. Validation error on missing required field or constraint violation
+    let invalid = service
+        .invoke("GetCity", json!({ "cityId": "invalid-format" }))
+        .await;
+    assert_eq!(invalid["error"]["__type"], "ValidationError");
+
+    // 3. Modeled domain error
+    let missing = service
+        .invoke("GetCity", json!({ "cityId": "c-99999999" }))
+        .await;
+    assert_eq!(missing["error"]["__type"], "NotFoundError");
+}
+```
+
+### 3. In-Process HTTP Testing with `handle`
+
+You can test HTTP headers, status codes, and raw JSON serialization by passing an `axum::http::Request` directly to `service.handle(request)`:
+
+```rust
+#[tokio::test]
+async fn test_http_request_handling() {
+    let service = weather_service::service(Arc::new(MemoryCities::default()));
+
+    let request = axum::http::Request::builder()
+        .uri("/cities/c-99999999")
+        .header("authorization", "Bearer valid-token")
+        .body(axum::body::Body::empty())
+        .unwrap();
+
+    let response = service.handle(request).await;
+    assert_eq!(response.status(), axum::http::StatusCode::NOT_FOUND);
+}
+```
 
 ## Clients
 

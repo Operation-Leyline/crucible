@@ -81,6 +81,8 @@ configuration, output conventions, and independent executable tests.
 
 ## Build a service
 
+Crucible provides a high-performance, contract-first Rust server runtime. See the comprehensive **[Crucible Framework Guide](docs/framework.md)** for architecture overviews, visual Mermaid lifecycle diagrams, opinionated service layouts, custom middleware recipes, and production built-ins (structured logging, metrics, idempotency, page tokens, and fine-grained permissions).
+
 Configure build-time naming, path, and documentation rules in `crucible.toml`,
 then compare API revisions in CI with `crucible diff`. See
 [API policy and compatibility](docs/api-policy.md) for setup, configuration,
