@@ -958,8 +958,10 @@ server binding exists for it.
     (`type == DateTime`, `type is timestamp`, `type.length.max >= 64`),
     names (`name startsWith "List"`, `name matches ".."`), HTTP (`http.method`,
     `http.uri startsWith ".."`), shape (`has length`, `has range`,
-    `paginated`, `documented`, `input has member clientToken`, `output
-    contains sensitive`), joined with `and`, `or`, `not`. There is no
+    `paginated`, `documented`, `has member createdAt`, `input has member
+    clientToken`, `output contains sensitive`; the member tests are
+    implemented: `has member <name>` on a structure, union, error or
+    resource, `input|output has member <name>` on an operation), joined with `and`, `or`, `not`. There is no
     general-purpose code, no plugin layer and no network access; rules are
     deterministic. The compiler type-checks rules: an unknown metadata key,
     an enum value the key does not have, or a condition that does not

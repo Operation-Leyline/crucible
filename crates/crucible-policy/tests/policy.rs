@@ -669,3 +669,64 @@ fn an_operation_that_becomes_sender_signed_leaves_the_sdks() {
     // The wire is unchanged: the server still serves it.
     assert!(rules(&old, &new).is_empty(), "{:?}", rules(&old, &new));
 }
+
+const WIRE_ENUMS: &str = "enum Mode {\n    ACTIVE = \"active\"\n    READY\n    Done = \"done_now\"\n}\nenum Level: integer {\n    LOW = 1\n}\n";
+
+fn wire_findings(naming: &str) -> Vec<(String, Severity, String)> {
+    let config = Config::parse(&format!("schema_version = 1\n[rules.naming]\n{naming}")).unwrap();
+    // An enum is in the service only when something reaches it.
+    let reached = [(
+        "    next?: Node
+",
+        "    next?: Node
+    mode?: Mode
+    level?: Level
+",
+    )];
+    check(&contract(&reached, WIRE_ENUMS), &config)
+        .findings
+        .into_iter()
+        .filter(|f| f.rule == "naming.enum_wire_values")
+        .map(|f| (f.shape.to_string(), f.severity, f.message))
+        .collect()
+}
+
+#[test]
+fn enum_wire_values_are_checked_for_explicit_and_bare_values_but_not_integers() {
+    let found = wire_findings("enum_wire_values = \"camelCase\"\n");
+    let shapes: Vec<_> = found.iter().map(|f| f.0.as_str()).collect();
+    assert_eq!(shapes, ["example.api#Mode$Done", "example.api#Mode$READY"]);
+    assert_eq!(found[1].2, "enum wire value name `READY` is not camelCase");
+    assert_eq!(
+        found[0].2,
+        "enum wire value name `done_now` is not camelCase"
+    );
+    assert!(
+        wire_findings(
+            "enum_wire_values = \"SCREAMING_SNAKE_CASE\"\nenum_values = \"SCREAMING_SNAKE_CASE\"\n"
+        )
+        .iter()
+        .all(|f| !f.0.contains("Level"))
+    );
+}
+
+#[test]
+fn enum_wire_values_pass_when_every_value_matches() {
+    assert!(wire_findings("enum_wire_values_pattern = \"[a-z][A-Za-z_]*|READY\"\n").is_empty());
+}
+
+#[test]
+fn enum_wire_value_patterns_and_severity_apply() {
+    let found = wire_findings(
+        "severity = \"error\"\nenum_wire_values_pattern = { pattern = \"[a-z]+\", severity = \"warning\" }\n",
+    );
+    assert_eq!(found.len(), 2, "{found:?}");
+    assert!(found.iter().all(|f| f.1 == Severity::Warning));
+    assert!(found[0].2.contains("does not match the pattern `[a-z]+`"));
+    let found = wire_findings(
+        "severity = \"error\"\nenum_wire_values = { case = \"camelCase\", severity = \"warning\" }\n",
+    );
+    assert!(found.iter().all(|f| f.1 == Severity::Warning));
+    let found = wire_findings("severity = \"error\"\nenum_wire_values = \"camelCase\"\n");
+    assert!(found.iter().all(|f| f.1 == Severity::Error));
+}

@@ -162,6 +162,8 @@ pub(super) enum Entity<'a> {
     Service(&'a Service),
     Resource {
         documented: bool,
+        /// Its identifiers and properties.
+        members: Vec<String>,
     },
     Operation(&'a Operation),
     Shape {
@@ -262,6 +264,14 @@ impl<'a> World<'a> {
             subjects.push(Subject {
                 entity: Entity::Resource {
                     documented: has_text(item),
+                    members: match &item.decl {
+                        Decl::Resource(resource) => resource
+                            .entries
+                            .iter()
+                            .map(|entry| entry.name.name.clone())
+                            .collect(),
+                        _ => Vec::new(),
+                    },
                 },
                 name: name.clone(),
                 display: name.clone(),

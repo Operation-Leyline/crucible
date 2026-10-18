@@ -256,6 +256,15 @@ pub(super) fn has_applies(name: &str, kind: Kind) -> bool {
     matches!(name, "length" | "range" | "pattern") && kind.is_constrained()
 }
 
+/// Whether `has member` (unscoped) can read the members of `kind`: a
+/// structure, union or error, or a resource's identifiers and properties.
+pub(super) fn has_member_applies(kind: Kind) -> bool {
+    matches!(
+        kind,
+        Kind::Structure | Kind::Union | Kind::Error | Kind::Resource
+    )
+}
+
 pub(super) fn flags_for(kind: Kind) -> String {
     let names: Vec<&str> = FLAGS
         .iter()

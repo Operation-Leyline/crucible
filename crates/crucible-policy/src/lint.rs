@@ -34,6 +34,7 @@ pub fn check(service: &Service, config: &Config) -> Report {
         let shapes = compile(&rule.shapes_pattern);
         let members = compile(&rule.members_pattern);
         let enums = compile(&rule.enum_values_pattern);
+        let wire_values = compile(&rule.enum_wire_values_pattern);
         let mut name = |id: ShapeId,
                         text: &str,
                         what: &str,
@@ -120,6 +121,14 @@ pub fn check(service: &Service, config: &Config) -> Report {
                             rule.enum_values.as_ref(),
                             &enums,
                             "naming.enums",
+                        );
+                        name(
+                            id.with_member(&value.name),
+                            &value.value,
+                            "enum wire value",
+                            rule.enum_wire_values.as_ref(),
+                            &wire_values,
+                            "naming.enum_wire_values",
                         );
                     }
                 }

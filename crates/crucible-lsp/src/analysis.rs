@@ -589,6 +589,7 @@ impl Walker<'_> {
                 }
             }
             ExprKind::Has(reference) => self.metadata_ref(reference),
+            ExprKind::HasMember { .. } => {}
             ExprKind::Addresses(name) => {
                 self.reference_kind(name, Some(Role::Class), RESOURCE);
             }

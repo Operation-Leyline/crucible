@@ -539,6 +539,8 @@ has the ones that apply to it, and a rule that uses another is an error.
 | `type.length.max`, `type.range.min`, ... | members | the member's effective constraints |
 | `length.max`, `range.min`, `pattern` | strings, numbers, lists, maps, blobs | the shape's constraints |
 | `has length`, `has range`, `has pattern` | the same, and members | the constraint is present |
+| `has member name` | structure, union, error, resource | the type has a member of that name; a resource's identifiers and properties count |
+| `input has member name`, `output has member name` | operation | the operation's input or output structure has that member; an operation with no body has none |
 | `input contains sensitive`, `output ...` | operation | the body reaches a sensitive member or shape |
 | `@key`, `has @key`, `@key == value` | any element the key is declared `on` | metadata, including `retention source` keys |
 | `has @token`, `@query`, `@header`, `@payload`, `@deprecated` | members (`@deprecated`: any element) | the built-in annotation is present |
@@ -549,7 +551,9 @@ Operators: `==`, `!=`, `in [a, b]`, `<`, `<=`, `>`, `>=` on numbers, and
 strings. A word on the right (`controlRead`, `GET`) compares as a string; an
 enum key is checked against its values. A shape no operation reaches was
 never lowered, so a condition that needs more than its name, kind,
-documentation and `referenced` skips it.
+documentation and `referenced` skips it (`has member` included). `has member`
+on any other kind, or `input has member` on anything but an operation, is an
+error in the rule.
 
 Every condition is checked when the rule is read: an unknown key, a value the
 key does not have, or an operator its value cannot take is an error in the

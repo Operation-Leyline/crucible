@@ -16,6 +16,10 @@ pub struct Naming {
     pub members: Option<Check<NameCase>>,
     #[serde(deserialize_with = "check::case")]
     pub enum_values: Option<Check<NameCase>>,
+    /// The wire value of each string enum value: the explicit value, or the
+    /// name when the value is bare. Integer enums carry numbers, not text.
+    #[serde(deserialize_with = "check::case")]
+    pub enum_wire_values: Option<Check<NameCase>>,
     #[serde(deserialize_with = "check::pattern")]
     pub operations_pattern: Option<Check<String>>,
     #[serde(deserialize_with = "check::pattern")]
@@ -24,4 +28,6 @@ pub struct Naming {
     pub members_pattern: Option<Check<String>>,
     #[serde(deserialize_with = "check::pattern")]
     pub enum_values_pattern: Option<Check<String>>,
+    #[serde(deserialize_with = "check::pattern")]
+    pub enum_wire_values_pattern: Option<Check<String>>,
 }

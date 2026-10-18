@@ -187,6 +187,12 @@ const TABLES: &[Table] = &[
                 sample: "\"SCREAMING_SNAKE_CASE\"",
             },
             Key {
+                name: "enum_wire_values",
+                kind: Kind::Case,
+                doc: "The case of string enum wire values: the explicit value, or the name when the value is bare. Integer enums are not checked.",
+                sample: "\"camelCase\"",
+            },
+            Key {
                 name: "operations_pattern",
                 kind: Kind::Pattern,
                 doc: "A regex every operation name must match whole, such as `(Get|List|Create|Update|Delete)[A-Z].*`.",
@@ -209,6 +215,12 @@ const TABLES: &[Table] = &[
                 kind: Kind::Pattern,
                 doc: "A regex every enum value name must match whole.",
                 sample: "\"[A-Z_]+\"",
+            },
+            Key {
+                name: "enum_wire_values_pattern",
+                kind: Kind::Pattern,
+                doc: "A regex every string enum wire value must match whole.",
+                sample: "\"[a-z][A-Za-z0-9]*\"",
             },
         ],
     },

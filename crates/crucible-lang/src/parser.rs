@@ -1796,6 +1796,35 @@ impl<'s> Parser<'s> {
                 span: start.to(self.last_end()),
             };
         }
+        if (self.at_word("input") || self.at_word("output")) && self.at_word_ahead(1, "has") {
+            let scope = self.ident("`input` or `output`");
+            self.pos += 1;
+            let name = if self.eat_word("member") {
+                self.ident("a member name")
+            } else {
+                self.expected("`member` after `input has` or `output has`");
+                Ident::missing(self.here())
+            };
+            return Expr {
+                kind: ExprKind::HasMember {
+                    scope: Some(scope),
+                    name,
+                },
+                span: start.to(self.last_end()),
+            };
+        }
+        if self.at_word("has")
+            && self.at_word_ahead(1, "member")
+            && self.kind(2) == Some(TokenKind::Ident)
+            && !RULE_WORDS.contains(&self.text(2))
+        {
+            self.pos += 2;
+            let name = self.ident("a member name");
+            return Expr {
+                kind: ExprKind::HasMember { scope: None, name },
+                span: start.to(self.last_end()),
+            };
+        }
         if self.eat_word("has") {
             let kind = if self.at_word("one") && self.at_word_ahead(1, "of") {
                 self.pos += 2;
