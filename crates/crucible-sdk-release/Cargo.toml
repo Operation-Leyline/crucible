@@ -3,6 +3,7 @@ name = "crucible-sdk-release"
 description = "SDK release channels: reading the last release, choosing the next version, and resumable publishing to npm and git tags"
 version.workspace = true
 edition.workspace = true
+license.workspace = true
 rust-version.workspace = true
 publish.workspace = true
 repository.workspace = true

@@ -3,6 +3,7 @@ name = "crucible-policy"
 description = "Build-time API policies and model compatibility checks over Crucible's IR"
 version.workspace = true
 edition.workspace = true
+license.workspace = true
 rust-version.workspace = true
 publish.workspace = true
 repository.workspace = true

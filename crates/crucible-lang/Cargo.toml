@@ -3,6 +3,7 @@ name = "crucible-lang"
 description = "The Crucible modelling language front end: lossless lexer, parser and syntax tree"
 version.workspace = true
 edition.workspace = true
+license.workspace = true
 rust-version.workspace = true
 publish.workspace = true
 repository.workspace = true

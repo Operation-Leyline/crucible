@@ -3,6 +3,7 @@ name = "crucible-codegen-infra"
 description = "Validated provisioning bindings shared by infrastructure emitters"
 version.workspace = true
 edition.workspace = true
+license.workspace = true
 rust-version.workspace = true
 publish.workspace = true
 repository.workspace = true

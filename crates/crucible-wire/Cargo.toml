@@ -3,6 +3,7 @@ name = "crucible-wire"
 description = "What a crucible server and client share about the wire: operation descriptions, the error model, validation, timestamps and the JSON readers and writers"
 version.workspace = true
 edition.workspace = true
+license.workspace = true
 rust-version.workspace = true
 publish.workspace = true
 repository.workspace = true

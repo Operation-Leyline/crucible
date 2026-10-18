@@ -3,6 +3,7 @@ name = "crucible-client-runtime-rust"
 description = "The runtime generated Rust clients use: transport, retries, idempotency tokens, error decoding, pagination"
 version.workspace = true
 edition.workspace = true
+license.workspace = true
 rust-version.workspace = true
 publish.workspace = true
 repository.workspace = true

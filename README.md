@@ -2,14 +2,14 @@
 
 Crucible generates a Rust service, native client SDKs, and infrastructure
 packages from a `.cru` model.
-It is built for Leyline, with a shared model layer that preserves HTTP bindings,
+It provides a shared model layer that preserves HTTP bindings,
 unions, modeled errors, defaults, pagination, and idempotency tokens.
 
 The service framework provides validation, a phased request pipeline, error
 translation, logging, and HTTP or Lambda hosting. The Rust server supports
 Crucible JSON. Client runtimes provide
 transport, authentication, retries, and pagination using each language's APIs.
-Public clients carry the service name, such as `LeylineClient`. Requests use
+Public clients carry the service name, such as `WeatherClient`. Requests use
 native values, collections, and language-appropriate builders or constructors;
 ordinary calls do not require presence wrappers.
 
@@ -86,10 +86,9 @@ then compare API revisions in CI with `crucible diff`. See
 [API policy and compatibility](docs/api-policy.md) for setup, configuration,
 exceptions, and the shared GitHub workflow.
 
-Download `hello-service-v0.3.0.zip` from the matching [Crucible release](https://github.com/Operation-Leyline/crucible/releases),
-extract it, and open the folder in RustRover. Run `src/main.rs`, then send the
-request in `hello.http`. Rust and read access to this private repository are
-the prerequisites.
+Download the starter zip from the matching [Crucible release](https://github.com/Operation-Leyline/crucible/releases),
+extract it, and open the folder in your IDE. Run `src/main.rs`, then send the
+request in `hello.http`. Rust and Cargo are the prerequisites.
 
 New starters are one Cargo crate with a `crucible.toml` policy. Their complete
 build script is:
@@ -162,3 +161,8 @@ for the version-bump PR and GitHub tag/release procedure.
 Each release has a [CHANGELOG](CHANGELOG.md) entry, which the release tooling
 requires. GitHub releases provide source archives; package registry publication
 is separate.
+
+## License
+
+Crucible is licensed under the [Apache License, Version 2.0](LICENSE).
+

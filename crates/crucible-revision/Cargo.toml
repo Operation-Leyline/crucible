@@ -3,6 +3,7 @@ name = "crucible-revision"
 description = "The verified Crucible Git revision the generators were built from"
 version.workspace = true
 edition.workspace = true
+license.workspace = true
 rust-version.workspace = true
 publish.workspace = true
 repository.workspace = true

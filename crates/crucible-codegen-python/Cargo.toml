@@ -3,6 +3,7 @@ name = "crucible-codegen-python"
 description = "Typed synchronous and asynchronous Python clients from Crucible IR"
 version.workspace = true
 edition.workspace = true
+license.workspace = true
 rust-version.workspace = true
 publish.workspace = true
 repository.workspace = true

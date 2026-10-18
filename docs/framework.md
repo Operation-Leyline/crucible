@@ -16,11 +16,11 @@ Crucible is two products:
    and the operation registry.
 
 ```
-leyline-model/      model package: `.cru` sources and crucible.toml
-leyline-service/    service package
-  Cargo.toml          [dependencies] crucible-server-runtime-rust, leyline-model   [build-dependencies] crucible-build
-  build.rs            crucible_build::model("leyline_model").server().generate()
-  src/                impl GetGraphOperation for Leyline { ... }   Crucible::builder()...
+weather-model/      model package: `.cru` sources and crucible.toml
+weather-service/    service package
+  Cargo.toml          [dependencies] crucible-server-runtime-rust, weather-model   [build-dependencies] crucible-build
+  build.rs            crucible_build::model("weather_model").server().generate()
+  src/                impl GetCityOperation for Weather { ... }   Crucible::builder()...
 ```
 
 ## Start with one crate
@@ -91,7 +91,7 @@ The helper compiles the package and keeps a stable compiled model under
 `OUT_DIR`. The service and client depend
 on this package and read it from `DEP_<NAME>_MODEL`, using
 `crucible_build::model("<name>").server()` or `crucible_build::model("<name>").client()`.
-"This service depends on leyline-model 1.4" is an ordinary, version-pinned
+"This service depends on weather-model 1.4" is an ordinary, version-pinned
 Cargo dependency.
 
 For model-owned Rust and Java SDK outputs, compile once with
@@ -131,17 +131,23 @@ The service implements the trait. Grouping is free: one type can implement
 every operation, or one type per resource.
 
 ```rust
-use crate::leyline::{GetGraphInput, GetGraphOperation, GetGraphOutput, ResourceNotFoundException};
+use crate::operations::Weather;
+use crate::weather::{GetCityInput, GetCityOperation, GetCityOutput, NotFoundError};
 use crucible_server_runtime_rust::Result;
 
-impl GetGraphOperation for Leyline {
-    async fn get_graph(&self, input: GetGraphInput) -> Result<GetGraphOutput> {
+impl GetCityOperation for Weather {
+    async fn get_city(&self, input: GetCityInput) -> Result<GetCityOutput> {
         let caller = self.context().attribute::<Principal>();
-        let graph = self.graphs.find(&input.graph_id).await?;          // any error: `?`
-        graph.ok_or_else(|| ResourceNotFoundException {
-            message: "no such graph".into(),
-            resource_id: Some(input.graph_id),
-        }.into())
+        let city = self.cities.get(&input.city_id).await?;          // any error: `?`
+        let city = city.ok_or_else(|| NotFoundError {
+            message: "no such city".into(),
+            resource_id: Some(input.city_id),
+        })?;
+        Ok(GetCityOutput {
+            city,
+            forecast: None,
+            request_id: None,
+        })
     }
 }
 ```
