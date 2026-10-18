@@ -19,14 +19,13 @@ enum Builtin {
     Idempotent,
 }
 
-/// What `when_trait` makes of an id in the built-in namespaces, which no
-/// operation carries as a trait: the retired `smithy.api` ids and their
-/// `crucible.api` spellings select the fact they name, deprecated, and any
+/// What `when_trait` makes of an id in the built-in namespace, which no
+/// operation carries as a trait: the `crucible.api` spellings select the fact they name, deprecated, and any
 /// other built-in id selects nothing. Warned about at construction, not per
 /// request. `None` for a model's own trait.
 fn builtin_trait(id: &str) -> Option<Option<Builtin>> {
     let (namespace, name) = id.split_once('#')?;
-    if namespace != "smithy.api" && namespace != "crucible.api" {
+    if namespace != "crucible.api" {
         return None;
     }
     let (builtin, instead) = match name {
@@ -203,12 +202,14 @@ mod tests {
 
     #[test]
     fn built_in_ids_select_their_facts_or_nothing() {
-        for id in ["smithy.api#readonly", "crucible.api#readonly"] {
-            assert!(matches!(builtin_trait(id), Some(Some(Builtin::Readonly))));
-        }
-        for id in ["smithy.api#idempotent", "crucible.api#idempotent"] {
-            assert!(matches!(builtin_trait(id), Some(Some(Builtin::Idempotent))));
-        }
+        assert!(matches!(
+            builtin_trait("crucible.api#readonly"),
+            Some(Some(Builtin::Readonly))
+        ));
+        assert!(matches!(
+            builtin_trait("crucible.api#idempotent"),
+            Some(Some(Builtin::Idempotent))
+        ));
         assert!(matches!(
             builtin_trait("crucible.api#paginated"),
             Some(None)

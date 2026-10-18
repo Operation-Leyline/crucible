@@ -2,33 +2,33 @@
 
 ## Why not openapi-generator
 
-Leyline and Pigeon both went Smithy → OpenAPI 3.0.2 → openapi-generator. The
-OpenAPI step is lossy, and each loss was patched after generation, by string
+Traditional pipelines often went from an IDL → OpenAPI 3.0.x → openapi-generator. The
+OpenAPI step is lossy, and each loss was frequently patched after generation, by string
 search in the generated source:
 
 | Lost in OpenAPI | Patch it needed |
 |---|---|
-| `@idempotencyToken` | a hand-kept list of 31 operations to inject a token into (the model has 34) |
+| `@idempotencyToken` | a hand-kept list of operations to inject a token into |
 | Integer vs Long | every bare integer widened to int64 |
-| unions | `deny_unknown_fields` added to 13 shapes by name |
-| one error shape per status | a check that refuses two errors on one status (#251) |
-| `@paginated` | nothing: no paginators |
-| custom traits | four side generators reading `model.json` directly |
-| nested constraints, pattern escaping | a 1,073-line fork of the rust-axum models template |
+| unions | `deny_unknown_fields` added to shapes by name |
+| one error shape per status | manual checks or forks refusing two errors on one status |
+| `@paginated` | missing or lossy paginators |
+| custom traits | side generators reading internal ASTs directly |
+| nested constraints, pattern escaping | complex template forks |
 
-On top of that, generated Rust server code was one trait with every operation
-on it (Leyline's `api/mod.rs`, 2,100 lines), and generated clients needed
+On top of that, generated Rust server code was often one monolithic trait with every operation
+on it (thousands of lines in one file), and generated clients needed ad-hoc
 splicing for package metadata.
 
-crucible reads the model itself, so none of those are lost.
+Crucible reads the model itself, so none of those are lost.
 
-## Why not smithy-rs / smithy-typescript
+## Why not other generator frameworks
 
-They are model-native and solve most of the above, but they bring their own
-router and runtimes (`aws-smithy-*`, `@smithy/*`), and customizing them means
-Kotlin/Java decorators against internal APIs. That just moves the patching into
-someone else's framework. Crucible owns one protocol and a shared semantic
-IR, with native emitters and runtimes for the [client language portfolio](clients.md).
+Other generator frameworks often bring their own external routers and heavyweight
+runtimes, and customizing them means deep plugins against internal foreign-language
+APIs. That moves the patching into someone else's framework. Crucible owns a unified
+protocol and a shared semantic IR, with native emitters and lightweight runtimes for
+the [client language portfolio](clients.md).
 
 ## Protocol
 
@@ -154,25 +154,24 @@ consumer's tests, then replaces it.
    one of the operation's errors has it), retries from `@readonly`/
    `@idempotent`/token/`@retryable`, and middleware (the body digest is
    built in, opt-in per package). Inputs type required members as required,
-   so a missing one fails at compile time. Leyline's integ suite is the oracle
-   once it moves to the new client.
-2. **Rust client.** reqwest-based, with the same features. The oracle is
-   `sdk/rust/tests/wire.rs`.
+   so a missing one fails at compile time. Integration test suites verify
+   behavior against live HTTP endpoints.
+2. **Rust client.** reqwest-based, with the same features.
 3. **Rust server.** Became the framework: see [framework.md](framework.md). A
    service depends on its model package, `crucible-build` generates a trait
    per operation in `build.rs`, and the `crucible` crate runs everything
-   around them. Leyline's full model generates and compiles against it. Its
+   around them. Real-world services generate and compile cleanly against it. Its
    own traits reach operation-aware middleware through `OperationInfo::traits` and
-   `OperationMiddlewareExt::when_trait`, replacing Leyline's side generators.
+   `OperationMiddlewareExt::when_trait`.
 
 ## Client API design
 
-Name the public client after the service (`LeylineClient`, for example).
+Name the public client after the service (`WeatherClient`, for example).
 Use the target language's spelling conventions for function-based APIs, such as
 C prefixes and R constructors. Shared runtime types can keep generic names.
 
 Give modeled SDK exceptions a service-wide type named after the service
-(`LeylineException`). Inheritance-based targets extend this type from the
+(`WeatherException`). Inheritance-based targets extend this type from the
 shared `ServiceError` base; unknown and malformed error responses use it too.
 Network, cancellation and other local failures keep their own types.
 Swift uses a service protocol, Go a service interface, R a condition class,

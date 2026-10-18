@@ -149,9 +149,8 @@
     return out;
   }
 
-  // Built-ins are `crucible.api#..`; a describe.json written before the
-  // prelude moved spells them `smithy.api#..`.
-  const isBuiltin = (id) => id.startsWith("crucible.api#") || id.startsWith("smithy.api#");
+  // Built-ins are `crucible.api#..`.
+  const isBuiltin = (id) => id.startsWith("crucible.api#");
   const list = (v) => (Array.isArray(v) ? v : []);
   const names = (map) => Object.keys(map).sort();
 
@@ -776,7 +775,7 @@
   }
 
   function shapeRef(m, id) {
-    return m.shapes[id] && !isBuiltin(id) ? link("shape", id, m.shapes[id].name) : code(id.replace(/^(crucible|smithy)\.api#/, ""));
+    return m.shapes[id] && !isBuiltin(id) ? link("shape", id, m.shapes[id].name) : code(id.replace(/^crucible\.api#/, ""));
   }
 
   // `panels` are the extension hook's containers: Explorer fills them in `start`.

@@ -110,7 +110,7 @@ example service and the integration test. Keep these rules:
   an artificial enclosing model class. Use native collections where the language
   can represent them; preserve omitted/null/value distinctions through internal
   state or an explicit advanced API. Validate examples from an independent consumer.
-  Public clients carry the service name (`LeylineClient`); C uses its configured
+  Public clients carry the service name (`WeatherClient`); C uses its configured
   service prefix. Generic names belong to shared runtime infrastructure.
-- Breaking changes are fine while the only consumers are Leyline and Pigeon.
-  Tag a release and bump them deliberately.
+- Breaking changes follow the 0.x stability policy in `docs/releases.md`.
+  Tag releases and document migrations deliberately.

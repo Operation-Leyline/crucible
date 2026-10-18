@@ -77,7 +77,7 @@ lowering in `.cru`, which the language does not have yet.
 ### Smithy-only features are removed
 
 Crucible's IR, generators and runtimes no longer carry what only a Smithy
-model could reach, because Crucible, Leyline and Pigeon use `.cru`:
+model could reach, because Crucible now uses `.cru` exclusively:
 
 - streaming payloads and event streams (`ByteStream`, `EventStream`),
 - waiters, endpoint rules, host prefixes and endpoint discovery,

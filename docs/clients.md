@@ -2,7 +2,7 @@
 
 [Repository overview](../README.md)
 
-Crucible provides native clients for Leyline's language portfolio. Every emitter
+Crucible provides native clients for a comprehensive language portfolio. Every emitter
 reads the same lowered IR; the language guide explains its public API
 and representation limits.
 
@@ -199,7 +199,7 @@ Rust clients also support automatic generation during Cargo builds through
 [`crucible_build::model("model").client()`](clients/rust.md#generating-a-client).
 
 Each target has `generate <target> --help`. Target identity and endpoint
-configuration are explicit; no runtime checks a Leyline operation name.
+configuration are explicit; no runtime checks a hardcoded operation name.
 
 Native client generation tracks its generated files in `.crucible`. Regeneration
 updates those files and removes obsolete generated files, preserving handwritten
@@ -272,9 +272,9 @@ establish an overall call deadline.
 
 ## Public API conventions
 
-Client types carry the service name: `LeylineClient` for Leyline and
-`WeatherClient` for the example service. C uses its configured service prefix;
-R uses a service-specific constructor following R naming conventions.
+Client types carry the service name: `WeatherClient` for the example service.
+C uses its configured service prefix; R uses a service-specific constructor
+following R naming conventions.
 
 Each client uses its language's normal construction and access patterns. The
 guides demonstrate ordinary values and collections without requiring presence
@@ -344,10 +344,9 @@ authenticated deployed-service workflows; publication. Passing an earlier level
 does not prove a later one. Platform and minimum-version gates are in
 [CI](../.github/workflows/ci.yml) and each language guide.
 
-The private Leyline model is not checked into this repository. Qualification must
-record its source revision, source manifest and model hashes, selected public
+Private consumer models are not checked into this repository. Qualification of
+external models must record source revision, source manifest and model hashes, selected public
 service, protocol adaptation, and operation coverage. Refresh from current source
 before claiming complete coverage; an ignored model left by an earlier build can
-be stale. Leyline's current deployment and Crucible's JSON protocol need
-explicit compatibility checks. Neither a protocol-trait substitution nor a local
+be stale. Neither a protocol-trait substitution nor a local
 package build establishes authenticated deployment compatibility.
