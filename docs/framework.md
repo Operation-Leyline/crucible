@@ -119,7 +119,7 @@ flowchart LR
     end
     subgraph T2["Tier 2: OperationAwareMiddleware"]
         OM1["Route Metadata Known"]
-        OM2["Runs Before Body Decoding"]
+        OM2["Runs Before Model Decoding"]
     end
     subgraph T3["Tier 3: Interceptor"]
         I1["Payload Decoded & Validated"]
@@ -136,7 +136,7 @@ flowchart LR
 | Tier | Trait | Before View | After View | Typical Uses |
 |---|---|---|---|---|
 | **1. Transport** | `Middleware` | `&mut Job` (raw request, operation unknown) | `&mut Job`, `&mut Response` (encoded bytes) | TLS enforcement, CORS, custom response headers, IP allowlists |
-| **2. Route Policy** | `OperationAwareMiddleware` | `&mut OperationJob` (operation metadata known, body unread) | `&mut OperationJob` (outcome available) | Header authentication, rate limiting, route admission, tenant checks |
+| **2. Route Policy** | `OperationAwareMiddleware` | `&mut OperationJob` (operation metadata known, before model decoding/validation) | `&mut OperationJob` (outcome available) | Header authentication, rate limiting, route admission, tenant checks |
 | **3. Invocation** | `Interceptor` | `&mut DecodedJob` (validated input guaranteed) | `&mut OperationJob` (outcome available) | Cross-cutting audit logging, payload encryption, outcome transforms |
 | **4. Typed Hook** | `TypedInterceptor<O>` | `&O::Input`, `&Context` (strongly typed) | `Option<&O::Output>`, `&Context` | Caching operation outputs, operation-specific business metrics |
 
@@ -503,6 +503,11 @@ sequenceDiagram
     Proto-->>M: write(outcome) -> Encoded Response
     M-->>Host: after(Job, &mut Response)
     Note over M: Custom response headers, final status
+    Interceptor-->>OM: complete(OperationJob, &Response)
+    OM-->>M: complete(OperationJob, &Response)
+    Note over Interceptor, OM: Interceptor & operation completion observers
+    M-->>Host: complete(Job, &Response)
+    Note over M: Transport completion observers (Metrics, Logging)
     Host-->>Client: Final Response
 ```
 
