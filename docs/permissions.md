@@ -182,14 +182,12 @@ Handler-side checks have let these slip. Each one is a consequence of
 
 ### 3.4 Leyline
 
-Leyline's model was Smithy only when this survey was taken (the `.smithy`
-files cited below). Its vocabulary is roles at scopes:
+Leyline's authorization vocabulary uses roles at scopes:
 
-- 14 fixed **roles** (`RoleBinding.smithy:76-125`) are bound to principals
+- 14 fixed **roles** (`RoleBinding`) are bound to principals
   (users and API keys) at five **scopes**: organization, allGraphs, graph,
-  allHistories and history (`:49-64`). Roles are public API. "Typed actions
-  are internal implementation detail and audit vocabulary"
-  (`docs/architecture/authorization.md:15-16`).
+  allHistories and history. Roles are public API. "Typed actions
+  are internal implementation detail and audit vocabulary".
 - Handlers ask for one of 30 typed **actions** (`fleet/src/access/policy.rs:7-39`),
   in the form `area:verb` (`graph:read`, `apiKey:manage`). They ask against
   a `Resource`: Organization, Graph(id), History(id) or GraphHistory
@@ -1568,8 +1566,7 @@ Leyline's model is `.cru`. Its steps follow Pigeon's in outline:
 4. Point the audit middleware at `AuthorizationRecord` and delete its path
    table.
 
-The public `AuthorizationAction` enum (`RoleBinding.smithy:127-160`) can
-then be a client projection of the internal registry, or stay as it is.
+The public `AuthorizationAction` enum can then be a client projection of the internal registry, or stay as it is.
 That is Leyline's call.
 
 ## 9. Alternatives considered
@@ -1700,8 +1697,8 @@ service frameworks.
 1. **Implication stays in service policy.** The model supplies only the
    closed set of permissions. Generated per-resource enums make role tables
    exhaustive matches. There is never a `*` permission string.
-   *Rationale:* no API description language encodes implication: Smithy's
-   `aws.iam` traits have no "A implies B" ([Smithy AWS IAM
+   *Rationale:* no API description language encodes implication:
+   AWS IAM policy models have no "A implies B" ([AWS IAM
    traits](https://smithy.io/2.0/aws/aws-iam.html)), and Google keeps
    role bundles, hierarchy inheritance and userset rewrites in IAM
    configuration, updating predefined roles "when Google Cloud adds new
@@ -1723,7 +1720,7 @@ service frameworks.
 2. **The wire `ResourceType` enum stays hand-written, with a bidirectional
    validator; permissions are strings on the wire, and SDK constants are
    open with deprecated aliases** (§4.1, §4.9, §6.3). *Rationale:* AWS
-   derives IAM names with overrides ([Smithy AWS IAM
+   derives IAM names with overrides ([AWS IAM
    traits](https://smithy.io/2.0/aws/aws-iam.html)), but AVP's
    API-derived schemas drift ("When the schema or name of your API changes,
    you must update your policy store", [AVP API-linked policy
@@ -1782,7 +1779,7 @@ service frameworks.
    and OWASP API5 asks to "deny all access by default"
    ([OWASP API5:2023](https://api-security.owasp.org/editions/2023/en/0xa5-broken-function-level-authorization)).
    Pundit detects a forgotten check only at runtime, after the action
-   ([Pundit](https://github.com/varvet/pundit)); no Smithy validator
+   ([Pundit](https://github.com/varvet/pundit)); no built-in validator
    requires `iamAction` coverage ([IamActionValidator](https://raw.githubusercontent.com/smithy-lang/smithy/main/smithy-aws-iam-traits/src/main/java/software/amazon/smithy/aws/iam/traits/IamActionValidator.java)),
    while Stripe holds itself to "Every Stripe API endpoint is included in
    at least one RAK permission" ([Stripe permissions
@@ -1857,7 +1854,7 @@ service frameworks.
    and real APIs need it: Google's `projects.move` checks the current
    parent ([projects.move](https://docs.cloud.google.com/resource-manager/reference/rest/v3/projects/move)).
    AWS keeps the published catalogue complete by declaring
-   service-computed checks too (`serviceResolvedConditionKeys`, [Smithy AWS
+   service-computed checks too (`serviceResolvedConditionKeys`, [AWS
    IAM traits](https://smithy.io/2.0/aws/aws-iam.html)). DRF warns that
    custom views "must call `self.check_object_permissions`" themselves
    ([DRF](https://www.django-rest-framework.org/api-guide/permissions/)),
@@ -1931,7 +1928,7 @@ service frameworks.
     accounts](https://docs.cloud.google.com/compute/docs/access/service-accounts))
     and GitHub ([GitHub app
     permissions](https://docs.github.com/en/apps/creating-github-apps/registering-a-github-app/choosing-permissions-for-a-github-app)).
-    Smithy's auth traits define no scope concept ([Smithy authentication
+    Standard auth traits define no scope concept ([authentication
     traits](https://smithy.io/2.0/spec/authentication-traits.html)), and
     OpenAPI's scope lists cannot name a resource ([OpenAPI
     3.1.1](https://spec.openapis.org/oas/v3.1.1.html)). Stripe's restricted
@@ -1949,8 +1946,8 @@ service frameworks.
     authorize before binding where they can ([ASP.NET
     filters](https://learn.microsoft.com/en-us/aspnet/core/mvc/controllers/filters);
     [AIP-211](https://google.aip.dev/211)), but Crucible's requirements bind
-    input members, so the check runs after decoding, as a smithy-rs model
-    plugin would ([smithy-rs
+    input members, so the check runs after decoding, as a server model
+    plugin would ([server
     middleware](https://smithy-lang.github.io/smithy-rs/design/server/middleware.html));
     model constraints reveal only the schema, while data-dependent
     validation would be an existence oracle. The IETF Idempotency-Key draft
