@@ -696,11 +696,8 @@ fn enum_wire_values_are_checked_for_explicit_and_bare_values_but_not_integers() 
     let found = wire_findings("enum_wire_values = \"camelCase\"\n");
     let shapes: Vec<_> = found.iter().map(|f| f.0.as_str()).collect();
     assert_eq!(shapes, ["example.api#Mode$Done", "example.api#Mode$READY"]);
-    assert_eq!(found[1].2, "enum wire value name `READY` is not camelCase");
-    assert_eq!(
-        found[0].2,
-        "enum wire value name `done_now` is not camelCase"
-    );
+    assert_eq!(found[1].2, "enum wire value `READY` is not camelCase");
+    assert_eq!(found[0].2, "enum wire value `done_now` is not camelCase");
     assert!(
         wire_findings(
             "enum_wire_values = \"SCREAMING_SNAKE_CASE\"\nenum_values = \"SCREAMING_SNAKE_CASE\"\n"
