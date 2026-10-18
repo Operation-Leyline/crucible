@@ -18,8 +18,7 @@ the permissions its resources accept and the permissions each operation
 requires, and how the Rust runtime enforces them through a
 service-supplied `Authorizer`. The implementation plan is §10.
 
-Paths into the consumers are relative to their repositories: Pigeon
-(`sockeye`, `185d36d`), its console `pigeon-web`, and Leyline.
+Paths into the consumers are relative to their repositories: Pigeon, its console `pigeon-web`, and Leyline.
 
 ## 1. The problem
 
@@ -205,9 +204,9 @@ files cited below). Its vocabulary is roles at scopes:
   (`api/history/backups/admission.rs:501`). `ExecuteQuery`'s action
   depends on the query text (`api/execution/query/mod.rs:42-49`).
 - Refusals: a non-member gets **403** (`AccessDeniedException` covers both
-  "no credentials" and "no rights", `shapes/errors.smithy:138-149`).
+  "no credentials" and "no rights").
   Another organization's graph is a **404**, found by looking it up inside
-  the caller's own organization (`errors.smithy:151-158`).
+  the caller's own organization.
 - It uses no OAuth scopes: Crucible has none.
 
 **What this design takes from Leyline.** Actions become permissions on
