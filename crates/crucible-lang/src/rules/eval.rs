@@ -10,7 +10,7 @@ use serde_json::Value as Json;
 use super::metadata::MetaIndex;
 use super::subject::{Class, Entity, Subject, World, parts, prelude_class};
 use super::vocabulary::{TypeIs, type_is};
-use crate::ast::{Expr, ExprKind, Operand, Operator, Path, Ref, Value};
+use crate::ast::{Expr, ExprKind, Ident, Operand, Operator, Path, Ref, Value};
 
 /// A fact the model does not have for this subject, such as the constraints
 /// of a shape no operation reaches. The clause skips the subject rather than
@@ -86,6 +86,7 @@ impl Evaluator<'_, '_> {
                 }
                 if unknown { Err(Unknown) } else { Ok(false) }
             }
+            ExprKind::HasMember { scope, name } => self.has_member(subject, scope.as_ref(), name),
             ExprKind::Addresses(resource) => Ok(match &subject.entity {
                 Entity::Operation(operation) => operation
                     .resource
@@ -149,6 +150,36 @@ impl Evaluator<'_, '_> {
         )
     }
 
+    /// `has member name`, and `input has member name` on an operation.
+    fn has_member(&self, subject: &Subject<'_>, scope: Option<&Ident>, name: &Ident) -> Tri {
+        let holds = |shape: &Shape| match shape {
+            Shape::Structure(s) | Shape::Union(s) => s.members.iter().any(|m| m.name == name.name),
+            _ => false,
+        };
+        match (&subject.entity, scope) {
+            (Entity::Resource { members, .. }, None) => Ok(members.contains(&name.name)),
+            (
+                Entity::Shape {
+                    shape: Some(shape), ..
+                },
+                None,
+            ) => Ok(holds(shape)),
+            // Never lowered: its members were not resolved.
+            (Entity::Shape { shape: None, .. }, None) => Err(Unknown),
+            (Entity::Operation(operation), Some(scope)) => {
+                let body = if scope.name == "input" {
+                    &operation.input
+                } else {
+                    &operation.output
+                };
+                // No body, no members.
+                let Some(id) = body else { return Ok(false) };
+                self.world.service.shapes.get(id).map(holds).ok_or(Unknown)
+            }
+            _ => Ok(false),
+        }
+    }
+
     /// `@token`, `@query`, `@header`, `@payload` and `@deprecated`, which the
     /// IR holds as typed fields.
     fn built_in(&self, subject: &Subject<'_>, name: &str) -> bool {
@@ -182,7 +213,7 @@ impl Evaluator<'_, '_> {
                 .docs
                 .as_deref()
                 .is_some_and(|d| !d.trim().is_empty()),
-            (Entity::Resource { documented }, "documented") => *documented,
+            (Entity::Resource { documented, .. }, "documented") => *documented,
             (Entity::Operation(op), "documented") => {
                 op.docs.as_deref().is_some_and(|d| !d.trim().is_empty())
             }

@@ -17,6 +17,21 @@ version's section when it is prepared.
 
 ### Added
 
+- **`has member <name>` in policy rules** (decision 46 in
+  [docs/idl/decisions.md](docs/idl/decisions.md),
+  [docs/idl/reference.md](docs/idl/reference.md#policy-rules)). A rule can
+  require a member on a structure, union, error or resource
+  (`every resource must has member createdAt`; a resource's identifiers and
+  properties count) and on an operation's body
+  (`every operation where role == creates must input has member clientToken`,
+  `output has member ...`). Using it on any other kind is an error in the
+  rule.
+- **`enum_wire_values` and `enum_wire_values_pattern` in `[rules.naming]`**
+  ([docs/api-policy.md](docs/api-policy.md)). Check the wire value of each
+  string enum value (the explicit `ACTIVE = "active"` value, or the name when
+  bare) against a case or regex, rule id `naming.enum_wire_values`. Integer
+  enums are skipped. The language server completes and documents both keys.
+
 - **A reference per release** (API versions PR 8; decision 79 in
   [docs/idl/decisions.md](docs/idl/decisions.md),
   [docs/api-versions-clients.md](docs/api-versions-clients.md#a-reference-for-each-release)).

@@ -686,3 +686,96 @@ readonly operation Probe {{
     let loose = found("rule C { every member where name == reason must has @header }");
     mentions(&loose, "`Busy.reason` does not satisfy");
 }
+
+#[test]
+fn has_member_reads_a_structures_and_a_resources_members() {
+    clean("rule A { every structure where name == OrderData must has member orderId }");
+    clean("rule B { every resource must has member name or has member count }");
+    // Identifiers and properties both count.
+    clean(
+        "rule C { every resource where name == Order must has member orderId and has member count }",
+    );
+    clean("rule D { every resource must not has member createdAt }");
+    // A child resource carries its parents' identifiers too.
+    clean("rule D2 { every resource where name == Order must has member organizationId }");
+    clean("rule D3 { every resource where name == Organization must not has member orderId }");
+    let found = errors("rule E strict { every resource must has member createdAt }");
+    assert_eq!(found.len(), 2, "{found:#?}");
+    mentions(
+        &found,
+        "`Organization` does not satisfy `must has member createdAt`",
+    );
+    mentions(&found, "`Order` does not satisfy");
+    // The test is by member name, not a prefix.
+    let found = errors("rule F strict { every structure must has member order }");
+    mentions(&found, "`OrderData` does not satisfy");
+}
+
+#[test]
+fn has_member_reads_an_error_and_a_union() {
+    let model = format!(
+        "{}\nerror Busy {{ status 429\n reason: Name }}\nunion Pick {{ a: Name\n b: Count }}\nstructure PickHolder {{ pick: Pick }}\n@class(read)\nreadonly operation Probe {{ http GET \"/probe\"\n output {{ holder: PickHolder }}\n errors [Busy] }}\n",
+        MODEL.replace("operations [Ping]", "operations [Ping, Probe]")
+    );
+    let found = |policy: &str| messages(&compiled_with(&model, policy), true);
+    assert!(found("rule A { every error must has member reason }").is_empty());
+    assert!(found("rule B { every union must has member b }").is_empty());
+    mentions(
+        &found("rule C { every error must has member nope }"),
+        "`Busy` does not satisfy",
+    );
+    mentions(
+        &found("rule D { every union must has member c }"),
+        "`Pick` does not satisfy",
+    );
+}
+
+#[test]
+fn has_member_reads_an_operations_input_and_output() {
+    // Ping has no input at all; GetOrder returns `order`.
+    clean("rule A { every operation where name == PutOrderNote must input has member note }");
+    clean("rule B { every operation where name == GetOrder must output has member order }");
+    clean("rule C { every operation where @class == read must not input has member note }");
+    let found = errors("rule D strict { every operation must input has member note }");
+    assert_eq!(found.len(), 2, "{found:#?}");
+    mentions(
+        &found,
+        "`Ping` does not satisfy `must input has member note`",
+    );
+    mentions(&found, "`GetOrder`");
+    let found = errors("rule E strict { every operation must output has member order }");
+    assert_eq!(found.len(), 2, "{found:#?}");
+    assert!(
+        !found.iter().any(|m| m.contains("`GetOrder`")),
+        "{found:#?}"
+    );
+}
+
+#[test]
+fn has_member_is_refused_where_it_cannot_read() {
+    mentions(
+        &errors("rule A { every operation must has member name }"),
+        "`has member` does not apply to an operation",
+    );
+    mentions(
+        &errors("rule B { every enum must has member red }"),
+        "`has member` does not apply to an enum",
+    );
+    mentions(
+        &errors("rule C { every member must has member name }"),
+        "`has member` does not apply to a member",
+    );
+    mentions(
+        &errors("rule D { every structure must input has member name }"),
+        "`input has member` reads an operation's body, not a structure",
+    );
+    mentions(
+        &errors("rule E { every resource must output has member name }"),
+        "`output has member` reads an operation's body, not a resource",
+    );
+    // The word after `input has` must be `member`.
+    assert!(!errors("rule F { every operation must input has name }").is_empty());
+    // `has length` and `has @key` still read as before.
+    clean("rule G { every list must has length }");
+    clean("rule H { every operation must has @class }");
+}

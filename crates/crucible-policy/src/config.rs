@@ -117,6 +117,7 @@ impl Config {
                 ("shapes_pattern", &rule.shapes_pattern),
                 ("members_pattern", &rule.members_pattern),
                 ("enum_values_pattern", &rule.enum_values_pattern),
+                ("enum_wire_values_pattern", &rule.enum_wire_values_pattern),
             ] {
                 let Some(pattern) = pattern else { continue };
                 naming_pattern(&pattern.value).map_err(|error| {

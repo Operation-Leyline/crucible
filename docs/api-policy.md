@@ -18,6 +18,7 @@ operations = "PascalCase"
 shapes = "PascalCase"
 members = "camelCase"
 enum_values = "SCREAMING_SNAKE_CASE"
+enum_wire_values = "camelCase"
 operations_pattern = "(Get|List|Create|Update|Delete)[A-Z].*"
 
 [rules.paths]
@@ -130,7 +131,7 @@ or as a table naming its value and severity:
 | Group | Options |
 |---|---|
 | `rules` | `namespaces`: exact namespaces to check; empty defaults to the selected service's namespace |
-| `rules.naming` | `operations`, `shapes`, `members`, `enum_values`: optional casing conventions; corresponding `*_pattern` fields add whole-name Rust regex checks |
+| `rules.naming` | `operations`, `shapes`, `members`, `enum_values`, `enum_wire_values`: optional casing conventions (`enum_values` checks the value's name; `enum_wire_values` checks what goes on the wire for string enums: the explicit `ACTIVE = "active"` value, or the name when bare; integer enums are skipped); corresponding `*_pattern` fields add whole-name Rust regex checks |
 | `rules.paths` | `prefix`: absolute literal path with segment-boundary matching; `segment_case` checks literals; `parameter_case` checks labels |
 | `rules.documentation` | `targets`: any of `service`, `operations`, `shapes`, `members`, `errors`, `enums`; empty means no documentation checks |
 | `rules.examples` | `operations`, `errors`: an `example` on each operation, and one showing each error the operation declares; both default to true, and the group's severity defaults to `"warning"` |

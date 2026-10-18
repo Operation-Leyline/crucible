@@ -9,7 +9,7 @@ use super::metadata::{MetaIndex, MetaTy, applies_to};
 use super::subject::World;
 use super::vocabulary::{
     BUILT_IN, FLAGS, Kind, PathType, built_in_applies, flag_applies, flags_for, has_applies,
-    path_type, type_is,
+    has_member_applies, path_type, type_is,
 };
 use crate::ast::{Expr, ExprKind, Operand, Operator, Path, Ref, Value};
 use crate::diagnostic::Diagnostic;
@@ -42,6 +42,29 @@ impl Checker<'_, '_> {
             ExprKind::HasOneOf(references) => {
                 for reference in references {
                     self.has(kind, reference);
+                }
+            }
+            ExprKind::HasMember { scope, name } => {
+                if name.name.is_empty() {
+                    return;
+                }
+                match scope {
+                    Some(scope) if kind != Kind::Operation => self.error(
+                        expression.span,
+                        format!(
+                            "`{} has member` reads an operation's body, not {}",
+                            scope.name,
+                            kind.indefinite()
+                        ),
+                    ),
+                    None if !has_member_applies(kind) => self.error(
+                        expression.span,
+                        format!(
+                            "`has member` does not apply to {}: it reads the members of a structure, union, error or resource; an operation takes `input has member` or `output has member`",
+                            kind.indefinite()
+                        ),
+                    ),
+                    _ => {}
                 }
             }
             ExprKind::Addresses(resource) => {

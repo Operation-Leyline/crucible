@@ -42,6 +42,7 @@ pub const RULE_IDS: &[&str] = &[
     "naming.operations",
     "naming.members",
     "naming.enums",
+    "naming.enum_wire_values",
     "paths.prefix",
     "paths.segments",
     "paths.parameters",

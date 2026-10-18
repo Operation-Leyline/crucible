@@ -576,6 +576,12 @@ pub enum ExprKind {
     HasOneOf(Vec<Ref>),
     /// `has length`, `has @operationClass`
     Has(Ref),
+    /// `has member createdAt`, or with a scope, `input has member clientToken`.
+    HasMember {
+        /// `input` or `output`, for an operation's body.
+        scope: Option<Ident>,
+        name: Ident,
+    },
     /// `addresses Organization`
     Addresses(Ident),
     /// A bare path is a flag: `readonly`, `paginated`.
