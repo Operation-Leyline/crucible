@@ -10,7 +10,7 @@ use crucible_ir::ir::{Constraints, Member, Operation, Service, Shape, SimpleKind
 
 use super::Inputs;
 use super::vocabulary::Kind;
-use crate::ast::{Decl, Item, MemberKind};
+use crate::ast::{Decl, Item, MemberKind, ResourceEntryKind};
 use crate::span::Span;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -204,6 +204,8 @@ pub(super) struct World<'a> {
     pub service: &'a Service,
     roles: BTreeMap<String, String>,
     parents: BTreeMap<String, Option<String>>,
+    /// Each resource's own identifiers; a child also answers to its parents'.
+    identifiers: BTreeMap<String, Vec<String>>,
     pub subjects: Vec<Subject<'a>>,
 }
 
@@ -213,6 +215,7 @@ impl<'a> World<'a> {
         let own = |file: usize| inputs.namespaces.get(file).is_some_and(|ns| ns == package);
         let mut roles = BTreeMap::new();
         let mut parents = BTreeMap::new();
+        let mut identifiers = BTreeMap::new();
         let mut declared: BTreeMap<String, (usize, &Item)> = BTreeMap::new();
         for (file, parsed) in inputs.parsed.iter().enumerate() {
             for item in &parsed.file.items {
@@ -223,6 +226,15 @@ impl<'a> World<'a> {
                         }
                     }
                     Decl::Resource(resource) => {
+                        identifiers.insert(
+                            resource.name.name.clone(),
+                            resource
+                                .entries
+                                .iter()
+                                .filter(|e| e.kind == ResourceEntryKind::Id)
+                                .map(|e| e.name.name.clone())
+                                .collect::<Vec<_>>(),
+                        );
                         parents.insert(
                             resource.name.name.clone(),
                             resource.parent.as_ref().map(|p| p.name.clone()),
@@ -240,10 +252,35 @@ impl<'a> World<'a> {
             service: inputs.service,
             roles,
             parents,
+            identifiers,
             subjects: Vec::new(),
         };
         world.collect(inputs, &declared);
         world
+    }
+
+    /// A resource's identifiers and properties, and the identifiers it
+    /// inherits from the resources it is in.
+    fn resource_members(&self, name: &str, decl: &Decl) -> Vec<String> {
+        let mut members: Vec<String> = match decl {
+            Decl::Resource(resource) => resource
+                .entries
+                .iter()
+                .map(|entry| entry.name.name.clone())
+                .collect(),
+            _ => Vec::new(),
+        };
+        let mut seen = vec![name];
+        let mut current = self.parents.get(name).and_then(|p| p.as_deref());
+        while let Some(parent) = current {
+            if seen.contains(&parent) {
+                break;
+            }
+            seen.push(parent);
+            members.extend(self.identifiers.get(parent).into_iter().flatten().cloned());
+            current = self.parents.get(parent).and_then(|p| p.as_deref());
+        }
+        members
     }
 
     fn collect(&mut self, inputs: &Inputs<'a>, resources: &BTreeMap<String, (usize, &Item)>) {
@@ -264,14 +301,7 @@ impl<'a> World<'a> {
             subjects.push(Subject {
                 entity: Entity::Resource {
                     documented: has_text(item),
-                    members: match &item.decl {
-                        Decl::Resource(resource) => resource
-                            .entries
-                            .iter()
-                            .map(|entry| entry.name.name.clone())
-                            .collect(),
-                        _ => Vec::new(),
-                    },
+                    members: self.resource_members(name, &item.decl),
                 },
                 name: name.clone(),
                 display: name.clone(),

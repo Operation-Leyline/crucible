@@ -1816,7 +1816,6 @@ impl<'s> Parser<'s> {
         if self.at_word("has")
             && self.at_word_ahead(1, "member")
             && self.kind(2) == Some(TokenKind::Ident)
-            && !RULE_WORDS.contains(&self.text(2))
         {
             self.pos += 2;
             let name = self.ident("a member name");

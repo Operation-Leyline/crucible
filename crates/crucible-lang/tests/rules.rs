@@ -696,6 +696,9 @@ fn has_member_reads_a_structures_and_a_resources_members() {
         "rule C { every resource where name == Order must has member orderId and has member count }",
     );
     clean("rule D { every resource must not has member createdAt }");
+    // A child resource carries its parents' identifiers too.
+    clean("rule D2 { every resource where name == Order must has member organizationId }");
+    clean("rule D3 { every resource where name == Organization must not has member orderId }");
     let found = errors("rule E strict { every resource must has member createdAt }");
     assert_eq!(found.len(), 2, "{found:#?}");
     mentions(
