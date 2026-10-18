@@ -3,6 +3,7 @@ name = "crucible-auth"
 description = "Opt-in JWT/OIDC verification and model-driven authenticator chains"
 version.workspace = true
 edition.workspace = true
+license.workspace = true
 # jsonwebtoken 11 needs 1.88.
 rust-version = "1.88"
 publish.workspace = true

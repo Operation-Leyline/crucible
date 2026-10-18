@@ -3,6 +3,7 @@ name = "crucible-build"
 description = "Compile Crucible language packages and generate services, client SDKs, documents, infrastructure and CLI outputs from Cargo builds"
 version.workspace = true
 edition.workspace = true
+license.workspace = true
 rust-version.workspace = true
 publish.workspace = true
 repository.workspace = true

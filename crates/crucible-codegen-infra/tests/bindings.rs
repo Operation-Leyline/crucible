@@ -63,6 +63,18 @@ fn resolves_nested_outputs_and_effective_member_constraints() {
     assert!(city.cdk.as_ref().unwrap().context["secretArn"].required);
 }
 
+/// Bindings written before the prelude moved name a built-in context type
+/// `smithy.api#String`; they read as the `crucible.api` one (decision 62c).
+#[test]
+fn a_retired_prelude_context_target_reads_as_the_current_one() {
+    let mut value = bindings();
+    value["resources"]["example.weather#City"]["cdk"]["context"]["secretArn"]["target"] =
+        json!("smithy.api#String");
+    let plan = resolve(&weather(), &serde_json::from_value(value).unwrap()).unwrap();
+    let context = &plan.resources[0].cdk.as_ref().unwrap().context["secretArn"];
+    assert_eq!(context.target.to_string(), "crucible.api#String");
+}
+
 #[test]
 fn bad_paths_and_unbound_resources_are_collected() {
     let service = weather();

@@ -3,6 +3,7 @@ name = "crucible-codegen"
 description = "Shared native package, schema and infrastructure generation"
 version.workspace = true
 edition.workspace = true
+license.workspace = true
 rust-version.workspace = true
 publish.workspace = true
 repository.workspace = true

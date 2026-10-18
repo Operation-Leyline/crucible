@@ -3,6 +3,7 @@ name = "crucible-cli"
 description = "The crucible command: check and generate from a Crucible model"
 version.workspace = true
 edition.workspace = true
+license.workspace = true
 rust-version.workspace = true
 publish.workspace = true
 repository.workspace = true

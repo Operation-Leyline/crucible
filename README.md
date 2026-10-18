@@ -86,7 +86,7 @@ then compare API revisions in CI with `crucible diff`. See
 [API policy and compatibility](docs/api-policy.md) for setup, configuration,
 exceptions, and the shared GitHub workflow.
 
-Download the starter zip from the matching [Crucible release](releases),
+Download the starter zip from the matching [Crucible release](https://github.com/Operation-Leyline/crucible/releases),
 extract it, and open the folder in your IDE. Run `src/main.rs`, then send the
 request in `hello.http`. Rust and Cargo are the prerequisites.
 

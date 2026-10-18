@@ -20,7 +20,7 @@ weather-model/      model package: `.cru` sources and crucible.toml
 weather-service/    service package
   Cargo.toml          [dependencies] crucible-server-runtime-rust, weather-model   [build-dependencies] crucible-build
   build.rs            crucible_build::model("weather_model").server().generate()
-  src/                impl GetCurrentWeatherOperation for Weather { ... }   Crucible::builder()...
+  src/                impl GetCityOperation for Weather { ... }   Crucible::builder()...
 ```
 
 ## Start with one crate
@@ -131,17 +131,23 @@ The service implements the trait. Grouping is free: one type can implement
 every operation, or one type per resource.
 
 ```rust
-use crate::weather::{GetCurrentWeatherInput, GetCurrentWeatherOperation, GetCurrentWeatherOutput, ResourceNotFoundException};
+use crate::operations::Weather;
+use crate::weather::{GetCityInput, GetCityOperation, GetCityOutput, NotFoundError};
 use crucible_server_runtime_rust::Result;
 
-impl GetCurrentWeatherOperation for WeatherService {
-    async fn get_current_weather(&self, input: GetCurrentWeatherInput) -> Result<GetCurrentWeatherOutput> {
+impl GetCityOperation for Weather {
+    async fn get_city(&self, input: GetCityInput) -> Result<GetCityOutput> {
         let caller = self.context().attribute::<Principal>();
-        let city = self.cities.find(&input.city_id).await?;          // any error: `?`
-        city.ok_or_else(|| ResourceNotFoundException {
-            message: "no such graph".into(),
-            resource_id: Some(input.graph_id),
-        }.into())
+        let city = self.cities.get(&input.city_id).await?;          // any error: `?`
+        let city = city.ok_or_else(|| NotFoundError {
+            message: "no such city".into(),
+            resource_id: Some(input.city_id),
+        })?;
+        Ok(GetCityOutput {
+            city,
+            forecast: None,
+            request_id: None,
+        })
     }
 }
 ```

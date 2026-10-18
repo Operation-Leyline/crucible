@@ -50,8 +50,10 @@ pub struct MemberPath {
 #[serde(deny_unknown_fields)]
 pub struct PropertyBinding {
     pub source: Option<MemberPath>,
-    /// Only provider context may declare a type without a model member.
-    #[serde(default)]
+    /// Only provider context may declare a type without a model member. A
+    /// built-in spelled `smithy.api#String`, as bindings written before the
+    /// prelude moved spell it, reads as `crucible.api#String`.
+    #[serde(default, deserialize_with = "current_prelude")]
     pub target: Option<ShapeId>,
     #[serde(default)]
     pub required: bool,
@@ -66,6 +68,12 @@ pub struct PropertyBinding {
     pub timestamp_format: Option<String>,
     /// Provider constraints may narrow the API's accepted lengths.
     pub length: Option<Length>,
+}
+
+fn current_prelude<'de, D: serde::Deserializer<'de>>(
+    deserializer: D,
+) -> Result<Option<ShapeId>, D::Error> {
+    Ok(Option::<ShapeId>::deserialize(deserializer)?.map(ShapeId::with_current_prelude))
 }
 
 #[derive(Debug, Clone, Deserialize)]

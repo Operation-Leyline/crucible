@@ -3,6 +3,7 @@ name = "crucible-server-runtime-rust"
 description = "The Rust server runtime for APIs modelled in Crucible: phased pipeline, context, protocols, validation, errors, service log, hosting"
 version.workspace = true
 edition.workspace = true
+license.workspace = true
 rust-version.workspace = true
 publish.workspace = true
 repository.workspace = true

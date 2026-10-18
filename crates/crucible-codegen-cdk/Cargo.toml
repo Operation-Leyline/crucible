@@ -3,6 +3,7 @@ name = "crucible-codegen-cdk"
 description = "Jsii-compatible CDK construct emitter for crucible resources"
 version.workspace = true
 edition.workspace = true
+license.workspace = true
 rust-version.workspace = true
 publish.workspace = true
 repository.workspace = true
