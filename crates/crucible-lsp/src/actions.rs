@@ -72,4 +72,52 @@ mod tests {
         assert_eq!(similar_types("strng", &index), ["string"]);
         assert!(similar_types("Zzzzzz", &index).is_empty());
     }
+
+    #[test]
+    fn test_similar_types_edge_cases() {
+        let parsed = crucible_lang::parse(
+            "structure ExactMatch {}\nstructure SameSize {}\nstructure A {}\nstructure ABCDE {}\n",
+        );
+        let index = Index::new(std::slice::from_ref(&parsed));
+
+        // Exact match but different case
+        assert_eq!(similar_types("exactmatch", &index), ["ExactMatch"]);
+
+        // Empty string
+        // Note: distance("", "a") = 1, and limit for "" is 1.
+        // So `similar_types("", ...)` will match any type of length 1!
+        assert_eq!(similar_types("", &index), ["A"]);
+
+        // Limits. `name.chars().count() / 3`.
+        // Length 1..=5: limit 1
+        assert_eq!(similar_types("a", &index), ["A"]); // length 1
+        assert_eq!(similar_types("b", &index), ["A"]); // length 1, dist 1
+
+        // Let's test boundary cases
+        // 5 / 3 = 1 -> Limit 1
+        // (note: "ABCDE" == name will be filtered out because candidate == name!)
+        assert!(similar_types("ABCDE", &index).is_empty()); // Exact match is filtered out!
+        assert_eq!(similar_types("abcde", &index), ["ABCDE"]); // Match different case
+        assert_eq!(similar_types("xBCDE", &index), ["ABCDE"]); // Dist 1
+        assert!(similar_types("xyCDE", &index).is_empty()); // Dist 2 > Limit 1
+
+        // Length 6: limit 2 (6 / 3 = 2)
+        // Let's check "ABCDEF" with distance 2 to "ABCDE" (deletion + substitution or 2 insertions/deletions)
+        assert_eq!(similar_types("ABCDEF", &index), ["ABCDE"]); // Dist 1
+        assert_eq!(similar_types("xBCDEF", &index), ["ABCDE"]); // Dist 2 (x->A, F deleted)
+        assert!(similar_types("xyCDEF", &index).is_empty()); // Dist 3 > Limit 2
+    }
+
+    #[test]
+    fn test_edit_distance() {
+        assert_eq!(edit_distance("", ""), 0);
+        assert_eq!(edit_distance("a", ""), 1);
+        assert_eq!(edit_distance("", "a"), 1);
+        assert_eq!(edit_distance("abc", "abc"), 0);
+        assert_eq!(edit_distance("abc", "ab"), 1); // deletion
+        assert_eq!(edit_distance("ab", "abc"), 1); // insertion
+        assert_eq!(edit_distance("abc", "axc"), 1); // substitution
+        assert_eq!(edit_distance("hello", "world"), 4);
+        assert_eq!(edit_distance("café", "cafe"), 1); // unicode
+    }
 }
