@@ -44,7 +44,7 @@
     "access": "restricted"
   },
   "crucible": {
-    "version": "0.7.0",
+    "version": "0.8.0",
     "service": "example.weather#Weather",
     "serviceVersion": "2026-10-01"
   }

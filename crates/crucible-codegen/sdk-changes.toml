@@ -27,3 +27,69 @@ id = 2
 languages = ["ts"]
 kind = "breaking"
 summary = "Document integers outside the safe range decode as bigint, Document admits bigint, and stringifyJson takes an optional space."
+
+[[change]]
+id = 3
+languages = ["rust"]
+kind = "patch"
+summary = "Client-side validation names a sensitive map key as [key] in violation paths, and compares an integer member with a fractional or exponent range bound exactly."
+
+[[change]]
+id = 4
+languages = ["rust"]
+kind = "additive"
+summary = "The runtime adds Document, a permissions module, validate::{Violations, MAX_VIOLATIONS} with Rejection::new and Validator::sensitive, and pagination, idempotency-token, permission and sender descriptions on Operation, ServiceInfo and OperationInfo."
+
+[[change]]
+id = 5
+languages = ["rust", "ts", "python", "go", "java", "kotlin", "csharp", "swift", "dart", "php", "ruby", "cpp", "c", "r"]
+kind = "patch"
+summary = "Model text with line separators, a BOM, control or bidi characters, comment terminators, @-led lines or CRLF no longer breaks generated code: comments normalise it, doc tools read no stray tags, and string literals escape it."
+
+[[change]]
+id = 6
+languages = ["rust", "ts", "python", "go"]
+kind = "patch"
+summary = "A modelled Content-Type member outranks the payload's media type, which outranks default headers; Rust and TypeScript clients no longer follow redirects."
+
+[[change]]
+id = 7
+languages = ["rust", "ts", "python", "go", "java", "kotlin", "csharp", "swift", "dart", "php", "ruby", "cpp", "c", "r"]
+kind = "additive"
+summary = "A model with typed permissions gives the client open per-resource permission types with deprecated alias constants and a canonical mapping, a PERMISSIONS registry, and operation docs and a bundled schema that state the public requirements."
+
+[[change]]
+id = 8
+languages = ["java", "kotlin", "csharp", "swift", "dart", "php", "ruby", "cpp", "c", "r"]
+kind = "patch"
+summary = "A modelled Content-Type member outranks the payload's media type, which outranks default headers; C# sends a modelled Content-Type as given."
+
+[[change]]
+id = 9
+languages = ["rust"]
+kind = "breaking"
+summary = "validate::Rejection's violations field is private: read violations() or into_violations(), and build one with Rejection::new."
+
+[[change]]
+id = 10
+languages = ["rust"]
+kind = "patch"
+summary = "The client reads a structure only from a JSON object, and a null structure or union payload as the member's null."
+
+[[change]]
+id = 11
+languages = ["rust", "ts", "python", "go", "java", "kotlin", "csharp", "swift", "dart", "php", "ruby", "cpp", "c", "r"]
+kind = "breaking"
+summary = "Crucible JSON is the only protocol; streaming payloads, event streams, waiters, endpoint rules, non-bearer authentication, HTTP checksums and, outside Rust and TypeScript, the content_sha256 option are gone from clients and runtimes."
+
+[[change]]
+id = 12
+languages = ["rust", "ts", "python", "go", "java", "kotlin", "csharp", "swift", "dart", "php", "ruby", "cpp", "c", "r"]
+kind = "patch"
+summary = "Doc comments render a model's [Name] links as links in the language's own form; the Rust client's docs follow the service's docs without a blank line."
+
+[[change]]
+id = 13
+languages = ["rust", "ts", "python", "go", "java", "kotlin", "csharp", "swift", "dart", "php", "ruby", "cpp", "c", "r"]
+kind = "patch"
+summary = "Every package carries a generated README.md and AGENTS.md with a call snippet, and doc-tool configuration where it had none; the Python and C# package metadata name the README."

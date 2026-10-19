@@ -384,7 +384,7 @@ check_required_components(weather_client)
 
 === crucible.json ===
 {
-  "generatorVersion": "0.7.0",
+  "generatorVersion": "0.8.0",
   "service": "example.weather#Weather",
   "serviceVersion": "2026-10-01",
   "packageVersion": "0.0.0",
