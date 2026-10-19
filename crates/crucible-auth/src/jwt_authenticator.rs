@@ -219,7 +219,7 @@ impl JwtAuthenticator {
         max_age: std::time::Duration,
     ) -> Option<Arc<DecodingKey>> {
         let cache = self.cache.read().expect("JWKS cache lock");
-        if !cache.pinned && !cache.fetched.is_some_and(|time| time.elapsed() < max_age) {
+        if !cache.pinned && cache.fetched.is_none_or(|time| time.elapsed() >= max_age) {
             return None;
         }
         cache

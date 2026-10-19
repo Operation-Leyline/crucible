@@ -76,7 +76,7 @@ mod tests {
     #[test]
     fn test_similar_types_edge_cases() {
         let parsed = crucible_lang::parse(
-            "structure ExactMatch {}\nstructure SameSize {}\nstructure A {}\nstructure ABCDE {}\n"
+            "structure ExactMatch {}\nstructure SameSize {}\nstructure A {}\nstructure ABCDE {}\n",
         );
         let index = Index::new(std::slice::from_ref(&parsed));
 

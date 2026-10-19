@@ -4134,7 +4134,7 @@ impl<'a> Lowerer<'a> {
                     member_span,
                     Some(&entry.ty),
                     found.file,
-                    !optional && !(representation && entry.optional),
+                    !(*optional || representation && entry.optional),
                     None,
                     doc,
                 )

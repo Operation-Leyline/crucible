@@ -715,7 +715,7 @@ impl<'a> Sampler<'a> {
             return json!(0);
         }
         let within = |d: &Decimal| {
-            !min.as_ref().is_some_and(|m| d < m) && !max.as_ref().is_some_and(|m| m < d)
+            min.as_ref().is_none_or(|m| d >= m) && max.as_ref().is_none_or(|m| m >= d)
         };
         let base = match (&min, &max) {
             _ if within(&Decimal::new(15, 1)) => Decimal::new(15, 1),
