@@ -29,6 +29,8 @@ changes around `FrameworkError`, `Principal`, `OperationMetadata` and
 
 ### Added
 
+- **An Apache-2.0 licence.** The repository carries `LICENSE`, and every crate
+  declares `license = "Apache-2.0"`.
 - **`has member <name>` in policy rules** (decision 46 in
   [docs/idl/decisions.md](docs/idl/decisions.md),
   [docs/idl/reference.md](docs/idl/reference.md#policy-rules)). A rule can
@@ -1131,12 +1133,6 @@ changes around `FrameworkError`, `Principal`, `OperationMetadata` and
 - `McpAuthenticator` accepts an `aud` sent as a one-member array holding the
   MCP resource, which RFC 7519 makes equivalent to the string. A token for
   several audiences is still refused.
-
-- The documentation, CDK, Terraform and Explorer generators need a `.cru`
-  package with resource lowering (decision 63), which the language does not
-  have yet. Their resource-dependent tests are `#[ignore]`d until it lands,
-  and `generate docs`, `cdk` and `terraform` refuse a `.cru` package for now.
-  Their goldens are kept.
 
 ### Deprecated
 
