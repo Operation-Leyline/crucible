@@ -1,10 +1,10 @@
 # Your first Rust service
 
-Start from the `hello-service-v0.3.0.zip` asset on the matching
+Start from the `hello-service-v<version>.zip` asset on the matching
 [Crucible release](https://github.com/Operation-Leyline/crucible/releases).
 Extract it and open `hello-service` in RustRover. Let Cargo finish loading,
 then run `src/main.rs`. The server prints `Listening on http://127.0.0.1:8080`.
-You need Rust and GitHub read access to Crucible; nothing else is installed.
+You need Rust; nothing else is installed.
 A terminal can run `cargo run` too.
 
 Open `hello.http` and send the first request. The result is HTTP 200:
