@@ -112,9 +112,8 @@ itself; there is no CLI, JVM or runtime to install first.
 
 **Start from the template.** The
 [Crucible service template](https://github.com/Operation-Leyline/crucible-service-template)
-is a complete project: a `.cru` model with a frozen release and compatibility
-checks, a Rust service with working handlers for an `Item` resource, generated
-Rust and Java SDKs with independent client apps, and CI workflows. Select
+is a ready-to-use project: a `.cru` model with an API policy, a Rust service
+with working handlers for an `Item` resource, an OpenAPI export, and CI. Select
 **[Use this template](https://github.com/Operation-Leyline/crucible-service-template/generate)**
 on GitHub, or:
 
@@ -126,7 +125,10 @@ cargo run
 ```
 
 Then send the requests in `service/requests.http` from your IDE. The
-template's README covers the layout, the clients and how to grow the model.
+template's README covers the layout and how to make it yours. For a fuller
+project with frozen API releases, migrations, and generated Rust and Java SDKs
+with consumer apps, see the
+[service example](https://github.com/Operation-Leyline/crucible-service-example).
 
 **Start smaller.** For a single-crate hello-world service, download
 `hello-service-v<version>.zip` from the
@@ -215,7 +217,9 @@ producing several named SDKs from one workspace, and
 | [API versions](docs/api-versions.md) | Frozen releases, compatibility guards and versioned clients |
 | [Stability](docs/stability.md) · [Migrating](docs/migrating.md) · [Changelog](CHANGELOG.md) | What is stable and how to upgrade |
 
-The [weather example](e2e/) is a complete model, service and client tested over
+The [service example](https://github.com/Operation-Leyline/crucible-service-example)
+is a standalone project with API releases and SDK consumers. The
+[weather example](e2e/) is a complete model, service and client tested over
 HTTP, laid out the way the framework guide recommends.
 
 ## Status
