@@ -107,36 +107,31 @@ handler that needs to change.
 
 ## Quick start
 
-You need [Rust](https://rustup.rs) 1.85 or newer.
+You need [Rust](https://rustup.rs) 1.85 or newer. Cargo fetches Crucible
+itself; there is no CLI, JVM or runtime to install first.
 
-**From a starter.** Download `hello-service-v<version>.zip` from the
-[latest release](https://github.com/Operation-Leyline/crucible/releases/latest),
-extract it, and run it:
+**Start from the template.** The
+[Crucible service template](https://github.com/Operation-Leyline/crucible-service-template)
+is a complete project: a `.cru` model with a frozen release and compatibility
+checks, a Rust service with working handlers for an `Item` resource, generated
+Rust and Java SDKs with independent client apps, and CI workflows. Select
+**[Use this template](https://github.com/Operation-Leyline/crucible-service-template/generate)**
+on GitHub, or:
 
 ```sh
-cd hello-service
+gh repo create my-api --template Operation-Leyline/crucible-service-template --clone
+cd my-api
 cargo run
 # Listening on http://127.0.0.1:8080
-curl -s localhost:8080/hello -H 'content-type: application/json' -d '{"name":"World"}'
-# {"message":"Hello, World!"}
 ```
 
-`hello.http` holds the same requests for your IDE. The
-[quick start](docs/quickstart.md) walks through the project layout, changing
-the model and adding an operation.
+Then send the requests in `service/requests.http` from your IDE. The
+template's README covers the layout, the clients and how to grow the model.
 
-**With the CLI.** Install the `crucible` executable from a release tag (it is
-not published to crates.io; `crucible-cli` there is an unrelated crate):
-
-```sh
-cargo install --git https://github.com/Operation-Leyline/crucible --tag v0.7.0 crucible-cli --locked
-
-crucible new my-service              # a Rust service
-crucible new my-client --client      # a Rust client library
-crucible check model                 # compile and check a model package
-```
-
-A starter is one Cargo crate. Its whole build script is:
+**Start smaller.** For a single-crate hello-world service, download
+`hello-service-v<version>.zip` from the
+[latest release](https://github.com/Operation-Leyline/crucible/releases/latest)
+and follow the [quick start](docs/quickstart.md). Its whole build script is:
 
 ```rust
 fn main() {
@@ -144,6 +139,18 @@ fn main() {
         .policy("crucible.toml")
         .generate();
 }
+```
+
+**Install the CLI** to scaffold packages and generate non-Rust clients. Install
+it from a release tag; it is not published to crates.io, where `crucible-cli`
+is an unrelated crate:
+
+```sh
+cargo install --git https://github.com/Operation-Leyline/crucible --tag v0.7.0 crucible-cli --locked
+
+crucible new my-service              # a single-crate Rust service
+crucible new my-client --client      # a Rust client library
+crucible check model                 # compile and check a model package
 ```
 
 ## Clients
