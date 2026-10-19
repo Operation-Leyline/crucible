@@ -12,7 +12,7 @@ tag.
 
 | From | To | CHANGELOG | Section |
 |---|---|---|---|
-| 0.7.x | next | [Unreleased](../CHANGELOG.md#unreleased) | [Unreleased](#unreleased) |
+| 0.7.x | 0.8.0 | [0.8.0](../CHANGELOG.md#080---2026-10-18) | [0.7.0 to 0.8.0](#070-to-080) |
 | 0.6.x | 0.7.0 | [0.7.0](../CHANGELOG.md#070---2026-10-12) | [0.6.0 to 0.7.0](#060-to-070) |
 | 0.5.x | 0.6.0 | [0.6.0](../CHANGELOG.md#060---2026-10-12) | [0.5.0 to 0.6.0](#050-to-060) |
 | 0.4.x | 0.5.0 | [0.5.0](../CHANGELOG.md#050---2026-10-11) | [0.4.0 to 0.5.0](#040-to-050) |
@@ -20,9 +20,9 @@ tag.
 | 0.2.x | 0.3.0 | [0.3.0](../CHANGELOG.md#030---2026-10-07) | [0.2.0 to 0.3.0](#020-to-030) |
 | 0.1.x | 0.2.0 | [0.2.0](../CHANGELOG.md#020---2026-10-06) | [0.1.0 to 0.2.0](#010-to-020) |
 
-## Unreleased
+## 0.7.0 to 0.8.0
 
-The [CHANGELOG](../CHANGELOG.md#unreleased) *Migration* section is the
+The [CHANGELOG](../CHANGELOG.md#080---2026-10-18) *Migration* section is the
 authority. Code that has to change: code that constructs or exhaustively
 destructures `crucible_auth::Principal` or `OperationMetadata`, code that
 matches `FrameworkError` without a wildcard arm, and code that reads, builds
@@ -70,9 +70,13 @@ of the Smithy sources, and drop `smithy-build.json`, the Gradle build, the
 line, `check`, `generate`, `scaffold` and `diff` take a package directory (a
 `crucible.toml` with a `[model]` table). `@crucible.auth#scopes`, `rename`,
 timestamp defaults, enum `mediaType` and 2xx error statuses have no `.cru`
-form; remove them from the model.
-The documentation, CDK, Terraform and Explorer generators need resource
-lowering in `.cru`, which the language does not have yet.
+form; remove them from the model. Remove `smithy` from `crucible-build`'s
+`features` (it was a default feature) and drop `Model::compile_with` and
+`try_compile_with` calls. Model-declared scopes go with
+`@crucible.auth#scopes`: `ScopeEnforcer`, `ScopelessPolicy`,
+`OperationMetadata::{scopes, service_scopes}` and
+`Operation::{SCOPES, SERVICE_SCOPES}` are removed, so check token scopes in an
+`Interceptor` or use typed permissions.
 
 ### Smithy-only features are removed
 
@@ -168,7 +172,11 @@ query traits fails with `@X is not supported: XML and query serialization
 are gone`. Declare
 `@crucible.protocols#json` and bind each operation with `@http`. Drop
 `.protocol(..)`, `.conformance()`, `--protocol` and `crucible conformance`
-from build scripts and CI. Release snapshots are format 2; format 1
+from build scripts and CI. In Rust, replace `RestJsonProtocol`,
+`AwsJsonProtocol`, `RpcV2JsonProtocol` and `RpcV2CborProtocol` with
+`JsonProtocol`, and drop uses of `operation::Protocol`,
+`Operation::PROTOCOL`, `OperationMetadata::protocol`, the CBOR methods and
+`include_conformance!`. Release snapshots are format 2; format 1
 snapshots of Crucible JSON services still read, others are refused.
 
 ### `FrameworkError` is non-exhaustive, with `Conflict`, `NotFound` and `PermissionDenied`
