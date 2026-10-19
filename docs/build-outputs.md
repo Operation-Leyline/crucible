@@ -69,7 +69,7 @@ an application workspace.
 
 Use the same pinned Crucible revision for the CLI, build helpers, framework,
 and Rust runtime. The generated Cargo manifest pins its runtime automatically to
-the generator's Crucible revision. The [service template](https://github.com/Operation-Leyline/crucible-service-template)
+the generator's Crucible revision. The [service example](https://github.com/Operation-Leyline/crucible-service-example)
 demonstrates a model producer, complete Rust and Java SDK packages, and server
 bindings generated directly inside the service crate.
 
