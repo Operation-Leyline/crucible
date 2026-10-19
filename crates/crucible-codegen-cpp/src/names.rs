@@ -202,4 +202,33 @@ mod tests {
             assert_eq!(super::field(name), format!("{name}_value"));
         }
     }
+
+    #[test]
+    fn validates_identifiers() {
+        assert!(super::identifier("foo"));
+        assert!(super::identifier("foo_bar"));
+        assert!(super::identifier("foo123"));
+        assert!(super::identifier("XMLHTTPRequest"));
+
+        assert!(!super::identifier("123foo"));
+        assert!(!super::identifier("_foo")); // value.starts_with(|c: char| c.is_ascii_alphabetic())
+        assert!(!super::identifier("foo-bar"));
+        assert!(!super::identifier("foo bar"));
+        assert!(!super::identifier("foo__bar"));
+        assert!(!super::identifier("class")); // keyword
+        assert!(!super::identifier("NULL")); // reserved
+        assert!(!super::identifier(""));
+    }
+
+    #[test]
+    fn sanitizes_field_names() {
+        assert_eq!(super::field("fooBar"), "foo_bar");
+        assert_eq!(super::field("FooBar"), "foo_bar");
+        assert_eq!(super::field("XMLHTTPRequest"), "xmlhttp_request");
+        assert_eq!(super::field("foo123Bar"), "foo123_bar");
+        assert_eq!(super::field("class"), "class_value");
+        assert_eq!(super::field("_unknown"), "member_unknown");
+        assert_eq!(super::field("__foo__"), "member_u_foo_u_");
+        assert_eq!(super::field("metadata"), "metadata_value");
+    }
 }
