@@ -12,8 +12,8 @@ a separate SDK producer consuming a model dependency, see
 `java` feature and configure package coordinates per output. Use
 `.generate_into("../target/java-sdk")` to export automatically during the model
 build, then consume the package through a Gradle composite build. The
-[service template](https://github.com/Operation-Leyline/crucible-service-template)
-includes a Gradle wrapper and runnable Java example. `crucible export-artifact` and
+[service example](https://github.com/Operation-Leyline/crucible-service-example)
+includes a Gradle wrapper and a runnable Kotlin consumer of the Java SDK. `crucible export-artifact` and
 direct CLI generation also remain supported:
 
 Use your service's `.cru` package directory as described in [preparing a model](../clients.md#preparing-a-model).

@@ -1,29 +1,196 @@
-# crucible
+# Crucible
 
-Crucible generates a Rust service, native client SDKs, and infrastructure
-packages from a `.cru` model.
-It provides a shared model layer that preserves HTTP bindings,
-unions, modeled errors, defaults, pagination, and idempotency tokens.
+[![CI](https://github.com/Operation-Leyline/crucible/actions/workflows/ci.yml/badge.svg)](https://github.com/Operation-Leyline/crucible/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/Operation-Leyline/crucible?sort=semver)](https://github.com/Operation-Leyline/crucible/releases)
+[![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 
-The service framework provides validation, a phased request pipeline, error
-translation, logging, and HTTP or Lambda hosting. The Rust server supports
-Crucible JSON. Client runtimes provide
-transport, authentication, retries, and pagination using each language's APIs.
-Public clients carry the service name, such as `WeatherClient`. Requests use
-native values, collections, and language-appropriate builders or constructors;
-ordinary calls do not require presence wrappers.
+**A contract-first API framework.** Describe your API once in a `.cru` model,
+implement it on a fast Rust server runtime, and generate native clients in 14
+languages, OpenAPI, reference docs, a service CLI, and infrastructure packages
+from the same contract.
+
+```mermaid
+flowchart LR
+    model["model/*.cru"] --> ir["Crucible IR"]
+    ir --> server["Rust service bindings"]
+    server --> runtime["crucible-server-runtime-rust<br/>HTTP · Lambda"]
+    ir --> clients["Clients<br/>Rust · TypeScript · Python · Go · Java · C#<br/>Kotlin · Swift · Dart · PHP · Ruby · C++ · C · R"]
+    ir --> docs["OpenAPI 3.1 · API reference"]
+    ir --> tools["Service CLI · CDK · Terraform"]
+```
+
+Every generator reads the same lowered model, so nullability, constraints, HTTP
+bindings, errors, pagination and timestamp formats mean the same thing on the
+server and in every client.
+
+## What it looks like
+
+A model:
+
+```
+/// A greeting service.
+service HelloService {
+    version "1"
+    protocol json
+    operations [SayHello]
+    errors [ValidationException, InternalServerException, UnknownOperationException]
+}
+
+/// Return a greeting for the supplied name.
+operation SayHello {
+    http POST "/hello" -> 200
+
+    input {
+        name: string { length 1.. }
+    }
+
+    output {
+        message: string
+    }
+}
+```
+
+The handler you write. Input is already deserialized and validated; an empty
+`name` never reaches it and the caller gets a modeled `ValidationException`
+(HTTP 400):
+
+```rust
+impl SayHelloOperation for Service {
+    async fn say_hello(&self, input: SayHelloInput) -> Result<SayHelloOutput> {
+        Ok(SayHelloOutput {
+            message: format!("Hello, {}!", input.name),
+        })
+    }
+}
+```
+
+And the host:
+
+```rust
+crucible_server_runtime_rust::include_service!();
+
+let service = Crucible::builder(hello_service::operations(Arc::new(Service)))
+    .protocol(JsonProtocol)
+    .build()?;
+crucible_server_runtime_rust::host::http_on(service, listener).await
+```
+
+Generation runs in `build.rs`, so editing the model and running `cargo build`
+is the whole loop. Rename an output member and the compiler points at the
+handler that needs to change.
+
+## Features
+
+- **The Crucible language.** Services, resources with lifecycle roles,
+  operations, structures, unions, enums, modeled errors, defaults, constraints,
+  pagination, idempotency tokens, examples and custom metadata, with
+  diagnostics that list every problem in one run.
+  [Language reference](docs/idl/reference.md)
+- **A Rust server framework.** A phased request pipeline, validation, error
+  translation, structured logging, metrics, deadlines, middleware and typed
+  interceptors, page tokens, idempotency receipts, typed permissions, and
+  bearer/JWT/API-key auth. Hosts on HTTP or AWS Lambda.
+  [Framework guide](docs/framework.md)
+- **Idiomatic clients.** Public clients carry your service's name
+  (`WeatherClient`), take native values and collections, and ship with a
+  bundled runtime for transport, retries, auth and pagination.
+  [Clients](#clients)
+- **More from the same model.** OpenAPI 3.1, a human-readable API reference,
+  a standalone service CLI, AWS CDK constructs, a Terraform/OpenTofu provider,
+  an MCP endpoint, and a local API explorer.
+- **API governance.** Build-time naming and documentation rules in
+  `crucible.toml`, `crucible diff` for breaking-change checks in CI, and frozen
+  API releases with per-version clients.
+  [API policy](docs/api-policy.md) · [API versions](docs/api-versions.md)
+- **Editor support.** `crucible-lsp` gives `.cru` files and `crucible.toml`
+  diagnostics, completion, navigation, rename, formatting and quick fixes.
+  Prebuilt binaries are on the
+  [releases page](https://github.com/Operation-Leyline/crucible/releases);
+  the [IntelliJ plugin](https://github.com/Operation-Leyline/crucible-intellij)
+  bundles it for RustRover and IntelliJ IDEA.
+
+## Quick start
+
+You need [Rust](https://rustup.rs) 1.85 or newer (1.88 if you add
+`crucible-auth`). Cargo fetches Crucible itself; there is no JVM or other
+runtime to install.
+
+**Start from the template.** The
+[Crucible service template](https://github.com/Operation-Leyline/crucible-service-template)
+is a ready-to-use project: a `.cru` model with an API policy, a Rust service
+with working handlers for an `Item` resource, an OpenAPI export, and CI. Select
+**[Use this template](https://github.com/Operation-Leyline/crucible-service-template/generate)**
+on GitHub, or:
+
+```sh
+gh repo create my-api --template Operation-Leyline/crucible-service-template --private --clone
+cd my-api
+cargo run
+# Listening on http://127.0.0.1:8080
+```
+
+Then send the requests in `service/requests.http` from your IDE. The
+template's README covers the layout and how to make it yours. For a fuller
+project with frozen API releases, migrations, and generated Rust and Java SDKs
+with consumer apps, see the
+[service example](https://github.com/Operation-Leyline/crucible-service-example).
+
+**Start smaller with the CLI.** The `crucible` executable scaffolds packages
+and generates non-Rust clients. It is not on crates.io (`crucible-cli` there is
+an unrelated crate), so install it from this repository. The latest release,
+v0.7.0, predates the `.cru` language, so install from `main` until the next
+release:
+
+```sh
+cargo install --git https://github.com/Operation-Leyline/crucible crucible-cli --locked
+
+crucible new hello-service           # a single-crate Rust service
+crucible new my-client --client      # a Rust client library
+crucible check model                 # compile and check a model package
+```
+
+`crucible new` pins the generated project to the commit the CLI was built
+from. The service is one crate, and its whole build script is:
+
+```rust
+fn main() {
+    crucible_build::model("model")
+        .server()
+        .explorer()
+        .policy("crucible.toml")
+        .generate();
+}
+```
+
+`cd hello-service && cargo run`, then send the requests in `hello.http`. The
+[quick start](docs/quickstart.md) walks through the project, changing the
+model and adding an operation.
 
 ## Clients
 
+Generate a client from a model package (a directory with a `crucible.toml`
+beside the `.cru` sources):
+
+```sh
+crucible check model --target ts
+crucible generate ts model \
+  --out generated/weather --package-name @example/weather \
+  --endpoint https://api.example.com
+```
+
+`crucible generate <language> --help` lists each target's options. Generation
+records the files it owns, keeps handwritten files, and removes obsolete ones,
+so regenerating is always safe.
+
 | Language | Generated package | Guide |
 |---|---|---|
-| Rust | Complete Cargo SDK with automatic runtime dependency | [Rust](docs/clients/rust.md) |
-| TypeScript / JavaScript | Fetch-based ESM package | [TypeScript](docs/clients/typescript.md) |
+| Rust | Cargo SDK with its runtime dependency | [Rust](docs/clients/rust.md) |
+| TypeScript / JavaScript | Fetch-based ESM package, no dependencies | [TypeScript](docs/clients/typescript.md) |
 | Python | HTTPX package with sync and async clients | [Python](docs/clients/python.md) |
 | Go | Go module using `net/http` | [Go](docs/clients/go.md) |
 | Java | Java 17 Gradle / Maven package | [Java](docs/clients/java.md) |
 | C# | .NET 8 NuGet project | [C#](docs/clients/csharp.md) |
-| Kotlin | JVM / Android Maven package with coroutines | [Kotlin](docs/clients/kotlin.md) |
+| Kotlin | JVM / Android package with coroutines | [Kotlin](docs/clients/kotlin.md) |
 | Swift | Swift package for Linux and Apple platforms | [Swift](docs/clients/swift.md) |
 | Dart | Native VM and browser package | [Dart](docs/clients/dart.md) |
 | PHP | Composer package | [PHP](docs/clients/php.md) |
@@ -32,139 +199,75 @@ ordinary calls do not require presence wrappers.
 | C | C17 CMake package | [C](docs/clients/c.md) |
 | R | R source package | [R](docs/clients/r.md) |
 
-Each guide covers generation, installation, model types, runtime behavior,
-limits, and validation. [Client setup and conformance](docs/clients.md) defines
-the common model preparation and retry contract. Generation and local HTTP
-tests are separate from package publication and authenticated deployment proof.
+[Client setup and conformance](docs/clients.md) covers model preparation and
+the shared retry contract; [build outputs](docs/build-outputs.md) covers
+producing several named SDKs from one workspace, and
+[SDK packaging](docs/sdk-packaging.md) covers publishing them.
 
-For a workspace producing several SDKs, see [building named SDK packages](docs/build-outputs.md).
-Compile once in the model package or generate in a separate SDK package from
-its model dependency. Rust applications consume a Cargo SDK package; Java
-applications consume the exported Maven package.
+## Other outputs
 
-## Generate a client
+| Output | Command | Guide |
+|---|---|---|
+| OpenAPI 3.1 | `crucible generate openapi` | [OpenAPI](docs/openapi.md) |
+| API reference (mdBook) | `crucible generate docs` | [Reference docs](docs/docs.md) |
+| Service CLI | `crucible generate cli` | [Service CLI](docs/clients/cli.md) |
+| AWS CDK constructs | `crucible generate cdk` | [Infrastructure](docs/infrastructure.md) |
+| Terraform / OpenTofu provider | `crucible generate terraform` | [Infrastructure](docs/infrastructure.md) |
+| MCP tools on your service | `.mcp()` in `build.rs`, then on the runtime builder | [MCP](docs/mcp.md) |
+| Local API explorer | `.explorer()` in `build.rs`, then on the runtime builder | [Explorer](docs/explorer.md) |
 
-Install the CLI from a pinned Crucible checkout, then run it from your service's
-model project:
+`crucible generate cli` builds against a local Crucible checkout
+(`--runtime-path`), and CDK and Terraform need deployment bindings
+(`--bindings`); each guide shows the full setup.
 
-```sh
-cargo install --path crates/crucible-cli --locked
-# From your model project:
-crucible check model --target ts
-crucible generate ts model \
-  --out generated/weather --package-name @example/weather \
-  --endpoint https://api.example.com --middleware content-sha256
-```
+## Documentation
 
-`model` is your package directory: a `crucible.toml` with a `[model]` table
-beside the `.cru` sources. See
-[preparing a model](docs/clients.md#preparing-a-model).
-Use `generate <target> --help` for the options of another language. Generation
-records the files it owns in `.crucible`, preserves handwritten files and native
-build directories, and removes obsolete generated files. Change the model or
-generator and regenerate.
+| Start here | |
+|---|---|
+| [Quick start](docs/quickstart.md) | Your first service, end to end |
+| [Framework guide](docs/framework.md) | Architecture, request lifecycle, service layout, middleware recipes, testing, hosting |
+| [Language reference](docs/idl/reference.md) | The `.cru` grammar, checks, permissions and policy rules |
+| [Design and protocol](docs/design.md) | The model-to-IR pipeline and the Crucible JSON wire rules |
+| [Authentication](docs/auth.md) · [Permissions](docs/permissions.md) · [Idempotency](docs/idempotency-receipts.md) | Built-in security and reliability features |
+| [API versions](docs/api-versions.md) | Frozen releases, compatibility guards and versioned clients |
+| [Stability](docs/stability.md) · [Migrating](docs/migrating.md) · [Changelog](CHANGELOG.md) | What is stable and how to upgrade |
 
-## Generate infrastructure packages
+The [service example](https://github.com/Operation-Leyline/crucible-service-example)
+is a standalone project with API releases and SDK consumers. The
+[weather example](e2e/) is a complete model, service and client tested over
+HTTP, laid out the way the framework guide recommends.
 
-`crucible generate cdk` emits jsii-compatible CDK constructs. `crucible generate
-terraform` emits a Terraform/OpenTofu provider for explicitly supported resource
-lifecycles. Both use shared resource metadata and validated deployment
-bindings. See [infrastructure generation](docs/infrastructure.md) for examples,
-language packages, supported subsets, and migration checks.
+## Status
 
-## Generate a service CLI
+Crucible is `0.x`. Patch releases never break the
+[documented stable surface](docs/stability.md); a minor release may, but only
+with a [migration](docs/migrating.md) entry and, for most changes, a
+`#[deprecated]` shim kept for one minor. See the
+[stability policy](docs/releases.md#stability-policy-for-0x). Pin the runtime
+and `crucible-build` to the same release and upgrade them together.
 
-`crucible generate cli` creates a standalone Rust executable backed by the
-generated SDK. It supports typed flags, JSON input, profiles, shell completion,
-and pagination. See the [service CLI guide](docs/clients/cli.md) for generation,
-configuration, output conventions, and independent executable tests.
+Crucible's crates are not yet on crates.io; services depend on this repository by git,
+which `crucible new` sets up for you.
 
-## Build a service
+## Contributing
 
-Crucible provides a high-performance, contract-first Rust server runtime. See the comprehensive **[Crucible Framework Guide](docs/framework.md)** for architecture overviews, visual Mermaid lifecycle diagrams, opinionated service layouts, custom middleware recipes, and production built-ins (structured logging, metrics, idempotency, page tokens, and fine-grained permissions).
-
-Configure build-time naming, path, and documentation rules in `crucible.toml`,
-then compare API revisions in CI with `crucible diff`. See
-[API policy and compatibility](docs/api-policy.md) for setup, configuration,
-exceptions, and the shared GitHub workflow.
-
-Download the starter zip from the matching [Crucible release](https://github.com/Operation-Leyline/crucible/releases),
-extract it, and open the folder in your IDE. Run `src/main.rs`, then send the
-request in `hello.http`. Rust and Cargo are the prerequisites.
-
-New starters are one Cargo crate with a `crucible.toml` policy. Their complete
-build script is:
-
-```rust
-fn main() {
-    crucible_build::model("model").server()
-        .policy("crucible.toml")
-        .generate();
-}
-```
-
-Edit `model/hello.cru` and `src/operations/service/say_hello.rs`. Cargo
-validates the model and regenerates the contract when the model changes.
-The Rust server depends on `crucible-server-runtime-rust`. Include the generated
-API at crate root: a `.cru` `HelloService` produces `hello_service`, exposing
-its models, exceptions and operation traits directly.
-The starter declares modeled validation and internal errors, and returns
-HTTP 400 for invalid requests. See [the quick start](docs/quickstart.md) for
-editor integration, version pins, and adding an operation.
-
-To create another package name from this checkout:
+Issues and pull requests are welcome. Before changing code, read
+[`AGENTS.md`](AGENTS.md) for crate boundaries, conventions and the full test
+commands, and [`docs/framework.md`](docs/framework.md) or
+[`docs/design.md`](docs/design.md) for the area you are touching.
 
 ```sh
-cargo run -p crucible-cli -- new my-service
+cargo fmt --all
+cargo clippy --all-targets -- -D warnings
+cargo test
+CRUCIBLE_BLESS=1 cargo test   # rewrite golden files after an intended output change
 ```
 
-For a Rust client library with the same build setup, use
-`crucible new my-client --client`. Its build script calls
-`crucible_build::model("model").client()` and selects the same policy hook.
-Shared model crates
-can compile and publish their contract with
-`crucible_build::model("model").publish()`. See the
-[Rust client guide](docs/clients/rust.md#generating-a-client).
-
-The [framework guide](docs/framework.md) explains model packages, generated
-operation traits, middleware, interceptors, errors, and hosting. The [weather example](e2e/)
-contains a model package, a service, and a Rust client tested over HTTP.
-
-Crucible is `0.x`; see the [CHANGELOG](CHANGELOG.md) and the
-[migration guide](docs/migrating.md) before updating a service's runtime and
-generator pins. A minor release may break the documented stable surface only
-with a Migration entry and a one-minor `#[deprecated]` shim (a removal may skip
-the shim only when its Migration entry names it); patch releases never break it
-([stability policy](docs/releases.md#stability-policy-for-0x), [runtime surface](docs/stability.md)).
-
-See [design and protocol](docs/design.md) for the `.cru`-to-IR pipeline and
-wire rules, and [agent instructions](AGENTS.md) for repository boundaries and
-development commands.
-
-Export a model's contract as an OpenAPI 3.1 document:
-
-```sh
-cargo run -p crucible-cli -- generate openapi model.json --out openapi.json --endpoint https://api.example.com
-```
-
-See [OpenAPI generation](docs/openapi.md) for supported bindings and diagnostics.
-
-Generate a human-readable service reference directly from the IR with
-`crucible generate docs model.json --out generated/reference`. See
-[service API reference documentation](docs/docs.md) for mdBook output,
-audiences, protocol support, and the stable `describe.json` contract.
-
-## Release Crucible
-
-PRs run Rust checks, core HTTP integration, and affected Linux consumers.
-The complete language, OS, and runtime-version matrix runs when manually
-releasing a new Crucible version. See [version releases](docs/releases.md)
-for the version-bump PR and GitHub tag/release procedure.
-Each release has a [CHANGELOG](CHANGELOG.md) entry, which the release tooling
-requires. GitHub releases provide source archives; package registry publication
-is separate.
+Generated output is checked in under `crates/*/tests/golden/`, so a generator
+change shows up as a golden diff for review. Changes to the stable surface need
+a [`CHANGELOG.md`](CHANGELOG.md) entry. Release procedure is in
+[docs/releases.md](docs/releases.md).
 
 ## License
 
 Crucible is licensed under the [Apache License, Version 2.0](LICENSE).
-

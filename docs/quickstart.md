@@ -1,11 +1,18 @@
 # Your first Rust service
 
-Start from the `hello-service-v0.3.0.zip` asset on the matching
-[Crucible release](https://github.com/Operation-Leyline/crucible/releases).
-Extract it and open `hello-service` in RustRover. Let Cargo finish loading,
-then run `src/main.rs`. The server prints `Listening on http://127.0.0.1:8080`.
-You need Rust and GitHub read access to Crucible; nothing else is installed.
-A terminal can run `cargo run` too.
+Create the starter with the `crucible` CLI. It is not on crates.io, so install
+it from this repository (v0.7.0 predates the `.cru` language, so use `main`
+until the next release):
+
+```sh
+cargo install --git https://github.com/Operation-Leyline/crucible crucible-cli --locked
+crucible new hello-service
+```
+
+Each release also attaches the same starter as `hello-service-v<version>.zip`.
+Open `hello-service` in RustRover. Let Cargo finish loading, then run
+`src/main.rs`. The server prints `Listening on http://127.0.0.1:8080`. You need
+only Rust; Cargo fetches Crucible. A terminal can run `cargo run` too.
 
 Open `hello.http` and send the first request. The result is HTTP 200:
 
