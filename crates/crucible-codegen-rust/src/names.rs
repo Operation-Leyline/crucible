@@ -358,9 +358,20 @@ mod tests {
 
         assert_eq!(module("GetCity"), "get_city");
         assert_eq!(file_stem("GetCity"), "get_city");
+    }
 
+    #[test]
+    fn test_escape_identifier() {
+        // Keywords prepended with `r#`
         assert_eq!(escape_identifier("type"), "r#type");
-        assert_eq!(escape_identifier("self_"), "self_");
+        assert_eq!(escape_identifier("match"), "r#match");
+        assert_eq!(escape_identifier("gen"), "r#gen");
+        assert_eq!(escape_identifier("try"), "r#try");
+        assert_eq!(escape_identifier("async"), "r#async");
+
+        // Regular identifiers remain unchanged
         assert_eq!(escape_identifier("city"), "city");
+        assert_eq!(escape_identifier("my_var"), "my_var");
+        assert_eq!(escape_identifier("foo123"), "foo123");
     }
 }
