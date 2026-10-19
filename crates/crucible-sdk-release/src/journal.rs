@@ -152,4 +152,9 @@ mod tests {
         .unwrap();
         assert!(Journal::load(dir.path()).is_err());
     }
+
+    #[test]
+    fn now_is_after_epoch() {
+        assert!(super::now() > 1_700_000_000);
+    }
 }
