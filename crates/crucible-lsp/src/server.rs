@@ -2056,7 +2056,10 @@ fn normalize(path: &Path) -> PathBuf {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use lsp_types::{ClientCapabilities, ReferenceClientCapabilities, TextDocumentClientCapabilities, WorkDoneProgressParams};
+    use lsp_types::{
+        ClientCapabilities, ReferenceClientCapabilities, TextDocumentClientCapabilities,
+        WorkDoneProgressParams,
+    };
 
     fn default_params() -> InitializeParams {
         #[allow(deprecated)]
