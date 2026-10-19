@@ -104,11 +104,16 @@ handler that needs to change.
   [API policy](docs/api-policy.md) · [API versions](docs/api-versions.md)
 - **Editor support.** `crucible-lsp` gives `.cru` files and `crucible.toml`
   diagnostics, completion, navigation, rename, formatting and quick fixes.
+  Prebuilt binaries are on the
+  [releases page](https://github.com/Operation-Leyline/crucible/releases);
+  the [IntelliJ plugin](https://github.com/Operation-Leyline/crucible-intellij)
+  bundles it for RustRover and IntelliJ IDEA.
 
 ## Quick start
 
-You need [Rust](https://rustup.rs) 1.85 or newer. Cargo fetches Crucible
-itself; there is no CLI, JVM or runtime to install first.
+You need [Rust](https://rustup.rs) 1.85 or newer (1.88 if you add
+`crucible-auth`). Cargo fetches Crucible itself; there is no JVM or other
+runtime to install.
 
 **Start from the template.** The
 [Crucible service template](https://github.com/Operation-Leyline/crucible-service-template)
@@ -118,7 +123,7 @@ with working handlers for an `Item` resource, an OpenAPI export, and CI. Select
 on GitHub, or:
 
 ```sh
-gh repo create my-api --template Operation-Leyline/crucible-service-template --clone
+gh repo create my-api --template Operation-Leyline/crucible-service-template --private --clone
 cd my-api
 cargo run
 # Listening on http://127.0.0.1:8080
@@ -130,30 +135,36 @@ project with frozen API releases, migrations, and generated Rust and Java SDKs
 with consumer apps, see the
 [service example](https://github.com/Operation-Leyline/crucible-service-example).
 
-**Start smaller.** For a single-crate hello-world service, download
-`hello-service-v<version>.zip` from the
-[latest release](https://github.com/Operation-Leyline/crucible/releases/latest)
-and follow the [quick start](docs/quickstart.md). Its whole build script is:
+**Start smaller with the CLI.** The `crucible` executable scaffolds packages
+and generates non-Rust clients. It is not on crates.io (`crucible-cli` there is
+an unrelated crate), so install it from this repository. The latest release,
+v0.7.0, predates the `.cru` language, so install from `main` until the next
+release:
+
+```sh
+cargo install --git https://github.com/Operation-Leyline/crucible crucible-cli --locked
+
+crucible new hello-service           # a single-crate Rust service
+crucible new my-client --client      # a Rust client library
+crucible check model                 # compile and check a model package
+```
+
+`crucible new` pins the generated project to the commit the CLI was built
+from. The service is one crate, and its whole build script is:
 
 ```rust
 fn main() {
-    crucible_build::model("model").server()
+    crucible_build::model("model")
+        .server()
+        .explorer()
         .policy("crucible.toml")
         .generate();
 }
 ```
 
-**Install the CLI** to scaffold packages and generate non-Rust clients. Install
-it from a release tag; it is not published to crates.io, where `crucible-cli`
-is an unrelated crate:
-
-```sh
-cargo install --git https://github.com/Operation-Leyline/crucible --tag v0.7.0 crucible-cli --locked
-
-crucible new my-service              # a single-crate Rust service
-crucible new my-client --client      # a Rust client library
-crucible check model                 # compile and check a model package
-```
+`cd hello-service && cargo run`, then send the requests in `hello.http`. The
+[quick start](docs/quickstart.md) walks through the project, changing the
+model and adding an operation.
 
 ## Clients
 
@@ -202,8 +213,12 @@ producing several named SDKs from one workspace, and
 | Service CLI | `crucible generate cli` | [Service CLI](docs/clients/cli.md) |
 | AWS CDK constructs | `crucible generate cdk` | [Infrastructure](docs/infrastructure.md) |
 | Terraform / OpenTofu provider | `crucible generate terraform` | [Infrastructure](docs/infrastructure.md) |
-| MCP tools on your service | `.mcp()` in `build.rs` | [MCP](docs/mcp.md) |
-| Local API explorer | `.explorer()` in `build.rs` | [Explorer](docs/explorer.md) |
+| MCP tools on your service | `.mcp()` in `build.rs`, then on the runtime builder | [MCP](docs/mcp.md) |
+| Local API explorer | `.explorer()` in `build.rs`, then on the runtime builder | [Explorer](docs/explorer.md) |
+
+`crucible generate cli` builds against a local Crucible checkout
+(`--runtime-path`), and CDK and Terraform need deployment bindings
+(`--bindings`); each guide shows the full setup.
 
 ## Documentation
 
