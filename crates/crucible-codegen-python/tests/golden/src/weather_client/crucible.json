@@ -1,5 +1,5 @@
 {
-  "generatorVersion": "0.7.0",
+  "generatorVersion": "0.8.0",
   "service": "example.weather#Weather",
   "serviceVersion": "2026-10-01",
   "schemaSha256": "9379592842216079b1cc7329f3ccd3afbbb74e5471c5a0c328208dc77518c88a"

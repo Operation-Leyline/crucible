@@ -137,12 +137,10 @@ with consumer apps, see the
 
 **Start smaller with the CLI.** The `crucible` executable scaffolds packages
 and generates non-Rust clients. It is not on crates.io (`crucible-cli` there is
-an unrelated crate), so install it from this repository. The latest release,
-v0.7.0, predates the `.cru` language, so install from `main` until the next
-release:
+an unrelated crate), so install it from a release tag:
 
 ```sh
-cargo install --git https://github.com/Operation-Leyline/crucible crucible-cli --locked
+cargo install --git https://github.com/Operation-Leyline/crucible --tag v0.8.0 crucible-cli --locked
 
 crucible new hello-service           # a single-crate Rust service
 crucible new my-client --client      # a Rust client library

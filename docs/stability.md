@@ -157,8 +157,6 @@ constructing them.
 
 The built-in protocols are `JsonProtocol` and `InvokeProtocol`. The `protocol`
 module documents the interface types used by custom protocol implementations.
-The wire metadata enum `operation::Protocol` is separate from the server's
-`Protocol` trait and is non-exhaustive.
 
 `host::{run, serve}` select or configure the host. `host::{http, http_on,
 http_on_until}` serve HTTP with the `http` feature; `host::{lambda, lambda_event}`

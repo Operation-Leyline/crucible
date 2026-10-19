@@ -15,8 +15,22 @@ version's section when it is prepared.
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-10-18
+
+Crucible is now `.cru`-only and public under Apache-2.0. The Smithy front
+end, the features only Smithy models could reach, and every wire protocol
+except Crucible JSON are removed; a Smithy model converts once (see
+*Migration*). API versions gain a reference and upgrade guide per release,
+one SDK line per release, and older releases served as the current model
+sees them. Policy rules can require members (`has member`) and check enum
+wire values. Read *Migration* before upgrading: most services need small
+changes around `FrameworkError`, `Principal`, `OperationMetadata` and
+`Rejection`.
+
 ### Added
 
+- **An Apache-2.0 licence.** The repository carries `LICENSE`, and every crate
+  declares `license = "Apache-2.0"`.
 - **`has member <name>` in policy rules** (decision 46 in
   [docs/idl/decisions.md](docs/idl/decisions.md),
   [docs/idl/reference.md](docs/idl/reference.md#policy-rules)). A rule can
@@ -1120,12 +1134,6 @@ version's section when it is prepared.
   MCP resource, which RFC 7519 makes equivalent to the string. A token for
   several audiences is still refused.
 
-- The documentation, CDK, Terraform and Explorer generators need a `.cru`
-  package with resource lowering (decision 63), which the language does not
-  have yet. Their resource-dependent tests are `#[ignore]`d until it lands,
-  and `generate docs`, `cdk` and `terraform` refuse a `.cru` package for now.
-  Their goldens are kept.
-
 ### Deprecated
 
 - `{OperationMiddlewareExt, InterceptorExt, ProtocolExt}::when_trait` with
@@ -2076,7 +2084,7 @@ version's section when it is prepared.
   (as it already could not in a body); client code that matched
   `Field::Value(Value::Null)` should use `is_null()`, or `value()`, which
   returns `None` for both. No shim is possible: the change is in how the
-  wire is read. See [migrating](docs/migrating.md#unreleased).
+  wire is read. See [migrating](docs/migrating.md#070-to-080).
 
 - **`FrameworkError` has `Conflict`, `NotFound` and `PermissionDenied`
   variants, and is `#[non_exhaustive]`.** A `match` over `FrameworkError`
@@ -2087,7 +2095,7 @@ version's section when it is prepared.
   differently. Variants added later are then not breaking. Code that only
   calls `name()`, `status()` or `message()` is
   unaffected. No shim is possible: the attribute is on the type. See
-  [migrating](docs/migrating.md#unreleased).
+  [migrating](docs/migrating.md#070-to-080).
 
 - **An `AuthenticatorChain` covering older API versions needs their
   authenticators.** Each served API version's operations are now
@@ -2097,7 +2105,7 @@ version's section when it is prepared.
   scheme. Install the missing authenticator, or scope the chain away from
   that release. No shim is possible: the old behaviour authenticated an
   older release by the current one's schemes. See
-  [migrating](docs/migrating.md#unreleased).
+  [migrating](docs/migrating.md#070-to-080).
 
 - **`OperationMetadata` is `#[non_exhaustive]` and has new fields.** Since
   0.7.0 it has gained `pagination`, `idempotency_token`,
@@ -2108,7 +2116,7 @@ version's section when it is prepared.
   instead. A pattern that names every field needs `..`. Fields added later
   are then not breaking. Reading fields is unchanged. No shim is possible:
   the attribute is on the type. See
-  [migrating](docs/migrating.md#unreleased).
+  [migrating](docs/migrating.md#070-to-080).
 
 - **`crucible_auth::Principal` is non-exhaustive.** A custom `Authenticator`
   can no longer build one with a struct literal. Replace
@@ -2117,7 +2125,7 @@ version's section when it is prepared.
   setters for the fields it set (`.with_claims(claims)`, ...), and add `..`
   to any exhaustive destructuring. No shim is possible: the attribute is on
   the type. Reading fields is unchanged. See
-  [migrating](docs/migrating.md#unreleased).
+  [migrating](docs/migrating.md#070-to-080).
 
 - **Rejections no longer name client text in a violation's path.** Since
   0.7.0, a strict structure's unknown member is reported at `[key]`, not at
@@ -2132,7 +2140,7 @@ version's section when it is prepared.
   read those paths, messages or reasons, from the response's `fieldList`,
   an `on_rejection` hook or the service log, need the new values. No shim
   is possible: this is wire behaviour. See
-  [migrating](docs/migrating.md#unreleased).
+  [migrating](docs/migrating.md#070-to-080).
 
 - **`Rejection::violations` is a method; the public field is removed.** A
   `Rejection { violations }` literal, or a push onto the field, listed any
@@ -2144,7 +2152,7 @@ version's section when it is prepared.
   server code reads it through the method after regeneration. No shim: a
   deprecated public field would keep the uncapped path open for another
   minor, so this removal is named here instead. See
-  [migrating](docs/migrating.md#unreleased).
+  [migrating](docs/migrating.md#070-to-080).
 
 - **Only Crucible JSON remains; XML, RPC v2 and the AWS protocols are
   removed.** A Smithy model that declares `restJson1`, `awsJson1_0`,
@@ -2163,11 +2171,20 @@ version's section when it is prepared.
   running `crucible conformance`; code that matched
   `Protocol::AwsRestJson1` and its siblings, read `Service::xml_*`,
   `protocols` or `protocol_tests`, or generated tests from `smithy.test`
-  vectors has no replacement. Release snapshots move to format 2: a format 1
+  vectors has no replacement. In the Rust runtimes,
+  `RestJsonProtocol`, `AwsJsonProtocol`, `RpcV2JsonProtocol` and
+  `RpcV2CborProtocol` are removed (drop them from `Builder::protocol(s)`;
+  `JsonProtocol` and `InvokeProtocol` remain), and so are
+  `crucible_wire::operation::Protocol`, its client re-export
+  `crucible_client_runtime_rust::Protocol`, `Operation::PROTOCOL`,
+  `OperationMetadata::protocol`, `Job::decode_cbor`,
+  `ModelledError::write_cbor`, `Output::write_cbor`, `include_conformance!`,
+  `codec::{NonFinite, NullAbsent}` and `open::Union::IGNORE_TYPE`: every
+  operation is Crucible JSON. Release snapshots move to format 2: a format 1
   snapshot of a Crucible JSON service still reads (the removed fields are
   dropped), one frozen with another protocol is refused with a message
   naming it. No shim is possible: the protocols, not an API, are removed.
-  See [migrating](docs/migrating.md#unreleased).
+  See [migrating](docs/migrating.md#070-to-080).
 
 - **Smithy-only features are removed.** A service built from a `.cru`
   package is unaffected unless it used one of the Rust runtime items below.
@@ -2197,17 +2214,23 @@ version's section when it is prepared.
   `content_sha256(..)` builders and the matching CLI options. Regenerate bindings and SDKs. The Smithy front end
   refuses the traits that used the removed features, so a Smithy model that
   used one has no replacement (Smithy models are no longer read at all, see below). No shim is possible: the features, not an
-  API, are removed. See [migrating](docs/migrating.md#unreleased).
+  API, are removed. See [migrating](docs/migrating.md#070-to-080).
 
 - **Smithy is no longer an input.** A model that is still Smithy converts once
   with the `smithy-to-cru` tool of the last release that carried it (0.7.x);
   review the `.cru` package it writes, then point `crucible_build::model(..)`
   and the CLI at the package directory. Drop `smithy-build.json`, the Gradle
   build, the `crucible-traits` dependency and any `--smithy-version` pin.
-  `@crucible.auth#scopes` (and `ScopeEnforcer`'s model-declared scopes),
-  `rename`, timestamp defaults, enum `mediaType` and 2xx error statuses have
-  no `.cru` form and must be removed from the model. No shim is possible: the
-  input, not an API, is removed. See [migrating](docs/migrating.md#unreleased).
+  Remove `smithy` from `crucible-build`'s `features` list (it was a default
+  feature) and drop calls to `Model::compile_with` and `try_compile_with`:
+  a `.cru` package needs no compile step. `@crucible.auth#scopes`, `rename`,
+  timestamp defaults, enum `mediaType` and 2xx error statuses have no `.cru`
+  form and must be removed from the model. With model-declared scopes,
+  `crucible_auth::{ScopeEnforcer, ScopelessPolicy}`,
+  `OperationMetadata::{scopes, service_scopes}` and
+  `Operation::{SCOPES, SERVICE_SCOPES}` are removed; check token scopes in an
+  `Interceptor`, or use typed permissions. No shim is possible: the input,
+  not an API, is removed. See [migrating](docs/migrating.md#070-to-080).
 
 ## [0.7.0] - 2026-10-12
 
