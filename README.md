@@ -9,11 +9,14 @@ implement it on a fast Rust server runtime, and generate native clients in 14
 languages, OpenAPI, reference docs, a service CLI, and infrastructure packages
 from the same contract.
 
-```
-                    ┌─► Rust service bindings ──► crucible-server-runtime-rust (HTTP, Lambda)
-model/*.cru ──► IR ─┼─► clients: Rust, TypeScript, Python, Go, Java, C#, Kotlin,
-                    │            Swift, Dart, PHP, Ruby, C++, C, R
-                    └─► OpenAPI 3.1 · API reference · service CLI · CDK · Terraform
+```mermaid
+flowchart LR
+    model["model/*.cru"] --> ir["Crucible IR"]
+    ir --> server["Rust service bindings"]
+    server --> runtime["crucible-server-runtime-rust<br/>HTTP · Lambda"]
+    ir --> clients["Clients<br/>Rust · TypeScript · Python · Go · Java · C#<br/>Kotlin · Swift · Dart · PHP · Ruby · C++ · C · R"]
+    ir --> docs["OpenAPI 3.1 · API reference"]
+    ir --> tools["Service CLI · CDK · Terraform"]
 ```
 
 Every generator reads the same lowered model, so nullability, constraints, HTTP
