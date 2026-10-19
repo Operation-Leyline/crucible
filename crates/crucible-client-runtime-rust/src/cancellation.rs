@@ -50,7 +50,10 @@ mod tests {
         token.cancel();
 
         let timeout = tokio::time::timeout(Duration::from_millis(10), token.cancelled());
-        assert!(timeout.await.is_ok(), "cancelled() should return immediately");
+        assert!(
+            timeout.await.is_ok(),
+            "cancelled() should return immediately"
+        );
     }
 
     #[tokio::test]
