@@ -55,10 +55,11 @@ type Reply = Result<Value, (i32, String)>;
 /// fail when clicked, so other clients get none.
 pub fn shows_references(params: &InitializeParams) -> bool {
     params
-        .initialization_options
+        .capabilities
+        .text_document
         .as_ref()
-        .and_then(|options| options.get("showReferences"))
-        .and_then(Value::as_bool)
+        .and_then(|t| t.references)
+        .and_then(|r| r.dynamic_registration)
         .unwrap_or(false)
 }
 
@@ -2049,5 +2050,79 @@ fn normalize(path: &Path) -> PathBuf {
         PathBuf::from(clean.to_string_lossy().replace('/', "\\").to_lowercase())
     } else {
         clean
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use lsp_types::{ClientCapabilities, ReferenceClientCapabilities, TextDocumentClientCapabilities, WorkDoneProgressParams};
+
+    fn default_params() -> InitializeParams {
+        #[allow(deprecated)]
+        InitializeParams {
+            process_id: None,
+            work_done_progress_params: WorkDoneProgressParams::default(),
+            root_path: None,
+            root_uri: None,
+            initialization_options: None,
+            capabilities: ClientCapabilities::default(),
+            trace: None,
+            workspace_folders: None,
+            client_info: None,
+            locale: None,
+        }
+    }
+
+    #[test]
+    fn shows_references_no_text_document() {
+        let params = default_params();
+        assert!(!shows_references(&params));
+    }
+
+    #[test]
+    fn shows_references_no_references() {
+        let mut params = default_params();
+        params.capabilities.text_document = Some(TextDocumentClientCapabilities {
+            references: None,
+            ..Default::default()
+        });
+        assert!(!shows_references(&params));
+    }
+
+    #[test]
+    fn shows_references_no_dynamic_registration() {
+        let mut params = default_params();
+        params.capabilities.text_document = Some(TextDocumentClientCapabilities {
+            references: Some(ReferenceClientCapabilities {
+                dynamic_registration: None,
+            }),
+            ..Default::default()
+        });
+        assert!(!shows_references(&params));
+    }
+
+    #[test]
+    fn shows_references_dynamic_registration_false() {
+        let mut params = default_params();
+        params.capabilities.text_document = Some(TextDocumentClientCapabilities {
+            references: Some(ReferenceClientCapabilities {
+                dynamic_registration: Some(false),
+            }),
+            ..Default::default()
+        });
+        assert!(!shows_references(&params));
+    }
+
+    #[test]
+    fn shows_references_dynamic_registration_true() {
+        let mut params = default_params();
+        params.capabilities.text_document = Some(TextDocumentClientCapabilities {
+            references: Some(ReferenceClientCapabilities {
+                dynamic_registration: Some(true),
+            }),
+            ..Default::default()
+        });
+        assert!(shows_references(&params));
     }
 }

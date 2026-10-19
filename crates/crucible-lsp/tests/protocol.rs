@@ -815,8 +815,9 @@ fn hints_lenses_links_and_signatures() {
     // Usage lenses are for clients that run their command.
     assert!(Client::start().capabilities["codeLensProvider"].is_null());
     let mut client = Client::start_with(json!({
-        "capabilities": {},
-        "initializationOptions": { "showReferences": true },
+        "capabilities": {
+            "textDocument": { "references": { "dynamicRegistration": true } }
+        },
     }));
     assert!(client.capabilities["codeLensProvider"].is_object());
     client.open(&shop, SHOP);
