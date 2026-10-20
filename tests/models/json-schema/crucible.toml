@@ -1,0 +1,6 @@
+schema_version = 1
+[model]
+namespace = "example.schema"
+language = 1
+sources = ["."]
+imports = []

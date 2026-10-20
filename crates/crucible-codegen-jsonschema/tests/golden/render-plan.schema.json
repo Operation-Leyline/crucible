@@ -1,0 +1,181 @@
+{
+  "type": "object",
+  "properties": {
+    "seed": {
+      "type": "integer",
+      "format": "int32",
+      "minimum": 0,
+      "maximum": 2147483647
+    },
+    "source": {
+      "$ref": "#/$defs/example.schema.Source"
+    },
+    "label": {
+      "anyOf": [
+        {
+          "type": "string",
+          "pattern": "^[a-zA-Z ]+$",
+          "minLength": 1,
+          "maxLength": 80
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "retries": {
+      "$ref": "#/$defs/crucible.api.Integer",
+      "default": 2,
+      "x-crucible-default": 2
+    },
+    "children": {
+      "anyOf": [
+        {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/example.schema.RenderPlan"
+          },
+          "uniqueItems": false,
+          "maxItems": 3
+        },
+        {
+          "type": "null"
+        }
+      ]
+    }
+  },
+  "required": [
+    "seed",
+    "source"
+  ],
+  "$defs": {
+    "crucible.api.Integer": {
+      "type": "integer",
+      "format": "int32",
+      "minimum": -2147483648,
+      "maximum": 2147483647
+    },
+    "crucible.api.Unit": {
+      "type": "object",
+      "maxProperties": 0
+    },
+    "example.schema.Plans": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/example.schema.RenderPlan"
+      },
+      "uniqueItems": false,
+      "maxItems": 3
+    },
+    "example.schema.Prompt": {
+      "type": "string",
+      "pattern": "^[a-zA-Z ]+$",
+      "minLength": 1,
+      "maxLength": 80
+    },
+    "example.schema.RenderPlan": {
+      "type": "object",
+      "properties": {
+        "seed": {
+          "type": "integer",
+          "format": "int32",
+          "minimum": 0,
+          "maximum": 2147483647
+        },
+        "source": {
+          "$ref": "#/$defs/example.schema.Source"
+        },
+        "label": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[a-zA-Z ]+$",
+              "minLength": 1,
+              "maxLength": 80
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "retries": {
+          "$ref": "#/$defs/crucible.api.Integer",
+          "default": 2,
+          "x-crucible-default": 2
+        },
+        "children": {
+          "anyOf": [
+            {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/example.schema.RenderPlan"
+              },
+              "uniqueItems": false,
+              "maxItems": 3
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "seed",
+        "source"
+      ]
+    },
+    "example.schema.Seed": {
+      "type": "integer",
+      "format": "int32",
+      "minimum": 0,
+      "maximum": 2147483647
+    },
+    "example.schema.Source": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "text": {
+              "type": "string",
+              "pattern": "^[a-zA-Z ]+$",
+              "minLength": 1,
+              "maxLength": 80
+            }
+          },
+          "required": [
+            "text"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "prior": {
+              "type": "integer",
+              "format": "int32",
+              "minimum": 0,
+              "maximum": 2147483647
+            }
+          },
+          "required": [
+            "prior"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "empty": {
+              "$ref": "#/$defs/crucible.api.Unit"
+            }
+          },
+          "required": [
+            "empty"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema"
+}

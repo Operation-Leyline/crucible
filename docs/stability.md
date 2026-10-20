@@ -13,6 +13,14 @@ or Git revision. Never edit generated files to bypass the version check.
 
 ## Service construction and invocation
 
+The additive `crucible-build` JSON Schema surface is `Model::json_schema`,
+`ModelPackage::json_schema`, `JsonSchemaOutput::{shape, options, audience,
+generate, try_generate, generate_into, try_generate_into}`, and
+`JsonSchemaOptions`, enabled by `json-schema`. Shared generation exposes
+`Generator::JsonSchema`; the CLI exposes `generate json-schema --shape`.
+The `schema.json` output name and Draft 2020-12 dialect are stable as described
+in [JSON Schema export](json-schema.md).
+
 The build API `crucible_build::Model::docs` and `ModelPackage::docs`, enabled by
 the `docs` feature, add a named API-reference output without changing existing
 defaults. `DocsOutput::{audience, generate, generate_into, try_generate,

@@ -569,6 +569,7 @@ dependencies = [
  "crucible-codegen-go",
  "crucible-codegen-infra",
  "crucible-codegen-java",
+ "crucible-codegen-jsonschema",
  "crucible-codegen-kotlin",
  "crucible-codegen-openapi",
  "crucible-codegen-php",
@@ -637,6 +638,7 @@ dependencies = [
  "crucible-codegen-go",
  "crucible-codegen-infra",
  "crucible-codegen-java",
+ "crucible-codegen-jsonschema",
  "crucible-codegen-kotlin",
  "crucible-codegen-openapi",
  "crucible-codegen-php",
@@ -782,6 +784,17 @@ dependencies = [
  "crucible-lang",
  "serde_json",
  "sha2",
+]
+
+[[package]]
+name = "crucible-codegen-jsonschema"
+version = "0.8.0"
+dependencies = [
+ "crucible-codegen-common",
+ "crucible-ir",
+ "crucible-lang",
+ "jsonschema",
+ "serde_json",
 ]
 
 [[package]]

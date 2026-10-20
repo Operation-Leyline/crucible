@@ -55,6 +55,10 @@ class PlanTests(unittest.TestCase):
                 self.assertEqual(affected_groups([path]), CORE_GROUPS | CONSUMERS)
         self.assertEqual(affected_groups(["crates/crucible-cli/src/main.rs"]), CORE_GROUPS | {"service_cli"})
 
+    def test_json_schema_export_keeps_its_rust_qualification(self):
+        self.assertEqual(affected_groups(["crates/crucible-codegen-jsonschema/src/lib.rs"]), {"rust"})
+        self.assertEqual(affected_groups(["crates/crucible-codegen-jsonschema/tests/golden/render-plan.schema.json"]), {"rust"})
+
     def test_openapi_export_keeps_its_rust_qualification(self):
         self.assertEqual(affected_groups(["crates/crucible-codegen-openapi/src/lib.rs"]), {"rust"})
         self.assertEqual(affected_groups(["crates/crucible-codegen-docs/src/lib.rs"]), {"rust", "docs_site"})

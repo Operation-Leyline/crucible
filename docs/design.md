@@ -46,6 +46,8 @@ status codes, with these conventions:
 - The request id travels in `x-request-id`.
 
 Crucible validates HTTP bindings itself, and [emits OpenAPI from its IR](openapi.md). OpenAPI is a downstream export; SDKs still consume the IR directly.
+[Standalone JSON Schema export](json-schema.md) shares the schema engine and
+exports a selected shape with local definitions.
 
 [Service API references](docs.md) consume an audience-projected IR description
 directly, preserving pagination, resources, idempotency, and documentation notes.

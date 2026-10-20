@@ -15,6 +15,20 @@ version's section when it is prepared.
 
 ## [Unreleased]
 
+### Added
+
+- Standalone JSON Schema Draft 2020-12 export for a named shape through
+  `crucible generate json-schema --shape`, `Generator::JsonSchema`, and
+  `crucible-build`'s `json-schema` feature and `.json_schema(name).shape(...)`
+  output. Schemas use the shared lowered-IR engine, local recursive `$defs`,
+  audience projection, and diagnostics for invalid or ambiguous roots.
+  See [JSON Schema export](docs/json-schema.md).
+
+### Fixed
+
+- Standalone JSON Schemas preserve arbitrary `$ref` fields inside defaults and
+  custom trait metadata when rewriting schema references to local `$defs`.
+
 ## [0.8.0] - 2026-10-18
 
 Crucible is now `.cru`-only and public under Apache-2.0. The Smithy front
