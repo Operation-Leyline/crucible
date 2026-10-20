@@ -443,12 +443,11 @@ impl Undo<'_> {
             );
             return;
         };
-        let targets: Vec<ShapeId> = shape.members().iter().map(|m| m.target.clone()).collect();
         self.out.shapes.insert(id.clone(), shape.clone());
         self.restored.insert(id.clone());
         self.changed.insert(id.clone());
-        for target in targets {
-            self.resolve(&target);
+        for member in shape.members() {
+            self.resolve(&member.target);
         }
     }
 
