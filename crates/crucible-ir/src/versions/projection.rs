@@ -1157,14 +1157,14 @@ impl Undo<'_> {
                     || payload.as_deref() == Some(m.name.as_str())
             });
             if s.members.len() != before {
-                let kept: BTreeSet<String> = s.members.iter().map(|m| m.name.clone()).collect();
+                let kept: BTreeSet<&str> = s.members.iter().map(|m| m.name.as_str()).collect();
                 if let Some(error) = &mut s.error {
                     error
                         .timestamp_formats
-                        .retain(|member, _| kept.contains(member));
+                        .retain(|member, _| kept.contains(member.as_str()));
                     error
                         .header_encodings
-                        .retain(|member, _| kept.contains(member));
+                        .retain(|member, _| kept.contains(member.as_str()));
                 }
                 self.changed.insert(id.clone());
             }
