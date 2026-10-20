@@ -358,9 +358,32 @@ mod tests {
 
         assert_eq!(module("GetCity"), "get_city");
         assert_eq!(file_stem("GetCity"), "get_city");
+    }
 
+    #[test]
+    fn test_escape_identifier() {
+        // Special keywords mapped to `{name}_`
+        assert_eq!(escape_identifier("self"), "self_");
+        assert_eq!(escape_identifier("super"), "super_");
+        assert_eq!(escape_identifier("crate"), "crate_");
+        assert_eq!(escape_identifier("Self"), "Self_");
+
+        // Keywords from KEYWORDS prepended with `r#`
         assert_eq!(escape_identifier("type"), "r#type");
-        assert_eq!(escape_identifier("self_"), "self_");
+        assert_eq!(escape_identifier("match"), "r#match");
+        assert_eq!(escape_identifier("gen"), "r#gen");
+        assert_eq!(escape_identifier("try"), "r#try");
+        assert_eq!(escape_identifier("async"), "r#async");
+
+        // Identifiers starting with a digit prepended with `_`
+        assert_eq!(escape_identifier("123"), "_123");
+        assert_eq!(escape_identifier("0foo"), "_0foo");
+        assert_eq!(escape_identifier("2xx"), "_2xx");
+
+        // Regular identifiers remain unchanged
         assert_eq!(escape_identifier("city"), "city");
+        assert_eq!(escape_identifier("my_var"), "my_var");
+        assert_eq!(escape_identifier("foo123"), "foo123");
+        assert_eq!(escape_identifier("self_"), "self_");
     }
 }
