@@ -2071,7 +2071,6 @@ mod tests {
 
         assert!(caps.semantic_tokens_provider.is_some());
     }
-
     use lsp_types::{
         ClientCapabilities, ReferenceClientCapabilities, TextDocumentClientCapabilities,
         WorkDoneProgressParams,
