@@ -1,0 +1,264 @@
+   Compiling crucible-revision v0.8.0 (/app/crates/crucible-revision)
+   Compiling ring v0.17.14
+   Compiling crucible-codegen-rust v0.8.0 (/app/crates/crucible-codegen-rust)
+   Compiling crucible-codegen v0.8.0 (/app/crates/crucible-codegen)
+   Compiling crucible-build v0.8.0 (/app/crates/crucible-build)
+   Compiling crucible-codegen-cli v0.8.0 (/app/crates/crucible-codegen-cli)
+   Compiling rustls v0.23.45
+   Compiling rustls-webpki v0.103.15
+   Compiling ureq v3.4.2
+   Compiling tokio-rustls v0.26.6
+   Compiling rustls-platform-verifier v0.7.1
+   Compiling hyper-rustls v0.27.10
+   Compiling reqwest v0.13.5
+   Compiling crucible-sdk-release v0.8.0 (/app/crates/crucible-sdk-release)
+   Compiling crucible-client-runtime-rust v0.8.0 (/app/crates/crucible-client-runtime-rust)
+   Compiling crucible-auth v0.8.0 (/app/crates/crucible-auth)
+   Compiling crucible-cli-runtime v0.8.0 (/app/crates/crucible-cli-runtime)
+   Compiling crucible-cli v0.8.0 (/app/crates/crucible-cli)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 1m 44s
+     Running unittests src/lib.rs (target/debug/deps/crucible_auth-7477429d2618d984)
+
+running 7 tests
+test api_key_core::tests::the_entry_stays_while_another_request_still_waits ... ok
+test api_key_core::tests::a_request_cancelled_while_waiting_for_a_permit_leaves_no_entry ... ok
+test lru_map::tests::zero_capacity_stores_nothing ... ok
+test lru_map::tests::evicts_least_recently_used ... ok
+test principal::tests::a_binding_names_the_issuer_subject_and_tenant ... ok
+test api_key_core::tests::a_request_cancelled_during_its_read_leaves_no_entry ... ok
+test api_key_core::tests::a_panicking_store_leaves_no_entry ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+     Running tests/api_keys.rs (target/debug/deps/api_keys-a0ca57f9c696d0aa)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/configuration.rs (target/debug/deps/configuration-80862e336120a3c2)
+
+running 2 tests
+test insecure_or_ambiguous_trust_configuration_is_rejected ... ok
+test cognito_presets_separate_id_and_access_client_claims ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.27s
+
+     Running tests/jwt_adversarial.rs (target/debug/deps/jwt_adversarial-18a7c5a0481febae)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/mcp_configuration.rs (target/debug/deps/mcp_configuration-6f716d33c077a53d)
+
+running 1 test
+test mcp_requires_access_policy_authorization_header_and_service_scope ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.88s
+
+     Running unittests src/lib.rs (target/debug/deps/crucible_build-b718ca0106c66e8f)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/api_versions.rs (target/debug/deps/api_versions-7b2949d093c086fc)
+
+running 4 tests
+test api_version_probe ... ok
+test a_release_outside_the_chain_names_the_supported_ones ... ok
+test a_server_is_never_generated_from_a_line ... ok
+test a_build_generates_an_older_releases_line ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.54s
+
+     Running tests/cdk_targets.rs (target/debug/deps/cdk_targets-e3daebb97c816842)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/cru_packages.rs (target/debug/deps/cru_packages-bd83a0d5af02ff22)
+
+running 6 tests
+test broken_cru_package_probe ... ok
+test cru_package_export_probe ... ok
+test cru_package_probe ... ok
+test a_broken_cru_package_fails_the_build_with_every_diagnostic ... ok
+test a_cru_package_compiles_publishes_and_generates ... ok
+test a_cru_package_exports_its_compiled_model_with_metadata_and_docs ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.42s
+
+     Running tests/docs_outputs.rs (target/debug/deps/docs_outputs-65f64b4936f2ae59)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/document_cli_outputs.rs (target/debug/deps/document_cli_outputs-b92fbdea3ebf08a5)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/explorer.rs (target/debug/deps/explorer-007d9326e10e9a0a)
+
+running 3 tests
+test explorer_preserves_normal_server_bindings_and_resource_documentation ... ok
+test explorer_is_opt_in_and_audience_selection_is_order_independent ... ok
+test explorer_generated_bindings_are_valid_rust ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.27s
+
+     Running tests/fluent_sdks.rs (target/debug/deps/fluent_sdks-cdffe620ffa99e71)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/mcp.rs (target/debug/deps/mcp-7580548e15423d60)
+
+running 1 test
+test service_descriptors_require_explicit_build_opt_in ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.26s
+
+     Running tests/model_discovery.rs (target/debug/deps/model_discovery-f80e5a4a08ee56ee)
+
+running 2 tests
+test missing_dependency_names_the_cargo_setup ... ok
+test explicit_paths_do_not_require_dependency_metadata ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/native_exports.rs (target/debug/deps/native_exports-7684dc5e093d047f)
+
+running 2 tests
+test cargo_target::tests::independent_consumers_share_an_absolute_checkout_cache ... ok
+test native_exports_build_independently_and_restore_deleted_files_without_cache_churn has been running for over 60 seconds
+test native_exports_build_independently_and_restore_deleted_files_without_cache_churn ... FAILED
+
+failures:
+
+---- native_exports_build_independently_and_restore_deleted_files_without_cache_churn stdout ----
+
+thread 'native_exports_build_independently_and_restore_deleted_files_without_cache_churn' (117532) panicked at crates/crucible-build/tests/native_exports.rs:114:5:
+assertion `left == right` failed:        Fresh unicode-ident v1.0.27
+       Fresh proc-macro2 v1.0.107
+       Fresh quote v1.0.47
+       Fresh syn v3.0.9
+       Fresh synstructure v0.14.0
+       Fresh zerofrom-derive v0.1.8
+       Fresh zerofrom v0.1.8
+       Fresh yoke-derive v0.8.4
+       Fresh stable_deref_trait v1.2.1
+       Fresh autocfg v1.5.1
+       Fresh yoke v0.8.3
+       Fresh serde_core v1.0.229
+       Fresh zerovec-derive v0.11.6
+       Fresh zerovec v0.11.8
+       Fresh serde_derive v1.0.229
+       Fresh displaydoc v0.2.7
+       Fresh serde v1.0.229
+       Fresh memchr v2.8.3
+       Fresh num-traits v0.2.19
+       Fresh hashbrown v0.17.1
+       Fresh equivalent v1.0.3
+       Fresh indexmap v2.14.2
+       Fresh tinystr v0.8.4
+       Fresh writeable v0.6.4
+       Fresh litemap v0.8.3
+       Fresh icu_locale_core v2.3.0
+       Fresh num-integer v0.1.47
+       Fresh aho-corasick v1.1.5
+       Fresh zerotrie v0.2.5
+       Fresh potential_utf v0.1.6
+       Fresh utf8_iter v1.0.4
+       Fresh regex-syntax v0.8.11
+       Fresh version_check v0.9.5
+       Fresh regex-automata v0.4.18
+       Fresh icu_collections v2.3.0
+       Fresh icu_provider v2.3.1
+       Fresh num-bigint v0.4.8
+       Fresh libm v0.2.16
+       Fresh zmij v1.0.23
+       Fresh foldhash v0.2.0
+       Fresh iana-time-zone v0.1.65
+       Fresh itoa v1.0.18
+       Fresh serde_json v1.0.154
+       Fresh chrono v0.4.45
+       Fresh bigdecimal v0.4.11
+       Fresh regex v1.13.1
+       Fresh icu_properties_data v2.3.0
+       Fresh icu_normalizer_data v2.3.0
+       Fresh thiserror-impl v2.0.21
+       Fresh typenum v1.20.1
+       Fresh bitflags v2.13.2
+       Fresh smallvec v1.16.3
+       Fresh unicase v2.10.0
+       Fresh base64 v0.22.1
+       Fresh pulldown-cmark-escape v0.11.0
+       Fresh pulldown-cmark v0.13.4
+       Fresh icu_normalizer v2.3.0
+       Fresh generic-array v0.14.7
+       Fresh thiserror v2.0.21
+       Fresh icu_properties v2.3.0
+       Fresh idna_adapter v1.2.2
+       Fresh crucible-ir v0.8.0 (/app/crates/crucible-ir)
+       Fresh toml_datetime v0.6.11
+       Fresh serde_spanned v0.6.9
+       Fresh winnow v0.7.15
+       Fresh toml_write v0.1.2
+       Fresh percent-encoding v2.3.2
+       Fresh form_urlencoded v1.2.2
+       Fresh toml_edit v0.22.27
+       Fresh idna v1.1.0
+       Fresh block-buffer v0.10.4
+       Fresh crypto-common v0.1.7
+       Fresh bytes v1.12.1
+       Dirty crucible-revision v0.8.0 (/app/crates/crucible-revision): the file `/app/.git/index` has changed (1792464755.992786071s, 27s after last build at 1792464728.788786378s)
+   Compiling crucible-revision v0.8.0 (/app/crates/crucible-revision)
+     Running `/app/target/consumer-tests/debug/build/crucible-revision-859045b8db9137e3/build-script-build`
+       Fresh crucible-wire v0.8.0 (/app/crates/crucible-wire)
+       Fresh digest v0.10.7
+       Fresh url v2.5.8
+       Fresh toml v0.8.23
+       Fresh cfg-if v1.0.5
+       Fresh cpufeatures v0.2.17
+       Fresh sha2 v0.10.9
+       Fresh crucible-codegen-common v0.8.0 (/app/crates/crucible-codegen-common)
+     Running `/home/jules/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/rustc --crate-name crucible_revision --edition=2024 /app/crates/crucible-revision/src/lib.rs --error-format=json --json=diagnostic-rendered-ansi,artifacts,future-incompat --crate-type lib --emit=dep-info,metadata,link -C embed-bitcode=no '--warn=clippy::all' --forbid=unsafe_code --check-cfg 'cfg(docsrs,test)' --check-cfg 'cfg(feature, values())' -C metadata=5b23aba5653de6a7 -C extra-filename=-191f12a39d9c2cd5 --out-dir /app/target/consumer-tests/debug/deps -C incremental=/app/target/consumer-tests/debug/incremental -L dependency=/app/target/consumer-tests/debug/deps`
+       Fresh semver v1.0.28
+       Dirty crucible-codegen-rust v0.8.0 (/app/crates/crucible-codegen-rust): the dependency `crucible-revision` was rebuilt
+   Compiling crucible-codegen-rust v0.8.0 (/app/crates/crucible-codegen-rust)
+     Running `/home/jules/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/rustc --crate-name crucible_codegen_rust --edition=2024 /app/crates/crucible-codegen-rust/src/lib.rs --error-format=json --json=diagnostic-rendered-ansi,artifacts,future-incompat --crate-type lib --emit=dep-info,metadata,link -C embed-bitcode=no '--warn=clippy::all' --forbid=unsafe_code --check-cfg 'cfg(docsrs,test)' --check-cfg 'cfg(feature, values())' -C metadata=ac5bd67401405804 -C extra-filename=-6f2b016f78ce3c71 --out-dir /app/target/consumer-tests/debug/deps -C incremental=/app/target/consumer-tests/debug/incremental -L dependency=/app/target/consumer-tests/debug/deps --extern crucible_codegen_common=/app/target/consumer-tests/debug/deps/libcrucible_codegen_common-a788de1da6a47708.rmeta --extern crucible_ir=/app/target/consumer-tests/debug/deps/libcrucible_ir-3bdfda2eea5efa9e.rmeta --extern crucible_revision=/app/target/consumer-tests/debug/deps/libcrucible_revision-191f12a39d9c2cd5.rmeta --extern regex=/app/target/consumer-tests/debug/deps/libregex-fc5fa315b4830253.rmeta --extern semver=/app/target/consumer-tests/debug/deps/libsemver-54718fa98e27811f.rmeta --extern serde_json=/app/target/consumer-tests/debug/deps/libserde_json-1f16f03c8b2b315d.rmeta --extern url=/app/target/consumer-tests/debug/deps/liburl-859e3e06b53c0ac9.rmeta`
+       Fresh crucible-policy v0.8.0 (/app/crates/crucible-policy)
+       Fresh crucible-lang v0.8.0 (/app/crates/crucible-lang)
+       Dirty crucible-codegen v0.8.0 (/app/crates/crucible-codegen): the dependency `crucible-codegen-rust` was rebuilt
+   Compiling crucible-codegen v0.8.0 (/app/crates/crucible-codegen)
+     Running `/home/jules/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/rustc --crate-name crucible_codegen --edition=2024 /app/crates/crucible-codegen/src/lib.rs --error-format=json --json=diagnostic-rendered-ansi,artifacts,future-incompat --crate-type lib --emit=dep-info,metadata,link -C embed-bitcode=no '--warn=clippy::all' --forbid=unsafe_code --cfg 'feature="rust"' --check-cfg 'cfg(docsrs,test)' --check-cfg 'cfg(feature, values("all-clients", "all-outputs", "c", "cdk", "cli", "cpp", "csharp", "dart", "default", "docs", "go", "java", "kotlin", "openapi", "php", "python", "r", "ruby", "rust", "swift", "terraform", "ts"))' -C metadata=0a743cd28c59822c -C extra-filename=-2fff76d232bedec3 --out-dir /app/target/consumer-tests/debug/deps -C incremental=/app/target/consumer-tests/debug/incremental -L dependency=/app/target/consumer-tests/debug/deps --extern crucible_codegen_common=/app/target/consumer-tests/debug/deps/libcrucible_codegen_common-a788de1da6a47708.rmeta --extern crucible_codegen_rust=/app/target/consumer-tests/debug/deps/libcrucible_codegen_rust-6f2b016f78ce3c71.rmeta --extern crucible_ir=/app/target/consumer-tests/debug/deps/libcrucible_ir-3bdfda2eea5efa9e.rmeta --extern crucible_revision=/app/target/consumer-tests/debug/deps/libcrucible_revision-191f12a39d9c2cd5.rmeta --extern serde=/app/target/consumer-tests/debug/deps/libserde-3b35c619bf535b8d.rmeta --extern serde_json=/app/target/consumer-tests/debug/deps/libserde_json-1f16f03c8b2b315d.rmeta --extern sha2=/app/target/consumer-tests/debug/deps/libsha2-0440ddab18daa72e.rmeta --extern toml=/app/target/consumer-tests/debug/deps/libtoml-5e88797ab6d69bcf.rmeta`
+       Dirty crucible-build v0.8.0 (/app/crates/crucible-build): the dependency `crucible-codegen` was rebuilt
+   Compiling crucible-build v0.8.0 (/app/crates/crucible-build)
+     Running `/home/jules/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/rustc --crate-name crucible_build --edition=2024 /app/crates/crucible-build/src/lib.rs --error-format=json --json=diagnostic-rendered-ansi,artifacts,future-incompat --crate-type lib --emit=dep-info,metadata,link -C embed-bitcode=no '--warn=clippy::all' --forbid=unsafe_code --cfg 'feature="rust"' --check-cfg 'cfg(docsrs,test)' --check-cfg 'cfg(feature, values("all-clients", "all-outputs", "c", "cdk", "cli", "cpp", "csharp", "dart", "default", "docs", "go", "java", "kotlin", "openapi", "php", "python", "r", "ruby", "rust", "swift", "terraform", "ts"))' -C metadata=00dee0c468d857cf -C extra-filename=-7f221c97d325e530 --out-dir /app/target/consumer-tests/debug/deps -C incremental=/app/target/consumer-tests/debug/incremental -L dependency=/app/target/consumer-tests/debug/deps --extern crucible_codegen=/app/target/consumer-tests/debug/deps/libcrucible_codegen-2fff76d232bedec3.rmeta --extern crucible_codegen_rust=/app/target/consumer-tests/debug/deps/libcrucible_codegen_rust-6f2b016f78ce3c71.rmeta --extern crucible_ir=/app/target/consumer-tests/debug/deps/libcrucible_ir-3bdfda2eea5efa9e.rmeta --extern crucible_lang=/app/target/consumer-tests/debug/deps/libcrucible_lang-612b462aa1a46dfb.rmeta --extern crucible_policy=/app/target/consumer-tests/debug/deps/libcrucible_policy-173e48467dab0042.rmeta --extern serde=/app/target/consumer-tests/debug/deps/libserde-3b35c619bf535b8d.rmeta --extern serde_json=/app/target/consumer-tests/debug/deps/libserde_json-1f16f03c8b2b315d.rmeta`
+       Dirty independent-model-producer v0.2.0 (/tmp/.tmpEXCXsC/producer): the dependency `crucible-build` was rebuilt
+   Compiling independent-model-producer v0.2.0 (/tmp/.tmpEXCXsC/producer)
+     Running `/home/jules/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/rustc --crate-name build_script_build --edition=2024 build.rs --error-format=json --json=diagnostic-rendered-ansi,artifacts,future-incompat --crate-type bin --emit=dep-info,link -C embed-bitcode=no --check-cfg 'cfg(docsrs,test)' --check-cfg 'cfg(feature, values())' -C metadata=06b34ddded4dc175 -C extra-filename=-81f7deb58f7f05c3 --out-dir /app/target/consumer-tests/debug/build/independent-model-producer-81f7deb58f7f05c3 -C incremental=/app/target/consumer-tests/debug/incremental -L dependency=/app/target/consumer-tests/debug/deps --extern crucible_build=/app/target/consumer-tests/debug/deps/libcrucible_build-7f221c97d325e530.rlib`
+     Running `/app/target/consumer-tests/debug/build/independent-model-producer-81f7deb58f7f05c3/build-script-build`
+warning: independent-model-producer@0.2.0: /tmp/.tmpEXCXsC/producer/weather/resources/city.cru:53:10: warning: `City` has `creates`, `lists` and `reads` operations, but no output shows one of its properties, through a `for City` view or a `$` elision: a representation written as a plain structure loses `$` binding, mutability and infrastructure lowering
+warning: independent-model-producer@0.2.0: /tmp/.tmpEXCXsC/producer/weather/operations/city/CreateCity.cru:6:9: warning: `name`'s `length` loosens its type's, which it replaces; give both bounds to keep the type's
+     Running `/home/jules/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/rustc --crate-name independent_model_producer --edition=2024 src/lib.rs --error-format=json --json=diagnostic-rendered-ansi,artifacts,future-incompat --crate-type lib --emit=dep-info,metadata,link -C embed-bitcode=no -C debuginfo=2 --check-cfg 'cfg(docsrs,test)' --check-cfg 'cfg(feature, values())' -C metadata=22bad3be52f7bc01 -C extra-filename=-60167d24944045c3 --out-dir /app/target/consumer-tests/debug/deps -C incremental=/app/target/consumer-tests/debug/incremental -L dependency=/app/target/consumer-tests/debug/deps`
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 2.41s
+
+  left: "xx"
+ right: "x"
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    native_exports_build_independently_and_restore_deleted_files_without_cache_churn
+
+test result: FAILED. 1 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 79.60s
+
+error: test failed, to rerun pass `-p crucible-build --test native_exports`

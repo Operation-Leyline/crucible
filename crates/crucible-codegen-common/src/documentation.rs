@@ -299,9 +299,16 @@ fn render_text(markdown: &str, service: Option<&Service>) -> String {
     // A block's end after an item's (a list, a loose item's paragraph) would
     // leave two blank lines; a code block's blank lines are indented, so
     // collapsing runs of line breaks never touches one.
-    while out.contains("\n\n\n") {
-        out = out.replace("\n\n\n", "\n\n");
-    }
+    let mut newlines = 0;
+    out.retain(|c| {
+        if c == '\n' {
+            newlines += 1;
+            newlines <= 2
+        } else {
+            newlines = 0;
+            true
+        }
+    });
     out.trim_end().trim_start_matches('\n').to_owned()
 }
 
