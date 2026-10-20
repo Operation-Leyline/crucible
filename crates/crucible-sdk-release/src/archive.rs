@@ -408,7 +408,10 @@ mod tests {
     #[test]
     fn integrity_strings() {
         let sri = sri_sha512(b"hello");
-        assert!(sri.starts_with("sha512-"));
+        assert_eq!(
+            sri,
+            "sha512-m3HSJL1i83hdltRq0+o9czGb+8KJDKra4t/3JRlnPKcjI8PZm6XBHXx6zG4UuMXaDEZjR1wuXDre9G9zvN7AQw=="
+        );
         assert_eq!(sri_matches(&sri, b"hello"), Some(true));
         assert_eq!(
             sri_matches(&format!("sha1-abc {sri}"), b"hello"),
