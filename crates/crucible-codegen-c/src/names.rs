@@ -128,7 +128,7 @@ pub fn keyword(value: &str) -> bool {
 }
 pub fn field(value: &str) -> String {
     let chars: Vec<_> = value.chars().collect();
-    let mut out = String::new();
+    let mut out = String::with_capacity(value.len() + 10);
     for (index, c) in chars.iter().enumerate() {
         if index > 0
             && c.is_ascii_uppercase()
@@ -137,15 +137,21 @@ pub fn field(value: &str) -> String {
                 || chars[index - 1].is_ascii_uppercase()
                     && chars.get(index + 1).is_some_and(char::is_ascii_lowercase))
         {
-            out.push('_');
+            if out.ends_with('_') {
+                out.push_str("u_");
+            } else {
+                out.push('_');
+            }
         }
-        out.push(c.to_ascii_lowercase());
+        let to_push = c.to_ascii_lowercase();
+        if to_push == '_' && out.ends_with('_') {
+            out.push_str("u_");
+        } else {
+            out.push(to_push);
+        }
     }
     if out.starts_with('_') {
         out.insert_str(0, "member");
-    }
-    while out.contains("__") {
-        out = out.replace("__", "_u_");
     }
     if keyword(&out) || ["errno", "stdin", "stdout", "stderr"].contains(&out.as_str()) {
         out.push_str("_value");
