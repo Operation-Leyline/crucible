@@ -110,10 +110,11 @@ pub(crate) fn method_names(service: &Service) -> Vec<Derived> {
     let mut unique = |base: String| {
         let mut name = base.clone();
         let mut suffix = 2;
-        while !taken.insert(name.clone()) {
+        while taken.contains(&name) {
             name = format!("{base}_{suffix}");
             suffix += 1;
         }
+        taken.insert(name.clone());
         name
     };
     service
