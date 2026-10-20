@@ -400,6 +400,9 @@ mod tests {
             "a/",
             ".git",
             "x/.GIT/config",
+            "./x",
+            "/etc/passwd",
+            "../x",
         ] {
             assert!(!is_relative_path(bad), "{bad}");
         }
