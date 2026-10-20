@@ -1254,6 +1254,22 @@ operation GetCity reads City {
         assert_eq!(outline[3].children[0].name, "input");
         assert_eq!(outline[3].children[0].children[0].name, "name");
     }
+
+    #[test]
+    fn test_kind_modifier() {
+        assert_eq!(kind_modifier("service"), SERVICE);
+        assert_eq!(kind_modifier("protocol"), PROTOCOL);
+        assert_eq!(kind_modifier("resource"), RESOURCE);
+        assert_eq!(kind_modifier("error"), ERROR);
+        assert_eq!(kind_modifier("union"), UNION);
+        assert_eq!(kind_modifier("rule"), RULE);
+
+        // Edge cases and other keywords
+        assert_eq!(kind_modifier("structure"), 0);
+        assert_eq!(kind_modifier("operation"), 0);
+        assert_eq!(kind_modifier(""), 0);
+        assert_eq!(kind_modifier("unknown"), 0);
+    }
 }
 
 #[cfg(test)]

@@ -1,0 +1,34 @@
+--- crates/crucible-lsp/src/server.rs
++++ crates/crucible-lsp/src/server.rs
+@@ -2055,8 +2055,11 @@
+ #[cfg(test)]
+ mod tests {
+     use super::*;
++    use lsp_types::{
++        ClientCapabilities, ReferenceClientCapabilities, TextDocumentClientCapabilities,
++        WorkDoneProgressParams,
++    };
+
+     #[test]
+     fn test_capabilities() {
+         let params = InitializeParams::default();
+@@ -2070,12 +2073,8 @@
+         }
+
+         assert!(caps.semantic_tokens_provider.is_some());
+-    use lsp_types::{
+-        ClientCapabilities, ReferenceClientCapabilities, TextDocumentClientCapabilities,
+-        WorkDoneProgressParams,
+-    };
++    }
+
+     fn default_params() -> InitializeParams {
+         #[allow(deprecated)]
+         InitializeParams {
+@@ -2141,6 +2140,5 @@
+             ..Default::default()
+         });
+         assert!(shows_references(&params));
+->>>>>>> Stashed changes
+     }
+ }

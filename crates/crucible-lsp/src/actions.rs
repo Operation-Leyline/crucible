@@ -62,6 +62,26 @@ mod tests {
     use super::*;
 
     #[test]
+    fn test_unknown_type() {
+        // Happy path
+        assert_eq!(unknown_type("unknown type `ItemId`"), Some("ItemId"));
+
+        // Missing prefix
+        assert_eq!(unknown_type("ItemId`"), None);
+        assert_eq!(unknown_type("known type `ItemId`"), None);
+
+        // Missing suffix
+        assert_eq!(unknown_type("unknown type `ItemId"), None);
+
+        // Empty type name
+        assert_eq!(unknown_type("unknown type ``"), None);
+
+        // Other malformed messages
+        assert_eq!(unknown_type("something else"), None);
+        assert_eq!(unknown_type(""), None);
+    }
+
+    #[test]
     fn suggestions_are_close_names() {
         let parsed =
             crucible_lang::parse("structure ItemId {}\nstructure Other {}\nerror ItemIdError {}\n");

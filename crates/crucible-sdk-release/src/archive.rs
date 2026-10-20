@@ -292,8 +292,8 @@ pub(crate) fn hex(bytes: &[u8]) -> String {
 #[cfg(test)]
 mod tests {
     use super::{
-        extract_tree_archive, is_relative_path, package_files, read_tarball_files, sri_matches,
-        sri_sha512, write_tree_archive,
+        extract_tree_archive, is_relative_path, package_files, read_tarball_files, sha256_bytes,
+        sri_matches, sri_sha512, write_tree_archive,
     };
     use flate2::Compression;
     use flate2::write::GzEncoder;
@@ -408,7 +408,10 @@ mod tests {
     #[test]
     fn integrity_strings() {
         let sri = sri_sha512(b"hello");
-        assert!(sri.starts_with("sha512-"));
+        assert_eq!(
+            sri,
+            "sha512-m3HSJL1i83hdltRq0+o9czGb+8KJDKra4t/3JRlnPKcjI8PZm6XBHXx6zG4UuMXaDEZjR1wuXDre9G9zvN7AQw=="
+        );
         assert_eq!(sri_matches(&sri, b"hello"), Some(true));
         assert_eq!(
             sri_matches(&format!("sha1-abc {sri}"), b"hello"),
@@ -416,5 +419,17 @@ mod tests {
         );
         assert_eq!(sri_matches(&sri, b"other"), Some(false));
         assert_eq!(sri_matches("sha1-abc", b"hello"), None);
+    }
+
+    #[test]
+    fn sha256_hashing() {
+        assert_eq!(
+            sha256_bytes(b"hello"),
+            "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824"
+        );
+        assert_eq!(
+            sha256_bytes(b""),
+            "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        );
     }
 }

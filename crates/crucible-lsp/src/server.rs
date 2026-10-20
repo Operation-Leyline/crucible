@@ -2056,6 +2056,22 @@ fn normalize(path: &Path) -> PathBuf {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_capabilities() {
+        let params = InitializeParams::default();
+        let caps = capabilities(&params);
+
+        assert!(caps.text_document_sync.is_some());
+        if let Some(TextDocumentSyncCapability::Options(opts)) = caps.text_document_sync {
+            assert_eq!(opts.change, Some(TextDocumentSyncKind::FULL));
+        } else {
+            panic!("Expected text document sync to be Options");
+        }
+
+        assert!(caps.semantic_tokens_provider.is_some());
+    }
+
     use lsp_types::{
         ClientCapabilities, ReferenceClientCapabilities, TextDocumentClientCapabilities,
         WorkDoneProgressParams,

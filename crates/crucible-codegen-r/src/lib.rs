@@ -648,3 +648,40 @@ fn package_docs(service: &Service, options: &Options) -> [File; 2] {
         },
     ]
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_field() {
+        assert_eq!(field("foo"), "foo");
+        assert_eq!(field("Foo"), "foo");
+        assert_eq!(field("fooBar"), "foo_bar");
+        assert_eq!(field("FooBar"), "foo_bar");
+        assert_eq!(field("MYField"), "my_field");
+        assert_eq!(field("myID"), "my_id");
+        assert_eq!(field("field1Name"), "field1_name");
+        assert_eq!(field("field123Name"), "field123_name");
+        assert_eq!(field("field123name"), "field123name");
+
+        // Reserved keywords
+        assert_eq!(field("if"), "if_value");
+        assert_eq!(field("else"), "else_value");
+        assert_eq!(field("repeat"), "repeat_value");
+        assert_eq!(field("while"), "while_value");
+        assert_eq!(field("function"), "function_value");
+        assert_eq!(field("for"), "for_value");
+        assert_eq!(field("in"), "in_value");
+        assert_eq!(field("next"), "next_value");
+        assert_eq!(field("break"), "break_value");
+        assert_eq!(field("TRUE"), "true_value");
+        assert_eq!(field("FALSE"), "false_value");
+        assert_eq!(field("NULL"), "null_value");
+        assert_eq!(field("Inf"), "inf_value");
+        assert_eq!(field("NaN"), "na_n");
+        assert_eq!(field("NA"), "na_value");
+        assert_eq!(field("..."), "..._value");
+        assert_eq!(field("metadata"), "metadata_value");
+    }
+}

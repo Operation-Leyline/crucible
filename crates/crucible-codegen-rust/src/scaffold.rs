@@ -179,3 +179,16 @@ fn available_name(preferred: &str, imports: &BTreeSet<String>) -> String {
     }
     name
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_module_name() {
+        assert_eq!(module_name("Type"), "r#type");
+        assert_eq!(module_name("Self"), "self_");
+        assert_eq!(module_name("GetCity"), "get_city");
+        assert_eq!(module_name("12GetCity"), "_12_get_city");
+    }
+}
