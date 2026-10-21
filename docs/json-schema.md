@@ -11,14 +11,55 @@ crucible generate json-schema model --shape example.render#RenderPlan --out rend
 `--shape` accepts a fully qualified `namespace#Name` or an unambiguous original
 shape name. Service renames do not change these identities. A missing, invalid,
 ambiguous, unreachable, or audience-excluded root is a diagnostic; ambiguous
-names list their fully qualified candidates. Only shapes reachable in the
-selected service's lowered IR are available. Select the service with `--service`
+names list their fully qualified candidates. Shapes can be reached by service
+operations or explicitly exported by the package. Select the service with `--service`
 and a release with `--api-version` as for other generators.
 
 The default audience is external. `--audience internal` includes internal shapes
 and members; audience projection happens before root selection. No server-only
 shape is restored to satisfy a reference. The CLI's `--out` names a file in an
 existing directory; generation diagnostics leave it unchanged.
+
+## Shapes independent of operations and resources
+
+Declare standalone model roots in `crucible.toml`:
+
+```toml
+[model]
+namespace = "example.render"
+language = 1
+sources = ["."]
+exports = ["RenderPlan"]
+```
+
+`exports` accepts declared type names or fully qualified `namespace#Name` ids
+from the package and its imports. Roots are sorted and deduplicated; unknown,
+invalid, non-type, or ambiguous roots are compiler diagnostics. The compiler
+lowers each root and its dependencies once, preserving recursion, constraints,
+metadata, and documentation links in the IR. These package-wide exports are
+available to every output, including native model types, rather than creating
+an operation or resource. Explicit exports supplement the existing service
+contract closure; unrelated declarations remain excluded.
+
+The package still selects a real service, which may have no operations or
+resources. A package can declare this service and a separate `RenderPlan`:
+
+```cru
+service Renderer {
+    version "1"
+    protocol json
+    operations []
+}
+```
+
+The same `--shape RenderPlan` command and Cargo output below work without a
+reference from that service. Export declarations apply to each selected service
+in the package and are carried in release snapshots.
+
+Audience projection retains public export roots and their public dependency
+closure. It removes internal roots from both `export_roots` and `shapes`; an
+external schema request cannot restore them. A public exported shape referencing
+an internal target produces the existing audience diagnostics.
 
 ## Cargo build scripts
 

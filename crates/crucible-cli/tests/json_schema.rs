@@ -43,3 +43,25 @@ fn cli_selects_a_shape_and_preserves_destination_on_diagnostics() {
         "consumer-owned"
     );
 }
+
+#[test]
+fn cli_exports_an_unattached_declared_model_root() {
+    let dir = tempfile::tempdir().unwrap();
+    common::install_shared(dir.path(), "json-schema-unattached");
+    let output = dir.path().join("plan.json");
+    let result = Command::new(env!("CARGO_BIN_EXE_crucible"))
+        .args(["generate", "json-schema"])
+        .arg(dir.path().join("json-schema-unattached"))
+        .args(["--shape", "RenderPlan", "--out"])
+        .arg(&output)
+        .output()
+        .unwrap();
+    assert!(
+        result.status.success(),
+        "{}",
+        String::from_utf8_lossy(&result.stderr)
+    );
+    let schema: Value = serde_json::from_str(&fs::read_to_string(output).unwrap()).unwrap();
+    assert!(schema["properties"]["seed"].is_object());
+    assert!(schema["$defs"].get("example.schema.Secret").is_none());
+}

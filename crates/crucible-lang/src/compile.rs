@@ -25,6 +25,9 @@ pub struct Package {
     /// Packages whose declarations this one uses: the bundled
     /// `crucible.errors` today (decision 60).
     pub imports: Vec<String>,
+    /// Explicit named shape roots, independently of operation/resource reachability.
+    /// Written as `[model].exports`; lowered once into `Service::export_roots`.
+    pub exports: Vec<String>,
     /// The packages `imports` names that are not bundled: each of
     /// `[model.dependencies]` the package imports, and what those import in
     /// turn, flattened and deepest first. Their own `dependencies` are empty.
@@ -46,6 +49,7 @@ impl Package {
             files,
             naming: Naming::default(),
             imports: Vec::new(),
+            exports: Vec::new(),
             dependencies: Vec::new(),
             dir: None,
             baseline: None,

@@ -66,7 +66,10 @@ imports and templates, and lowers to the IR. Generators never read source.
 ## The IR
 
 `ir::Service` holds the operations (sorted by name) and every shape they
-reach, keyed by shape id. Lowering settles, once:
+reach, keyed by shape id. Explicit `[model].exports` are additional typed
+`export_roots`: their dependency closure enters the same IR independently of
+operations and resources. Audience projection retains public roots and removes
+internal ones. Lowering settles, once:
 
 - **Nullability**: a member is non-null when it is required or has a
   non-null default. A member's optionality is one fact for client and

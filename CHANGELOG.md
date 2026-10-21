@@ -23,6 +23,17 @@ version's section when it is prepared.
   output. Schemas use the shared lowered-IR engine, local recursive `$defs`,
   audience projection, and diagnostics for invalid or ambiguous roots.
   See [JSON Schema export](docs/json-schema.md).
+- `[model].exports` retains declared named shapes and their dependency closure
+  independently of operations/resources. Typed `Service::export_roots` survives
+  snapshots and audience projection; empty roots remain omitted from snapshots.
+  LSP manifest completion and hover document the new key.
+
+### Migration
+
+- Direct Rust compiler/IR struct literals initialize the new `Package::exports`
+  and `Service::export_roots` fields to an empty vector for previous behavior.
+  Prefer `Package::new` when constructing compiler inputs. Existing model
+  manifests and release snapshots need no changes; missing roots default empty.
 
 ### Fixed
 

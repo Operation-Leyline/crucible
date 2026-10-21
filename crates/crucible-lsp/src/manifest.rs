@@ -108,6 +108,12 @@ const TABLES: &[Table] = &[
                 sample: "[\".\"]",
             },
             Key {
+                name: "exports",
+                kind: Kind::Texts,
+                doc: "Named shapes retained independently of operations/resources, with their dependencies. Use `Name` or `namespace#Name`; audience selection removes internal roots.",
+                sample: "[]",
+            },
+            Key {
                 name: "imports",
                 kind: Kind::Imports,
                 doc: "Bundled packages whose declarations this package uses, such as `crucible.errors`.",
@@ -588,6 +594,13 @@ mod tests {
         );
         assert!(labels("[[exceptions]]\nrule = |").contains(&"naming.members".to_owned()));
         assert_eq!(labels("[model]\nimports = [|"), ["crucible.errors"]);
+        assert!(labels("[model]\n|").contains(&"exports".to_owned()));
+        let export = "[model]\nexports = [\"RenderPlan\"]";
+        assert!(
+            hover(export, export.find("exports").unwrap() + 2)
+                .unwrap()
+                .contains("independently of operations/resources")
+        );
         let top = labels("|");
         assert!(top.contains(&"[model]".to_owned()) && top.contains(&"schema_version".to_owned()));
         // A string value is quoted unless the quote is already typed.

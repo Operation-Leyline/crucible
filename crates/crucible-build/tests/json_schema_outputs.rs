@@ -8,6 +8,16 @@ fn json_schema_build_probe() {
     if std::env::var_os("CRUCIBLE_JSON_SCHEMA_PROBE").is_none() {
         return;
     }
+    let standalone = crucible_build::model("json-schema-unattached").compile();
+    let standalone = standalone
+        .json_schema("standalone")
+        .shape("RenderPlan")
+        .generate();
+    let standalone: Value =
+        serde_json::from_str(&fs::read_to_string(standalone.path.join("schema.json")).unwrap())
+            .unwrap();
+    assert!(standalone["properties"]["seed"].is_object());
+    assert!(standalone["$defs"].get("example.schema.Secret").is_none());
     let model = crucible_build::model("json-schema").compile();
     let artifact = model
         .json_schema("plan")
@@ -66,6 +76,7 @@ fn json_schema_build_probe() {
 fn named_schema_build_output_exports_and_protects_existing_files() {
     let dir = tempfile::tempdir().unwrap();
     common::install_shared(dir.path(), "json-schema");
+    common::install_shared(dir.path(), "json-schema-unattached");
     let result = Command::new(std::env::current_exe().unwrap())
         .args(["--exact", "json_schema_build_probe", "--nocapture"])
         .env("CRUCIBLE_JSON_SCHEMA_PROBE", "1")

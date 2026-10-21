@@ -1,0 +1,22 @@
+service Renderer {
+    version "1"
+    protocol json
+    operations []
+}
+integer Seed { range 0..2147483647 }
+string Prompt { length 1..80 pattern "^[a-zA-Z ]+$" }
+structure RenderPlan {
+    seed: Seed
+    source: Source
+    label?: Prompt
+    internal private?: Secret
+    retries: integer = 2
+    children?: Plans
+}
+list Plans: RenderPlan { length ..3 }
+union Source {
+    text: Prompt
+    prior: Seed
+    empty
+}
+internal string Secret

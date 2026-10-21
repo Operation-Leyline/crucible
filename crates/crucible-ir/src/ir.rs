@@ -51,9 +51,13 @@ pub struct Service {
     pub resources: BTreeMap<ShapeId, Resource>,
     /// Direct service bindings, sorted by shape ID.
     pub resource_roots: Vec<ShapeId>,
+    /// Explicit shape exports, independent of operations and resources.
+    /// Sorted, deduplicated roots; `shapes` includes their dependency closure.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub export_roots: Vec<ShapeId>,
     /// Design-time resource references, keyed by the referencing shape.
     pub resource_references: BTreeMap<ShapeId, Vec<ResourceReference>>,
-    /// Every shape an operation reaches, prelude shapes included. A type
+    /// Every shape the service contract or explicit exports reach, prelude shapes included. A type
     /// only a resource's identifier or property names is not among them.
     pub shapes: BTreeMap<ShapeId, Shape>,
     pub traits: Traits,

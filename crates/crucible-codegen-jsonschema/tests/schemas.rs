@@ -191,3 +191,18 @@ fn every_reachable_shape_exports_in_unrelated_services() {
         }
     }
 }
+
+#[test]
+fn unattached_model_exports_are_available_without_operations_or_resources() {
+    let service = load("json-schema-unattached");
+    assert!(service.operations.is_empty());
+    assert!(service.resources.is_empty());
+    let schema = document(
+        &crucible_ir::project(&service, Audience::External).unwrap(),
+        "RenderPlan",
+    );
+    assert!(validator(&schema).is_valid(&json!({"seed":1,"source":{"empty":{}}})));
+    assert_eq!(schema, document(&load("json-schema"), "RenderPlan"));
+    assert!(schema["properties"].get("private").is_none());
+    assert!(schema["$defs"].get("example.schema.Secret").is_none());
+}

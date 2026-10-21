@@ -19,6 +19,7 @@ fn compiled(text: &str) -> Compiled {
         dependencies: Vec::new(),
         dir: None,
         baseline: None,
+        exports: Vec::new(),
     };
     compile(&package, None)
 }
