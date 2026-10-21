@@ -167,6 +167,8 @@ pub fn generate_with_explorer_model(
         adapters.push(projected);
     }
     let mut unsupported = Diagnostics::default();
+    // Additive operations reach older projections even if their frozen release
+    // predates the operation; new streams still need historical adapters.
     for model in adapters.iter().chain(
         (!service.versions.is_empty())
             .then_some(service)

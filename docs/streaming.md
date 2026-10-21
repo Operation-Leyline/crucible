@@ -152,6 +152,10 @@ MCP, historical server adapters, and direct invocation do not yet serve
 streams; unsupported generators or protocols refuse them. Changing response
 cardinality is a breaking change in the compatibility guard.
 
+New operations also appear in older projected releases. Adding a stream to a
+versioned service therefore needs historical adapters even when the frozen
+release predates that operation; this initial implementation diagnoses it.
+
 [Backlog #389](https://github.com/Operation-Leyline/crucible/issues/389) tracks
 client parity and the remaining tooling and host qualification.
 

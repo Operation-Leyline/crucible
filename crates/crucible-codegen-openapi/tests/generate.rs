@@ -51,6 +51,28 @@ fn response_stream_documents_framing_and_item_schema() {
     );
 }
 
+/// Root and nested event values use the shared document encoding.
+#[test]
+fn stream_item_examples_use_the_same_document_encoding_as_items() {
+    let mut package = crucible_lang::load_package(&package_dir("server-stream")).unwrap();
+    for file in &mut package.files {
+        file.text = file
+            .text
+            .replace("ready: string", "ready: timestamp")
+            .replace("ready: \"ready\"", "ready: 0");
+    }
+    let compiled = crucible_lang::compile(&package, None);
+    let service = compiled
+        .service
+        .as_ref()
+        .unwrap_or_else(|| panic!("{}", compiled.render()));
+    let output: Value =
+        serde_json::from_str(&generate(service, &Options::default()).unwrap()).unwrap();
+    let example = &output["paths"]["/events"]["get"]["responses"]["200"]["content"]["text/event-stream"]
+        ["x-crucible-stream"]["itemExamples"]["Ready"]["value"];
+    assert_eq!(example["ready"], "1970-01-01T00:00:00Z");
+}
+
 /// Weather with each `(old, new)` pair replaced in its sources.
 fn edited(edits: &[(&str, &str)]) -> crucible_ir::ir::Service {
     try_edited(edits).unwrap_or_else(|rendered| panic!("the edited weather compiles:\n{rendered}"))

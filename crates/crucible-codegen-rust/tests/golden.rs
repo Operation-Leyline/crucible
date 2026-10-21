@@ -76,6 +76,49 @@ fn only_adapter_visible_streams_are_diagnosed() {
     );
 }
 
+/// Additive operations reach older projections even without a frozen operation.
+#[test]
+fn newly_added_streams_also_need_adapters_in_older_projected_releases() {
+    let mut current = common::load("server-stream");
+    let mut old = current.clone();
+    old.operations
+        .retain(|op| op.response_mode == crucible_ir::ir::ResponseMode::Unary);
+    old.requirements
+        .retain(|usage| usage.feature != crucible_ir::Feature::ServerStreaming);
+    let mut version = crucible_ir::ir::ApiVersion {
+        name: "old".into(),
+        service: Box::new(old.clone()),
+        release: Box::new(old),
+        steps: vec![],
+        sunset: None,
+        sunset_docs: None,
+        docs: None,
+        retired: vec![],
+        restored: vec![],
+        external: false,
+    };
+    version.service = Box::new(crucible_ir::versions::undo(
+        &current,
+        &version,
+        &mut Default::default(),
+        &mut Default::default(),
+    ));
+    assert!(
+        version
+            .service
+            .operations
+            .iter()
+            .any(|op| op.name() == "Watch"
+                && op.response_mode == crucible_ir::ir::ResponseMode::ServerStream)
+    );
+    current.versions.push(version);
+    let errors = generate(&current, &Options::default()).unwrap_err();
+    assert!(
+        format!("{errors:?}").contains("historical-version adapters"),
+        "{errors:?}"
+    );
+}
+
 /// The typed permissions fixture with its source rewritten first.
 fn leyline_with(edit: impl Fn(String) -> String) -> crucible_ir::ir::Service {
     let dir =

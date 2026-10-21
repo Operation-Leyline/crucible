@@ -272,9 +272,9 @@ fn responses(service: &Service, op: &Operation, keys: &[String]) -> Value {
                     "schema":{"$ref":format!("#/components/schemas/{}", key(id))}})
             }).collect::<Vec<_>>()
         }}});
-        if let Some(examples) =
-            examples::map(&examples::outputs(op, keys), |sample| Some(sample.clone()))
-        {
+        if let Some(examples) = examples::map(&examples::outputs(op, keys), |sample| {
+            Some(service.wire_shape_example(id, sample))
+        }) {
             success["content"]["text/event-stream"]["x-crucible-stream"]["itemExamples"] = examples;
         }
     } else if let Some(output) = structure(service, op.output.as_ref()) {
