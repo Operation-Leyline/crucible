@@ -25,7 +25,9 @@ version's section when it is prepared.
   See [JSON Schema export](docs/json-schema.md).
 - `[model].exports` retains declared named shapes and their dependency closure
   independently of operations/resources. Typed `Service::export_roots` survives
-  snapshots and audience projection; empty roots remain omitted from snapshots.
+  snapshots and audience projection; older releases retain their frozen roots
+  after a current export is removed, and internal services hide external roots.
+  Empty roots remain omitted from snapshots.
   LSP manifest completion and hover document the new key.
 
 ### Migration

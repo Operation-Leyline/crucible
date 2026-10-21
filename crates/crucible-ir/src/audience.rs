@@ -146,7 +146,7 @@ fn external(service: &Service, lenient: bool) -> Result<Service, Diagnostics> {
     let mut result = service.clone();
     result
         .export_roots
-        .retain(|id| service.shape(id).is_some_and(|shape| !shape.internal()));
+        .retain(|id| !service.internal && service.shape(id).is_some_and(|shape| !shape.internal()));
     result
         .errors
         .retain(|id| !service.internal && !service.shape(id).is_some_and(Shape::internal));

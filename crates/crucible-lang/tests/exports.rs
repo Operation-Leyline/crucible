@@ -232,3 +232,66 @@ fn export_diagnostics_are_collected_even_when_service_selection_fails() {
     assert!(diagnostics.contains("unknown shape root"), "{diagnostics}");
     assert!(diagnostics.contains("has no service"), "{diagnostics}");
 }
+
+#[test]
+fn an_internal_service_hides_its_public_exports_from_external_outputs() {
+    let mut service = lowered(&package());
+    service.internal = true;
+    let external = crucible_ir::project(&service, Audience::External).unwrap();
+    assert!(external.export_roots.is_empty());
+    assert!(external.shapes.is_empty());
+    let internal = crucible_ir::project(&service, Audience::Internal).unwrap();
+    assert_eq!(internal.export_roots, service.export_roots);
+}
+
+#[test]
+fn older_releases_restore_dropped_exports_and_their_recursive_closure() {
+    let mut package = package();
+    package.exports = vec!["RenderPlan".into()];
+    let frozen = lowered(&package);
+    package.exports = vec!["Secret".into()];
+    let newer = lowered(&package);
+    assert!(
+        newer
+            .shape(&ShapeId::new("example.schema", "RenderPlan"))
+            .is_none()
+    );
+    let version = crucible_ir::ir::ApiVersion {
+        name: "1".into(),
+        service: Box::new(frozen.clone()),
+        release: Box::new(frozen.clone()),
+        steps: Vec::new(),
+        sunset: None,
+        sunset_docs: None,
+        docs: None,
+        retired: Vec::new(),
+        restored: Vec::new(),
+        external: false,
+    };
+    let mut errors = crucible_ir::Diagnostics::default();
+    let mut warnings = crucible_ir::Diagnostics::default();
+    let restored = crucible_ir::versions::undo(&newer, &version, &mut errors, &mut warnings);
+    assert!(errors.is_empty(), "{errors}");
+    assert!(warnings.is_empty(), "{warnings}");
+    assert_eq!(
+        restored.export_roots,
+        [
+            ShapeId::new("example.schema", "RenderPlan"),
+            ShapeId::new("example.schema", "Secret")
+        ]
+    );
+    for id in frozen.shapes.keys() {
+        assert!(restored.shape(id).is_some(), "{id}");
+    }
+    let external = crucible_ir::project(&restored, Audience::External).unwrap();
+    assert!(
+        external
+            .shape(&ShapeId::new("example.schema", "RenderPlan"))
+            .is_some()
+    );
+    assert!(
+        external
+            .shape(&ShapeId::new("example.schema", "Secret"))
+            .is_none()
+    );
+}

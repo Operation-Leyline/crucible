@@ -136,6 +136,15 @@ pub fn undo_restoring(
         reshaped: BTreeSet::new(),
         errors,
     };
+    // Explicit exports are part of the release's public model even after
+    // the current manifest drops them. Restore missing definitions through
+    // the same closure machinery as other frozen shapes before undoing steps.
+    for root in &frozen.export_roots {
+        undo.out.export_roots.push(root.clone());
+        undo.resolve(root);
+    }
+    undo.out.export_roots.sort();
+    undo.out.export_roots.dedup();
     let steps = &version.steps;
     // Whole definitions first: what the other steps name inside them is
     // the frozen definition's already.
