@@ -76,6 +76,7 @@ pub(crate) fn lower(
         service_name: String::new(),
         shapes: BTreeMap::new(),
         meta_shapes: BTreeMap::new(),
+        export_candidates: BTreeMap::new(),
         visiting: BTreeSet::new(),
         pending: BTreeMap::new(),
         requirements: BTreeSet::new(),
@@ -108,7 +109,7 @@ pub(crate) fn lower(
     lowerer.check_lifecycle();
     lowerer.check_restated_resources();
     lowerer.check_metadata();
-    let service = lowerer.service(service);
+    let service = lowerer.service(service, &package.exports);
     // A template member lowered for each operation of its role reports a
     // problem once, where it is written.
     let mut said = BTreeSet::new();
@@ -493,6 +494,7 @@ struct Lowerer<'a> {
     shapes: BTreeMap<ShapeId, Shape>,
     /// Metadata value types, lowered apart from the service's shapes.
     meta_shapes: BTreeMap<ShapeId, Shape>,
+    export_candidates: BTreeMap<String, BTreeSet<ShapeId>>,
     visiting: BTreeSet<ShapeId>,
     /// What a member may need of a shape still being lowered: one it
     /// reaches again through its own members (recursion). A structure or
@@ -878,6 +880,12 @@ impl<'a> Lowerer<'a> {
                             name.name
                         ),
                     );
+                }
+                if is_type(&item.decl) {
+                    self.export_candidates
+                        .entry(name.name.clone())
+                        .or_default()
+                        .insert(ShapeId::new(ns, &name.name));
                 }
                 if let Some(previous) = self.decls.get(name.name.as_str()).copied() {
                     let kind = decl_keyword(&previous.item.decl);
@@ -5172,7 +5180,54 @@ impl<'a> Lowerer<'a> {
 
     // ---- service -----------------------------------------------------------
 
-    fn service(&mut self, selected: Option<&str>) -> Option<Service> {
+    fn resolve_export_roots(&mut self, names: &[String]) -> Vec<ShapeId> {
+        let mut roots = BTreeSet::new();
+        for name in names {
+            let absolute = if name.contains('#') {
+                name.clone()
+            } else {
+                format!("exports#{name}")
+            };
+            let Ok(parsed) = absolute.parse::<ShapeId>() else {
+                self.package_error(format!("[model].exports: invalid shape root {name:?}"));
+                continue;
+            };
+            if parsed.member().is_some() {
+                self.package_error(format!(
+                    "[model].exports: a root names a shape, not a member: {name:?}"
+                ));
+                continue;
+            }
+            let candidates: Vec<ShapeId> = self
+                .export_candidates
+                .get(parsed.name())
+                .into_iter()
+                .flatten()
+                .filter(|id| !name.contains('#') || *id == &parsed)
+                .cloned()
+                .collect();
+            match candidates.as_slice() {
+                [id] => {
+                    roots.insert(id.clone());
+                }
+                [] => self.package_error(format!(
+                    "[model].exports: unknown shape root {name:?}; export a declared named type"
+                )),
+                _ => self.package_error(format!(
+                    "[model].exports: ambiguous shape root {name:?}; candidates: {}",
+                    candidates
+                        .iter()
+                        .map(ToString::to_string)
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                )),
+            }
+        }
+        roots.into_iter().collect()
+    }
+
+    fn service(&mut self, selected: Option<&str>, exports: &[String]) -> Option<Service> {
+        let export_roots = self.resolve_export_roots(exports);
         let services: Vec<DeclRef<'a>> = self
             .decls
             .values()
@@ -5477,6 +5532,10 @@ impl<'a> Lowerer<'a> {
         lowered.sort_by(|a, b| a.id.name().cmp(b.id.name()));
         let (resources, resource_roots) = self.resources(&reached, &resource_names, &lowered);
 
+        for root in &export_roots {
+            self.named_types.insert(root.clone());
+            self.visit(root);
+        }
         let version_declared = version.is_some();
         let mut service = Service {
             internal: false,
@@ -5495,6 +5554,7 @@ impl<'a> Lowerer<'a> {
             operations: lowered,
             resources,
             resource_roots,
+            export_roots,
             // `references` (decision 34b) is not in the grammar yet.
             resource_references: BTreeMap::new(),
             // Cloned, not taken: `check_unreached` must not lower a reached

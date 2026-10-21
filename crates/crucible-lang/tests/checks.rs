@@ -41,6 +41,7 @@ fn messages(extra: &str) -> Vec<String> {
         dependencies: Vec::new(),
         dir: None,
         baseline: None,
+        exports: Vec::new(),
     };
     let compiled = compile(&package, None);
     // Warnings do not withhold the service; errors do.
@@ -285,6 +286,7 @@ fn split(extra: &str) -> (Vec<String>, Vec<String>) {
         dependencies: Vec::new(),
         dir: None,
         baseline: None,
+        exports: Vec::new(),
     };
     let compiled = compile(&package, None);
     let (errors, warnings): (Vec<_>, Vec<_>) = compiled
@@ -391,6 +393,7 @@ structure Note {
         dependencies: Vec::new(),
         dir: None,
         baseline: None,
+        exports: Vec::new(),
     };
     let compiled = compile(&package, None);
     assert!(compiled.service.is_some(), "{}", compiled.render());

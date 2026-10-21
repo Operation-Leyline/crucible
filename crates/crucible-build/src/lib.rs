@@ -110,6 +110,8 @@ mod docs_output;
 mod go_sdk;
 #[cfg(feature = "java")]
 mod java_sdk;
+#[cfg(feature = "json-schema")]
+mod json_schema_output;
 #[cfg(feature = "kotlin")]
 mod kotlin_sdk;
 mod model;
@@ -131,6 +133,7 @@ mod output;
     feature = "c",
     feature = "r",
     feature = "openapi",
+    feature = "json-schema",
     feature = "docs",
     feature = "cdk",
     feature = "terraform",
@@ -181,6 +184,8 @@ pub use crucible_codegen::DartOptions;
 pub use crucible_codegen::GoOptions;
 #[cfg(feature = "java")]
 pub use crucible_codegen::JavaOptions;
+#[cfg(feature = "json-schema")]
+pub use crucible_codegen::JsonSchemaOptions;
 #[cfg(feature = "kotlin")]
 pub use crucible_codegen::KotlinOptions;
 #[cfg(feature = "openapi")]
@@ -292,6 +297,8 @@ pub use model::Model;
 pub type ModelBuilder = Model;
 #[cfg(feature = "docs")]
 pub use docs_output::DocsOutput;
+#[cfg(feature = "json-schema")]
+pub use json_schema_output::JsonSchemaOutput;
 pub use model_package::ModelPackage;
 #[cfg(feature = "openapi")]
 pub use openapi_output::OpenApiOutput;

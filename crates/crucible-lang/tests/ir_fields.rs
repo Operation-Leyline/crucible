@@ -50,6 +50,7 @@ fn service() -> (Service, crucible_lang::Compiled, Package) {
         dependencies: Vec::new(),
         dir: None,
         baseline: None,
+        exports: Vec::new(),
     };
     let compiled = compile(&package, None);
     assert!(compiled.diagnostics.is_empty(), "\n{}", compiled.render());
@@ -126,6 +127,7 @@ fn bad_mutability_and_retention_are_reported() {
         dependencies: Vec::new(),
         dir: None,
         baseline: None,
+        exports: Vec::new(),
     };
     let compiled = compile(&package, None);
     let messages: Vec<&str> = compiled

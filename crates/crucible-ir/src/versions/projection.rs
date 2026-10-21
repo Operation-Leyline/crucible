@@ -136,6 +136,15 @@ pub fn undo_restoring(
         reshaped: BTreeSet::new(),
         errors,
     };
+    // Explicit exports are part of the release's public model even after
+    // the current manifest drops them. Restore missing definitions through
+    // the same closure machinery as other frozen shapes before undoing steps.
+    for root in &frozen.export_roots {
+        undo.out.export_roots.push(root.clone());
+        undo.resolve(root);
+    }
+    undo.out.export_roots.sort();
+    undo.out.export_roots.dedup();
     let steps = &version.steps;
     // Whole definitions first: what the other steps name inside them is
     // the frozen definition's already.
@@ -247,6 +256,7 @@ fn without_versions(service: &Service) -> Service {
         operations: service.operations.clone(),
         resources: service.resources.clone(),
         resource_roots: service.resource_roots.clone(),
+        export_roots: service.export_roots.clone(),
         resource_references: service.resource_references.clone(),
         shapes: service.shapes.clone(),
         traits: service.traits.clone(),
@@ -407,6 +417,13 @@ impl Undo<'_> {
     /// Points what names `from` at `to` instead: a reshaped definition
     /// the two releases give different ids.
     fn redirect(&mut self, from: &ShapeId, to: &ShapeId) {
+        for root in &mut self.out.export_roots {
+            if root == from {
+                *root = to.clone();
+            }
+        }
+        self.out.export_roots.sort();
+        self.out.export_roots.dedup();
         for operation in &mut self.out.operations {
             for slot in [&mut operation.input, &mut operation.output] {
                 if slot.as_ref() == Some(from) {
@@ -1446,6 +1463,7 @@ fn reached(service: &Service) -> BTreeSet<ShapeId> {
             .iter()
             .flat_map(|op| op.input.iter().chain(&op.output).chain(&op.errors))
             .chain(&service.errors)
+            .chain(&service.export_roots)
             .cloned(),
     )
 }

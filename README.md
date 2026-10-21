@@ -206,6 +206,7 @@ producing several named SDKs from one workspace, and
 
 | Output | Command | Guide |
 |---|---|---|
+| JSON Schema 2020-12 | `crucible generate json-schema` | [JSON Schema](docs/json-schema.md) |
 | OpenAPI 3.1 | `crucible generate openapi` | [OpenAPI](docs/openapi.md) |
 | API reference (mdBook) | `crucible generate docs` | [Reference docs](docs/docs.md) |
 | Service CLI | `crucible generate cli` | [Service CLI](docs/clients/cli.md) |

@@ -15,6 +15,33 @@ version's section when it is prepared.
 
 ## [Unreleased]
 
+### Added
+
+- Standalone JSON Schema Draft 2020-12 export for a named shape through
+  `crucible generate json-schema --shape`, `Generator::JsonSchema`, and
+  `crucible-build`'s `json-schema` feature and `.json_schema(name).shape(...)`
+  output. Schemas use the shared lowered-IR engine, local recursive `$defs`,
+  audience projection, and diagnostics for invalid or ambiguous roots.
+  See [JSON Schema export](docs/json-schema.md).
+- `[model].exports` retains declared named shapes and their dependency closure
+  independently of operations/resources. Typed `Service::export_roots` survives
+  snapshots and audience projection; older releases retain their frozen roots
+  after a current export is removed, and internal services hide external roots.
+  Empty roots remain omitted from snapshots.
+  LSP manifest completion and hover document the new key.
+
+### Migration
+
+- Direct Rust compiler/IR struct literals initialize the new `Package::exports`
+  and `Service::export_roots` fields to an empty vector for previous behavior.
+  Prefer `Package::new` when constructing compiler inputs. Existing model
+  manifests and release snapshots need no changes; missing roots default empty.
+
+### Fixed
+
+- Standalone JSON Schemas preserve arbitrary `$ref` fields inside defaults and
+  custom trait metadata when rewriting schema references to local `$defs`.
+
 ## [0.8.0] - 2026-10-18
 
 Crucible is now `.cru`-only and public under Apache-2.0. The Smithy front

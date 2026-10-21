@@ -33,6 +33,8 @@ pub use crucible_codegen_infra as infra;
 pub use crucible_codegen_infra::Bindings as ProvisioningBindings;
 #[cfg(feature = "java")]
 pub use crucible_codegen_java::Options as JavaOptions;
+#[cfg(feature = "json-schema")]
+pub use crucible_codegen_jsonschema::Options as JsonSchemaOptions;
 #[cfg(feature = "kotlin")]
 pub use crucible_codegen_kotlin::Options as KotlinOptions;
 #[cfg(feature = "openapi")]

@@ -242,6 +242,12 @@ impl Model {
         crate::RSdk::new(self.package(), name)
     }
 
+    /// Configure a named JSON Schema document output. Enable the `json-schema` feature.
+    #[cfg(feature = "json-schema")]
+    pub fn json_schema(&self, name: &str) -> crate::JsonSchemaOutput<'_> {
+        crate::JsonSchemaOutput::new(self.package(), name)
+    }
+
     /// Configure a named OpenAPI document output. Enable the `openapi` feature.
     #[cfg(feature = "openapi")]
     pub fn openapi(&self, name: &str) -> crate::OpenApiOutput<'_> {

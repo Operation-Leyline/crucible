@@ -267,6 +267,17 @@ enum Target {
         #[arg(long)]
         all_releases: bool,
     },
+    /// A standalone JSON Schema Draft 2020-12 document for a named shape.
+    JsonSchema {
+        #[command(flatten)]
+        source: Source,
+        /// Fully qualified shape id or unambiguous shape name.
+        #[arg(long)]
+        shape: String,
+        /// The JSON file to write.
+        #[arg(long)]
+        out: PathBuf,
+    },
     /// An OpenAPI 3.1 JSON document for a REST JSON service.
     Openapi {
         #[command(flatten)]
@@ -1157,6 +1168,22 @@ fn generate(target: Target, audience: crucible_codegen::Audience) -> Result<(), 
             }
             crucible_codegen::write(&out, &files).map_err(|e| e.to_string())?;
             println!("wrote API reference to {}", out.display());
+            Ok(())
+        }
+        Target::JsonSchema { source, out, shape } => {
+            let service = lower_for_audience(
+                &source,
+                audience,
+                &crucible_codegen_jsonschema::capabilities(),
+            )?;
+            let document = crucible_codegen_jsonschema::generate(
+                &service,
+                &crucible_codegen_jsonschema::Options { shape },
+            )
+            .map_err(|diagnostics| format!("cannot generate JSON Schema:\n{diagnostics}"))?;
+            std::fs::write(&out, document)
+                .map_err(|error| format!("cannot write {}: {error}", out.display()))?;
+            println!("wrote {}", out.display());
             Ok(())
         }
         Target::Openapi {

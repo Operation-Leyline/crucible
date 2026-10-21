@@ -24,6 +24,7 @@ crucible-codegen-rust.workspace = true
 crucible-revision.workspace = true
 crucible-codegen-ts.workspace = true
 crucible-codegen-openapi.workspace = true
+crucible-codegen-jsonschema.workspace = true
 crucible-codegen-docs.workspace = true
 crucible-codegen-infra.workspace = true
 crucible-codegen-cdk.workspace = true

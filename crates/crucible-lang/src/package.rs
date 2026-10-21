@@ -111,6 +111,7 @@ fn load_inner(
     };
     let sources = strings("sources", &["."])?;
     let imports = strings("imports", &[])?;
+    let exports = strings("exports", &[])?;
     let dependencies = load_dependencies(dir, model, &imports, loading)?;
     let mut naming = Naming::default();
     if let Some(table) = model.get("naming").and_then(toml::Value::as_table) {
@@ -223,6 +224,7 @@ fn load_inner(
         files,
         naming,
         imports,
+        exports,
         dependencies,
         dir: Some(dir.to_path_buf()),
         baseline,
@@ -461,6 +463,7 @@ pub fn check_manifest_with_overlays(
         namespace: Option<toml::Spanned<String>>,
         sources: Option<Vec<toml::Spanned<String>>>,
         imports: Option<Vec<toml::Spanned<String>>>,
+        exports: Option<Vec<toml::Spanned<String>>>,
         naming: Option<NamingTable>,
         /// The language version the package is written in (decision 6).
         language: Option<toml::Spanned<toml::Value>>,
@@ -531,6 +534,25 @@ pub fn check_manifest_with_overlays(
             span(language.span()),
             "this compiler reads language version 1: language = 1",
         ));
+    }
+    for root in model.exports.unwrap_or_default() {
+        let name = root.get_ref();
+        let absolute = if name.contains('#') {
+            name.to_owned()
+        } else {
+            format!("exports#{name}")
+        };
+        if !absolute
+            .parse::<crucible_ir::ShapeId>()
+            .is_ok_and(|id| id.member().is_none())
+        {
+            out.push(Diagnostic::new(
+                span(root.span()),
+                format!(
+                    "[model].exports: invalid shape root {name:?}; expected Name or namespace#Name"
+                ),
+            ));
+        }
     }
     let sources = model.sources.unwrap_or_default();
     for source in &sources {
