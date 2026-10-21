@@ -46,6 +46,14 @@ fn server_stream_is_a_typed_response_mode_with_reachable_items() {
 #[test]
 fn unsupported_stream_combinations_are_diagnostics() {
     let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../tests/models/server-stream");
+    let mut options = crucible_lang::load_package(&path).unwrap();
+    for file in &mut options.files {
+        file.text = file
+            .text
+            .replace("http GET \"/events\"", "http OPTIONS \"/events\"");
+    }
+    let compiled = crucible_lang::compile(&options, None);
+    assert!(compiled.service.is_some(), "{}", compiled.render());
     for (before, after, expected) in [
         (
             "output stream Progress",
@@ -56,6 +64,11 @@ fn unsupported_stream_combinations_are_diagnostics() {
             "output stream Progress",
             "output stream WorkFailed",
             "must be a structure or union",
+        ),
+        (
+            "output stream Progress",
+            "strict output stream Progress",
+            "only an input can be `strict`",
         ),
         (
             "http GET \"/events\"",
@@ -86,6 +99,50 @@ fn unsupported_stream_combinations_are_diagnostics() {
         result.render().contains("not role templates"),
         "{}",
         result.render()
+    );
+}
+
+#[test]
+fn historical_projection_restores_response_cardinality_before_headers() {
+    let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../tests/models/server-stream");
+    let old = crucible_lang::load_service(&path).unwrap();
+    let mut current = old.clone();
+    current
+        .operations
+        .iter_mut()
+        .find(|op| op.name() == "Read")
+        .unwrap()
+        .response_mode = ResponseMode::ServerStream;
+    let version = crucible_ir::ir::ApiVersion {
+        name: "old".into(),
+        service: Box::new(old.clone()),
+        release: Box::new(old),
+        steps: vec![],
+        sunset: None,
+        sunset_docs: None,
+        docs: None,
+        retired: vec![],
+        restored: vec![],
+        external: false,
+    };
+    let projected = crucible_ir::versions::undo(
+        &current,
+        &version,
+        &mut Default::default(),
+        &mut Default::default(),
+    );
+    let op = projected
+        .operations
+        .iter()
+        .find(|op| op.name() == "Read")
+        .unwrap();
+    assert_eq!(op.response_mode, ResponseMode::Unary);
+    assert!(!projected.requirements.iter().any(
+        |usage| usage.shape == op.id && usage.feature == crucible_ir::Feature::ServerStreaming
+    ));
+    assert_eq!(
+        op.response_protocol_headers["Content-Type"],
+        "application/json"
     );
 }
 

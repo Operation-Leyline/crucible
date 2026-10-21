@@ -52,10 +52,9 @@ pub fn surface(service: &Service, options: &Options) -> surface::Surface {
             .map(|id| structure(service, id, "object"));
         entry.output = operation.output.as_ref().map(|id| {
             if operation.response_mode == crucible_ir::ir::ResponseMode::ServerStream {
-                Structure::new(
-                    format!("{MODELS}.ResponseStream<{}>", caller_type(service, id)),
-                    "async-iterator",
-                )
+                let mut item = structure(service, id, "async-iterator");
+                item.type_name = format!("{MODELS}.ResponseStream<{}>", caller_type(service, id));
+                item
             } else {
                 structure(service, id, "properties")
             }

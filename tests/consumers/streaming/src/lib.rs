@@ -290,6 +290,37 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn authorization_precedes_transport_capability_refusal() {
+        use crucible_server_runtime_rust::{DecodedJob, FrameworkError, Interceptor};
+        struct Refuse;
+        impl Interceptor for Refuse {
+            fn before<'a>(&'a self, _: &'a mut DecodedJob<'_>) -> Hook<'a, Result<()>> {
+                Hook::Ready(Err(FrameworkError::Forbidden.into()))
+            }
+        }
+        let api = Arc::new(Api::default());
+        let service = Crucible::builder(streams::operations(api.clone()))
+            .protocol(JsonProtocol)
+            .interceptor(Refuse)
+            .build()
+            .unwrap();
+        let response = crucible_server_runtime_rust::host::lambda_event_json_with(
+            &service,
+            URL_EVENT,
+            Default::default(),
+        )
+        .await
+        .unwrap();
+        assert!(
+            response.get().contains("\"statusCode\":403"),
+            "{}",
+            response.get()
+        );
+        assert_eq!(api.polls.load(Ordering::SeqCst), 0);
+        assert_eq!(api.drops.load(Ordering::SeqCst), 0);
+    }
+
+    #[tokio::test]
     async fn lambda_streaming_preserves_ingress_validation_and_refuses_http_api() {
         let (service, api, _) = configured("ok", None);
         for (payload, expected) in [
@@ -589,7 +620,17 @@ mod tests {
                 answers: &Answers<'_>,
                 limit: usize,
             ) -> Result<axum::body::Bytes> {
-                JsonProtocol.stream_end(job, answers, limit)
+                fn oversized_internal() -> Box<dyn crucible_server_runtime_rust::ModelledError> {
+                    Box::new(WorkFailed {
+                        message: "private".repeat(4096),
+                    })
+                }
+                let bounded_answers = Answers {
+                    reject: answers.reject,
+                    internal: Some(oversized_internal),
+                    unknown: answers.unknown,
+                };
+                JsonProtocol.stream_end(job, &bounded_answers, limit)
             }
             fn stream_heartbeat(&self) -> Option<axum::body::Bytes> {
                 if self.0 == Some(true) {

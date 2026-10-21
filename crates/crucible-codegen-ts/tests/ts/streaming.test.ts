@@ -63,6 +63,15 @@ test("terminal errors become generated typed exceptions during iteration", async
   await assert.rejects(events.next(), error => error instanceof WorkFailed && error.message === "step failed" && error.$metadata.status === 503);
 });
 
+test("stream and late error metadata preserve proxy request ids", async () => {
+  for (const name of ["x-request-id", "x-amzn-requestid", "x-amz-request-id"]) {
+    const text = 'event: crucible.error\ndata: {"type":"WorkFailed","status":503,"error":{"message":"failed"}}\n\n';
+    const events = await client(async () => new Response(body(text), { headers: { "content-type": headers["content-type"], [name]: "correlation" } })).watch();
+    assert.equal(events.metadata.requestId, "correlation");
+    await assert.rejects(events.next(), error => error instanceof WorkFailed && error.$metadata.requestId === "correlation");
+  }
+});
+
 test("truncation, duplicate terminals, late data and unknown controls fail explicitly", async () => {
   for (const text of [message("first"), complete + complete, complete + message("late"), complete + ": heartbeat\n\n", "event: crucible.future\ndata: {}\n\n"]) {
     const events = await client(async () => new Response(body(text), { headers })).watch();

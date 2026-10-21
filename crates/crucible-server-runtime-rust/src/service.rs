@@ -707,22 +707,6 @@ impl Crucible {
         job.errors = entry.errors;
         job.context.select_operation(entry.info);
         job.context.select_metadata(entry.metadata);
-        if entry.info.server_stream
-            && job
-                .request()
-                .extensions
-                .get::<crate::host::BufferedLambda>()
-                .is_some()
-        {
-            return Err(Error::internal(
-                "response streaming requires the Lambda streaming host",
-            ));
-        }
-        if entry.info.server_stream && !inner.protocols[*selected].supports_server_stream() {
-            return Err(Error::internal(
-                "the selected protocol cannot serve response streams",
-            ));
-        }
         job.labels = route.labels;
         job.decode = Some(entry.decode);
         job.decode_json = Some(entry.decode_json);
@@ -774,6 +758,22 @@ impl Crucible {
         }
         if job.wants_snapshot && entry.upgrade.is_none() {
             job.input_snapshot = job.input.as_ref().map(|input| input.to_json());
+        }
+        if entry.info.server_stream
+            && job
+                .request()
+                .extensions
+                .get::<crate::host::BufferedLambda>()
+                .is_some()
+        {
+            return Err(Error::internal(
+                "response streaming requires the Lambda streaming host",
+            ));
+        }
+        if entry.info.server_stream && !inner.protocols[*selected].supports_server_stream() {
+            return Err(Error::internal(
+                "the selected protocol cannot serve response streams",
+            ));
         }
         let input = job.input.take().expect("decoded input checked");
         job.outcome = Some(if let Some(invoke) = &entry.invoke_stream {

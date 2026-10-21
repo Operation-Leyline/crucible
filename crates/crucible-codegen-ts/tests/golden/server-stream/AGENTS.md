@@ -16,7 +16,7 @@ const client = new StreamsClient({ endpoint: process.env.STREAMS_ENDPOINT });
 ```
 
 - Headers: The client sends `Crucible-Version: 1` on every request. Do not set them yourself.
-- Operations: one method per operation, such as `publish`, `read`, `watch`. Each takes its input type and returns its output type.
+- Operations: one method per operation, such as `publish`, `read`, `watch`. Each takes its input type. Buffered methods return their output type; streaming methods resolve to a ResponseStream event iterable.
 - Errors: Each modelled error is a class exported from the package, extending `StreamsException` and `ServiceError`: test it with `instanceof` and read its fields and `$metadata.status`. Transport failures throw `NetworkError`; an exhausted `timeoutMs` throws `TimeoutError`.
 - Retries: automatic for safe calls; do not wrap calls in your own retry loop. Set `retry: { maxAttempts }` in the client configuration to change the attempt limit (3, the first included), or `retry: false` to turn retries off.
 - Generated code: do not edit files in this package; they are replaced when it is regenerated.

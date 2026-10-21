@@ -105,7 +105,7 @@ Each modelled error is an exception class in `Example.Weather.Models`, deriving 
 
 ## Retries and idempotency
 
-Calls are retried with backoff when a retry is safe: a modelled throttling error is retried for any operation; transport failures, HTTP 500, 502, 503 and 504 and other retryable modelled errors only for operations that are read-only, idempotent or carry an idempotency token. An idempotency token the caller leaves unset is generated once per call and reused on every attempt; set it yourself to replay one logical request across calls. These operations fill a token: `CreateCity` (`ClientToken`). Set `MaxAttempts` in `ClientConfig` to change the attempt limit (3, the first included; 1 turns retries off), `Timeout`, `BaseDelay` and `MaxDelay` for the call budget and backoff, and `RetryMode` to `RetryMode.Standard` or `RetryMode.Adaptive` for a shared retry quota or client-side rate limiting.
+Calls are retried with backoff when a retry is safe: a modelled throttling error is retried for any operation; transport failures, HTTP 500, 502, 503 and 504 and other retryable modelled errors only for operations that are read-only, idempotent or carry an idempotency token. For operations that declare an idempotency token, an unset token is generated once per call and reused on every attempt; set it yourself to replay one logical request across calls. These operations fill a token: `CreateCity` (`ClientToken`). Set `MaxAttempts` in `ClientConfig` to change the attempt limit (3, the first included; 1 turns retries off), `Timeout`, `BaseDelay` and `MaxDelay` for the call budget and backoff, and `RetryMode` to `RetryMode.Standard` or `RetryMode.Adaptive` for a shared retry quota or client-side rate limiting.
 
 ## Links
 

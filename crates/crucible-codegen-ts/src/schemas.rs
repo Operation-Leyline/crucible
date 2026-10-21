@@ -328,7 +328,11 @@ fn operation_spec(service: &Service, converting: &BTreeSet<ShapeId>, op: &Operat
                 SimpleKind::BigDecimal => "bigDecimal".to_owned(),
                 SimpleKind::Float | SimpleKind::Double => "number".to_owned(),
                 SimpleKind::Blob => "blob".to_owned(),
-                SimpleKind::Timestamp => timestamp(service.protocol.timestamp_format(false)),
+                SimpleKind::Timestamp => timestamp(
+                    simple
+                        .timestamp_format
+                        .unwrap_or_else(|| service.protocol.timestamp_format(false)),
+                ),
                 SimpleKind::Document => "document".to_owned(),
             },
             Shape::Enum(_) => "string".to_owned(),

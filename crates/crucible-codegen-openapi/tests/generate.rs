@@ -38,6 +38,17 @@ fn response_stream_documents_framing_and_item_schema() {
     assert_eq!(stream["profile"], 1);
     assert!(stream["itemSchema"]["$ref"].is_string());
     assert_eq!(stream["itemExamples"]["Ready"]["value"]["ready"], "ready");
+    assert_eq!(
+        stream["errorSchema"]["required"],
+        json!(["type", "status", "error"])
+    );
+    assert!(
+        stream["modeledErrors"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|error| error["type"] == "WorkFailed" && error["status"] == 503)
+    );
 }
 
 /// Weather with each `(old, new)` pair replaced in its sources.

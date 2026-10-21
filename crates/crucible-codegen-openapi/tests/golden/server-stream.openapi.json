@@ -23,7 +23,49 @@
                   },
                   "itemEvent": "message",
                   "completeEvent": "crucible.complete",
-                  "errorEvent": "crucible.error"
+                  "errorEvent": "crucible.error",
+                  "completeSchema": {
+                    "type": "object",
+                    "maxProperties": 0
+                  },
+                  "errorSchema": {
+                    "type": "object",
+                    "required": [
+                      "type",
+                      "status",
+                      "error"
+                    ],
+                    "properties": {
+                      "type": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "status": {
+                        "type": "integer",
+                        "minimum": 400,
+                        "maximum": 599
+                      },
+                      "error": {
+                        "type": "object"
+                      }
+                    }
+                  },
+                  "modeledErrors": [
+                    {
+                      "type": "ValidationError",
+                      "status": 400,
+                      "schema": {
+                        "$ref": "#/components/schemas/example.streams.ValidationError"
+                      }
+                    },
+                    {
+                      "type": "WorkFailed",
+                      "status": 503,
+                      "schema": {
+                        "$ref": "#/components/schemas/example.streams.WorkFailed"
+                      }
+                    }
+                  ]
                 }
               }
             }
@@ -151,6 +193,48 @@
                   "itemEvent": "message",
                   "completeEvent": "crucible.complete",
                   "errorEvent": "crucible.error",
+                  "completeSchema": {
+                    "type": "object",
+                    "maxProperties": 0
+                  },
+                  "errorSchema": {
+                    "type": "object",
+                    "required": [
+                      "type",
+                      "status",
+                      "error"
+                    ],
+                    "properties": {
+                      "type": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "status": {
+                        "type": "integer",
+                        "minimum": 400,
+                        "maximum": 599
+                      },
+                      "error": {
+                        "type": "object"
+                      }
+                    }
+                  },
+                  "modeledErrors": [
+                    {
+                      "type": "ValidationError",
+                      "status": 400,
+                      "schema": {
+                        "$ref": "#/components/schemas/example.streams.ValidationError"
+                      }
+                    },
+                    {
+                      "type": "WorkFailed",
+                      "status": 503,
+                      "schema": {
+                        "$ref": "#/components/schemas/example.streams.WorkFailed"
+                      }
+                    }
+                  ],
                   "itemExamples": {
                     "Ready": {
                       "summary": "Ready",

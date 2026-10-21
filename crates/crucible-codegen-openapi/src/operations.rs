@@ -260,7 +260,17 @@ fn responses(service: &Service, op: &Operation, keys: &[String]) -> Value {
         );
         success["content"] = json!({"text/event-stream": {"schema": {"type":"string"}, "x-crucible-stream": {
             "profile":1, "itemSchema":{"$ref":format!("#/components/schemas/{}", key(id))},
-            "itemEvent":"message", "completeEvent":"crucible.complete", "errorEvent":"crucible.error"
+            "itemEvent":"message", "completeEvent":"crucible.complete", "errorEvent":"crucible.error",
+            "completeSchema":{"type":"object", "maxProperties":0},
+            "errorSchema":{"type":"object", "required":["type","status","error"], "properties":{
+                "type":{"type":"string","minLength":1}, "status":{"type":"integer","minimum":400,"maximum":599},
+                "error":{"type":"object"}
+            }},
+            "modeledErrors":op.errors.iter().map(|id| {
+                let shape = structure(service, Some(id)).expect("lowered error");
+                json!({"type":id.name(), "status":shape.error.as_ref().expect("error metadata").status,
+                    "schema":{"$ref":format!("#/components/schemas/{}", key(id))}})
+            }).collect::<Vec<_>>()
         }}});
         if let Some(examples) =
             examples::map(&examples::outputs(op, keys), |sample| Some(sample.clone()))

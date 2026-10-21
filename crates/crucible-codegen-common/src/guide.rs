@@ -315,7 +315,7 @@ fn has_errors(service: &Service) -> bool {
 const RETRY_RULES: &str = "Calls are retried with backoff when a retry is safe: a modelled \
 throttling error is retried for any operation; transport failures, HTTP 500, 502, 503 and 504 \
 and other retryable modelled errors only for operations that are read-only, idempotent or carry \
-an idempotency token. An idempotency token the caller leaves unset is generated once per call \
+an idempotency token. For operations that declare an idempotency token, an unset token is generated once per call \
 and reused on every attempt; set it yourself to replay one logical request across calls.";
 
 /// The package's imports, then the statements constructing the client:
@@ -579,14 +579,19 @@ pub fn agents(service: &Service, surface: &Surface, guide: &Guide) -> String {
         ));
     }
     out.push_str(&format!(
-        "- Operations: one method per operation, such as {}. Each takes its input type and returns its output type.\n",
+        "- Operations: one method per operation, such as {}. {}\n",
         surface
             .operations
             .values()
             .take(3)
             .map(|op| code_span(&op.method))
             .collect::<Vec<_>>()
-            .join(", ")
+            .join(", "),
+        if surface.operations.values().any(|op| op.output.as_ref().is_some_and(|output| output.style == "async-iterator")) {
+            "Each takes its input type. Buffered methods return their output type; streaming methods resolve to a ResponseStream event iterable."
+        } else {
+            "Each takes its input type and returns its output type."
+        }
     ));
     if let Some(pagination) = fill(&guide.pagination, service, surface) {
         out.push_str(&format!("- Pagination: {pagination}\n"));

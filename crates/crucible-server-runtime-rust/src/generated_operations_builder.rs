@@ -101,6 +101,7 @@ impl OperationsBuilder {
             Err(Error::internal("stream registered as a unary operation"))
         });
         registered.output_from_json = None;
+        registered.metadata.replays_output = false;
         registered.invoke_stream = Some(Arc::new(move |input| {
             let input = match input.into_any().downcast::<O::Input>() {
                 Ok(input) => *input,
@@ -492,6 +493,21 @@ mod tests {
         const INFO: &'static OperationInfo = &INFO;
         type Input = Unit;
         type Output = Unit;
+    }
+
+    #[test]
+    fn stream_registration_clears_replay_capability_and_decoder() {
+        let builder = crate::Operations::builder(&SERVICE).add_stream::<Current, _, _>(
+            Arc::new(()),
+            |_, _| async {
+                Ok(crate::EventStream::from_try_stream(
+                    futures_util::stream::empty(),
+                ))
+            },
+        );
+        let entry = builder.operations.entry("Create").unwrap();
+        assert!(!entry.metadata.replays_output);
+        assert!(entry.output_from_json.is_none());
     }
 
     #[test]

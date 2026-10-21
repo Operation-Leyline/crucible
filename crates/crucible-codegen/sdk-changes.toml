@@ -99,3 +99,9 @@ id = 14
 languages = ["rust", "ts"]
 kind = "additive"
 summary = "TypeScript exposes typed response streams over Fetch with cancellation and terminal outcomes; Rust error bindings support bounded document encoding for the matching server stream profile."
+
+[[change]]
+id = 15
+languages = ["rust", "ts", "python", "go", "java", "kotlin", "csharp", "swift", "dart", "php", "ruby", "cpp", "c", "r"]
+kind = "patch"
+summary = "Generated package guides qualify automatic token generation to operations that declare an idempotency token."

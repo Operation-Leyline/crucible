@@ -773,7 +773,7 @@ export class Transport {
         await response.body?.cancel(); throw new StreamProtocolError("unsupported streaming response");
       }
       reader = response.body.getReader();
-      const metadata: ResponseMetadata = { status: response.status, headers: response.headers, requestId: response.headers.get("x-request-id") ?? undefined };
+      const metadata: ResponseMetadata = { status: response.status, headers: response.headers, requestId: response.headers.get("x-request-id") ?? response.headers.get("x-amzn-requestid") ?? response.headers.get("x-amz-request-id") ?? undefined };
       const decode = (kind: string, value: unknown): T => {
         if (kind === "message") {
           if (value === null || value === undefined) throw new TypeError("stream items cannot be null");

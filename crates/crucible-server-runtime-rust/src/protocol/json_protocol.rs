@@ -154,6 +154,9 @@ impl Protocol for JsonProtocol {
             }
             Ok(())
         })();
+        if encoded.is_err() && matches!(job.resolution(), Some(crate::Resolution::Internal(_))) {
+            return Ok(axum::body::Bytes::from_static(b"event: crucible.error\ndata: {\"type\":\"InternalFailure\",\"status\":500,\"error\":{\"message\":\"Internal server error\"}}\n\n"));
+        }
         if encoded.is_err() {
             return Err(crate::Error::internal(
                 "terminal stream error is invalid or exceeds byte limit",

@@ -25,8 +25,7 @@ fn response_stream_server_bindings_match_golden_and_rust_clients_are_diagnosed()
     );
 }
 
-/// The typed permissions fixture, a `.cru` package; `edit` rewrites its
-/// source first.
+/// Streaming is refused only when an enabled adapter can see it.
 #[test]
 fn only_adapter_visible_streams_are_diagnosed() {
     use crucible_ir::{Audience, ir::ResponseMode};
@@ -77,6 +76,7 @@ fn only_adapter_visible_streams_are_diagnosed() {
     );
 }
 
+/// The typed permissions fixture with its source rewritten first.
 fn leyline_with(edit: impl Fn(String) -> String) -> crucible_ir::ir::Service {
     let dir =
         std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../tests/fixtures/permissions");

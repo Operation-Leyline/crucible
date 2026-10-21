@@ -4901,7 +4901,7 @@ impl<'a> Lowerer<'a> {
         let stream = output.and_then(|body| body.stream.as_ref());
         let response_mode = if stream.is_some() {
             self.require(&id, Feature::ServerStreaming, builtin("serverStream"));
-            if matches!(method.as_str(), "HEAD" | "OPTIONS") || matches!(status, 204 | 205) {
+            if method.as_str() == "HEAD" || matches!(status, 204 | 205) {
                 self.error(
                     file,
                     operation.name.span,
@@ -5746,6 +5746,18 @@ impl<'a> Lowerer<'a> {
             match entry {
                 OpEntry::Body(body) => {
                     if body.stream.is_some() {
+                        for modifier in &body.modifiers {
+                            if body.kind != BodyKind::Input || modifier.name != "strict" {
+                                self.error(
+                                    decl.file,
+                                    modifier.span,
+                                    format!(
+                                        "`{}` does not apply here; only an input can be `strict`",
+                                        modifier.name
+                                    ),
+                                );
+                            }
+                        }
                         continue;
                     }
                     let name = match body.kind {
