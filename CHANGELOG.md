@@ -4,7 +4,7 @@ All notable changes to Crucible are recorded here, following
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Crucible is `0.x`:
 a minor release may break the documented stable surface only with a
 **Migration** entry and a `#[deprecated]` shim kept for one minor (a removal
-may skip the shim only when its Migration entry names it); a patch release
+or unshimmable change may skip the shim only when its Migration entry names it); a patch release
 never breaks it. See the
 [stability policy](docs/releases.md#stability-policy-for-0x). Step-by-step
 upgrade instructions live in [docs/migrating.md](docs/migrating.md).

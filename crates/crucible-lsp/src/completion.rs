@@ -23,6 +23,7 @@ pub enum Context {
     TopLevel,
     Service,
     Operation,
+    Template,
     Members,
     /// The members of a `structure .. for` view, where `$*` applies.
     ViewMembers,
@@ -258,7 +259,8 @@ fn block_context(before: &[&Token], index: usize, text: &str) -> Context {
     }
     match statement_head(before, index, text) {
         Some("service") => Context::Service,
-        Some("operation" | "template") => Context::Operation,
+        Some("operation") => Context::Operation,
+        Some("template") => Context::Template,
         // `structure Name for Resource {`: a view.
         Some("structure")
             if before[line_start..index]
@@ -507,7 +509,7 @@ pub fn complete(context: Context, index: &Index, snippets: bool) -> Vec<Completi
             );
             items.snippet("paginated", "default pagination members", "paginated(inputToken: ${1:nextToken}, outputToken: ${2:nextToken}, pageSize: ${3:maxResults})");
         }
-        Context::Operation => {
+        Context::Operation | Context::Template => {
             items.snippet(
                 "http",
                 "HTTP binding",
@@ -515,11 +517,13 @@ pub fn complete(context: Context, index: &Index, snippets: bool) -> Vec<Completi
             );
             items.snippet("input", "request members", "input {\n    $0\n}");
             items.snippet("output", "response members", "output {\n    $0\n}");
-            items.snippet(
-                "output stream",
-                "typed server-response sequence",
-                "output stream ${1:Event}",
-            );
+            if context == Context::Operation {
+                items.snippet(
+                    "output stream",
+                    "typed server-response sequence",
+                    "output stream ${1:Event}",
+                );
+            }
             items.snippet("errors", "errors this operation returns", "errors [$1]");
             items.snippet("paginated", "pagination", "paginated(items: ${1:items})");
             items.snippet(
@@ -1078,6 +1082,13 @@ mod tests {
                 .collect()
         };
         let operation = labels(Context::Operation);
+        assert!(operation.iter().any(|label| label == "output stream"));
+        assert!(
+            !labels(Context::Template)
+                .iter()
+                .any(|label| label == "output stream")
+        );
+        assert_eq!(at("template reads { | }"), Context::Template);
         for word in ["requires", "requires none", "requires pending", "filters"] {
             assert!(operation.iter().any(|l| l == word), "{word}: {operation:?}");
         }

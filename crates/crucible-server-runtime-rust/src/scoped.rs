@@ -174,8 +174,13 @@ impl<T: Protocol> Protocol for Scoped<T> {
     ) -> Result<axum::body::Bytes> {
         self.inner.stream_item(item, limit)
     }
-    fn stream_end(&self, job: &Job, limit: usize) -> Result<axum::body::Bytes> {
-        self.inner.stream_end(job, limit)
+    fn stream_end(
+        &self,
+        job: &Job,
+        answers: &Answers<'_>,
+        limit: usize,
+    ) -> Result<axum::body::Bytes> {
+        self.inner.stream_end(job, answers, limit)
     }
     fn stream_heartbeat(&self) -> Option<axum::body::Bytes> {
         self.inner.stream_heartbeat()

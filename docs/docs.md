@@ -893,7 +893,7 @@ to (Go's `weather.Optional[string]`, set with `weather.Some(value)`).
 | `fields` | `output.name` (struct fields) | Go, C++ |
 | `functions` | `name(output)`: each member's getter function | C |
 | `elements` | `output$name` | R |
-| `async-iterator` | `for await (const item of output)`; the native type is `ResponseStream<Item>` | TypeScript response streams |
+| `async-iterator` | `for await (const item of output)`; the native type is `models.ResponseStream<models.Item>` | TypeScript response streams |
 
 How a method is called is each language's own convention, the same for
 every operation:

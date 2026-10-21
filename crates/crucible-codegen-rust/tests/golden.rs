@@ -19,11 +19,64 @@ fn response_stream_server_bindings_match_golden_and_rust_clients_are_diagnosed()
         "server_stream.rs",
     );
     let errors = generate_client(&service).unwrap_err();
-    assert!(format!("{errors:?}").contains("server-streaming"));
+    assert!(
+        format!("{errors:?}").contains("server-streaming"),
+        "{errors:?}"
+    );
 }
 
 /// The typed permissions fixture, a `.cru` package; `edit` rewrites its
 /// source first.
+#[test]
+fn only_adapter_visible_streams_are_diagnosed() {
+    use crucible_ir::{Audience, ir::ResponseMode};
+    let internal = common::load_with("server-stream", |package| {
+        for file in &mut package.files {
+            file.text = file
+                .text
+                .replace(
+                    "readonly public operation Watch",
+                    "readonly internal operation Watch",
+                )
+                .replace("public operation Publish", "internal operation Publish");
+        }
+    });
+    let options = Options {
+        mcp: true,
+        explorer: Some(Audience::External),
+        ..Options::default()
+    };
+    generate(&internal, &options).unwrap();
+    let options = Options {
+        explorer: Some(Audience::Internal),
+        ..Options::default()
+    };
+    assert!(generate(&internal, &options).is_err());
+
+    let old = common::load("server-stream");
+    let mut current = old.clone();
+    for operation in &mut current.operations {
+        operation.response_mode = ResponseMode::Unary;
+    }
+    current.versions.push(crucible_ir::ir::ApiVersion {
+        name: "old".into(),
+        service: Box::new(old.clone()),
+        release: Box::new(old),
+        steps: vec![],
+        sunset: None,
+        sunset_docs: None,
+        docs: None,
+        retired: vec![],
+        restored: vec![],
+        external: false,
+    });
+    let errors = generate(&current, &Options::default()).unwrap_err();
+    assert!(
+        format!("{errors:?}").contains("historical-version adapters"),
+        "{errors:?}"
+    );
+}
+
 fn leyline_with(edit: impl Fn(String) -> String) -> crucible_ir::ir::Service {
     let dir =
         std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../tests/fixtures/permissions");

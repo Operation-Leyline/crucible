@@ -155,19 +155,32 @@ pub fn generate_with_explorer_model(
         return Err(diagnostics);
     }
     service.require_capabilities(&capabilities())?;
-    if (options.mcp || options.explorer.is_some() || !service.versions.is_empty())
-        && service
-            .operations
-            .iter()
-            .any(|op| op.response_mode == crucible_ir::ir::ResponseMode::ServerStream)
+    let mut adapters = Vec::new();
+    if options.mcp
+        && let Ok(projected) = crucible_ir::project(service, crucible_ir::Audience::External)
     {
-        let mut diagnostics = Diagnostics::default();
-        for op in &service.operations {
+        adapters.push(projected);
+    }
+    if let Some(audience) = options.explorer
+        && let Ok(projected) = crucible_ir::project(explorer_service, audience)
+    {
+        adapters.push(projected);
+    }
+    let mut unsupported = Diagnostics::default();
+    for model in adapters.iter().chain(
+        (!service.versions.is_empty())
+            .then_some(service)
+            .into_iter()
+            .chain(service.versions.iter().map(|version| &*version.service)),
+    ) {
+        for op in &model.operations {
             if op.response_mode == crucible_ir::ir::ResponseMode::ServerStream {
-                diagnostics.push(&op.id, "server-response streaming is not yet supported by MCP, the explorer, or historical-version adapters; generate a direct HTTP server without those adapters");
+                unsupported.push(&op.id, "server-response streaming is not yet supported by MCP, the explorer, or historical-version adapters; generate a direct HTTP server without those adapters");
             }
         }
-        return Err(diagnostics);
+    }
+    if !unsupported.is_empty() {
+        return Err(unsupported);
     }
     for version in &service.versions {
         version.service.require_capabilities(&capabilities())?;

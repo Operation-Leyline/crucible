@@ -37,6 +37,7 @@ fn response_stream_documents_framing_and_item_schema() {
     let stream = &success["content"]["text/event-stream"]["x-crucible-stream"];
     assert_eq!(stream["profile"], 1);
     assert!(stream["itemSchema"]["$ref"].is_string());
+    assert_eq!(stream["itemExamples"]["Ready"]["value"]["ready"], "ready");
 }
 
 /// Weather with each `(old, new)` pair replaced in its sources.

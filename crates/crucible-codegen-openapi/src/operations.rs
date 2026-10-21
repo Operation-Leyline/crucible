@@ -262,6 +262,11 @@ fn responses(service: &Service, op: &Operation, keys: &[String]) -> Value {
             "profile":1, "itemSchema":{"$ref":format!("#/components/schemas/{}", key(id))},
             "itemEvent":"message", "completeEvent":"crucible.complete", "errorEvent":"crucible.error"
         }}});
+        if let Some(examples) =
+            examples::map(&examples::outputs(op, keys), |sample| Some(sample.clone()))
+        {
+            success["content"]["text/event-stream"]["x-crucible-stream"]["itemExamples"] = examples;
+        }
     } else if let Some(output) = structure(service, op.output.as_ref()) {
         let outputs = examples::outputs(op, keys);
         success["content"] = content(service, output, &op.response);

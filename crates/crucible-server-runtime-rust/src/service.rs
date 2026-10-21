@@ -232,6 +232,7 @@ impl Crucible {
             output_from_json: None,
             input: None,
             outcome: None,
+            streaming_response: false,
             downgrade: None,
             downgrade_error: None,
             errors: None,
@@ -445,6 +446,9 @@ impl Crucible {
                         selected,
                     );
                 }
+                if job.is_streaming_response() {
+                    streaming_body::failed_opening(&mut job, &response, inner, &entered);
+                }
                 response
             })
             .await
@@ -504,7 +508,10 @@ impl Crucible {
         if matches!(job.outcome, Some(Outcome::Stream(_))) {
             if protocol.supports_server_stream() {
                 match recover(|| protocol.write_stream(job, answers)) {
-                    Ok(response) => return response,
+                    Ok(response) => {
+                        job.streaming_response = true;
+                        return response;
+                    }
                     Err(error) => job.fail(error),
                 }
             } else {

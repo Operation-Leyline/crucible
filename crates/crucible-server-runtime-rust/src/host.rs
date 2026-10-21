@@ -691,13 +691,19 @@ mod lambda_event {
                 streaming_supported: true,
                 ..
             } => Ok(service.handle(*request).await),
-            Incoming::Http { id, .. } | Incoming::Refused { id, .. } => {
+            refused => {
+                let (id, message) = match refused {
+                    Incoming::Refused { id, .. } => (id, "malformed HTTP request"),
+                    Incoming::Http { id, .. } => {
+                        (id, "the Lambda event cannot use response streaming")
+                    }
+                };
                 let mut response = axum::response::Response::builder()
                     .status(400)
                     .header("content-type", "application/json")
-                    .body(Body::from(
-                        r#"{"message":"the Lambda event cannot use response streaming"}"#,
-                    ))?;
+                    .body(Body::from(serde_json::to_vec(
+                        &serde_json::json!({"message":message}),
+                    )?))?;
                 if let Some(id) = id {
                     response.headers_mut().insert("x-request-id", id);
                 }

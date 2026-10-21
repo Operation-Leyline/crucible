@@ -150,7 +150,15 @@
                   },
                   "itemEvent": "message",
                   "completeEvent": "crucible.complete",
-                  "errorEvent": "crucible.error"
+                  "errorEvent": "crucible.error",
+                  "itemExamples": {
+                    "Ready": {
+                      "summary": "Ready",
+                      "value": {
+                        "ready": "ready"
+                      }
+                    }
+                  }
                 }
               }
             }

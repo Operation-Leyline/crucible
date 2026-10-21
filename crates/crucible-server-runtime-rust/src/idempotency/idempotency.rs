@@ -402,6 +402,7 @@ impl Interceptor for Idempotency {
         let unreplayable: Vec<&str> = prepare
             .operations()
             .filter(&tokened)
+            .filter(|operation| !operation.server_stream)
             .filter(|operation| {
                 prepare
                     .metadata(operation)

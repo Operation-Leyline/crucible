@@ -64,7 +64,7 @@ test("terminal errors become generated typed exceptions during iteration", async
 });
 
 test("truncation, duplicate terminals, late data and unknown controls fail explicitly", async () => {
-  for (const text of [message("first"), complete + complete, complete + message("late"), "event: crucible.future\ndata: {}\n\n"]) {
+  for (const text of [message("first"), complete + complete, complete + message("late"), complete + ": heartbeat\n\n", "event: crucible.future\ndata: {}\n\n"]) {
     const events = await client(async () => new Response(body(text), { headers })).watch();
     await assert.rejects((async () => { for await (const _ of events) { /* consume */ } })(), error => error instanceof StreamProtocolError);
   }
@@ -89,7 +89,7 @@ test("SSE comments, multiline data and CR framing do not enable replay", async (
 test("timeout remains active after headers and the first item", async () => {
   let cancelled = 0;
   const api = client(async () => new Response(new ReadableStream({ start(c) { c.enqueue(encoder.encode(message("first"))); }, cancel() { cancelled++; } }), { headers }));
-  const events = await api.watch({ timeoutMs: 40 });
+  const events = await api.watch({ timeoutMs: 200 });
   assert.equal((await events.next()).done, false);
   await assert.rejects(events.next(), error => error instanceof TimeoutError);
   assert.equal(cancelled, 1);
@@ -110,7 +110,7 @@ test("ordinary HTTP opening errors reject before returning an iterator", async (
 });
 
 test("malformed stream values fail without copying received data into errors", async () => {
-  for (const text of ['data: private-invalid-json\n\n', 'data: {"update":{"text":false}}\n\n', 'event: crucible.error\ndata: {"type":"WorkFailed","status":"private","error":{}}\n\n']) {
+  for (const text of ['data: private-invalid-json\n\n', 'data: {"update":{"text":false}}\n\n', 'event: crucible.error\ndata: {"type":"WorkFailed","status":"private","error":{}}\n\n', 'event: crucible.error\ndata: {"type":"WorkFailed","error":{"message":"failed"}}\n\n', 'data: null\n\n']) {
     const events = await client(async () => new Response(body(text), { headers })).watch();
     await assert.rejects(events.next(), error => error instanceof StreamProtocolError && !error.message.includes("private"));
   }

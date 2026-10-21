@@ -43,6 +43,7 @@ pub struct Job {
     pub(crate) output_from_json: Option<crate::operations::OutputFromJson>,
     pub(crate) input: Option<Box<dyn Input>>,
     pub(crate) outcome: Option<Outcome>,
+    pub(crate) streaming_response: bool,
     /// At an older API version: how the outcome reads at that version.
     pub(crate) downgrade: Option<crate::versioning::Downgrade>,
     pub(crate) downgrade_error: Option<crate::versioning::DowngradeError>,
@@ -60,6 +61,11 @@ pub struct Job {
 }
 
 impl Job {
+    /// Whether opening selected a streaming response. Terminal observers run
+    /// even if a later opening hook replaces it with an error response.
+    pub fn is_streaming_response(&self) -> bool {
+        self.streaming_response
+    }
     /// The deferred body of a streaming outcome, for a protocol's opening
     /// response. Call once; the source is installed after opening middleware
     /// finishes, and its lifetime follows this body's wrappers.

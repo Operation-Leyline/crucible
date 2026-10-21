@@ -41,7 +41,7 @@ impl<R: Recorder> Metrics<R> {
 
 impl<R: Recorder> Middleware for Metrics<R> {
     fn complete(&self, job: &Job, response: &Response) {
-        if matches!(job.outcome(), Some(crate::Outcome::Stream(_))) {
+        if job.is_streaming_response() {
             return;
         }
         let operation = job.operation();
@@ -80,6 +80,15 @@ impl<R: Recorder> Middleware for Metrics<R> {
             class: match completion.end {
                 StreamEnd::Completed => "success",
                 StreamEnd::Cancelled => "cancelled",
+                StreamEnd::Failed
+                    if resolution.as_ref().is_none_or(|r| r.error_name().is_none()) =>
+                {
+                    if response.status().is_client_error() {
+                        "error"
+                    } else {
+                        "fault"
+                    }
+                }
                 StreamEnd::Failed
                     if resolution
                         .as_ref()

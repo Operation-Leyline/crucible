@@ -107,12 +107,14 @@ when matching it. `MissingOperations` reports incomplete registration.
 
 `EventStream::from_try_stream`, `StreamOptions`, `StreamCompletion`, `StreamEnd`,
 the extension interfaces' `stream_complete` observers, and
-`RequestRecord::stream` and `Job::stream_body` support response streams. `complete` retains its
+`RequestRecord::stream`, `Job::stream_body` and `Job::is_streaming_response`
+support response streams. `complete` retains its
 response-ready meaning. `Protocol::{supports_server_stream, write_stream,
 stream_item, stream_end, stream_heartbeat}` opt a protocol into encoding them.
 `Host::LambdaStreaming`, `host::lambda_streaming`, and
 `host::lambda_streaming_event_json_with` select or test the streaming HTTP
-Lambda adapter. See the guide for host restrictions.
+Lambda adapter (the event helper requires the `lambda` feature). See the guide
+for host restrictions.
 
 `mcp::McpConfig::{new, path, allowed_origins, allow_any_origin, endpoint_guard,
 authorization, authorization_server_metadata, server_info}`, `mcp::AuthorizationServerMetadata`

@@ -682,6 +682,7 @@ async function* streamEvents<T>(reader: ReadableStreamDefaultReader<Uint8Array>,
         }
         if (char === "\r" && index + 1 === buffer.length && !eof) break;
         const line = buffer.slice(start, index);
+        if (terminal) throw new StreamProtocolError("data after terminal stream outcome");
         frameBytes += lineBytes + (char === "\r" && buffer[index + 1] === "\n" ? 2 : 1);
         lineBytes = 0;
         if (frameBytes > limit) throw new StreamProtocolError("stream event exceeds the byte limit");
@@ -774,12 +775,15 @@ export class Transport {
       reader = response.body.getReader();
       const metadata: ResponseMetadata = { status: response.status, headers: response.headers, requestId: response.headers.get("x-request-id") ?? undefined };
       const decode = (kind: string, value: unknown): T => {
-        if (kind === "message") return fromWire(operation.stream, value) as T;
+        if (kind === "message") {
+          if (value === null || value === undefined) throw new TypeError("stream items cannot be null");
+          return fromWire(operation.stream, value) as T;
+        }
         let error: ServiceException;
         try {
           const envelope = object(value);
           const status = fromWire(integer(32), envelope.status) as number;
-          if (typeof envelope.type !== "string" || status < 400 || status > 599) throw new Error();
+          if (typeof envelope.type !== "string" || envelope.type.length === 0 || typeof status !== "number" || status < 400 || status > 599) throw new Error();
           const fields = object(envelope.error);
           const errorMetadata = { ...metadata, status };
           const spec = operation.errors.includes(envelope.type) && Object.hasOwn(this.#errors, envelope.type) ? this.#errors[envelope.type] : undefined;

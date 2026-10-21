@@ -41,14 +41,18 @@ impl StreamingBody {
         let mut source = stream.source.take();
         let slot = stream.slot.take().expect("unopened stream slot");
         // A transport refusal must never disclose application events. Keep the
-        // body owner so terminal observers still see cancellation exactly once.
-        let refused = !response.status().is_success() || job.request().method == "HEAD";
+        // body owner so terminal observers still see the outcome exactly once.
+        let head_only = job.request().method == "HEAD";
+        let refused = !response.status().is_success()
+            || matches!(response.status().as_u16(), 204 | 205)
+            || head_only;
         if refused {
             source = None;
         }
         let mut head = Response::new(Body::empty());
         *head.status_mut() = response.status();
         *head.headers_mut() = response.headers().clone();
+        *head.extensions_mut() = response.extensions().clone();
         let deadline = job
             .context()
             .deadline()
@@ -56,8 +60,24 @@ impl StreamingBody {
         let heartbeat = inner
             .stream_options
             .heartbeat_interval
-            .filter(|_| inner.protocols[selected].stream_heartbeat().is_some())
-            .map(|interval| Box::pin(tokio::time::sleep(interval)));
+            .filter(|_| !refused)
+            .and_then(
+                |interval| match recover(|| inner.protocols[selected].stream_heartbeat()) {
+                    Ok(Some(bytes)) if bytes.len() <= inner.stream_options.max_event_bytes => {
+                        Some(Box::pin(tokio::time::sleep(interval)))
+                    }
+                    Ok(None) => None,
+                    result => {
+                        let error = result.err().unwrap_or_else(|| {
+                            crate::Error::internal("heartbeat exceeds stream byte limit")
+                        });
+                        source = Some(EventStream::from_try_stream(futures_util::stream::once(
+                            async { Err(error) },
+                        )));
+                        None
+                    }
+                },
+            );
         let idle = inner
             .stream_options
             .idle_timeout
@@ -75,7 +95,15 @@ impl StreamingBody {
             terminal: refused,
             observed: false,
             completion: StreamCompletion {
-                end: StreamEnd::Cancelled,
+                end: if refused {
+                    if head_only && response.status().is_success() {
+                        StreamEnd::Completed
+                    } else {
+                        StreamEnd::Failed
+                    }
+                } else {
+                    StreamEnd::Cancelled
+                },
                 items: 0,
                 bytes: 0,
             },
@@ -96,27 +124,37 @@ impl StreamingBody {
             if let Err(error) = recover(|| self.inner.translator.apply(&mut self.job)) {
                 self.job.fail(error);
             }
+            crate::permissions::answer_not_found(&mut self.job);
             StreamEnd::Failed
         } else {
             StreamEnd::Completed
         };
+        let answers = crate::protocol::Answers {
+            reject: &*self.inner.reject,
+            internal: self.inner.operations.service.internal,
+            unknown: self.inner.operations.service.unknown,
+        };
         let encoded = recover(|| {
-            self.inner.protocols[self.selected]
-                .stream_end(&self.job, self.inner.stream_options.max_event_bytes)
+            self.inner.protocols[self.selected].stream_end(
+                &self.job,
+                &answers,
+                self.inner.stream_options.max_event_bytes,
+            )
         })
         .and_then(|result| result);
-        if let Ok(bytes) = encoded
-            && bytes.len() <= self.inner.stream_options.max_event_bytes
-        {
-            return bytes;
-        }
+        let error = match encoded {
+            Ok(bytes) if bytes.len() <= self.inner.stream_options.max_event_bytes => return bytes,
+            Ok(_) => crate::Error::internal("terminal stream error exceeds byte limit"),
+            Err(error) => error,
+        };
         self.completion.end = StreamEnd::Failed;
-        self.job.fail(crate::Error::internal(
-            "terminal stream error exceeds byte limit",
-        ));
+        self.job.fail(error);
         recover(|| {
-            self.inner.protocols[self.selected]
-                .stream_end(&self.job, self.inner.stream_options.max_event_bytes)
+            self.inner.protocols[self.selected].stream_end(
+                &self.job,
+                &answers,
+                self.inner.stream_options.max_event_bytes,
+            )
         })
         .and_then(|result| result)
         .ok()
@@ -129,34 +167,13 @@ impl StreamingBody {
             return;
         }
         self.observed = true;
-        for interceptor in self.inner.interceptors[..self.entered.interceptors]
-            .iter()
-            .rev()
-        {
-            let _ = recover(|| {
-                interceptor.stream_complete(
-                    &OperationJob::new(&mut self.job),
-                    &self.response,
-                    &self.completion,
-                )
-            });
-        }
-        for middleware in self.inner.operation_middleware[..self.entered.operation]
-            .iter()
-            .rev()
-        {
-            let _ = recover(|| {
-                middleware.stream_complete(
-                    &OperationJob::new(&mut self.job),
-                    &self.response,
-                    &self.completion,
-                )
-            });
-        }
-        for middleware in self.inner.middleware[..self.entered.transport].iter().rev() {
-            let _ =
-                recover(|| middleware.stream_complete(&self.job, &self.response, &self.completion));
-        }
+        observe(
+            &self.inner,
+            &self.entered,
+            &mut self.job,
+            &self.response,
+            &self.completion,
+        );
     }
 
     fn poll(&mut self, cx: &mut TaskContext<'_>) -> Poll<Option<Result<Bytes, Infallible>>> {
@@ -229,9 +246,19 @@ impl StreamingBody {
                             .heartbeat_interval
                             .expect("configured heartbeat"),
                 );
-                self.inner.protocols[self.selected]
-                    .stream_heartbeat()
-                    .unwrap_or_default()
+                match recover(|| self.inner.protocols[self.selected].stream_heartbeat()) {
+                    Ok(Some(bytes)) if bytes.len() <= self.inner.stream_options.max_event_bytes => {
+                        bytes
+                    }
+                    Ok(None) => {
+                        self.heartbeat = None;
+                        return Poll::Pending;
+                    }
+                    Ok(Some(_)) => self.end(Some(crate::Error::internal(
+                        "heartbeat exceeds stream byte limit",
+                    ))),
+                    Err(error) => self.end(Some(error)),
+                }
             }
         };
         self.completion.bytes += bytes.len() as u64;
@@ -252,5 +279,39 @@ impl Drop for StreamingBody {
             self.source = None;
             self.observe();
         });
+    }
+}
+
+pub(super) fn failed_opening(job: &mut Job, response: &Response, inner: &Inner, entered: &Entered) {
+    observe(
+        inner,
+        entered,
+        job,
+        response,
+        &StreamCompletion {
+            end: StreamEnd::Failed,
+            items: 0,
+            bytes: 0,
+        },
+    );
+}
+
+fn observe(
+    inner: &Inner,
+    entered: &Entered,
+    job: &mut Job,
+    response: &Response,
+    completion: &StreamCompletion,
+) {
+    for interceptor in inner.interceptors[..entered.interceptors].iter().rev() {
+        let _ =
+            recover(|| interceptor.stream_complete(&OperationJob::new(job), response, completion));
+    }
+    for middleware in inner.operation_middleware[..entered.operation].iter().rev() {
+        let _ =
+            recover(|| middleware.stream_complete(&OperationJob::new(job), response, completion));
+    }
+    for middleware in inner.middleware[..entered.transport].iter().rev() {
+        let _ = recover(|| middleware.stream_complete(job, response, completion));
     }
 }

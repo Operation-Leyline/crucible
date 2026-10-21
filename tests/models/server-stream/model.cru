@@ -9,6 +9,7 @@ service Streams {
 readonly public operation Watch {
     http GET "/events"
     output stream Progress
+    example "Ready" { output { ready: "ready" } }
 }
 
 public operation Publish {

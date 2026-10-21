@@ -42,6 +42,7 @@ fn stream_client_matches_golden() {
     let files =
         crucible_codegen_ts::emit(&load("server-stream"), &options("@example/streams")).unwrap();
     let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/golden/server-stream");
+    let mut stale = Vec::new();
     for file in files {
         if file.path == "src/runtime.ts" {
             continue;
@@ -51,13 +52,18 @@ fn stream_client_matches_golden() {
             fs::create_dir_all(path.parent().unwrap()).unwrap();
             fs::write(&path, &file.contents).unwrap();
         }
-        assert_eq!(
-            fs::read_to_string(&path).unwrap().replace("\r\n", "\n"),
-            file.contents,
-            "{}",
-            path.display()
-        );
+        if fs::read_to_string(&path)
+            .unwrap_or_default()
+            .replace("\r\n", "\n")
+            != file.contents
+        {
+            stale.push(file.path);
+        }
     }
+    assert!(
+        stale.is_empty(),
+        "generated output differs from tests/golden/server-stream in {stale:?}; review the change and rerun with CRUCIBLE_BLESS=1"
+    );
 }
 
 use crucible_codegen_ts::{Middleware, Options, emit};

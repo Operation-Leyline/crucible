@@ -23,6 +23,12 @@ pub(crate) struct Check<'a> {
 impl Check<'_> {
     /// An operation's input, output or error, where no shape means Unit.
     pub(crate) fn io(&mut self, path: &str, shape: Option<&ShapeId>, value: &Value) {
+        if let Some(id) = shape
+            && matches!(self.shapes.get(id), Some(Shape::Union(_)))
+        {
+            self.value(path, id, &Constraints::default(), value);
+            return;
+        }
         let Value::Object(members) = value else {
             self.problems
                 .push(format!("{path} must be an object, not {}", kind(value)));

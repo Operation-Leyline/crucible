@@ -71,9 +71,10 @@ snippets weather weather 'package = "@example/weather"
 endpoint = "https://weather.example"
 middleware = ["content-sha256"]'
 snippets samples samples 'package = "@example/samples"'
+snippets server-stream streams 'package = "@example/streams"'
 
 rm -rf "$dir/dist"
 ${TSC:-npx --yes -p typescript@5.9.3 tsc} -p "$dir"
 ${TSC:-npx --yes -p typescript@5.9.3 tsc} -p "$dir/snippets"
 node --test "$dir"/dist/*.test.js
-python tools/test-streaming.py
+if command -v python3 >/dev/null 2>&1; then python3 tools/test-streaming.py; else python tools/test-streaming.py; fi

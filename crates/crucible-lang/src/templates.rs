@@ -135,7 +135,7 @@ pub(crate) fn apply(
             for entry in template.entries {
                 match entry {
                     OpEntry::Body(body) => {
-                        if !body.members.is_empty() && operation.entries.iter().any(|entry| {
+                        if body.kind == BodyKind::Output && !body.members.is_empty() && operation.entries.iter().any(|entry| {
                             matches!(entry, OpEntry::Body(own) if own.kind == body.kind && own.stream.is_some())
                         }) {
                             diagnostics.push(FileDiagnostic {

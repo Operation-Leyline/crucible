@@ -36,6 +36,11 @@ unnecessary. Return an error before opening for an ordinary HTTP failure;
 yield an error after opening for a terminal stream failure. Generated item
 validators run before each item is disclosed.
 
+Discharge handler permission obligations before returning `EventStream`.
+Opening checks run before the lazy producer is polled; deferring them until
+completion could disclose unauthorized items. Per-item authorization belongs
+in service-owned checks inside the producer.
+
 Crucible pulls values as the body is consumed, without collecting the sequence
 or creating an unbounded queue. A service bridging a push producer must choose
 its own bounded channel and overflow policy. Dropping the response drops its
@@ -59,7 +64,8 @@ Opening returns `ResponseStream<Progress>` with HTTP `metadata`; completion is
 established during iteration. `break`, `events.cancel()`, abort, deadlines,
 and errors release the reader. Each stream has one consumer and refuses
 concurrent reads. When consuming manually or storing an opened stream, use
-`try/finally { await events.cancel(); }` to cover abandoning it before iteration.
+`try { /* consume */ } finally { await events.cancel(); }` to cover abandoning
+it before iteration.
 
 Fetch supports bearer credentials, POST inputs, and normal request middleware.
 Eligible opening failures use the existing retry policy. After successful

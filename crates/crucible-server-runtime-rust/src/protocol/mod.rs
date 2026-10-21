@@ -198,8 +198,13 @@ pub trait Protocol: Send + Sync + 'static {
     }
 
     /// A terminal success or failure, after exception translation.
-    fn stream_end(&self, job: &Job, limit: usize) -> Result<axum::body::Bytes> {
-        let _ = (job, limit);
+    fn stream_end(
+        &self,
+        job: &Job,
+        answers: &Answers<'_>,
+        limit: usize,
+    ) -> Result<axum::body::Bytes> {
+        let _ = (job, answers, limit);
         Err(crate::Error::internal(
             "protocol does not support response streaming",
         ))

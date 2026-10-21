@@ -4812,8 +4812,14 @@ impl<'a> Lowerer<'a> {
             if input.is_some() {
                 self.visit(&self.id(&self.naming.input(&operation.name.name)));
             }
-            if output.is_some() {
-                self.visit(&self.id(&self.naming.output(&operation.name.name)));
+            if let Some(output) = output {
+                if let Some(stream) = &output.stream {
+                    if let Some(id) = self.resolve_type(file, stream) {
+                        self.visit(&id);
+                    }
+                } else {
+                    self.visit(&self.id(&self.naming.output(&operation.name.name)));
+                }
             }
             for error in own_errors {
                 match self.decl(&error.name).map(|d| &d.item.decl) {
@@ -4920,10 +4926,11 @@ impl<'a> Lowerer<'a> {
             if let Some(stream) = stream
                 && !matches!(
                     self.shapes.get(output_id),
-                    Some(Shape::Structure(_) | Shape::Union(_))
+                    Some(Shape::Structure(s)) if s.error.is_none()
                 )
+                && !matches!(self.shapes.get(output_id), Some(Shape::Union(_)))
             {
-                self.error(file, stream.span, "a response stream item must be a structure or union; wrap scalar or collection values in a named event");
+                self.error(file, stream.span, "a response stream item must be a structure or union without error metadata; wrap scalar or collection values in a named event, and use terminal errors for error declarations");
             }
         }
         let input_members = input_id

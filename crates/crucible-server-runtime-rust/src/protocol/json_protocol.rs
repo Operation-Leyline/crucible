@@ -92,16 +92,35 @@ impl Protocol for JsonProtocol {
         Some(axum::body::Bytes::from_static(b": heartbeat\n\n"))
     }
 
-    fn stream_end(&self, job: &Job, limit: usize) -> Result<axum::body::Bytes> {
+    fn stream_end(
+        &self,
+        job: &Job,
+        answers: &Answers<'_>,
+        limit: usize,
+    ) -> Result<axum::body::Bytes> {
         if matches!(job.resolution(), Some(crate::Resolution::Streaming)) {
             return Ok(axum::body::Bytes::from_static(
                 b"event: crucible.complete\ndata: {}\n\n",
             ));
         }
-        if matches!(
-            job.resolution(),
-            Some(crate::Resolution::Internal(_)) | None
-        ) {
+        let owned = match job.resolution() {
+            Some(crate::Resolution::Rejected(rejection)) => Some((answers.reject)(rejection)),
+            Some(crate::Resolution::Internal(_)) => answers.internal.map(|make| make()),
+            Some(crate::Resolution::Framework(crate::FrameworkError::UnknownOperation)) => {
+                answers.unknown.map(|make| make())
+            }
+            _ => None,
+        };
+        let modeled = owned.as_deref().or_else(|| match job.resolution() {
+            Some(crate::Resolution::Modelled(error)) => Some(error),
+            _ => None,
+        });
+        if modeled.is_none()
+            && matches!(
+                job.resolution(),
+                Some(crate::Resolution::Internal(_)) | None
+            )
+        {
             return Ok(axum::body::Bytes::from_static(b"event: crucible.error\ndata: {\"type\":\"InternalFailure\",\"status\":500,\"error\":{\"message\":\"Internal server error\"}}\n\n"));
         }
         let mut sink = BoundedEvent {
@@ -110,21 +129,22 @@ impl Protocol for JsonProtocol {
         };
         let encoded = (|| -> serde_json::Result<()> {
             use std::io::Write;
-            match job.resolution() {
-                Some(crate::Resolution::Modelled(error)) => {
+            match (modeled, job.resolution()) {
+                (Some(error), _) => {
                     serde_json::to_writer(&mut sink, error.info().name)?;
                     write!(sink, ",\"status\":{},\"error\":", error.info().status)
                         .map_err(serde_json::Error::io)?;
                     error.write_json_to(&mut sink)?;
                 }
-                Some(crate::Resolution::Framework(error)) => {
+                (_, Some(crate::Resolution::Framework(error))) => {
                     serde_json::to_writer(&mut sink, error.name())?;
                     write!(sink, ",\"status\":{},\"error\":", error.status())
                         .map_err(serde_json::Error::io)?;
-                    serde_json::to_writer(
-                        &mut sink,
-                        &serde_json::json!({"message":error.message()}),
-                    )?;
+                    let mut fields = serde_json::json!({"message":error.message()});
+                    if let crate::FrameworkError::NotFound { resource } = error {
+                        fields["resourceType"] = resource.name.into();
+                    }
+                    serde_json::to_writer(&mut sink, &fields)?;
                 }
                 _ => {
                     return Err(serde_json::Error::io(std::io::Error::other(

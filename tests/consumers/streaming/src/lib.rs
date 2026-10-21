@@ -42,6 +42,22 @@ impl Stream for Producer {
             _ if self.mode == "typed" => Some(Err(Error::new(WorkFailed {
                 message: "step failed".into(),
             }))),
+            _ if self.mode == "reject" => Some(Err(
+                crucible_server_runtime_rust::validate::Rejection::constraint(
+                    "topic",
+                    "late rejection",
+                )
+                .into(),
+            )),
+            _ if self.mode == "not-found" => {
+                static RESOURCE: crucible_server_runtime_rust::permissions::ResourceInfo =
+                    crucible_server_runtime_rust::permissions::ResourceInfo {
+                        name: "item",
+                        identifiers: &["itemId"],
+                        not_found: "No such item.",
+                    };
+                Some(Err(RESOURCE.not_found_error()))
+            }
             _ if self.mode == "large-error" => Some(Err(Error::new(WorkFailed {
                 message: "private".repeat(4096),
             }))),
@@ -276,14 +292,20 @@ mod tests {
     #[tokio::test]
     async fn lambda_streaming_preserves_ingress_validation_and_refuses_http_api() {
         let (service, api, _) = configured("ok", None);
-        for payload in [
-            URL_EVENT.replace(
-                "abc.lambda-url.us-east-1.on.aws",
-                "abc.execute-api.us-east-1.amazonaws.com",
+        for (payload, expected) in [
+            (
+                URL_EVENT.replace(
+                    "abc.lambda-url.us-east-1.on.aws",
+                    "abc.execute-api.us-east-1.amazonaws.com",
+                ),
+                "cannot use response streaming",
             ),
-            URL_EVENT.replace(
-                "\"isBase64Encoded\":false",
-                "\"isBase64Encoded\":true,\"body\":\"!\"",
+            (
+                URL_EVENT.replace(
+                    "\"isBase64Encoded\":false",
+                    "\"isBase64Encoded\":true,\"body\":\"!\"",
+                ),
+                "malformed HTTP request",
             ),
         ] {
             let response = crucible_server_runtime_rust::host::lambda_streaming_event_json_with(
@@ -294,6 +316,10 @@ mod tests {
             .await
             .unwrap();
             assert_eq!(response.status(), 400);
+            let bytes = axum::body::to_bytes(response.into_body(), 1024)
+                .await
+                .unwrap();
+            assert!(std::str::from_utf8(&bytes).unwrap().contains(expected));
         }
         assert_eq!(api.polls.load(Ordering::SeqCst), 0);
         assert_eq!(api.drops.load(Ordering::SeqCst), 0);
@@ -342,6 +368,18 @@ mod tests {
         let body = std::str::from_utf8(&body).unwrap();
         assert!(body.contains("\"type\":\"WorkFailed\""));
         assert!(body.contains("step failed"));
+
+        let (service, _, ends) = configured("reject", None);
+        let response = service
+            .handle(Request::get("/events").body(Body::empty()).unwrap())
+            .await;
+        let bytes = axum::body::to_bytes(response.into_body(), 65536)
+            .await
+            .unwrap();
+        let body = std::str::from_utf8(&bytes).unwrap();
+        assert!(body.contains("\"type\":\"ValidationError\""), "{body}");
+        assert!(!body.contains("InternalFailure"));
+        assert_eq!(*ends.lock().unwrap(), vec![StreamEnd::Failed]);
     }
 
     #[tokio::test]
@@ -373,38 +411,93 @@ mod tests {
 
     #[tokio::test]
     async fn transport_refusal_never_polls_or_discloses_items() {
-        struct Refuse;
+        struct Refuse(u16);
         impl Middleware for Refuse {
             fn after<'a>(
                 &'a self,
                 _: &'a mut Job,
                 response: &'a mut axum::response::Response,
             ) -> Hook<'a, ()> {
-                *response.status_mut() = axum::http::StatusCode::FORBIDDEN;
+                *response.status_mut() = axum::http::StatusCode::from_u16(self.0).unwrap();
                 Hook::Ready(())
             }
         }
-        let api = Arc::new(Api::default());
-        let ends = Arc::new(Mutex::new(vec![]));
-        let service = Crucible::builder(streams::operations(api.clone()))
+        for status in [403, 500, 204, 205] {
+            let api = Arc::new(Api::default());
+            let ends = Arc::new(Mutex::new(vec![]));
+            let service = Crucible::builder(streams::operations(api.clone()))
+                .protocol(JsonProtocol)
+                .middleware(Observer(ends.clone()))
+                .middleware(Refuse(status))
+                .build()
+                .unwrap();
+            let response = service
+                .handle(Request::get("/events").body(Body::empty()).unwrap())
+                .await;
+            assert_eq!(response.status(), status);
+            assert!(
+                axum::body::to_bytes(response.into_body(), 256)
+                    .await
+                    .unwrap()
+                    .is_empty()
+            );
+            assert_eq!(api.polls.load(Ordering::SeqCst), 0);
+            assert_eq!(api.drops.load(Ordering::SeqCst), 1);
+            assert_eq!(*ends.lock().unwrap(), vec![StreamEnd::Failed]);
+        }
+    }
+
+    #[tokio::test]
+    async fn late_framework_not_found_keeps_resource_type() {
+        let (service, _, _) = configured("not-found", None);
+        let response = service
+            .handle(Request::get("/events").body(Body::empty()).unwrap())
+            .await;
+        let bytes = axum::body::to_bytes(response.into_body(), 1024)
+            .await
+            .unwrap();
+        let body = std::str::from_utf8(&bytes).unwrap();
+        assert!(body.contains("\"type\":\"NotFoundException\""), "{body}");
+        assert!(body.contains("\"resourceType\":\"item\""), "{body}");
+    }
+
+    #[tokio::test]
+    async fn terminal_observers_receive_opening_response_extensions() {
+        #[derive(Clone)]
+        struct Marker;
+        struct Extensions(Arc<AtomicUsize>);
+        impl Middleware for Extensions {
+            fn after<'a>(
+                &'a self,
+                _: &'a mut Job,
+                response: &'a mut axum::response::Response,
+            ) -> Hook<'a, ()> {
+                response.extensions_mut().insert(Marker);
+                Hook::Ready(())
+            }
+            fn stream_complete(
+                &self,
+                _: &Job,
+                response: &axum::response::Response,
+                _: &StreamCompletion,
+            ) {
+                assert!(response.extensions().get::<Marker>().is_some());
+                self.0.fetch_add(1, Ordering::SeqCst);
+            }
+        }
+        let count = Arc::new(AtomicUsize::default());
+        let service = Crucible::builder(streams::operations(Arc::new(Api::default())))
             .protocol(JsonProtocol)
-            .middleware(Observer(ends.clone()))
-            .middleware(Refuse)
+            .middleware(Extensions(count.clone()))
             .build()
             .unwrap();
         let response = service
             .handle(Request::get("/events").body(Body::empty()).unwrap())
             .await;
-        assert_eq!(response.status(), 403);
-        assert!(
-            axum::body::to_bytes(response.into_body(), 256)
-                .await
-                .unwrap()
-                .is_empty()
-        );
-        assert_eq!(api.polls.load(Ordering::SeqCst), 0);
-        assert_eq!(api.drops.load(Ordering::SeqCst), 1);
-        assert_eq!(*ends.lock().unwrap(), vec![StreamEnd::Cancelled]);
+        axum::body::to_bytes(response.into_body(), 1024)
+            .await
+            .unwrap();
+        assert_eq!(count.load(Ordering::SeqCst), 1);
     }
 
     #[tokio::test]
@@ -444,5 +537,106 @@ mod tests {
             *records.lock().unwrap(),
             vec![(200, "fault", StreamEnd::Failed, 1)]
         );
+    }
+
+    #[tokio::test]
+    async fn custom_protocol_heartbeat_faults_are_bounded_and_recovered() {
+        use crucible_server_runtime_rust::middlewares::{Metrics, Recorder, RequestRecord};
+        use crucible_server_runtime_rust::protocol::{Answers, Route};
+        use crucible_server_runtime_rust::{Operations, Protocol};
+        struct Capture(Arc<AtomicUsize>);
+        impl Recorder for Capture {
+            fn record(&self, record: &RequestRecord<'_>) {
+                let stream = record
+                    .stream
+                    .expect("stream failure recorded even after opening decoration panics");
+                assert_eq!(stream.end, StreamEnd::Failed);
+                assert_eq!(stream.items, 0);
+                self.0.fetch_add(1, Ordering::SeqCst);
+            }
+        }
+        struct FaultyHeartbeat(Option<bool>);
+        impl Protocol for FaultyHeartbeat {
+            fn route(
+                &self,
+                request: &axum::http::request::Parts,
+                operations: &Operations,
+            ) -> Option<Route> {
+                JsonProtocol.route(request, operations)
+            }
+            fn decode<'a>(&'a self, job: &'a mut Job) -> Hook<'a, Result<()>> {
+                JsonProtocol.decode(job)
+            }
+            fn write(&self, job: &Job, answers: &Answers<'_>) -> axum::response::Response {
+                JsonProtocol.write(job, answers)
+            }
+            fn supports_server_stream(&self) -> bool {
+                true
+            }
+            fn write_stream(&self, job: &Job, answers: &Answers<'_>) -> axum::response::Response {
+                JsonProtocol.write_stream(job, answers)
+            }
+            fn stream_item(
+                &self,
+                item: &dyn crucible_server_runtime_rust::operation::Output,
+                limit: usize,
+            ) -> Result<axum::body::Bytes> {
+                JsonProtocol.stream_item(item, limit)
+            }
+            fn stream_end(
+                &self,
+                job: &Job,
+                answers: &Answers<'_>,
+                limit: usize,
+            ) -> Result<axum::body::Bytes> {
+                JsonProtocol.stream_end(job, answers, limit)
+            }
+            fn stream_heartbeat(&self) -> Option<axum::body::Bytes> {
+                if self.0 == Some(true) {
+                    panic!("private-heartbeat-detail");
+                }
+                Some(vec![b'x'; 1024].into())
+            }
+            fn decorate_response(&self, _: &mut axum::response::Response) {
+                if self.0.is_none() {
+                    panic!("private-decoration-detail");
+                }
+            }
+        }
+        for fault in [Some(true), Some(false), None] {
+            let api = Arc::new(Api {
+                mode: "pending".into(),
+                ..Default::default()
+            });
+            let ends = Arc::new(Mutex::new(vec![]));
+            let records = Arc::new(AtomicUsize::default());
+            let service = Crucible::builder(streams::operations(api.clone()))
+                .protocol(FaultyHeartbeat(fault))
+                .middleware(Metrics::new(Capture(records.clone())))
+                .middleware(Observer(ends.clone()))
+                .stream_options(crucible_server_runtime_rust::StreamOptions {
+                    max_event_bytes: 256,
+                    ..Default::default()
+                })
+                .build()
+                .unwrap();
+            let response = service
+                .handle(Request::get("/events").body(Body::empty()).unwrap())
+                .await;
+            assert_eq!(
+                response.status().as_u16(),
+                if fault.is_none() { 500 } else { 200 }
+            );
+            let body = axum::body::to_bytes(response.into_body(), 256)
+                .await
+                .unwrap();
+            let text = std::str::from_utf8(&body).unwrap();
+            assert!(text.contains("InternalFailure"));
+            assert!(!text.contains("private-heartbeat-detail"));
+            assert_eq!(api.polls.load(Ordering::SeqCst), 0);
+            assert_eq!(api.drops.load(Ordering::SeqCst), 1);
+            assert_eq!(*ends.lock().unwrap(), vec![StreamEnd::Failed]);
+            assert_eq!(records.load(Ordering::SeqCst), 1);
+        }
     }
 }

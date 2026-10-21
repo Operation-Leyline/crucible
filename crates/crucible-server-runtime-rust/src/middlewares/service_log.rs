@@ -302,7 +302,7 @@ impl Middleware for ServiceLog {
     }
 
     fn complete(&self, job: &Job, response: &Response) {
-        if matches!(job.outcome(), Some(crate::Outcome::Stream(_))) {
+        if job.is_streaming_response() {
             return;
         }
         let policy = self.policy(job);
@@ -326,7 +326,15 @@ impl Middleware for ServiceLog {
                     "cancelled"
                 } else {
                     job.resolution()
-                        .map_or("fault", |r| r.class(job.operation()))
+                        .filter(|resolution| resolution.error_name().is_some())
+                        .map_or(
+                            if response.status().is_client_error() {
+                                "error"
+                            } else {
+                                "fault"
+                            },
+                            |r| r.class(job.operation()),
+                        )
                 };
                 record.level = if matches!(record.outcome, "cancelled" | "error") {
                     policy.client_error_level
@@ -335,7 +343,7 @@ impl Middleware for ServiceLog {
                 };
             }
             self.sink.write(&record);
+            tracing::debug!(items = completion.items, bytes = completion.bytes, end = ?completion.end, "response stream finished");
         }
-        tracing::debug!(items = completion.items, bytes = completion.bytes, end = ?completion.end, "response stream finished");
     }
 }

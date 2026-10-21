@@ -253,7 +253,7 @@ const KEYWORDS: &[Row] = &[
     (
         "stream",
         OPERATION,
-        "Returns a typed response sequence: `output stream Event`. The item is a named structure or union. Rust handlers return `EventStream<Event>`; TypeScript callers iterate a `ResponseStream<Event>`. Opening and iteration can both fail.",
+        "Returns a typed response sequence: `output stream Event`. The item is a named structure or union. Rust handlers return `Result<EventStream<Event>>`; TypeScript callers iterate a `ResponseStream<Event>`. Opening and iteration can both fail.",
         "operation Watch {\n    http GET \"/events\"\n    output stream Progress\n}",
     ),
     (

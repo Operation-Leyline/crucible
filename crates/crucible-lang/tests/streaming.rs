@@ -17,6 +17,7 @@ fn server_stream_is_a_typed_response_mode_with_reachable_items() {
         crucible_ir::Protocol::STREAM_CONTENT_TYPE
     );
     assert!(service.shapes.keys().any(|id| id.name() == "Update"));
+    assert_eq!(op.examples[0].output.as_ref().unwrap()["ready"], "ready");
     assert!(
         service
             .requirements
@@ -52,6 +53,11 @@ fn unsupported_stream_combinations_are_diagnostics() {
             "must be a structure or union",
         ),
         (
+            "output stream Progress",
+            "output stream WorkFailed",
+            "must be a structure or union",
+        ),
+        (
             "http GET \"/events\"",
             "http HEAD \"/events\"",
             "carry a body",
@@ -81,6 +87,39 @@ fn unsupported_stream_combinations_are_diagnostics() {
         "{}",
         result.render()
     );
+}
+
+#[test]
+fn unknown_stream_items_are_resolved_even_without_http_and_bindings_are_rejected() {
+    let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../tests/models/server-stream");
+    for (before, after, expected) in [
+        (
+            "http GET \"/events\"\n    output stream Progress",
+            "output stream Missing",
+            "Missing",
+        ),
+        (
+            "output stream Progress",
+            "output stream Update",
+            "here it would be ignored",
+        ),
+    ] {
+        let mut package = crucible_lang::load_package(&path).unwrap();
+        for file in &mut package.files {
+            file.text = file
+                .text
+                .replace("\r\n", "\n")
+                .replace(before, after)
+                .replace(
+                    "text: string { length 1..64 }",
+                    "@header(\"x-text\") text: string { length 1..64 }",
+                )
+                .replace("    example \"Ready\" { output { ready: \"ready\" } }", "");
+        }
+        let result = crucible_lang::compile(&package, None);
+        assert!(result.service.is_none());
+        assert!(result.render().contains(expected), "{}", result.render());
+    }
 }
 
 #[test]
