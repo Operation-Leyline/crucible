@@ -1,0 +1,454 @@
+{
+  "openapi": "3.1.1",
+  "info": {
+    "title": "Streams",
+    "version": "1"
+  },
+  "paths": {
+    "/events": {
+      "post": {
+        "operationId": "Publish",
+        "responses": {
+          "200": {
+            "description": "Crucible JSON server stream: application messages followed by one completion or terminal error. EOF without a terminal event is interruption.",
+            "content": {
+              "text/event-stream": {
+                "schema": {
+                  "type": "string"
+                },
+                "x-crucible-stream": {
+                  "profile": 1,
+                  "itemSchema": {
+                    "$ref": "#/components/schemas/example.streams.Progress"
+                  },
+                  "itemEvent": "message",
+                  "completeEvent": "crucible.complete",
+                  "errorEvent": "crucible.error"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "ValidationError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "$ref": "#/components/schemas/crucible.api.String"
+                    },
+                    "__type": {
+                      "type": "string",
+                      "const": "ValidationError"
+                    }
+                  },
+                  "required": [
+                    "message",
+                    "__type"
+                  ]
+                }
+              }
+            },
+            "headers": {
+              "X-Crucible-Error": {
+                "schema": {
+                  "type": "string",
+                  "const": "ValidationError"
+                }
+              }
+            },
+            "x-crucible-errors": [
+              "example.streams#ValidationError"
+            ]
+          },
+          "503": {
+            "description": "WorkFailed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "$ref": "#/components/schemas/crucible.api.String"
+                    },
+                    "__type": {
+                      "type": "string",
+                      "const": "WorkFailed"
+                    }
+                  },
+                  "required": [
+                    "message",
+                    "__type"
+                  ]
+                }
+              }
+            },
+            "headers": {
+              "X-Crucible-Error": {
+                "schema": {
+                  "type": "string",
+                  "const": "WorkFailed"
+                }
+              }
+            },
+            "x-crucible-errors": [
+              "example.streams#WorkFailed"
+            ]
+          }
+        },
+        "security": [],
+        "x-crucible-shape": "example.streams#Publish",
+        "x-crucible-traits": {},
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "topic": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 64
+                  }
+                },
+                "required": [
+                  "topic"
+                ]
+              }
+            }
+          },
+          "required": true
+        },
+        "parameters": [
+          {
+            "name": "Crucible-Version",
+            "in": "header",
+            "required": true,
+            "description": "The release this request is written for: 1, the release this document describes.",
+            "schema": {
+              "type": "string",
+              "const": "1"
+            }
+          }
+        ]
+      },
+      "get": {
+        "operationId": "Watch",
+        "responses": {
+          "200": {
+            "description": "Crucible JSON server stream: application messages followed by one completion or terminal error. EOF without a terminal event is interruption.",
+            "content": {
+              "text/event-stream": {
+                "schema": {
+                  "type": "string"
+                },
+                "x-crucible-stream": {
+                  "profile": 1,
+                  "itemSchema": {
+                    "$ref": "#/components/schemas/example.streams.Progress"
+                  },
+                  "itemEvent": "message",
+                  "completeEvent": "crucible.complete",
+                  "errorEvent": "crucible.error"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "ValidationError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "$ref": "#/components/schemas/crucible.api.String"
+                    },
+                    "__type": {
+                      "type": "string",
+                      "const": "ValidationError"
+                    }
+                  },
+                  "required": [
+                    "message",
+                    "__type"
+                  ]
+                }
+              }
+            },
+            "headers": {
+              "X-Crucible-Error": {
+                "schema": {
+                  "type": "string",
+                  "const": "ValidationError"
+                }
+              }
+            },
+            "x-crucible-errors": [
+              "example.streams#ValidationError"
+            ]
+          },
+          "503": {
+            "description": "WorkFailed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "$ref": "#/components/schemas/crucible.api.String"
+                    },
+                    "__type": {
+                      "type": "string",
+                      "const": "WorkFailed"
+                    }
+                  },
+                  "required": [
+                    "message",
+                    "__type"
+                  ]
+                }
+              }
+            },
+            "headers": {
+              "X-Crucible-Error": {
+                "schema": {
+                  "type": "string",
+                  "const": "WorkFailed"
+                }
+              }
+            },
+            "x-crucible-errors": [
+              "example.streams#WorkFailed"
+            ]
+          }
+        },
+        "security": [],
+        "x-crucible-shape": "example.streams#Watch",
+        "x-crucible-traits": {},
+        "description": "Observe a bounded or long-lived sequence of progress events.",
+        "x-crucible-readonly": true,
+        "parameters": [
+          {
+            "name": "Crucible-Version",
+            "in": "header",
+            "required": true,
+            "description": "The release this request is written for: 1, the release this document describes.",
+            "schema": {
+              "type": "string",
+              "const": "1"
+            }
+          }
+        ]
+      }
+    },
+    "/read": {
+      "get": {
+        "operationId": "Read",
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "value": {
+                      "$ref": "#/components/schemas/crucible.api.String"
+                    }
+                  },
+                  "required": [
+                    "value"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "ValidationError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "$ref": "#/components/schemas/crucible.api.String"
+                    },
+                    "__type": {
+                      "type": "string",
+                      "const": "ValidationError"
+                    }
+                  },
+                  "required": [
+                    "message",
+                    "__type"
+                  ]
+                }
+              }
+            },
+            "headers": {
+              "X-Crucible-Error": {
+                "schema": {
+                  "type": "string",
+                  "const": "ValidationError"
+                }
+              }
+            },
+            "x-crucible-errors": [
+              "example.streams#ValidationError"
+            ]
+          },
+          "503": {
+            "description": "WorkFailed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "$ref": "#/components/schemas/crucible.api.String"
+                    },
+                    "__type": {
+                      "type": "string",
+                      "const": "WorkFailed"
+                    }
+                  },
+                  "required": [
+                    "message",
+                    "__type"
+                  ]
+                }
+              }
+            },
+            "headers": {
+              "X-Crucible-Error": {
+                "schema": {
+                  "type": "string",
+                  "const": "WorkFailed"
+                }
+              }
+            },
+            "x-crucible-errors": [
+              "example.streams#WorkFailed"
+            ]
+          }
+        },
+        "security": [],
+        "x-crucible-shape": "example.streams#Read",
+        "x-crucible-traits": {},
+        "x-crucible-readonly": true,
+        "parameters": [
+          {
+            "name": "Crucible-Version",
+            "in": "header",
+            "required": true,
+            "description": "The release this request is written for: 1, the release this document describes.",
+            "schema": {
+              "type": "string",
+              "const": "1"
+            }
+          }
+        ]
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "crucible.api.String": {
+        "type": "string"
+      },
+      "example.streams.Progress": {
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "update": {
+                "$ref": "#/components/schemas/example.streams.Update"
+              }
+            },
+            "required": [
+              "update"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "ready": {
+                "$ref": "#/components/schemas/crucible.api.String"
+              }
+            },
+            "required": [
+              "ready"
+            ],
+            "additionalProperties": false
+          }
+        ]
+      },
+      "example.streams.PublishInput": {
+        "type": "object",
+        "properties": {
+          "topic": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64
+          }
+        },
+        "required": [
+          "topic"
+        ]
+      },
+      "example.streams.ReadOutput": {
+        "type": "object",
+        "properties": {
+          "value": {
+            "$ref": "#/components/schemas/crucible.api.String"
+          }
+        },
+        "required": [
+          "value"
+        ]
+      },
+      "example.streams.Update": {
+        "type": "object",
+        "properties": {
+          "text": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64
+          }
+        },
+        "required": [
+          "text"
+        ]
+      },
+      "example.streams.ValidationError": {
+        "type": "object",
+        "properties": {
+          "message": {
+            "$ref": "#/components/schemas/crucible.api.String"
+          }
+        },
+        "required": [
+          "message"
+        ]
+      },
+      "example.streams.WorkFailed": {
+        "type": "object",
+        "properties": {
+          "message": {
+            "$ref": "#/components/schemas/crucible.api.String"
+          }
+        },
+        "required": [
+          "message"
+        ]
+      }
+    },
+    "securitySchemes": {}
+  },
+  "x-crucible-service": "example.streams#Streams",
+  "x-crucible-protocol": "crucible.protocols#json",
+  "x-crucible-traits": {}
+}

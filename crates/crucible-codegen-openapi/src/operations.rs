@@ -253,7 +253,16 @@ fn headers(
 fn responses(service: &Service, op: &Operation, keys: &[String]) -> Value {
     let mut grouped: BTreeMap<u16, Vec<Value>> = BTreeMap::new();
     let mut success = json!({"description": "Successful response"});
-    if let Some(output) = structure(service, op.output.as_ref()) {
+    if op.response_mode == crucible_ir::ir::ResponseMode::ServerStream {
+        let id = op.output.as_ref().expect("stream item root");
+        success["description"] = json!(
+            "Crucible JSON server stream: application messages followed by one completion or terminal error. EOF without a terminal event is interruption."
+        );
+        success["content"] = json!({"text/event-stream": {"schema": {"type":"string"}, "x-crucible-stream": {
+            "profile":1, "itemSchema":{"$ref":format!("#/components/schemas/{}", key(id))},
+            "itemEvent":"message", "completeEvent":"crucible.complete", "errorEvent":"crucible.error"
+        }}});
+    } else if let Some(output) = structure(service, op.output.as_ref()) {
         let outputs = examples::outputs(op, keys);
         success["content"] = content(service, output, &op.response);
         attach_examples(

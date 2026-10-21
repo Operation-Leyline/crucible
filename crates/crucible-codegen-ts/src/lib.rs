@@ -30,6 +30,8 @@ const RUNTIME: &str = include_str!("../runtime/runtime.ts");
 /// What the runtime exports to callers; a shape with one of these names
 /// would collide with it in `index.ts`.
 const RUNTIME_EXPORTS: &[&str] = &[
+    "ResponseStream",
+    "StreamProtocolError",
     "ServiceError",
     "formatModel",
     "NetworkError",
@@ -192,6 +194,7 @@ pub fn capabilities() -> crucible_ir::Capabilities {
         Feature::NonBlobPayload,
         Feature::ErrorPayload,
         Feature::MediaTypeHeaders,
+        Feature::ServerStreaming,
     ])
 }
 
@@ -351,7 +354,7 @@ fn index(client: &str, permissions: &str) -> String {
          export * from \"./errors.js\";\n\
          {permissions}\
          export {{ {client} }} from \"./client.js\";\n\
-         export {{ Decimal, NetworkError, ServiceError, TimeoutError, contentSha256, stringifyJson }} from \"./runtime.js\";\n\
+         export {{ Decimal, NetworkError, ResponseStream, ServiceError, StreamProtocolError, TimeoutError, contentSha256, stringifyJson }} from \"./runtime.js\";\n\
          export type {{\n  ClientConfig,\n  Document,\n  Fetch,\n  Middleware,\n  Next,\n  RequestOptions,\n  \
          ResponseMetadata,\n  RetryConfig,\n  TokenProvider,\n  Unit,\n  UnknownUnion,\n}} from \"./runtime.js\";\n"
     )

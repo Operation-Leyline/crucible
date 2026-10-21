@@ -314,6 +314,30 @@ fn operation_spec(service: &Service, converting: &BTreeSet<ShapeId>, op: &Operat
         format!("method: {}", literal(&op.method)),
         format!("bearer: {}", op.auth.iter().any(|id| service.is_bearer(id))),
     ];
+    if op.response_mode == crucible_ir::ir::ResponseMode::ServerStream {
+        let id = op.output.as_ref().expect("a stream has an item type");
+        let schema = match service.shape(id).expect("lowered stream root") {
+            Shape::Simple(simple) => match simple.kind {
+                SimpleKind::String => "string".to_owned(),
+                SimpleKind::Boolean => "boolean".to_owned(),
+                SimpleKind::Byte => "integer(8)".to_owned(),
+                SimpleKind::Short => "integer(16)".to_owned(),
+                SimpleKind::Integer => "integer(32)".to_owned(),
+                SimpleKind::Long => "integer(64)".to_owned(),
+                SimpleKind::BigInteger => "bigInteger".to_owned(),
+                SimpleKind::BigDecimal => "bigDecimal".to_owned(),
+                SimpleKind::Float | SimpleKind::Double => "number".to_owned(),
+                SimpleKind::Blob => "blob".to_owned(),
+                SimpleKind::Timestamp => timestamp(service.protocol.timestamp_format(false)),
+                SimpleKind::Document => "document".to_owned(),
+            },
+            Shape::Enum(_) => "string".to_owned(),
+            Shape::IntEnum(_) => "integer(32)".to_owned(),
+            Shape::Unit { .. } => "document".to_owned(),
+            _ => schema_name(service, id),
+        };
+        fields.push(format!("stream: {schema}"));
+    }
     // The release this client sends in `Crucible-Version`.
     if let Some(version) = &service.api_version {
         fields.push(format!("apiVersion: {}", literal(version)));

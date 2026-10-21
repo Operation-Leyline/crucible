@@ -19,6 +19,26 @@ fn weather() -> crucible_ir::ir::Service {
     load("weather")
 }
 
+#[test]
+fn response_stream_documents_framing_and_item_schema() {
+    let output = generate(&load("server-stream"), &Options::default()).unwrap();
+    let path =
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/golden/server-stream.openapi.json");
+    if std::env::var_os("CRUCIBLE_BLESS").is_some() {
+        fs::write(&path, &output).unwrap();
+    }
+    assert_eq!(
+        fs::read_to_string(path).unwrap().replace("\r\n", "\n"),
+        output
+    );
+    let document: Value = serde_json::from_str(&output).unwrap();
+    let success = &document["paths"]["/events"]["get"]["responses"]["200"];
+    assert!(success["content"]["text/event-stream"].is_object());
+    let stream = &success["content"]["text/event-stream"]["x-crucible-stream"];
+    assert_eq!(stream["profile"], 1);
+    assert!(stream["itemSchema"]["$ref"].is_string());
+}
+
 /// Weather with each `(old, new)` pair replaced in its sources.
 fn edited(edits: &[(&str, &str)]) -> crucible_ir::ir::Service {
     try_edited(edits).unwrap_or_else(|rendered| panic!("the edited weather compiles:\n{rendered}"))

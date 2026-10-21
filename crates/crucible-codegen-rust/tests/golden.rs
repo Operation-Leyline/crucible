@@ -11,6 +11,17 @@ fn weather() -> crucible_ir::ir::Service {
     common::load("weather")
 }
 
+#[test]
+fn response_stream_server_bindings_match_golden_and_rust_clients_are_diagnosed() {
+    let service = common::load("server-stream");
+    matches_golden(
+        &generate(&service, &Options::default()).unwrap(),
+        "server_stream.rs",
+    );
+    let errors = generate_client(&service).unwrap_err();
+    assert!(format!("{errors:?}").contains("server-streaming"));
+}
+
 /// The typed permissions fixture, a `.cru` package; `edit` rewrites its
 /// source first.
 fn leyline_with(edit: impl Fn(String) -> String) -> crucible_ir::ir::Service {

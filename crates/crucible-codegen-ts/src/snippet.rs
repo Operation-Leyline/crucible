@@ -224,17 +224,23 @@ pub(crate) fn snippets(
     };
     let invoke = format!("await client.{method}({argument})");
     let mut reads = String::new();
-    let call_line = match call.output {
-        Some(output) if !output.members.is_empty() => {
-            for member in &output.members {
-                reads.push_str(&format!(
-                    "{INDENT}console.log({});\n",
-                    access("output", &member.name)
-                ));
+    let call_line = if call.operation.response_mode == crucible_ir::ir::ResponseMode::ServerStream {
+        format!(
+            "{INDENT}const events = {invoke};\n{INDENT}for await (const event of events) {{\n{INDENT}{INDENT}console.log(event);\n{INDENT}}}\n"
+        )
+    } else {
+        match call.output {
+            Some(output) if !output.members.is_empty() => {
+                for member in &output.members {
+                    reads.push_str(&format!(
+                        "{INDENT}console.log({});\n",
+                        access("output", &member.name)
+                    ));
+                }
+                format!("{INDENT}const output = {invoke};\n")
             }
-            format!("{INDENT}const output = {invoke};\n")
+            _ => format!("{INDENT}{invoke};\n"),
         }
-        _ => format!("{INDENT}{invoke};\n"),
     };
     match (&error, call.error) {
         (Some(name), Some(case)) => {

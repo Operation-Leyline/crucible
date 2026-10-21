@@ -4884,13 +4884,47 @@ impl<'a> Lowerer<'a> {
         };
 
         let input_id = input.map(|_| self.id(&self.naming.input(&operation.name.name)));
-        let output_id = output.map(|_| self.id(&self.naming.output(&operation.name.name)));
+        let stream = output.and_then(|body| body.stream.as_ref());
+        let response_mode = if stream.is_some() {
+            self.require(&id, Feature::ServerStreaming, builtin("serverStream"));
+            if matches!(method.as_str(), "HEAD" | "OPTIONS") || matches!(status, 204 | 205) {
+                self.error(
+                    file,
+                    operation.name.span,
+                    "a response stream needs an HTTP method and status that carry a body",
+                );
+            }
+            crucible_ir::ir::ResponseMode::ServerStream
+        } else {
+            crucible_ir::ir::ResponseMode::Unary
+        };
+        if let Some(input) = input
+            && input.stream.is_some()
+        {
+            self.error(
+                file,
+                input.span,
+                "request streaming is not supported; use `output stream Type`",
+            );
+        }
+        let output_id = match stream {
+            Some(name) => self.resolve_type(file, name),
+            None => output.map(|_| self.id(&self.naming.output(&operation.name.name))),
+        };
         let uri_labels: Vec<String> = uri.labels().map(str::to_owned).collect();
         if let Some(input_id) = &input_id {
             self.visit(input_id);
         }
         if let Some(output_id) = &output_id {
             self.visit(output_id);
+            if let Some(stream) = stream
+                && !matches!(
+                    self.shapes.get(output_id),
+                    Some(Shape::Structure(_) | Shape::Union(_))
+                )
+            {
+                self.error(file, stream.span, "a response stream item must be a structure or union; wrap scalar or collection values in a named event");
+            }
         }
         let input_members = input_id
             .as_ref()
@@ -4911,6 +4945,7 @@ impl<'a> Lowerer<'a> {
             None => Bindings::default(),
         };
         let response = match &output_id {
+            _ if stream.is_some() => Bindings::default(),
             Some(output_id) => self.bindings(output_id, &output_members, false),
             None => Bindings::default(),
         };
@@ -5141,8 +5176,19 @@ impl<'a> Lowerer<'a> {
         let has_value = self
             .protocol
             .response_has_value(output_id.as_ref(), &response);
+        if stream.is_some() && paginated.is_some() {
+            self.error(
+                file,
+                operation.name.span,
+                "a response stream cannot also be paginated",
+            );
+        }
         Some(IrOperation {
-            response_protocol_headers: self.protocol.response_headers(&response, has_value),
+            response_protocol_headers: self.protocol.operation_response_headers(
+                &response,
+                has_value,
+                response_mode,
+            ),
             protocol_headers,
             internal: modifiers.contains("internal"),
             id,
@@ -5156,6 +5202,7 @@ impl<'a> Lowerer<'a> {
             status,
             input: input_id,
             output: output_id,
+            response_mode,
             errors,
             readonly,
             idempotent,
@@ -5631,6 +5678,9 @@ impl<'a> Lowerer<'a> {
         for entry in &op.entries {
             match entry {
                 OpEntry::Body(body) => {
+                    if body.stream.is_some() {
+                        continue;
+                    }
                     let name = match body.kind {
                         BodyKind::Input => self.naming.input(&op.name.name),
                         BodyKind::Output => self.naming.output(&op.name.name),

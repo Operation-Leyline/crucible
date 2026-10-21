@@ -12,6 +12,8 @@ crucible() {
 }
 
 dir=crates/crucible-codegen-ts/tests/ts
+crucible generate ts tests/models/server-stream \
+  --out "$dir/generated-streams" --package-name @example/streams >/dev/null
 crucible generate ts tests/models/internal \
   --out "$dir/generated-audience" --package-name @example/audience >/dev/null
 crucible generate ts tests/models/internal \
@@ -74,3 +76,4 @@ rm -rf "$dir/dist"
 ${TSC:-npx --yes -p typescript@5.9.3 tsc} -p "$dir"
 ${TSC:-npx --yes -p typescript@5.9.3 tsc} -p "$dir/snippets"
 node --test "$dir"/dist/*.test.js
+python tools/test-streaming.py

@@ -42,6 +42,7 @@ pub enum Context {
     Resources,
     Operations,
     Structures,
+    StreamItems,
     Annotation,
     Roles,
     HttpMethods,
@@ -166,6 +167,10 @@ pub fn context(parsed: &Parsed, text: &str, offset: usize) -> Context {
         }
     }
     if let Some(prev) = prev {
+        if word(prev) == "stream" && before.len() >= 2 && word(before[before.len() - 2]) == "output"
+        {
+            return Context::StreamItems;
+        }
         match (prev.kind, word(prev)) {
             (TokenKind::Ident, "http") => return Context::HttpMethods,
             (TokenKind::Ident, "protocol") => return Context::Protocols,
@@ -510,6 +515,11 @@ pub fn complete(context: Context, index: &Index, snippets: bool) -> Vec<Completi
             );
             items.snippet("input", "request members", "input {\n    $0\n}");
             items.snippet("output", "response members", "output {\n    $0\n}");
+            items.snippet(
+                "output stream",
+                "typed server-response sequence",
+                "output stream ${1:Event}",
+            );
             items.snippet("errors", "errors this operation returns", "errors [$1]");
             items.snippet("paginated", "pagination", "paginated(items: ${1:items})");
             items.snippet(
@@ -634,6 +644,9 @@ pub fn complete(context: Context, index: &Index, snippets: bool) -> Vec<Completi
         Context::Resources => items.declarations(index, |d| d.keyword == "resource"),
         Context::Operations => items.declarations(index, |d| d.keyword == "operation"),
         Context::Structures => items.declarations(index, |d| d.keyword == "structure"),
+        Context::StreamItems => items.declarations(index, |d| {
+            matches!(d.keyword.as_str(), "structure" | "union")
+        }),
         Context::Annotation => {
             items.snippet("since", "the version that added it", "since(\"$1\")");
             items.snippet(

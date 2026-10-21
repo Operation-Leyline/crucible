@@ -73,6 +73,7 @@ where
         decode_json: decode_json::<O>,
         decode_bound: decode_bound::<O>,
         invoke,
+        invoke_stream: None,
         output_from_json: O::OUTPUT_FROM_JSON.map(|_| output_from_json::<O> as OutputFromJson),
         body_limit: None,
         upgrade: None,
@@ -83,6 +84,38 @@ where
 }
 
 impl OperationsBuilder {
+    /// Registers a typed server-response stream. Its items are validated as
+    /// they are pulled, before serialization and disclosure.
+    pub fn add_stream<O, S, Fut>(
+        mut self,
+        implementation: Arc<S>,
+        call: impl Fn(Arc<S>, O::Input) -> Fut + Send + Sync + 'static,
+    ) -> Self
+    where
+        O: Operation,
+        O::Output: crate::validate::Validate,
+        S: Send + Sync + 'static,
+        Fut: Future<Output = Result<crate::EventStream<O::Output>>> + Send + 'static,
+    {
+        let mut registered = entry::<O, S, _>(implementation.clone(), |_, _| async {
+            Err(Error::internal("stream registered as a unary operation"))
+        });
+        registered.output_from_json = None;
+        registered.invoke_stream = Some(Arc::new(move |input| {
+            let input = match input.into_any().downcast::<O::Input>() {
+                Ok(input) => *input,
+                Err(_) => {
+                    return Box::pin(std::future::ready(Err(Error::internal(
+                        "stream input type mismatch",
+                    ))));
+                }
+            };
+            let future = call(implementation.clone(), input);
+            Box::pin(async move { Ok(crate::StreamingOutput::new(future.await?.erase())) })
+        }));
+        self.operations.entries.insert(O::INFO.name, registered);
+        self
+    }
     /// Registers `O`, served by `call` on `implementation`. Generated code
     /// calls this; a service registers through the generated setters.
     ///
@@ -371,6 +404,7 @@ where
         decode_json: decode_json::<Old>,
         decode_bound: decode_bound::<Old>,
         invoke: serving.invoke.clone(),
+        invoke_stream: None,
         output_from_json: serving.output_from_json,
         body_limit: serving.body_limit,
         upgrade: Some(upgrade),

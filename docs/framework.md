@@ -3,6 +3,9 @@
 The documented service-author API and generated-code version boundary are
 described in [Rust runtime stability](stability.md).
 
+For typed response sequences, see [response streams](streaming.md): model
+syntax, Rust producers, TypeScript consumers, lifecycle hooks, and hosting.
+
 Crucible is two products:
 
 1. **The framework** (`crucible-server-runtime-rust` crate): everything a service does that is not

@@ -29,6 +29,7 @@ pub fn capabilities() -> Capabilities {
         Feature::NonBlobPayload,
         Feature::ErrorPayload,
         Feature::MediaTypeHeaders,
+        Feature::ServerStreaming,
     ])
 }
 

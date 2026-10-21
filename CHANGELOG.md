@@ -15,6 +15,25 @@ version's section when it is prepared.
 
 ## [Unreleased]
 
+### Added
+
+- Typed response streams: `output stream Event`, Rust `EventStream<T>` handlers,
+  and generated TypeScript `ResponseStream<T>` clients using Fetch and SSE.
+  Explicit terminal outcomes, cancellation, item validation, total deadlines,
+  bounded event encoding, heartbeats, lifecycle observers, and streaming Lambda
+  hosting are described in [the streaming guide](docs/streaming.md).
+  OpenAPI exposes item/control metadata; unsupported targets diagnose streaming.
+
+### Migration
+
+- `Outcome::Stream`, `Resolution::Streaming`, and `Host::LambdaStreaming` add
+  variants to public enums. Update exhaustive matches to handle them; unary
+  operations keep their existing behavior. Regenerate Rust/TypeScript bindings.
+  No shim can preserve an exhaustive enum match. Stream handlers return
+  `Result<EventStream<Item>>`; streaming operations cannot use direct invoke,
+  buffered Lambda, or single-response idempotency replays. Existing `complete`
+  hooks still observe response readiness; use `stream_complete` for termination.
+
 ## [0.8.0] - 2026-10-18
 
 Crucible is now `.cru`-only and public under Apache-2.0. The Smithy front

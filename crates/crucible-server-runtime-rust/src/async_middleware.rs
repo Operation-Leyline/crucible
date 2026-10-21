@@ -13,6 +13,14 @@ pub trait AsyncMiddleware: Send + Sync + 'static {
     fn complete(&self, request: &Job, response: &Response) {
         let _ = (request, response);
     }
+    fn stream_complete(
+        &self,
+        request: &Job,
+        response: &Response,
+        completion: &crate::StreamCompletion,
+    ) {
+        let _ = (request, response, completion);
+    }
     fn prepare(&mut self, prepare: &Prepare<'_>) -> std::result::Result<(), String> {
         let _ = prepare;
         Ok(())
@@ -27,6 +35,14 @@ impl<T: AsyncMiddleware> Middleware for T {
     }
     fn complete(&self, request: &Job, response: &Response) {
         AsyncMiddleware::complete(self, request, response);
+    }
+    fn stream_complete(
+        &self,
+        request: &Job,
+        response: &Response,
+        completion: &crate::StreamCompletion,
+    ) {
+        AsyncMiddleware::stream_complete(self, request, response, completion);
     }
     fn prepare(&mut self, prepare: &Prepare<'_>) -> std::result::Result<(), String> {
         AsyncMiddleware::prepare(self, prepare)

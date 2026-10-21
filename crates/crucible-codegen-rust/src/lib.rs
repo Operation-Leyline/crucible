@@ -117,12 +117,17 @@ pub fn capabilities() -> crucible_ir::Capabilities {
         Feature::NonBlobPayload,
         Feature::ErrorPayload,
         Feature::MediaTypeHeaders,
+        Feature::ServerStreaming,
     ])
 }
 
 /// Constructs supported by the generated client and its bundled runtime.
 pub fn client_capabilities() -> crucible_ir::Capabilities {
-    capabilities()
+    crucible_ir::Capabilities::new(
+        capabilities()
+            .iter()
+            .filter(|f| *f != crucible_ir::Feature::ServerStreaming),
+    )
 }
 
 pub fn generate(service: &Service, options: &Options) -> Result<String, Diagnostics> {
@@ -150,6 +155,20 @@ pub fn generate_with_explorer_model(
         return Err(diagnostics);
     }
     service.require_capabilities(&capabilities())?;
+    if (options.mcp || options.explorer.is_some() || !service.versions.is_empty())
+        && service
+            .operations
+            .iter()
+            .any(|op| op.response_mode == crucible_ir::ir::ResponseMode::ServerStream)
+    {
+        let mut diagnostics = Diagnostics::default();
+        for op in &service.operations {
+            if op.response_mode == crucible_ir::ir::ResponseMode::ServerStream {
+                diagnostics.push(&op.id, "server-response streaming is not yet supported by MCP, the explorer, or historical-version adapters; generate a direct HTTP server without those adapters");
+            }
+        }
+        return Err(diagnostics);
+    }
     for version in &service.versions {
         version.service.require_capabilities(&capabilities())?;
     }

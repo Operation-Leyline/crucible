@@ -20,6 +20,8 @@ pub type BoxFuture<T> = Pin<Box<dyn Future<Output = T> + Send + 'static>>;
 
 pub(crate) type Invoke =
     Arc<dyn Fn(Box<dyn Input>) -> BoxFuture<Result<Box<dyn Output>>> + Send + Sync>;
+pub(crate) type InvokeStream =
+    Arc<dyn Fn(Box<dyn Input>) -> BoxFuture<Result<crate::StreamingOutput>> + Send + Sync>;
 type Decode = fn(Value) -> std::result::Result<Box<dyn Input>, Rejection>;
 type DecodeJson = fn(&[u8]) -> std::result::Result<Box<dyn Input>, Rejection>;
 pub(crate) type DecodeBound = for<'a> fn(
@@ -37,6 +39,7 @@ pub(crate) struct Entry {
     pub decode_json: DecodeJson,
     pub decode_bound: DecodeBound,
     pub invoke: Invoke,
+    pub invoke_stream: Option<InvokeStream>,
     /// Reads the current version's output from JSON, when the operation's
     /// output can be replayed (`Operation::OUTPUT_FROM_JSON`).
     pub output_from_json: Option<OutputFromJson>,
@@ -264,6 +267,9 @@ pub(crate) fn output_from_json<O: Operation>(value: Value) -> Result<Box<dyn Out
 
 pub(crate) struct OperationOutput<O: Operation>(pub(crate) O::Output);
 impl<O: Operation> Output for OperationOutput<O> {
+    fn write_json_to(&self, out: &mut dyn std::io::Write) -> serde_json::Result<()> {
+        serde_json::to_writer(out, &self.0)
+    }
     fn to_json(&self) -> Value {
         serde_json::to_value(&self.0).unwrap_or(Value::Null)
     }

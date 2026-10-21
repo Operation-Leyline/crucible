@@ -60,6 +60,21 @@ pub struct Job {
 }
 
 impl Job {
+    /// The deferred body of a streaming outcome, for a protocol's opening
+    /// response. Call once; the source is installed after opening middleware
+    /// finishes, and its lifetime follows this body's wrappers.
+    pub fn stream_body(&self) -> Option<axum::body::Body> {
+        let Some(Outcome::Stream(stream)) = self.outcome() else {
+            return None;
+        };
+        Some(axum::body::Body::from_stream(
+            crate::deferred_stream::DeferredStream {
+                slot: stream.slot.as_ref()?.clone(),
+                body: None,
+            },
+        ))
+    }
+
     /// The selected operation; `None` before selection or for an unknown operation.
     pub fn operation(&self) -> Option<&'static OperationInfo> {
         self.context.operation()
@@ -236,6 +251,7 @@ impl Job {
     pub fn resolution(&self) -> Option<Resolution<'_>> {
         Some(match self.outcome.as_ref()? {
             Outcome::Output(output) => Resolution::Success(output.as_ref()),
+            Outcome::Stream(_) => Resolution::Streaming,
             Outcome::Failed(error) => self.resolve_error(error),
             Outcome::Answered(response) => Resolution::Answered {
                 status: response.status().as_u16(),

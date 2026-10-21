@@ -50,10 +50,16 @@ pub fn surface(service: &Service, options: &Options) -> surface::Surface {
             .input
             .as_ref()
             .map(|id| structure(service, id, "object"));
-        entry.output = operation
-            .output
-            .as_ref()
-            .map(|id| structure(service, id, "properties"));
+        entry.output = operation.output.as_ref().map(|id| {
+            if operation.response_mode == crucible_ir::ir::ResponseMode::ServerStream {
+                Structure::new(
+                    format!("{MODELS}.ResponseStream<{}>", caller_type(service, id)),
+                    "async-iterator",
+                )
+            } else {
+                structure(service, id, "properties")
+            }
+        });
         let call = crucible_codegen_common::snippet::call(service, operation);
         (entry.snippet, entry.paginated_snippet) = crate::snippet::snippets(
             service,

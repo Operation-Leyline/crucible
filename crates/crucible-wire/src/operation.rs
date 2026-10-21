@@ -149,6 +149,8 @@ impl ServiceInfo {
 #[derive(Debug)]
 #[non_exhaustive]
 pub struct OperationInfo {
+    /// The response is a typed sequence, not a buffered output value.
+    pub server_stream: bool,
     /// `internal` in the model; caller authorization remains application policy.
     pub internal: bool,
     /// The operation's shape id, `namespace#Name`.
@@ -178,6 +180,10 @@ pub struct OperationInfo {
 }
 
 impl OperationInfo {
+    pub const fn with_server_stream(mut self) -> Self {
+        self.server_stream = true;
+        self
+    }
     /// The same operation, called and signed by `sender` (decision 81).
     pub const fn with_sender(mut self, sender: &'static str) -> Self {
         self.sender = Some(sender);
@@ -472,6 +478,11 @@ pub type OutputFromJson<O> = fn(Value) -> serde_json::Result<O>;
 /// An operation's output, seen by handlers without knowing its type.
 pub trait Output: Any + Send + Sync {
     fn to_json(&self) -> Value;
+    /// Stream serialization to a bounded sink. Custom erased outputs can
+    /// override this to avoid the default intermediate JSON value.
+    fn write_json_to(&self, out: &mut dyn std::io::Write) -> serde_json::Result<()> {
+        serde_json::to_writer(out, &self.to_json())
+    }
     /// Serializes into `out`. Every serializable output writes straight to
     /// bytes; this default, for other implementors, goes through `to_json`.
     fn write_json(&self, out: &mut Vec<u8>) -> serde_json::Result<()> {
@@ -492,6 +503,9 @@ pub trait Output: Any + Send + Sync {
 }
 
 impl<T: Serialize + Any + Send + Sync> Output for T {
+    fn write_json_to(&self, out: &mut dyn std::io::Write) -> serde_json::Result<()> {
+        serde_json::to_writer(out, self)
+    }
     fn to_json(&self) -> Value {
         serde_json::to_value(self).unwrap_or(Value::Null)
     }

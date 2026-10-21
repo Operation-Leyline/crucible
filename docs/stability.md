@@ -99,10 +99,20 @@ service's entry points for registering implementations.
 | Hosting integration | `tower_layer`, `request_id` |
 | API versions ([docs](api-versions.md)) | `api_version` |
 | Request limits | `body_limit`, `operation_body_limit`, `body_limits` |
+| Response streams ([guide](streaming.md)) | `stream_options` |
 | Construction | `build` |
 
 `BuildError` is non-exhaustive. Handle known variants and include a fallback
 when matching it. `MissingOperations` reports incomplete registration.
+
+`EventStream::from_try_stream`, `StreamOptions`, `StreamCompletion`, `StreamEnd`,
+the extension interfaces' `stream_complete` observers, and
+`RequestRecord::stream` and `Job::stream_body` support response streams. `complete` retains its
+response-ready meaning. `Protocol::{supports_server_stream, write_stream,
+stream_item, stream_end, stream_heartbeat}` opt a protocol into encoding them.
+`Host::LambdaStreaming`, `host::lambda_streaming`, and
+`host::lambda_streaming_event_json_with` select or test the streaming HTTP
+Lambda adapter. See the guide for host restrictions.
 
 `mcp::McpConfig::{new, path, allowed_origins, allow_any_origin, endpoint_guard,
 authorization, authorization_server_metadata, server_info}`, `mcp::AuthorizationServerMetadata`

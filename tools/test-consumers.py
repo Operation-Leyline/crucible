@@ -177,6 +177,7 @@ def main():
         starter(env, work, target)
         weather(env)
         leyline(env, work, target)
+        run(["cargo", "test", "--locked", "--manifest-path", str(ROOT / "tests/consumers/streaming/Cargo.toml")], env=env)
         snippets(plain, work, target)
     print("consumers: all passed")
 

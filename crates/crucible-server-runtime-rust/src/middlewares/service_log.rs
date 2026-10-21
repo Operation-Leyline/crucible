@@ -302,10 +302,40 @@ impl Middleware for ServiceLog {
     }
 
     fn complete(&self, job: &Job, response: &Response) {
+        if matches!(job.outcome(), Some(crate::Outcome::Stream(_))) {
+            return;
+        }
         let policy = self.policy(job);
         let succeeded = response.status().as_u16() < 400;
         if (succeeded && policy.successes) || (!succeeded && policy.failures) {
             self.sink.write(&self.record(job, policy, response));
         }
+    }
+    fn stream_complete(
+        &self,
+        job: &Job,
+        response: &Response,
+        completion: &crate::StreamCompletion,
+    ) {
+        let policy = self.policy(job);
+        let succeeded = completion.end == crate::StreamEnd::Completed;
+        if (succeeded && policy.successes) || (!succeeded && policy.failures) {
+            let mut record = self.record(job, policy, response);
+            if !succeeded {
+                record.outcome = if completion.end == crate::StreamEnd::Cancelled {
+                    "cancelled"
+                } else {
+                    job.resolution()
+                        .map_or("fault", |r| r.class(job.operation()))
+                };
+                record.level = if matches!(record.outcome, "cancelled" | "error") {
+                    policy.client_error_level
+                } else {
+                    Level::ERROR
+                };
+            }
+            self.sink.write(&record);
+        }
+        tracing::debug!(items = completion.items, bytes = completion.bytes, end = ?completion.end, "response stream finished");
     }
 }

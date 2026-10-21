@@ -54,6 +54,111 @@ impl Protocol for JsonProtocol {
     fn write(&self, job: &Job, answers: &Answers<'_>) -> Response {
         super::json_response::write(job, answers)
     }
+
+    fn supports_server_stream(&self) -> bool {
+        true
+    }
+
+    fn write_stream(&self, job: &Job, _: &Answers<'_>) -> Response {
+        Response::builder()
+            .status(job.operation().map_or(200, |op| op.status))
+            .header(
+                "content-type",
+                "text/event-stream; charset=utf-8; crucible-stream=1",
+            )
+            .header("crucible-stream", "1")
+            .header("cache-control", "no-store")
+            .body(job.stream_body().expect("streaming outcome"))
+            .expect("static stream headers")
+    }
+
+    fn stream_item(
+        &self,
+        item: &dyn crate::operation::Output,
+        limit: usize,
+    ) -> Result<axum::body::Bytes> {
+        let mut sink = BoundedEvent {
+            bytes: b"event: message\ndata: ".to_vec(),
+            limit: limit.saturating_sub(2),
+        };
+        item.write_json_to(&mut sink).map_err(|_| {
+            crate::Error::internal("stream item is invalid or exceeds the byte limit")
+        })?;
+        sink.bytes.extend_from_slice(b"\n\n");
+        Ok(sink.bytes.into())
+    }
+
+    fn stream_heartbeat(&self) -> Option<axum::body::Bytes> {
+        Some(axum::body::Bytes::from_static(b": heartbeat\n\n"))
+    }
+
+    fn stream_end(&self, job: &Job, limit: usize) -> Result<axum::body::Bytes> {
+        if matches!(job.resolution(), Some(crate::Resolution::Streaming)) {
+            return Ok(axum::body::Bytes::from_static(
+                b"event: crucible.complete\ndata: {}\n\n",
+            ));
+        }
+        if matches!(
+            job.resolution(),
+            Some(crate::Resolution::Internal(_)) | None
+        ) {
+            return Ok(axum::body::Bytes::from_static(b"event: crucible.error\ndata: {\"type\":\"InternalFailure\",\"status\":500,\"error\":{\"message\":\"Internal server error\"}}\n\n"));
+        }
+        let mut sink = BoundedEvent {
+            bytes: b"event: crucible.error\ndata: {\"type\":".to_vec(),
+            limit: limit.saturating_sub(3),
+        };
+        let encoded = (|| -> serde_json::Result<()> {
+            use std::io::Write;
+            match job.resolution() {
+                Some(crate::Resolution::Modelled(error)) => {
+                    serde_json::to_writer(&mut sink, error.info().name)?;
+                    write!(sink, ",\"status\":{},\"error\":", error.info().status)
+                        .map_err(serde_json::Error::io)?;
+                    error.write_json_to(&mut sink)?;
+                }
+                Some(crate::Resolution::Framework(error)) => {
+                    serde_json::to_writer(&mut sink, error.name())?;
+                    write!(sink, ",\"status\":{},\"error\":", error.status())
+                        .map_err(serde_json::Error::io)?;
+                    serde_json::to_writer(
+                        &mut sink,
+                        &serde_json::json!({"message":error.message()}),
+                    )?;
+                }
+                _ => {
+                    return Err(serde_json::Error::io(std::io::Error::other(
+                        "internal failure",
+                    )));
+                }
+            }
+            Ok(())
+        })();
+        if encoded.is_err() {
+            return Err(crate::Error::internal(
+                "terminal stream error is invalid or exceeds byte limit",
+            ));
+        }
+        sink.bytes.extend_from_slice(b"}\n\n");
+        Ok(sink.bytes.into())
+    }
+}
+
+struct BoundedEvent {
+    bytes: Vec<u8>,
+    limit: usize,
+}
+impl std::io::Write for BoundedEvent {
+    fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+        if bytes.len() > self.limit.saturating_sub(self.bytes.len()) {
+            return Err(std::io::Error::other("event exceeds byte limit"));
+        }
+        self.bytes.extend_from_slice(bytes);
+        Ok(bytes.len())
+    }
+    fn flush(&mut self) -> std::io::Result<()> {
+        Ok(())
+    }
 }
 
 fn decode_http(job: &mut Job) -> Hook<'_, Result<()>> {

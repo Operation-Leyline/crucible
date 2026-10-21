@@ -92,6 +92,17 @@ impl Context {
             .await
     }
 
+    /// Restores request context and tracing while a response body is polled
+    /// or synchronously disposed on a host task.
+    pub(crate) fn scope_sync<T>(self: Arc<Self>, call: impl FnOnce() -> T) -> T {
+        let span = self.span.clone();
+        let dispatch = self.dispatch.clone();
+        tracing::dispatcher::with_default(&dispatch, || {
+            let _entered = span.enter();
+            CURRENT.sync_scope(self, call)
+        })
+    }
+
     /// The id this request goes by in logs and in the `x-request-id` header.
     pub fn request_id(&self) -> &str {
         self.request_id.to_str().unwrap_or_default()

@@ -24,6 +24,8 @@ pub enum Host {
     /// Take events from the Lambda runtime: HTTP events (Function URLs, API
     /// Gateway, ALB) and direct JSON invokes alike.
     Lambda,
+    /// HTTP events from streaming-enabled Function URLs or REST integrations.
+    LambdaStreaming,
 }
 
 impl Host {
@@ -32,7 +34,11 @@ impl Host {
     /// else `0.0.0.0:$PORT`, else `0.0.0.0:8080`.
     pub fn from_env() -> Result<Self, BoxError> {
         if std::env::var_os("AWS_LAMBDA_RUNTIME_API").is_some() {
-            return Ok(Self::Lambda);
+            return match std::env::var("CRUCIBLE_LAMBDA_RESPONSE_MODE").as_deref() {
+                Ok("streaming") => Ok(Self::LambdaStreaming),
+                Ok("buffered") | Err(_) => Ok(Self::Lambda),
+                Ok(_) => Err("CRUCIBLE_LAMBDA_RESPONSE_MODE must be buffered or streaming".into()),
+            };
         }
         let address = match (std::env::var("CRUCIBLE_ADDR"), std::env::var("PORT")) {
             (Ok(address), _) => address,
@@ -52,6 +58,7 @@ pub async fn serve(service: Crucible, host: Host) -> Result<(), BoxError> {
     match host {
         Host::Http(address) => http(service, address).await,
         Host::Lambda => lambda(service).await,
+        Host::LambdaStreaming => lambda_streaming(service).await,
     }
 }
 
@@ -236,6 +243,58 @@ pub async fn lambda(service: Crucible) -> Result<(), BoxError> {
         },
     ))
     .await
+}
+
+#[derive(Clone, Copy)]
+pub(crate) struct BufferedLambda;
+
+/// Serve streaming HTTP responses through AWS's native streaming runtime.
+/// Configure the invoking front door for response streaming as well.
+#[cfg(feature = "lambda")]
+pub async fn lambda_streaming(service: Crucible) -> Result<(), BoxError> {
+    lambda_runtime::run(lambda_runtime::service_fn(
+        move |event: lambda_runtime::LambdaEvent<Box<serde_json::value::RawValue>>| {
+            let service = service.clone();
+            let meta = invocation_meta(&event.context);
+            async move {
+                let response =
+                    lambda_streaming_event_json_with(&service, event.payload.get(), meta).await?;
+                let (parts, body) = response.into_parts();
+                let mut headers = parts.headers;
+                let cookies = headers
+                    .get_all("set-cookie")
+                    .iter()
+                    .map(|cookie| cookie.to_str().map(str::to_owned))
+                    .collect::<Result<Vec<_>, _>>()?;
+                headers.remove("set-cookie");
+                Ok::<_, BoxError>(lambda_runtime::StreamResponse {
+                    metadata_prelude: lambda_runtime::MetadataPrelude {
+                        status_code: parts.status,
+                        headers,
+                        cookies,
+                    },
+                    stream: body.into_data_stream(),
+                })
+            }
+        },
+    ))
+    .await
+}
+
+/// Normalize and serve one streaming HTTP event without buffering its body.
+/// This shares ingress validation with the buffered Lambda host.
+#[cfg(feature = "lambda")]
+pub async fn lambda_streaming_event_json_with(
+    service: &Crucible,
+    payload: &str,
+    meta: crate::RequestMeta,
+) -> Result<axum::response::Response, BoxError> {
+    lambda_event::streaming(service, payload, meta).await
+}
+
+#[cfg(not(feature = "lambda"))]
+pub async fn lambda_streaming(_: Crucible) -> Result<(), BoxError> {
+    Err("crucible was built without the `lambda` feature".into())
 }
 
 /// One Lambda event as raw JSON, answered as its source expects: a direct
@@ -432,96 +491,21 @@ mod lambda_event {
         let version = envelope
             .version
             .and_then(|raw| serde_json::from_str::<Cow<'_, str>>(raw.get()).ok());
-        let mut request: LambdaRequest = serde_json::from_str(payload)?;
-        // A Function URL or HTTP API passes the query as the client sent it;
-        // lambda_http appends it to the URI and panics if the URI then fails
-        // to parse (`"`, `<`, `>`, a space, from curl and the like).
-        if let LambdaRequest::ApiGatewayV2(event) = &mut request
-            && let Some(query) = &mut event.raw_query_string
-        {
-            *query = uri_query(query);
-        }
-        // The path is as the source passed it. An HTTP API passes it
-        // decoded, so it may hold what a URI does not carry raw (a space,
-        // `<`, non-ASCII, a `?` or `#` lambda_http would read as the start
-        // of a query or fragment) and a `%` is one the client sent as
-        // `%25`. A REST API, an ALB and a Function URL pass it as the
-        // client sent it, escapes and all. Encoded before the conversion
-        // reads it, `%` too where the source decoded: the request's URI
-        // and its raw path both carry it encoded, and decoding once gives
-        // back what the client sent.
-        let decoded = path_decoded(&request, version.as_deref());
-        let path = match &mut request {
-            LambdaRequest::ApiGatewayV1(event) => event.path.as_mut(),
-            LambdaRequest::ApiGatewayV2(event) => event.raw_path.as_mut(),
-            LambdaRequest::Alb(event) => event.path.as_mut(),
-            #[allow(unreachable_patterns)]
-            _ => None,
-        };
-        if let Some(path) = path {
-            *path = uri_path(path, decoded);
-        }
-        let origin = request.request_origin();
-        // The event's own request id, as `event_request_id` reads it after
-        // the conversion, for an answer when the conversion fails.
-        let event_id = match &request {
-            LambdaRequest::ApiGatewayV2(event) => event.request_context.request_id.as_deref(),
-            LambdaRequest::ApiGatewayV1(event) => event.request_context.request_id.as_deref(),
-            _ => None,
-        }
-        .and_then(|id| HeaderValue::from_str(id).ok());
-        // lambda_http panics on what it cannot convert, and a panic only
-        // unwinds into `catch_unwind` below in a build that unwinds: under
-        // `panic = "abort"` it ends the process. So what is known to panic
-        // is refused here first, as the client's malformed request: a body
-        // that claims base64 but is not (decoded here, so lambda_http has
-        // none to decode), and a path or Host the URI cannot be built from.
-        let Some(body) = take_body(&mut request) else {
-            return malformed(origin, event_id.or(meta.request_id));
-        };
-        if !uri_builds(&request) {
-            return malformed(origin, event_id.or(meta.request_id));
-        }
-        // The backstop for whatever else a later lambda_http panics on, in
-        // a build that unwinds.
-        let converted = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            axum::http::Request::<lambda_http::Body>::from(request)
-        }));
-        let Ok(converted) = converted else {
-            return malformed(origin, event_id.or(meta.request_id));
-        };
-        let (mut parts, _) = converted.into_parts();
-        if matches!(
+        let incoming = read_http(payload, version.as_deref(), meta)?;
+        let Incoming::Http {
             origin,
-            RequestOrigin::ApiGatewayV1 | RequestOrigin::ApiGatewayV2
-        ) {
-            // lambda_http adds the deployment stage to the URI; model routes
-            // describe the original path (encoded above), independent of
-            // that deployment.
-            let path = parts.raw_http_path();
-            let path = if path.is_empty() { "/" } else { path };
-            let path_and_query = match parts.uri.query() {
-                Some(query) => format!("{path}?{query}"),
-                None => path.to_owned(),
+            id: event_id,
+            mut request,
+            ..
+        } = incoming
+        else {
+            let Incoming::Refused { origin, id } = incoming else {
+                unreachable!()
             };
-            let mut uri = parts.uri.clone().into_parts();
-            let rebuilt = path_and_query.parse().ok().and_then(|path_and_query| {
-                uri.path_and_query = Some(path_and_query);
-                axum::http::Uri::from_parts(uri).ok()
-            });
-            let Some(rebuilt) = rebuilt else {
-                return malformed(origin, event_id.or(meta.request_id));
-            };
-            parts.uri = rebuilt;
-        }
-        let event_id = event_request_id(&parts.extensions).or(meta.request_id);
-        parts.extensions.insert(crate::RequestMeta {
-            request_id: event_id.clone(),
-            deadline: meta.deadline,
-        });
-        let response = service
-            .handle(Request::from_parts(parts, Body::from(body)))
-            .await;
+            return malformed(origin, id);
+        };
+        request.extensions_mut().insert(super::BufferedLambda);
+        let response = service.handle(*request).await;
         let (parts, body) = response.into_parts();
         // A layer that answers by itself skips the pipeline's `x-request-id`;
         // the event's id still names the request.
@@ -561,6 +545,165 @@ mod lambda_event {
             return Ok(answer);
         }
         oversized(origin, id, Size::Answer(answer.get().len()), limit)
+    }
+
+    enum Incoming {
+        Http {
+            origin: RequestOrigin,
+            id: Option<HeaderValue>,
+            request: Box<Request<Body>>,
+            streaming_supported: bool,
+        },
+        Refused {
+            origin: RequestOrigin,
+            id: Option<HeaderValue>,
+        },
+    }
+
+    fn read_http(
+        payload: &str,
+        version: Option<&str>,
+        meta: crate::RequestMeta,
+    ) -> Result<Incoming, BoxError> {
+        let mut request: LambdaRequest = serde_json::from_str(payload)?;
+        // A Function URL or HTTP API passes the query as the client sent it;
+        // lambda_http appends it to the URI and panics if the URI then fails
+        // to parse (`"`, `<`, `>`, a space, from curl and the like).
+        if let LambdaRequest::ApiGatewayV2(event) = &mut request
+            && let Some(query) = &mut event.raw_query_string
+        {
+            *query = uri_query(query);
+        }
+        // The path is as the source passed it. An HTTP API passes it
+        // decoded, so it may hold what a URI does not carry raw (a space,
+        // `<`, non-ASCII, a `?` or `#` lambda_http would read as the start
+        // of a query or fragment) and a `%` is one the client sent as
+        // `%25`. A REST API, an ALB and a Function URL pass it as the
+        // client sent it, escapes and all. Encoded before the conversion
+        // reads it, `%` too where the source decoded: the request's URI
+        // and its raw path both carry it encoded, and decoding once gives
+        // back what the client sent.
+        let decoded = path_decoded(&request, version);
+        let path = match &mut request {
+            LambdaRequest::ApiGatewayV1(event) => event.path.as_mut(),
+            LambdaRequest::ApiGatewayV2(event) => event.raw_path.as_mut(),
+            LambdaRequest::Alb(event) => event.path.as_mut(),
+            #[allow(unreachable_patterns)]
+            _ => None,
+        };
+        if let Some(path) = path {
+            *path = uri_path(path, decoded);
+        }
+        let origin = request.request_origin();
+        let streaming_supported = matches!(origin, RequestOrigin::ApiGatewayV1)
+            && version != Some("1.0")
+            || matches!(origin, RequestOrigin::ApiGatewayV2) && !decoded;
+        // The event's own request id, as `event_request_id` reads it after
+        // the conversion, for an answer when the conversion fails.
+        let event_id = match &request {
+            LambdaRequest::ApiGatewayV2(event) => event.request_context.request_id.as_deref(),
+            LambdaRequest::ApiGatewayV1(event) => event.request_context.request_id.as_deref(),
+            _ => None,
+        }
+        .and_then(|id| HeaderValue::from_str(id).ok());
+        // lambda_http panics on what it cannot convert, and a panic only
+        // unwinds into `catch_unwind` below in a build that unwinds: under
+        // `panic = "abort"` it ends the process. So what is known to panic
+        // is refused here first, as the client's malformed request: a body
+        // that claims base64 but is not (decoded here, so lambda_http has
+        // none to decode), and a path or Host the URI cannot be built from.
+        let Some(body) = take_body(&mut request) else {
+            return Ok(Incoming::Refused {
+                origin,
+                id: event_id.or(meta.request_id),
+            });
+        };
+        if !uri_builds(&request) {
+            return Ok(Incoming::Refused {
+                origin,
+                id: event_id.or(meta.request_id),
+            });
+        }
+        // The backstop for whatever else a later lambda_http panics on, in
+        // a build that unwinds.
+        let converted = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            axum::http::Request::<lambda_http::Body>::from(request)
+        }));
+        let Ok(converted) = converted else {
+            return Ok(Incoming::Refused {
+                origin,
+                id: event_id.or(meta.request_id),
+            });
+        };
+        let (mut parts, _) = converted.into_parts();
+        if matches!(
+            origin,
+            RequestOrigin::ApiGatewayV1 | RequestOrigin::ApiGatewayV2
+        ) {
+            // lambda_http adds the deployment stage to the URI; model routes
+            // describe the original path (encoded above), independent of
+            // that deployment.
+            let path = parts.raw_http_path();
+            let path = if path.is_empty() { "/" } else { path };
+            let path_and_query = match parts.uri.query() {
+                Some(query) => format!("{path}?{query}"),
+                None => path.to_owned(),
+            };
+            let mut uri = parts.uri.clone().into_parts();
+            let rebuilt = path_and_query.parse().ok().and_then(|path_and_query| {
+                uri.path_and_query = Some(path_and_query);
+                axum::http::Uri::from_parts(uri).ok()
+            });
+            let Some(rebuilt) = rebuilt else {
+                return Ok(Incoming::Refused {
+                    origin,
+                    id: event_id.or(meta.request_id),
+                });
+            };
+            parts.uri = rebuilt;
+        }
+        let event_id = event_request_id(&parts.extensions).or(meta.request_id);
+        parts.extensions.insert(crate::RequestMeta {
+            request_id: event_id.clone(),
+            deadline: meta.deadline,
+        });
+        Ok(Incoming::Http {
+            origin,
+            id: event_id,
+            request: Box::new(Request::from_parts(parts, Body::from(body))),
+            streaming_supported,
+        })
+    }
+
+    pub(super) async fn streaming(
+        service: &Crucible,
+        payload: &str,
+        meta: crate::RequestMeta,
+    ) -> Result<axum::response::Response, BoxError> {
+        let envelope: Envelope<'_> = serde_json::from_str(payload)?;
+        let version = envelope
+            .version
+            .and_then(|raw| serde_json::from_str::<Cow<'_, str>>(raw.get()).ok());
+        let incoming = read_http(payload, version.as_deref(), meta)?;
+        match incoming {
+            Incoming::Http {
+                request,
+                streaming_supported: true,
+                ..
+            } => Ok(service.handle(*request).await),
+            Incoming::Http { id, .. } | Incoming::Refused { id, .. } => {
+                let mut response = axum::response::Response::builder()
+                    .status(400)
+                    .header("content-type", "application/json")
+                    .body(Body::from(
+                        r#"{"message":"the Lambda event cannot use response streaming"}"#,
+                    ))?;
+                if let Some(id) = id {
+                    response.headers_mut().insert("x-request-id", id);
+                }
+                Ok(response)
+            }
+        }
     }
 
     /// The framework's internal failure with the request id to quote, in the

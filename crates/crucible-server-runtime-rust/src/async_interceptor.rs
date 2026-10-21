@@ -20,6 +20,14 @@ pub trait AsyncInterceptor: Send + Sync + 'static {
     fn complete(&self, job: &OperationJob<'_>, response: &Response) {
         let _ = (job, response);
     }
+    fn stream_complete(
+        &self,
+        job: &OperationJob<'_>,
+        response: &Response,
+        completion: &crate::StreamCompletion,
+    ) {
+        let _ = (job, response, completion);
+    }
 
     fn prepare(&mut self, prepare: &Prepare<'_>) -> std::result::Result<(), String> {
         let _ = prepare;
@@ -38,6 +46,14 @@ impl<T: AsyncInterceptor> Interceptor for T {
 
     fn complete(&self, job: &OperationJob<'_>, response: &Response) {
         AsyncInterceptor::complete(self, job, response);
+    }
+    fn stream_complete(
+        &self,
+        job: &OperationJob<'_>,
+        response: &Response,
+        completion: &crate::StreamCompletion,
+    ) {
+        AsyncInterceptor::stream_complete(self, job, response, completion);
     }
 
     fn prepare(&mut self, prepare: &Prepare<'_>) -> std::result::Result<(), String> {

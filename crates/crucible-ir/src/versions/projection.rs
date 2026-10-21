@@ -1007,8 +1007,11 @@ impl Undo<'_> {
             operation.protocol_headers = protocol.request_headers(&operation.request);
             let has_value =
                 protocol.response_has_value(operation.output.as_ref(), &operation.response);
-            operation.response_protocol_headers =
-                protocol.response_headers(&operation.response, has_value);
+            operation.response_protocol_headers = protocol.operation_response_headers(
+                &operation.response,
+                has_value,
+                operation.response_mode,
+            );
         }
         self.resources();
         self.examples(warnings);

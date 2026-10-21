@@ -21,6 +21,12 @@ pub trait TypedInterceptor<O: Operation>: Send + Sync + 'static {
         let _ = (error, context);
     }
 
+    /// Observes a streaming body's termination or cancellation. `after` runs
+    /// when the stream opens, with no single output value.
+    fn stream_complete(&self, context: &Context, completion: &crate::StreamCompletion) {
+        let _ = (context, completion);
+    }
+
     fn prepare(&mut self, prepare: &Prepare<'_>) -> std::result::Result<(), String> {
         let _ = prepare;
         Ok(())

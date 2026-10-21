@@ -55,6 +55,17 @@ impl<O: Operation, I: TypedInterceptor<O>> Interceptor for ForOperation<O, I> {
         })
     }
 
+    fn stream_complete(
+        &self,
+        job: &OperationJob<'_>,
+        _response: &axum::response::Response,
+        completion: &crate::StreamCompletion,
+    ) {
+        if job.operation().id == O::INFO.id {
+            self.interceptor.stream_complete(job.context(), completion);
+        }
+    }
+
     fn prepare(&mut self, prepare: &Prepare<'_>) -> std::result::Result<(), String> {
         self.interceptor
             .prepare(&prepare.within(&|op| op.id == O::INFO.id))
