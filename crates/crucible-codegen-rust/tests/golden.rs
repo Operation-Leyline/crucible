@@ -11,8 +11,115 @@ fn weather() -> crucible_ir::ir::Service {
     common::load("weather")
 }
 
-/// The typed permissions fixture, a `.cru` package; `edit` rewrites its
-/// source first.
+#[test]
+fn response_stream_server_bindings_match_golden_and_rust_clients_are_diagnosed() {
+    let service = common::load("server-stream");
+    matches_golden(
+        &generate(&service, &Options::default()).unwrap(),
+        "server_stream.rs",
+    );
+    let errors = generate_client(&service).unwrap_err();
+    assert!(
+        format!("{errors:?}").contains("server-streaming"),
+        "{errors:?}"
+    );
+}
+
+/// Streaming is refused only when an enabled adapter can see it.
+#[test]
+fn only_adapter_visible_streams_are_diagnosed() {
+    use crucible_ir::{Audience, ir::ResponseMode};
+    let internal = common::load_with("server-stream", |package| {
+        for file in &mut package.files {
+            file.text = file
+                .text
+                .replace(
+                    "readonly public operation Watch",
+                    "readonly internal operation Watch",
+                )
+                .replace("public operation Publish", "internal operation Publish");
+        }
+    });
+    let options = Options {
+        mcp: true,
+        explorer: Some(Audience::External),
+        ..Options::default()
+    };
+    generate(&internal, &options).unwrap();
+    let options = Options {
+        explorer: Some(Audience::Internal),
+        ..Options::default()
+    };
+    assert!(generate(&internal, &options).is_err());
+
+    let old = common::load("server-stream");
+    let mut current = old.clone();
+    for operation in &mut current.operations {
+        operation.response_mode = ResponseMode::Unary;
+    }
+    current.versions.push(crucible_ir::ir::ApiVersion {
+        name: "old".into(),
+        service: Box::new(old.clone()),
+        release: Box::new(old),
+        steps: vec![],
+        sunset: None,
+        sunset_docs: None,
+        docs: None,
+        retired: vec![],
+        restored: vec![],
+        external: false,
+    });
+    let errors = generate(&current, &Options::default()).unwrap_err();
+    assert!(
+        format!("{errors:?}").contains("historical-version adapters"),
+        "{errors:?}"
+    );
+}
+
+/// Additive operations reach older projections even without a frozen operation.
+#[test]
+fn newly_added_streams_also_need_adapters_in_older_projected_releases() {
+    let mut current = common::load("server-stream");
+    let mut old = current.clone();
+    old.operations
+        .retain(|op| op.response_mode == crucible_ir::ir::ResponseMode::Unary);
+    old.requirements
+        .retain(|usage| usage.feature != crucible_ir::Feature::ServerStreaming);
+    let mut version = crucible_ir::ir::ApiVersion {
+        name: "old".into(),
+        service: Box::new(old.clone()),
+        release: Box::new(old),
+        steps: vec![],
+        sunset: None,
+        sunset_docs: None,
+        docs: None,
+        retired: vec![],
+        restored: vec![],
+        external: false,
+    };
+    version.service = Box::new(crucible_ir::versions::undo(
+        &current,
+        &version,
+        &mut Default::default(),
+        &mut Default::default(),
+    ));
+    assert!(
+        version
+            .service
+            .operations
+            .iter()
+            .any(|op| op.name() == "Watch"
+                && op.response_mode == crucible_ir::ir::ResponseMode::ServerStream)
+    );
+    current.versions.push(version);
+    let errors = generate(&current, &Options::default()).unwrap_err();
+    assert!(
+        format!("{errors:?}").contains("historical-version adapters"),
+        "{errors:?}"
+    );
+}
+
+/// The typed permissions fixture with its source rewritten first.
 fn leyline_with(edit: impl Fn(String) -> String) -> crucible_ir::ir::Service {
     let dir =
         std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../tests/fixtures/permissions");

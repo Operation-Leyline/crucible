@@ -113,7 +113,7 @@ A call returns `Result<Output, runtime::Error<OperationError>>`. A modelled erro
 
 ## Retries and idempotency
 
-Calls are retried with backoff when a retry is safe: a modelled throttling error is retried for any operation; transport failures, HTTP 500, 502, 503 and 504 and other retryable modelled errors only for operations that are read-only, idempotent or carry an idempotency token. An idempotency token the caller leaves unset is generated once per call and reused on every attempt; set it yourself to replay one logical request across calls. These operations fill a token: `create_city` (`client_token`). `runtime::Config::retry(runtime::Retry { .. })` changes the attempt limit (3, the first included) and backoff; `runtime::Retry::none()` turns retries off.
+Calls are retried with backoff when a retry is safe: a modelled throttling error is retried for any operation; transport failures, HTTP 500, 502, 503 and 504 and other retryable modelled errors only for operations that are read-only, idempotent or carry an idempotency token. For operations that declare an idempotency token, an unset token is generated once per call and reused on every attempt; set it yourself to replay one logical request across calls. These operations fill a token: `create_city` (`client_token`). `runtime::Config::retry(runtime::Retry { .. })` changes the attempt limit (3, the first included) and backoff; `runtime::Retry::none()` turns retries off.
 
 ## Links
 

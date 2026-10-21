@@ -24,6 +24,24 @@ pub enum Protocol {
 }
 
 impl Protocol {
+    /// Versioned response-stream wire profile used by the JSON protocol.
+    pub const STREAM_CONTENT_TYPE: &str = "text/event-stream; charset=utf-8; crucible-stream=1";
+
+    pub fn operation_response_headers(
+        self,
+        bindings: &crate::ir::Bindings,
+        has_value: bool,
+        mode: crate::ir::ResponseMode,
+    ) -> std::collections::BTreeMap<String, String> {
+        if mode == crate::ir::ResponseMode::ServerStream {
+            return std::collections::BTreeMap::from([
+                ("Content-Type".into(), Self::STREAM_CONTENT_TYPE.into()),
+                ("Cache-Control".into(), "no-store".into()),
+            ]);
+        }
+        self.response_headers(bindings, has_value)
+    }
+
     /// Fixed request headers: the body's `Content-Type`, a payload's media
     /// type or JSON, unless a modelled header binding sends its own.
     pub fn request_headers(

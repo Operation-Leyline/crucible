@@ -172,6 +172,47 @@ pub trait Protocol: Send + Sync + 'static {
     /// unwind, before transport middleware transforms the response.
     fn write(&self, job: &Job, answers: &Answers<'_>) -> Response;
 
+    /// Whether this protocol encodes typed server-response sequences.
+    fn supports_server_stream(&self) -> bool {
+        false
+    }
+
+    /// Opens a response, before transport middleware. No item is polled yet.
+    fn write_stream(&self, job: &Job, answers: &Answers<'_>) -> Response {
+        let _ = answers;
+        Response::builder()
+            .status(job.operation().map_or(200, |op| op.status))
+            .body(job.stream_body().expect("streaming outcome"))
+            .expect("valid operation status")
+    }
+
+    fn stream_item(
+        &self,
+        item: &dyn crate::operation::Output,
+        limit: usize,
+    ) -> Result<axum::body::Bytes> {
+        let _ = (item, limit);
+        Err(crate::Error::internal(
+            "protocol does not support response streaming",
+        ))
+    }
+
+    /// A terminal success or failure, after exception translation.
+    fn stream_end(
+        &self,
+        job: &Job,
+        answers: &Answers<'_>,
+        limit: usize,
+    ) -> Result<axum::body::Bytes> {
+        let _ = (job, answers, limit);
+        Err(crate::Error::internal(
+            "protocol does not support response streaming",
+        ))
+    }
+    fn stream_heartbeat(&self) -> Option<axum::body::Bytes> {
+        None
+    }
+
     /// Final protocol headers, including directly answered admission refusals.
     #[doc(hidden)]
     fn decorate_response(&self, response: &mut Response) {

@@ -94,6 +94,13 @@ pub trait ModelledError: std::error::Error + Send + Sync + 'static {
     /// Every member, as on the wire; the protocol moves header members out.
     fn to_json(&self) -> Value;
 
+    /// Writes all fields as a document, including members bound to HTTP
+    /// headers or payloads in unary responses. Generated errors override
+    /// this to support bounded stream serialization without an intermediate value.
+    fn write_json_to(&self, out: &mut dyn std::io::Write) -> serde_json::Result<()> {
+        serde_json::to_writer(out, &self.to_json())
+    }
+
     /// The body (members plus `"__type"`) straight into `out`, without the
     /// header members, which come back as (header, text). Generated errors
     /// write in one pass through [`write_error`]; this default goes through

@@ -599,6 +599,10 @@ fn operation(service: &Service, op: &Operation, explorer: bool) -> Value {
                     "message":error_message(service,&e.shape,info,&e.content)})
             })})).collect::<Vec<_>>(),
         "sample":sample(service,op)});
+    if op.response_mode == crucible_ir::ir::ResponseMode::ServerStream {
+        value["responseMode"] = json!("server-stream");
+        value["stream"] = json!({"item":op.output.as_ref().map(ToString::to_string), "profile":"crucible-json-sse/1"});
+    }
     // A third party calls it and signs each request (decision 81): who, and
     // the member and header the signature travels in. Absent otherwise.
     if let Some(sender) = &op.sender {

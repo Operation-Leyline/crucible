@@ -37,6 +37,35 @@ fn weather() -> crucible_ir::ir::Service {
     load("weather")
 }
 
+#[test]
+fn stream_client_matches_golden() {
+    let files =
+        crucible_codegen_ts::emit(&load("server-stream"), &options("@example/streams")).unwrap();
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/golden/server-stream");
+    let mut stale = Vec::new();
+    for file in files {
+        if file.path == "src/runtime.ts" {
+            continue;
+        }
+        let path = root.join(&file.path);
+        if std::env::var_os("CRUCIBLE_BLESS").is_some() {
+            fs::create_dir_all(path.parent().unwrap()).unwrap();
+            fs::write(&path, &file.contents).unwrap();
+        }
+        if fs::read_to_string(&path)
+            .unwrap_or_default()
+            .replace("\r\n", "\n")
+            != file.contents
+        {
+            stale.push(file.path);
+        }
+    }
+    assert!(
+        stale.is_empty(),
+        "generated output differs from tests/golden/server-stream in {stale:?}; review the change and rerun with CRUCIBLE_BLESS=1"
+    );
+}
+
 use crucible_codegen_ts::{Middleware, Options, emit};
 
 /// The typed permissions fixture, a `.cru` package; `edit` rewrites its

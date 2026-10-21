@@ -4,7 +4,8 @@
 
 Crucible is `0.x`: a minor release may break the documented stable surface, but
 only with a Migration entry in the [CHANGELOG](../CHANGELOG.md) and, from 0.5,
-a `#[deprecated]` shim kept for one minor (see the
+a `#[deprecated]` shim kept for one minor, except for explicitly documented
+unshimmable changes (see the
 [stability policy](releases.md#stability-policy-for-0x)). Patch releases never
 require migration. Upgrade one minor at a time, newest section last in your
 path, and pin the runtime, `crucible-build` and any client runtime to the same
@@ -19,6 +20,15 @@ tag.
 | 0.3.x | 0.4.0 | [0.4.0](../CHANGELOG.md#040---2026-10-08) | [0.3.0 to 0.4.0](#030-to-040) |
 | 0.2.x | 0.3.0 | [0.3.0](../CHANGELOG.md#030---2026-10-07) | [0.2.0 to 0.3.0](#020-to-030) |
 | 0.1.x | 0.2.0 | [0.2.0](../CHANGELOG.md#020---2026-10-06) | [0.1.0 to 0.2.0](#010-to-020) |
+
+## Unreleased
+
+Typed response streams add `Outcome::Stream`, `Resolution::Streaming`, and
+`Host::LambdaStreaming`. Update exhaustive matches on these public enums and
+regenerate bindings. No deprecated shim can preserve an exhaustive enum match.
+Unary operations retain their existing signatures. See the
+[streaming guide](streaming.md) for `Result<EventStream<Item>>` handlers and
+`stream_complete` lifecycle hooks.
 
 ## 0.7.0 to 0.8.0
 

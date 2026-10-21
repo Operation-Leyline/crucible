@@ -117,7 +117,8 @@ role        = ident ;          (* creates | puts | reads | updates | deletes | l
 op_entry    = http | clause_call | body | errors | example | requirement ;
 http        = "http" ident string [ "->" number ] ;
 clause_call = ident "(" args ")" ;                         (* paginated(..) *)
-body        = [ doc ] { modifier } ( "input" | "output" ) "{" { member } "}" ;
+body        = [ doc ] { modifier } ( ( "input" | "output" ) "{" { member } "}"
+            | ( "input" | "output" ) "stream" ident ) ; (* input streams parse but are unsupported *)
 errors      = "errors" "[" ident { "," ident } "]" ;
 example     = [ doc ] "example" string "{" { example_part } "}" ;
 example_part = ( "input" | "output" ) value | "error" ident value ;

@@ -403,6 +403,10 @@ pub mod shop {
                 ::crucible_server_runtime_rust::__generated::serde_json::to_value(self).unwrap_or_default()
             }
 
+            fn write_json_to(&self, out: &mut dyn ::std::io::Write) -> ::crucible_server_runtime_rust::__generated::serde_json::Result<()> {
+                ::crucible_server_runtime_rust::__generated::serde_json::to_writer(out, self)
+            }
+
             fn write_json(&self, out: &mut ::std::vec::Vec<u8>) -> ::crucible_server_runtime_rust::__generated::serde_json::Result<::std::vec::Vec<(&'static str, ::std::string::String)>> {
                 ::crucible_server_runtime_rust::__generated::error::write_error(self, out)
             }
@@ -452,6 +456,10 @@ pub mod shop {
                 ::crucible_server_runtime_rust::__generated::serde_json::to_value(self).unwrap_or_default()
             }
 
+            fn write_json_to(&self, out: &mut dyn ::std::io::Write) -> ::crucible_server_runtime_rust::__generated::serde_json::Result<()> {
+                ::crucible_server_runtime_rust::__generated::serde_json::to_writer(out, self)
+            }
+
             fn write_json(&self, out: &mut ::std::vec::Vec<u8>) -> ::crucible_server_runtime_rust::__generated::serde_json::Result<::std::vec::Vec<(&'static str, ::std::string::String)>> {
                 ::crucible_server_runtime_rust::__generated::error::write_error(self, out)
             }
@@ -499,6 +507,10 @@ pub mod shop {
 
             fn to_json(&self) -> ::crucible_server_runtime_rust::__generated::serde_json::Value {
                 ::crucible_server_runtime_rust::__generated::serde_json::to_value(self).unwrap_or_default()
+            }
+
+            fn write_json_to(&self, out: &mut dyn ::std::io::Write) -> ::crucible_server_runtime_rust::__generated::serde_json::Result<()> {
+                ::crucible_server_runtime_rust::__generated::serde_json::to_writer(out, self)
             }
 
             fn write_json(&self, out: &mut ::std::vec::Vec<u8>) -> ::crucible_server_runtime_rust::__generated::serde_json::Result<::std::vec::Vec<(&'static str, ::std::string::String)>> {
@@ -557,6 +569,10 @@ pub mod shop {
 
             fn to_json(&self) -> ::crucible_server_runtime_rust::__generated::serde_json::Value {
                 ::crucible_server_runtime_rust::__generated::serde_json::to_value(self).unwrap_or_default()
+            }
+
+            fn write_json_to(&self, out: &mut dyn ::std::io::Write) -> ::crucible_server_runtime_rust::__generated::serde_json::Result<()> {
+                ::crucible_server_runtime_rust::__generated::serde_json::to_writer(out, self)
             }
 
             fn write_json(&self, out: &mut ::std::vec::Vec<u8>) -> ::crucible_server_runtime_rust::__generated::serde_json::Result<::std::vec::Vec<(&'static str, ::std::string::String)>> {
@@ -1466,6 +1482,10 @@ pub mod shop {
                         ::crucible_server_runtime_rust::__generated::serde_json::to_value(self).unwrap_or_default()
                     }
 
+                    fn write_json_to(&self, out: &mut dyn ::std::io::Write) -> ::crucible_server_runtime_rust::__generated::serde_json::Result<()> {
+                        ::crucible_server_runtime_rust::__generated::serde_json::to_writer(out, self)
+                    }
+
                     fn write_json(&self, out: &mut ::std::vec::Vec<u8>) -> ::crucible_server_runtime_rust::__generated::serde_json::Result<::std::vec::Vec<(&'static str, ::std::string::String)>> {
                         ::crucible_server_runtime_rust::__generated::error::write_error(self, out)
                     }
@@ -1520,6 +1540,10 @@ pub mod shop {
                         ::crucible_server_runtime_rust::__generated::serde_json::to_value(self).unwrap_or_default()
                     }
 
+                    fn write_json_to(&self, out: &mut dyn ::std::io::Write) -> ::crucible_server_runtime_rust::__generated::serde_json::Result<()> {
+                        ::crucible_server_runtime_rust::__generated::serde_json::to_writer(out, self)
+                    }
+
                     fn write_json(&self, out: &mut ::std::vec::Vec<u8>) -> ::crucible_server_runtime_rust::__generated::serde_json::Result<::std::vec::Vec<(&'static str, ::std::string::String)>> {
                         ::crucible_server_runtime_rust::__generated::error::write_error(self, out)
                     }
@@ -1567,6 +1591,10 @@ pub mod shop {
 
                     fn to_json(&self) -> ::crucible_server_runtime_rust::__generated::serde_json::Value {
                         ::crucible_server_runtime_rust::__generated::serde_json::to_value(self).unwrap_or_default()
+                    }
+
+                    fn write_json_to(&self, out: &mut dyn ::std::io::Write) -> ::crucible_server_runtime_rust::__generated::serde_json::Result<()> {
+                        ::crucible_server_runtime_rust::__generated::serde_json::to_writer(out, self)
                     }
 
                     fn write_json(&self, out: &mut ::std::vec::Vec<u8>) -> ::crucible_server_runtime_rust::__generated::serde_json::Result<::std::vec::Vec<(&'static str, ::std::string::String)>> {
@@ -1625,6 +1653,10 @@ pub mod shop {
 
                     fn to_json(&self) -> ::crucible_server_runtime_rust::__generated::serde_json::Value {
                         ::crucible_server_runtime_rust::__generated::serde_json::to_value(self).unwrap_or_default()
+                    }
+
+                    fn write_json_to(&self, out: &mut dyn ::std::io::Write) -> ::crucible_server_runtime_rust::__generated::serde_json::Result<()> {
+                        ::crucible_server_runtime_rust::__generated::serde_json::to_writer(out, self)
                     }
 
                     fn write_json(&self, out: &mut ::std::vec::Vec<u8>) -> ::crucible_server_runtime_rust::__generated::serde_json::Result<::std::vec::Vec<(&'static str, ::std::string::String)>> {
@@ -2574,6 +2606,10 @@ pub mod shop {
                         ::crucible_server_runtime_rust::__generated::serde_json::to_value(self).unwrap_or_default()
                     }
 
+                    fn write_json_to(&self, out: &mut dyn ::std::io::Write) -> ::crucible_server_runtime_rust::__generated::serde_json::Result<()> {
+                        ::crucible_server_runtime_rust::__generated::serde_json::to_writer(out, self)
+                    }
+
                     fn write_json(&self, out: &mut ::std::vec::Vec<u8>) -> ::crucible_server_runtime_rust::__generated::serde_json::Result<::std::vec::Vec<(&'static str, ::std::string::String)>> {
                         ::crucible_server_runtime_rust::__generated::error::write_error(self, out)
                     }
@@ -2628,6 +2664,10 @@ pub mod shop {
                         ::crucible_server_runtime_rust::__generated::serde_json::to_value(self).unwrap_or_default()
                     }
 
+                    fn write_json_to(&self, out: &mut dyn ::std::io::Write) -> ::crucible_server_runtime_rust::__generated::serde_json::Result<()> {
+                        ::crucible_server_runtime_rust::__generated::serde_json::to_writer(out, self)
+                    }
+
                     fn write_json(&self, out: &mut ::std::vec::Vec<u8>) -> ::crucible_server_runtime_rust::__generated::serde_json::Result<::std::vec::Vec<(&'static str, ::std::string::String)>> {
                         ::crucible_server_runtime_rust::__generated::error::write_error(self, out)
                     }
@@ -2675,6 +2715,10 @@ pub mod shop {
 
                     fn to_json(&self) -> ::crucible_server_runtime_rust::__generated::serde_json::Value {
                         ::crucible_server_runtime_rust::__generated::serde_json::to_value(self).unwrap_or_default()
+                    }
+
+                    fn write_json_to(&self, out: &mut dyn ::std::io::Write) -> ::crucible_server_runtime_rust::__generated::serde_json::Result<()> {
+                        ::crucible_server_runtime_rust::__generated::serde_json::to_writer(out, self)
                     }
 
                     fn write_json(&self, out: &mut ::std::vec::Vec<u8>) -> ::crucible_server_runtime_rust::__generated::serde_json::Result<::std::vec::Vec<(&'static str, ::std::string::String)>> {
@@ -2733,6 +2777,10 @@ pub mod shop {
 
                     fn to_json(&self) -> ::crucible_server_runtime_rust::__generated::serde_json::Value {
                         ::crucible_server_runtime_rust::__generated::serde_json::to_value(self).unwrap_or_default()
+                    }
+
+                    fn write_json_to(&self, out: &mut dyn ::std::io::Write) -> ::crucible_server_runtime_rust::__generated::serde_json::Result<()> {
+                        ::crucible_server_runtime_rust::__generated::serde_json::to_writer(out, self)
                     }
 
                     fn write_json(&self, out: &mut ::std::vec::Vec<u8>) -> ::crucible_server_runtime_rust::__generated::serde_json::Result<::std::vec::Vec<(&'static str, ::std::string::String)>> {
@@ -3665,6 +3713,10 @@ pub mod shop {
                         ::crucible_server_runtime_rust::__generated::serde_json::to_value(self).unwrap_or_default()
                     }
 
+                    fn write_json_to(&self, out: &mut dyn ::std::io::Write) -> ::crucible_server_runtime_rust::__generated::serde_json::Result<()> {
+                        ::crucible_server_runtime_rust::__generated::serde_json::to_writer(out, self)
+                    }
+
                     fn write_json(&self, out: &mut ::std::vec::Vec<u8>) -> ::crucible_server_runtime_rust::__generated::serde_json::Result<::std::vec::Vec<(&'static str, ::std::string::String)>> {
                         ::crucible_server_runtime_rust::__generated::error::write_error(self, out)
                     }
@@ -3714,6 +3766,10 @@ pub mod shop {
                         ::crucible_server_runtime_rust::__generated::serde_json::to_value(self).unwrap_or_default()
                     }
 
+                    fn write_json_to(&self, out: &mut dyn ::std::io::Write) -> ::crucible_server_runtime_rust::__generated::serde_json::Result<()> {
+                        ::crucible_server_runtime_rust::__generated::serde_json::to_writer(out, self)
+                    }
+
                     fn write_json(&self, out: &mut ::std::vec::Vec<u8>) -> ::crucible_server_runtime_rust::__generated::serde_json::Result<::std::vec::Vec<(&'static str, ::std::string::String)>> {
                         ::crucible_server_runtime_rust::__generated::error::write_error(self, out)
                     }
@@ -3761,6 +3817,10 @@ pub mod shop {
 
                     fn to_json(&self) -> ::crucible_server_runtime_rust::__generated::serde_json::Value {
                         ::crucible_server_runtime_rust::__generated::serde_json::to_value(self).unwrap_or_default()
+                    }
+
+                    fn write_json_to(&self, out: &mut dyn ::std::io::Write) -> ::crucible_server_runtime_rust::__generated::serde_json::Result<()> {
+                        ::crucible_server_runtime_rust::__generated::serde_json::to_writer(out, self)
                     }
 
                     fn write_json(&self, out: &mut ::std::vec::Vec<u8>) -> ::crucible_server_runtime_rust::__generated::serde_json::Result<::std::vec::Vec<(&'static str, ::std::string::String)>> {
@@ -3819,6 +3879,10 @@ pub mod shop {
 
                     fn to_json(&self) -> ::crucible_server_runtime_rust::__generated::serde_json::Value {
                         ::crucible_server_runtime_rust::__generated::serde_json::to_value(self).unwrap_or_default()
+                    }
+
+                    fn write_json_to(&self, out: &mut dyn ::std::io::Write) -> ::crucible_server_runtime_rust::__generated::serde_json::Result<()> {
+                        ::crucible_server_runtime_rust::__generated::serde_json::to_writer(out, self)
                     }
 
                     fn write_json(&self, out: &mut ::std::vec::Vec<u8>) -> ::crucible_server_runtime_rust::__generated::serde_json::Result<::std::vec::Vec<(&'static str, ::std::string::String)>> {

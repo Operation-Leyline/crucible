@@ -253,7 +253,31 @@ fn headers(
 fn responses(service: &Service, op: &Operation, keys: &[String]) -> Value {
     let mut grouped: BTreeMap<u16, Vec<Value>> = BTreeMap::new();
     let mut success = json!({"description": "Successful response"});
-    if let Some(output) = structure(service, op.output.as_ref()) {
+    if op.response_mode == crucible_ir::ir::ResponseMode::ServerStream {
+        let id = op.output.as_ref().expect("stream item root");
+        success["description"] = json!(
+            "Crucible JSON server stream: application messages followed by one completion or terminal error. EOF without a terminal event is interruption."
+        );
+        success["content"] = json!({"text/event-stream": {"schema": {"type":"string"}, "x-crucible-stream": {
+            "profile":1, "itemSchema":{"$ref":format!("#/components/schemas/{}", key(id))},
+            "itemEvent":"message", "completeEvent":"crucible.complete", "errorEvent":"crucible.error",
+            "completeSchema":{"type":"object", "maxProperties":0},
+            "errorSchema":{"type":"object", "required":["type","status","error"], "properties":{
+                "type":{"type":"string","minLength":1}, "status":{"type":"integer","minimum":400,"maximum":599},
+                "error":{"type":"object"}
+            }},
+            "modeledErrors":op.errors.iter().map(|id| {
+                let shape = structure(service, Some(id)).expect("lowered error");
+                json!({"type":id.name(), "status":shape.error.as_ref().expect("error metadata").status,
+                    "schema":{"$ref":format!("#/components/schemas/{}", key(id))}})
+            }).collect::<Vec<_>>()
+        }}});
+        if let Some(examples) = examples::map(&examples::outputs(op, keys), |sample| {
+            Some(service.wire_shape_example(id, sample))
+        }) {
+            success["content"]["text/event-stream"]["x-crucible-stream"]["itemExamples"] = examples;
+        }
+    } else if let Some(output) = structure(service, op.output.as_ref()) {
         let outputs = examples::outputs(op, keys);
         success["content"] = content(service, output, &op.response);
         attach_examples(

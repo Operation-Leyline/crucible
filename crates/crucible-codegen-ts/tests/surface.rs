@@ -26,6 +26,32 @@ fn options() -> Options {
     }
 }
 
+/// Stream wrappers retain the fields of the yielded structure.
+#[test]
+fn streamed_structure_surface_keeps_yielded_members() {
+    let mut service = load("server-stream");
+    let update = service
+        .shapes
+        .keys()
+        .find(|id| id.name() == "Update")
+        .unwrap()
+        .clone();
+    let op = service
+        .operations
+        .iter_mut()
+        .find(|op| op.name() == "Watch")
+        .unwrap();
+    op.output = Some(update);
+    let surface = surface(&service, &options());
+    let output = surface.operations["example.streams#Watch"]
+        .output
+        .as_ref()
+        .unwrap();
+    assert_eq!(output.style, "async-iterator");
+    assert_eq!(output.type_name, "models.ResponseStream<models.Update>");
+    assert_eq!(output.members[0].member, "text");
+}
+
 /// The emitted file at `path`.
 fn source(service: &crucible_ir::ir::Service, options: &Options, path: &str) -> String {
     emit(service, options)

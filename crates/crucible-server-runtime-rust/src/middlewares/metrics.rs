@@ -7,7 +7,7 @@ use axum::response::Response;
 use std::time::Duration;
 
 use crate::operation::OperationInfo;
-use crate::{Job, Middleware};
+use crate::{Job, Middleware, StreamCompletion, StreamEnd};
 
 #[derive(Debug, Clone)]
 #[non_exhaustive]
@@ -16,10 +16,13 @@ pub struct RequestRecord<'a> {
     /// `None` for a request no operation serves.
     pub operation: Option<&'static OperationInfo>,
     pub status: u16,
-    /// `success`, `error` (the caller's) or `fault` (the service's).
+    /// `success`, `error` (the caller's), `fault` (the service's), or `cancelled`.
     pub class: &'static str,
     pub error: Option<&'static str>,
     pub latency: Duration,
+    /// Present at the termination of a streaming response. Counts describe
+    /// production by Crucible, not acknowledgment by the remote client.
+    pub stream: Option<&'a StreamCompletion>,
 }
 
 pub trait Recorder: Send + Sync + 'static {
@@ -38,6 +41,9 @@ impl<R: Recorder> Metrics<R> {
 
 impl<R: Recorder> Middleware for Metrics<R> {
     fn complete(&self, job: &Job, response: &Response) {
+        if job.is_streaming_response() {
+            return;
+        }
         let operation = job.operation();
         let status = response.status().as_u16();
         let error = if response
@@ -61,6 +67,40 @@ impl<R: Recorder> Middleware for Metrics<R> {
             },
             error,
             latency: job.context().received().elapsed(),
+            stream: None,
+        });
+    }
+
+    fn stream_complete(&self, job: &Job, response: &Response, completion: &StreamCompletion) {
+        let resolution = job.resolution();
+        self.recorder.record(&RequestRecord {
+            request_id: job.context().request_id(),
+            operation: job.operation(),
+            status: response.status().as_u16(),
+            class: match completion.end {
+                StreamEnd::Completed => "success",
+                StreamEnd::Cancelled => "cancelled",
+                StreamEnd::Failed
+                    if resolution.as_ref().is_none_or(|r| r.error_name().is_none()) =>
+                {
+                    if response.status().is_client_error() {
+                        "error"
+                    } else {
+                        "fault"
+                    }
+                }
+                StreamEnd::Failed
+                    if resolution
+                        .as_ref()
+                        .is_some_and(|r| r.status(job.operation()) < 500) =>
+                {
+                    "error"
+                }
+                StreamEnd::Failed => "fault",
+            },
+            error: resolution.and_then(|r| r.error_name()),
+            latency: job.context().received().elapsed(),
+            stream: Some(completion),
         });
     }
 }

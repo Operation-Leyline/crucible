@@ -385,6 +385,15 @@ impl Interceptor for Idempotency {
                 .is_some_and(|metadata| metadata.idempotency_token.is_some())
         };
         let mut problems = Vec::new();
+        let streams: Vec<_> = prepare
+            .operations()
+            .filter(&tokened)
+            .filter(|op| op.server_stream)
+            .map(|op| op.name)
+            .collect();
+        if !streams.is_empty() {
+            problems.push(format!("Idempotency cannot replay response streams: {}. Keep transactional business deduplication in the service", streams.join(", ")));
+        }
         if let Err(problem) = self.caller.prepare("Idempotency", prepare, |metadata| {
             metadata.idempotency_token.is_some() && metadata.idempotency_token_sent
         }) {
@@ -393,6 +402,7 @@ impl Interceptor for Idempotency {
         let unreplayable: Vec<&str> = prepare
             .operations()
             .filter(&tokened)
+            .filter(|operation| !operation.server_stream)
             .filter(|operation| {
                 prepare
                     .metadata(operation)

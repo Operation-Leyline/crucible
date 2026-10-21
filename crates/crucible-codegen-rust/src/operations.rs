@@ -106,10 +106,20 @@ fn operation_items(service: &Service, op: &Operation, diagnostics: &mut Diagnost
     } else {
         String::new()
     };
+    let result = if op.response_mode == crucible_ir::ir::ResponseMode::ServerStream {
+        format!(
+            "::crucible_server_runtime_rust::EventStream<{}>",
+            output_type(service, op).trim_start_matches("model::")
+        )
+    } else {
+        output_type(service, op)
+            .trim_start_matches("model::")
+            .to_owned()
+    };
     out.push_str(&format!(
         "pub trait {name}Operation: ::crucible_server_runtime_rust::__generated::WithContext + Send + Sync + 'static {{\n    fn {}(&self{parameter}) -> impl ::std::future::Future<Output = ::crucible_server_runtime_rust::__generated::Result<{}>> + Send;\n}}\n",
         function(name),
-        output_type(service, op).trim_start_matches("model::"),
+        result,
     ));
     out
 }
@@ -206,9 +216,12 @@ pub(crate) fn marker_for(
             format!("Some({})", literal(token))
         });
     // A sender-signed operation (decision 81) says who calls it.
-    let sender = op.sender.as_ref().map_or(String::new(), |sender| {
+    let mut sender = op.sender.as_ref().map_or(String::new(), |sender| {
         format!(".with_sender({})", literal(&sender.name))
     });
+    if op.response_mode == crucible_ir::ir::ResponseMode::ServerStream {
+        sender.push_str(".with_server_stream()");
+    }
     out.push_str(&format!(
         "static {}: ::crucible_server_runtime_rust::__generated::OperationInfo = ::crucible_server_runtime_rust::__generated::operation_info(\n    {},\n    {},\n    {resource},\n    {},\n    &[{}],\n    &[{query}],\n    {},\n    {input},\n    {output},\n    &[{}],\n    {},\n    {},\n    {},\n    {token},\n    {},\n){sender};\n\n",
         operation_static(op),
@@ -315,13 +328,18 @@ fn registration(service: &Service) -> String {
     );
     for op in &service.operations {
         let method = function(op.name());
+        let add = if op.response_mode == crucible_ir::ir::ResponseMode::ServerStream {
+            "add_stream"
+        } else {
+            "add"
+        };
         let call = if op.input.is_some() {
             format!("|implementation, input| async move {{ implementation.{method}(input).await }}")
         } else {
             format!("|implementation, _| async move {{ implementation.{method}().await }}")
         };
         out.push_str(&format!(
-            "    /// Serves {name} with `implementation`.\n{allow}    pub fn {method}<S: {name}Operation>(self, implementation: ::std::sync::Arc<S>) -> Self {{\n        Self(self.0.add::<{name}, S, _>(implementation, {call}))\n    }}\n\n",
+            "    /// Serves {name} with `implementation`.\n{allow}    pub fn {method}<S: {name}Operation>(self, implementation: ::std::sync::Arc<S>) -> Self {{\n        Self(self.0.{add}::<{name}, S, _>(implementation, {call}))\n    }}\n\n",
             name = op.name(),
             allow = if op.notes.deprecated.is_some() {
                 "    #[allow(deprecated)]\n"
@@ -384,6 +402,12 @@ fn idempotency_items(service: &Service, op: &Operation, output_ty: &str) -> Stri
     let wire = structure(service, op.input.as_ref())
         .and_then(|s| s.member(token))
         .map_or(token.as_str(), |m| m.name.as_str());
+    if op.response_mode == crucible_ir::ir::ResponseMode::ServerStream {
+        return format!(
+            "    const IDEMPOTENCY_TOKEN: ::std::option::Option<::crucible_server_runtime_rust::__generated::operation::PaginationMember> = Some(::crucible_server_runtime_rust::__generated::operation::PaginationMember {{ name: {} }});\n",
+            literal(wire)
+        );
+    }
     format!(
         "    const IDEMPOTENCY_TOKEN: ::std::option::Option<::crucible_server_runtime_rust::__generated::operation::PaginationMember> = ::std::option::Option::Some(::crucible_server_runtime_rust::__generated::operation::PaginationMember {{ name: {} }});\n    const OUTPUT_FROM_JSON: ::std::option::Option<::crucible_server_runtime_rust::__generated::operation::OutputFromJson<Self::Output>> = ::std::option::Option::Some(::crucible_server_runtime_rust::__generated::serde_json::from_value::<{output_ty}>);\n",
         literal(wire)

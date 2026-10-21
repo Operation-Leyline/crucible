@@ -15,7 +15,7 @@ Crucible is `0.x`: the minor number plays the role of a major version.
 | Release | May change the stable surface? |
 |---|---|
 | Patch (`0.4.0` → `0.4.1`) | Never. Bug fixes, additive API, diagnostics for input that was already invalid, regenerated output that keeps the same API. |
-| Minor (`0.4.x` → `0.5.0`) | Yes, but only with a CHANGELOG **Migration** entry that says what to change, and a `#[deprecated]` shim for the old item kept for one minor release (removed no earlier than the next minor). |
+| Minor (`0.4.x` → `0.5.0`) | Yes, but only with a CHANGELOG **Migration** entry that says what to change, and a `#[deprecated]` shim for the old item kept for one minor release (removed no earlier than the next minor). An unshimmable change, such as a new exhaustive enum variant, must name the affected item and the required source change explicitly. |
 
 The **stable surface** is what a service or client author writes against:
 
@@ -44,7 +44,9 @@ shim, a CHANGELOG entry under *Deprecated* (and *Migration* when consumers must
 act), and a section in [docs/migrating.md](migrating.md). The shim is removed
 in the following minor release, with a *Removed* entry. Removing a public item
 without a shim is allowed only in a minor release whose Migration entry names
-it, and should be the exception.
+it, and should be the exception. The same exception applies when no shim can
+preserve source compatibility, such as adding variants to an exhaustive enum:
+ship only in a minor release and name each affected enum and migration.
 
 The runtime side of this policy (what service authors may rely on, the hidden
 `__generated` boundary and the `check_abi!` version gate) is specified in

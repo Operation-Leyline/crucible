@@ -1468,11 +1468,21 @@ impl<'s> Parser<'s> {
         if let Some(doc) = &doc {
             self.docs_used.push(doc.span);
         }
-        let members = self.braced(Self::typed_member);
+        let stream = if self.eat_word("stream") {
+            Some(self.ident("a stream item type"))
+        } else {
+            None
+        };
+        let members = if stream.is_some() {
+            Vec::new()
+        } else {
+            self.braced(Self::typed_member)
+        };
         Some(OpEntry::Body(Body {
             doc,
             modifiers,
             kind,
+            stream,
             members,
             span: start.to(self.last_end()),
         }))

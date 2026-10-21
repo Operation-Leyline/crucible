@@ -366,7 +366,14 @@ impl Walker<'_> {
             match entry {
                 OpEntry::Http(_) => {}
                 OpEntry::Call(call) => self.args(&call.args, Role::Property),
-                OpEntry::Body(Body { members, .. }) => self.members(members),
+                OpEntry::Body(Body {
+                    members, stream, ..
+                }) => {
+                    self.members(members);
+                    if let Some(name) = stream {
+                        self.reference(name, Some(Role::Type));
+                    }
+                }
                 OpEntry::Errors(names, _) => {
                     for name in names {
                         self.reference_kind(name, Some(Role::Class), ERROR);

@@ -26,6 +26,18 @@ fn validator(schema: &Value) -> jsonschema::Validator {
         .build(schema)
         .unwrap()
 }
+
+#[test]
+fn stream_items_export_as_document_schemas_independently_of_framing() {
+    let service = load("server-stream");
+    let schema = document(&service, "Progress");
+    let check = validator(&schema);
+    assert!(check.is_valid(&json!({"ready":"first"})));
+    assert!(check.is_valid(&json!({"update":{"text":"next"}})));
+    assert!(!check.is_valid(&json!({"update":{"text":false}})));
+    assert!(!check.is_valid(&json!({"update":{"text":"x".repeat(65)}})));
+    assert!(schema["$defs"].get("example.streams.WorkFailed").is_none());
+}
 #[test]
 fn deterministic_golden_and_draft_2020_12_validation() {
     let service = load("json-schema");

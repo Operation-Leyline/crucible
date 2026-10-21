@@ -28,6 +28,8 @@ use crate::{
     OperationJob, Outcome, Prepare,
 };
 
+mod streaming_body;
+
 /// The invocation answer when no protocol answered with JSON.
 pub(crate) const INVOKE_FAILURE: &str =
     r#"{"error":{"__type":"InternalFailure","message":"no protocol answered the invocation"}}"#;
@@ -86,6 +88,7 @@ pub struct Crucible {
 }
 
 struct Inner {
+    stream_options: crate::StreamOptions,
     operations: Operations,
     middleware: Vec<Box<dyn Middleware>>,
     operation_middleware: Vec<Box<dyn OperationAwareMiddleware>>,
@@ -118,6 +121,7 @@ impl Crucible {
             body_limit: DEFAULT_BODY_LIMIT,
             body_limits: Vec::new(),
             request_timeout: None,
+            stream_options: crate::StreamOptions::default(),
             request_id: None,
             unversioned: Unversioned::default(),
         }
@@ -228,6 +232,7 @@ impl Crucible {
             output_from_json: None,
             input: None,
             outcome: None,
+            streaming_response: false,
             downgrade: None,
             downgrade_error: None,
             errors: None,
@@ -432,6 +437,18 @@ impl Crucible {
                         *response.body_mut() = Body::empty();
                     }
                 }
+                if matches!(job.outcome, Some(Outcome::Stream(_))) {
+                    return streaming_body::StreamingBody::attach(
+                        response,
+                        job,
+                        self.inner.clone(),
+                        entered,
+                        selected,
+                    );
+                }
+                if job.is_streaming_response() {
+                    streaming_body::failed_opening(&mut job, &response, inner, &entered);
+                }
                 response
             })
             .await
@@ -488,6 +505,21 @@ impl Crucible {
 
     fn write(&self, job: &mut Job, selected: usize, answers: &Answers<'_>) -> Response {
         let protocol = &self.inner.protocols[selected];
+        if matches!(job.outcome, Some(Outcome::Stream(_))) {
+            if protocol.supports_server_stream() {
+                match recover(|| protocol.write_stream(job, answers)) {
+                    Ok(response) => {
+                        job.streaming_response = true;
+                        return response;
+                    }
+                    Err(error) => job.fail(error),
+                }
+            } else {
+                job.fail(Error::internal(
+                    "selected protocol does not support response streaming",
+                ));
+            }
+        }
         match recover(|| protocol.write(job, answers)) {
             Ok(response) => response,
             Err(error) => {
@@ -727,10 +759,33 @@ impl Crucible {
         if job.wants_snapshot && entry.upgrade.is_none() {
             job.input_snapshot = job.input.as_ref().map(|input| input.to_json());
         }
+        if entry.info.server_stream
+            && job
+                .request()
+                .extensions
+                .get::<crate::host::BufferedLambda>()
+                .is_some()
+        {
+            return Err(Error::internal(
+                "response streaming requires the Lambda streaming host",
+            ));
+        }
+        if entry.info.server_stream && !inner.protocols[*selected].supports_server_stream() {
+            return Err(Error::internal(
+                "the selected protocol cannot serve response streams",
+            ));
+        }
         let input = job.input.take().expect("decoded input checked");
-        job.outcome = Some(match (entry.invoke)(input).await {
-            Ok(output) => Outcome::Output(output),
-            Err(error) => Outcome::Failed(error),
+        job.outcome = Some(if let Some(invoke) = &entry.invoke_stream {
+            match invoke(input).await {
+                Ok(stream) => Outcome::Stream(stream),
+                Err(error) => Outcome::Failed(error),
+            }
+        } else {
+            match (entry.invoke)(input).await {
+                Ok(output) => Outcome::Output(output),
+                Err(error) => Outcome::Failed(error),
+            }
         });
         if matches!(job.outcome, Some(Outcome::Failed(_))) {
             job.error_revision += 1;
@@ -769,6 +824,7 @@ struct Entered {
 }
 
 pub struct Builder {
+    stream_options: crate::StreamOptions,
     operations: Operations,
     middleware: Vec<Box<dyn Middleware>>,
     operation_middleware: Vec<Box<dyn OperationAwareMiddleware>>,
@@ -787,6 +843,10 @@ pub struct Builder {
 type BodyLimit = Box<dyn Fn(&OperationInfo) -> Option<usize> + Send + Sync>;
 
 impl Builder {
+    pub fn stream_options(mut self, options: crate::StreamOptions) -> Self {
+        self.stream_options = options;
+        self
+    }
     /// Transport before hooks run before protocol identification, after hooks after encoding.
     pub fn middleware(mut self, middleware: impl Middleware) -> Self {
         self.middleware.push(Box::new(middleware));
@@ -967,6 +1027,21 @@ impl Builder {
     }
 
     pub fn build(mut self) -> Result<Crucible, BuildError> {
+        let invalid_duration = |duration: Duration| {
+            duration.is_zero() || std::time::Instant::now().checked_add(duration).is_none()
+        };
+        if self.stream_options.max_event_bytes < 256
+            || self
+                .stream_options
+                .heartbeat_interval
+                .is_some_and(invalid_duration)
+            || self
+                .stream_options
+                .idle_timeout
+                .is_some_and(invalid_duration)
+        {
+            return Err(BuildError::Prepare("stream max_event_bytes must be at least 256 and configured heartbeat/idle durations must be positive".into()));
+        }
         let builtins = std::cell::RefCell::new(crate::prepare::Builtins::default());
         let prepare = Prepare::new(&self.operations, &builtins);
         for middleware in &mut self.middleware {
@@ -1045,6 +1120,7 @@ impl Builder {
             .any(|entry| entry.info.sender.is_some());
         let core = Crucible {
             inner: Arc::new(Inner {
+                stream_options: self.stream_options,
                 operations: self.operations,
                 middleware: self.middleware,
                 operation_middleware: self.operation_middleware,

@@ -983,6 +983,7 @@ impl Undo<'_> {
             let Some(older) = self.frozen_operations.get(&operation.id).copied() else {
                 continue;
             };
+            operation.response_mode = older.response_mode;
             let input = operation
                 .input
                 .as_ref()
@@ -1024,8 +1025,11 @@ impl Undo<'_> {
             operation.protocol_headers = protocol.request_headers(&operation.request);
             let has_value =
                 protocol.response_has_value(operation.output.as_ref(), &operation.response);
-            operation.response_protocol_headers =
-                protocol.response_headers(&operation.response, has_value);
+            operation.response_protocol_headers = protocol.operation_response_headers(
+                &operation.response,
+                has_value,
+                operation.response_mode,
+            );
         }
         self.resources();
         self.examples(warnings);
@@ -1437,7 +1441,10 @@ impl Undo<'_> {
         // lowering computes it.
         let operations: BTreeSet<&ShapeId> = out.operations.iter().map(|op| &op.id).collect();
         uses.retain(|usage| {
-            usage.feature != crate::Feature::GreedyLabels || !operations.contains(&usage.shape)
+            !matches!(
+                usage.feature,
+                crate::Feature::GreedyLabels | crate::Feature::ServerStreaming
+            ) || !operations.contains(&usage.shape)
         });
         uses.extend(
             out.operations
@@ -1450,6 +1457,18 @@ impl Undo<'_> {
                 }),
         );
         self.out.requirements = uses.into_iter().collect();
+        self.out.requirements.extend(
+            self.out
+                .operations
+                .iter()
+                .filter(|op| op.response_mode == crate::ir::ResponseMode::ServerStream)
+                .map(|op| crate::FeatureUse {
+                    feature: crate::Feature::ServerStreaming,
+                    shape: op.id.clone(),
+                    source: ShapeId::prelude("serverStream"),
+                }),
+        );
+        self.out.requirements.sort();
     }
 }
 

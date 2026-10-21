@@ -935,6 +935,20 @@ pub struct Retryable {
     pub throttling: bool,
 }
 
+/// The cardinality of an operation's response, independent of HTTP framing.
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub enum ResponseMode {
+    #[default]
+    Unary,
+    ServerStream,
+}
+
+impl ResponseMode {
+    pub fn is_unary(&self) -> bool {
+        *self == Self::Unary
+    }
+}
+
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct Operation {
     /// Fixed request headers required by the selected protocol.
@@ -961,6 +975,9 @@ pub struct Operation {
     pub status: u16,
     pub input: Option<ShapeId>,
     pub output: Option<ShapeId>,
+    /// For a sequence, `output` names each item rather than an aggregate body.
+    #[serde(default, skip_serializing_if = "ResponseMode::is_unary")]
+    pub response_mode: ResponseMode,
     /// The operation's own errors, then the service's.
     pub errors: Vec<ShapeId>,
     pub readonly: bool,

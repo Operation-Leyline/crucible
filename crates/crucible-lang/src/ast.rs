@@ -364,6 +364,8 @@ pub struct Body {
     /// `strict`
     pub modifiers: Vec<Ident>,
     pub kind: BodyKind,
+    /// A server response sequence, declared as `output stream Event`.
+    pub stream: Option<Ident>,
     pub members: Vec<Member>,
     pub span: Span,
 }

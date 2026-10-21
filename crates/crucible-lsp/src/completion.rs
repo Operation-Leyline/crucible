@@ -23,6 +23,7 @@ pub enum Context {
     TopLevel,
     Service,
     Operation,
+    Template,
     Members,
     /// The members of a `structure .. for` view, where `$*` applies.
     ViewMembers,
@@ -42,6 +43,7 @@ pub enum Context {
     Resources,
     Operations,
     Structures,
+    StreamItems,
     Annotation,
     Roles,
     HttpMethods,
@@ -166,6 +168,10 @@ pub fn context(parsed: &Parsed, text: &str, offset: usize) -> Context {
         }
     }
     if let Some(prev) = prev {
+        if word(prev) == "stream" && before.len() >= 2 && word(before[before.len() - 2]) == "output"
+        {
+            return Context::StreamItems;
+        }
         match (prev.kind, word(prev)) {
             (TokenKind::Ident, "http") => return Context::HttpMethods,
             (TokenKind::Ident, "protocol") => return Context::Protocols,
@@ -253,7 +259,8 @@ fn block_context(before: &[&Token], index: usize, text: &str) -> Context {
     }
     match statement_head(before, index, text) {
         Some("service") => Context::Service,
-        Some("operation" | "template") => Context::Operation,
+        Some("operation") => Context::Operation,
+        Some("template") => Context::Template,
         // `structure Name for Resource {`: a view.
         Some("structure")
             if before[line_start..index]
@@ -502,7 +509,7 @@ pub fn complete(context: Context, index: &Index, snippets: bool) -> Vec<Completi
             );
             items.snippet("paginated", "default pagination members", "paginated(inputToken: ${1:nextToken}, outputToken: ${2:nextToken}, pageSize: ${3:maxResults})");
         }
-        Context::Operation => {
+        Context::Operation | Context::Template => {
             items.snippet(
                 "http",
                 "HTTP binding",
@@ -510,6 +517,13 @@ pub fn complete(context: Context, index: &Index, snippets: bool) -> Vec<Completi
             );
             items.snippet("input", "request members", "input {\n    $0\n}");
             items.snippet("output", "response members", "output {\n    $0\n}");
+            if context == Context::Operation {
+                items.snippet(
+                    "output stream",
+                    "typed server-response sequence",
+                    "output stream ${1:Event}",
+                );
+            }
             items.snippet("errors", "errors this operation returns", "errors [$1]");
             items.snippet("paginated", "pagination", "paginated(items: ${1:items})");
             items.snippet(
@@ -634,6 +648,9 @@ pub fn complete(context: Context, index: &Index, snippets: bool) -> Vec<Completi
         Context::Resources => items.declarations(index, |d| d.keyword == "resource"),
         Context::Operations => items.declarations(index, |d| d.keyword == "operation"),
         Context::Structures => items.declarations(index, |d| d.keyword == "structure"),
+        Context::StreamItems => items.declarations(index, |d| {
+            matches!(d.keyword.as_str(), "structure" | "union")
+        }),
         Context::Annotation => {
             items.snippet("since", "the version that added it", "since(\"$1\")");
             items.snippet(
@@ -1065,6 +1082,13 @@ mod tests {
                 .collect()
         };
         let operation = labels(Context::Operation);
+        assert!(operation.iter().any(|label| label == "output stream"));
+        assert!(
+            !labels(Context::Template)
+                .iter()
+                .any(|label| label == "output stream")
+        );
+        assert_eq!(at("template reads { | }"), Context::Template);
         for word in ["requires", "requires none", "requires pending", "filters"] {
             assert!(operation.iter().any(|l| l == word), "{word}: {operation:?}");
         }

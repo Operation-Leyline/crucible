@@ -11,7 +11,8 @@
     "noEmit": true,
     "paths": {
       "@example/weather": ["../generated/src/index.ts"],
-      "@example/samples": ["../generated-samples/src/index.ts"]
+      "@example/samples": ["../generated-samples/src/index.ts"],
+      "@example/streams": ["../generated-streams/src/index.ts"]
     }
   },
   "include": ["generated/**/*.ts", "env.d.ts"]

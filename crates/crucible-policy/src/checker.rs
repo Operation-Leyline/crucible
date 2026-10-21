@@ -55,6 +55,7 @@ impl Checker<'_> {
                         | Feature::NonBlobPayload
                         | Feature::ErrorPayload
                         | Feature::MediaTypeHeaders
+                        | Feature::ServerStreaming
                 ) {
                     self.push(
                         "compatibility.unchecked",
@@ -81,6 +82,13 @@ impl Checker<'_> {
                     "compatibility.http",
                     &old_op.id,
                     "HTTP method, URI pattern, or success status changed",
+                );
+            }
+            if old_op.response_mode != new_op.response_mode {
+                self.push(
+                    "compatibility.operation",
+                    &old_op.id,
+                    "response cardinality changed between unary and streaming",
                 );
             }
             if old_op.auth != new_op.auth || self.old.auth_schemes != self.new.auth_schemes {
@@ -558,12 +566,13 @@ impl Checker<'_> {
             }
             if old_op.input != new_op.input
                 || old_op.output != new_op.output
+                || old_op.response_mode != new_op.response_mode
                 || old_op.errors != errors
             {
                 self.push(
                     "compatibility.sdk",
                     &old_op.id,
-                    "operation's public input, output, or error types changed",
+                    "operation's public input, output, response mode, or error types changed",
                 );
             }
         }

@@ -52,6 +52,15 @@ fn generate_cached(
     options: &Options,
     cache: &crucible_ir::versions::HistoryCache,
 ) -> Result<Vec<File>, Diagnostics> {
+    let mut unsupported = Diagnostics::default();
+    for op in &service.operations {
+        if op.response_mode == crucible_ir::ir::ResponseMode::ServerStream {
+            unsupported.push(&op.id, "API reference rendering does not yet support server-response streams; use the OpenAPI stream description");
+        }
+    }
+    if !unsupported.is_empty() {
+        return Err(unsupported);
+    }
     let mut description = describe::describe_cached(service, cache)?;
     description.schemas(options.schemas);
     let mut diagnostics = Diagnostics::default();

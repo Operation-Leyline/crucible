@@ -247,8 +247,14 @@ const KEYWORDS: &[Row] = &[
     (
         "output",
         &["operation", "migration"],
-        "The operation's output: an anonymous body of members. A member whose type is a `for` view of a resource, or a list or map of one, carries the resource's properties.",
+        "The operation's output: an anonymous body of members, or `output stream Event` for a typed response sequence. A member whose type is a `for` view of a resource, or a list or map of one, carries the resource's properties.",
         "operation GetCity reads City {\n    output {\n        city: CityData\n    }\n}",
+    ),
+    (
+        "stream",
+        OPERATION,
+        "Returns a typed response sequence: `output stream Event`. The item is a named structure or union. Rust handlers return `Result<EventStream<Event>>`; TypeScript callers iterate a `ResponseStream<Event>`. Opening and iteration can both fail.",
+        "operation Watch {\n    http GET \"/events\"\n    output stream Progress\n}",
     ),
     (
         "errors",

@@ -83,7 +83,7 @@ impl Protocol for InvokeProtocol {
                 None => framework_body(&FrameworkError::InternalFailure),
             },
             // An answered request never reaches the protocol.
-            Some(Resolution::Answered { .. }) | None => {
+            Some(Resolution::Answered { .. } | Resolution::Streaming) | None => {
                 framework_body(&FrameworkError::InternalFailure)
             }
         };

@@ -761,7 +761,7 @@ pub(crate) fn settle(job: &mut OperationJob<'_>) {
         }
         inner.settled = true;
     }
-    if !matches!(job.outcome(), Some(Outcome::Output(_))) {
+    if !matches!(job.outcome(), Some(Outcome::Output(_) | Outcome::Stream(_))) {
         return;
     }
     let Some(unsatisfied) = session.unsatisfied() else {

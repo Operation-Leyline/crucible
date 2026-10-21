@@ -84,7 +84,7 @@ Each modelled error is a class exported from the package, subclassing `WeatherEx
 
 ## Retries and idempotency
 
-Calls are retried with backoff when a retry is safe: a modelled throttling error is retried for any operation; transport failures, HTTP 500, 502, 503 and 504 and other retryable modelled errors only for operations that are read-only, idempotent or carry an idempotency token. An idempotency token the caller leaves unset is generated once per call and reused on every attempt; set it yourself to replay one logical request across calls. These operations fill a token: `create_city` (`client_token`). Pass `max_attempts=` to the client to change the attempt limit (3, the first included; 1 turns retries off), and `retry_mode="standard"` or `"adaptive"` for a retry quota.
+Calls are retried with backoff when a retry is safe: a modelled throttling error is retried for any operation; transport failures, HTTP 500, 502, 503 and 504 and other retryable modelled errors only for operations that are read-only, idempotent or carry an idempotency token. For operations that declare an idempotency token, an unset token is generated once per call and reused on every attempt; set it yourself to replay one logical request across calls. These operations fill a token: `create_city` (`client_token`). Pass `max_attempts=` to the client to change the attempt limit (3, the first included; 1 turns retries off), and `retry_mode="standard"` or `"adaptive"` for a retry quota.
 
 ## Links
 

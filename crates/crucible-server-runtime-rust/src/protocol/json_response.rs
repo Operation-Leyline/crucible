@@ -72,7 +72,7 @@ fn write_outcome(job: &Job, answers: &Answers<'_>) -> Response {
             None => framework_response(&FrameworkError::InternalFailure),
         },
         // An answered request never reaches the protocol.
-        Some(Resolution::Answered { .. }) | None => {
+        Some(Resolution::Answered { .. } | Resolution::Streaming) | None => {
             framework_response(&FrameworkError::InternalFailure)
         }
     }

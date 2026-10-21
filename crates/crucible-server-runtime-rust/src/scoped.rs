@@ -93,6 +93,16 @@ scope_extension!(InterceptorExt, Interceptor);
 scope_extension!(ProtocolExt, Protocol);
 
 impl<T: OperationAwareMiddleware> OperationAwareMiddleware for Scoped<T> {
+    fn stream_complete(
+        &self,
+        job: &OperationJob<'_>,
+        response: &Response,
+        completion: &crate::StreamCompletion,
+    ) {
+        if (self.applies)(job.operation()) {
+            self.inner.stream_complete(job, response, completion);
+        }
+    }
     fn before<'a>(&'a self, job: &'a mut OperationJob<'_>) -> Hook<'a, Result<()>> {
         if (self.applies)(job.operation()) {
             self.inner.before(job)
@@ -117,6 +127,16 @@ impl<T: OperationAwareMiddleware> OperationAwareMiddleware for Scoped<T> {
     }
 }
 impl<T: Interceptor> Interceptor for Scoped<T> {
+    fn stream_complete(
+        &self,
+        job: &OperationJob<'_>,
+        response: &Response,
+        completion: &crate::StreamCompletion,
+    ) {
+        if (self.applies)(job.operation()) {
+            self.inner.stream_complete(job, response, completion);
+        }
+    }
     fn before<'a>(&'a self, job: &'a mut DecodedJob<'_>) -> Hook<'a, Result<()>> {
         if (self.applies)(job.operation()) {
             self.inner.before(job)
@@ -141,6 +161,30 @@ impl<T: Interceptor> Interceptor for Scoped<T> {
     }
 }
 impl<T: Protocol> Protocol for Scoped<T> {
+    fn supports_server_stream(&self) -> bool {
+        self.inner.supports_server_stream()
+    }
+    fn write_stream(&self, job: &Job, answers: &Answers<'_>) -> Response {
+        self.inner.write_stream(job, answers)
+    }
+    fn stream_item(
+        &self,
+        item: &dyn crate::operation::Output,
+        limit: usize,
+    ) -> Result<axum::body::Bytes> {
+        self.inner.stream_item(item, limit)
+    }
+    fn stream_end(
+        &self,
+        job: &Job,
+        answers: &Answers<'_>,
+        limit: usize,
+    ) -> Result<axum::body::Bytes> {
+        self.inner.stream_end(job, answers, limit)
+    }
+    fn stream_heartbeat(&self) -> Option<axum::body::Bytes> {
+        self.inner.stream_heartbeat()
+    }
     fn fallback(&self) -> bool {
         self.inner.fallback()
     }

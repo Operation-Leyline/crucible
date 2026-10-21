@@ -22,6 +22,7 @@ features! {
     IntEnum => "int-enum", BigInteger => "big-integer", BigDecimal => "big-decimal",
     NonBlobPayload => "non-blob-payload", ErrorPayload => "error-payload",
     MediaTypeHeaders => "media-type-headers",
+    ServerStreaming => "server-streaming",
 }
 
 impl fmt::Display for Feature {

@@ -55,6 +55,7 @@ TOOLS = {
     "tools/package_starter.py": {"onboarding"},
     **{f"tools/test-{name}.py": groups for name, groups in GENERATORS.items()},
     "tools/test-ts.sh": {"typescript", "e2e"},
+    "tools/test-streaming.py": {"typescript", "e2e"},
     "tools/test-docs-site.sh": {"docs_site"},
     "tools/test-e2e.sh": {"e2e"},
     "tools/test-kotlin-android.py": {"kotlin"},

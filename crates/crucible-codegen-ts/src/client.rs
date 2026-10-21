@@ -79,7 +79,17 @@ pub(crate) fn emit(service: &Service, options: &Options, links: &Links<'_>) -> S
         "import {{ {} }} from \"./runtime.js\";\n",
         runtime.join(", ")
     ));
-    header.push_str("import type { ClientConfig, RequestOptions } from \"./runtime.js\";\n");
+    header.push_str(
+        if service
+            .operations
+            .iter()
+            .any(|op| op.response_mode == crucible_ir::ir::ResponseMode::ServerStream)
+        {
+            "import type { ClientConfig, RequestOptions, ResponseStream } from \"./runtime.js\";\n"
+        } else {
+            "import type { ClientConfig, RequestOptions } from \"./runtime.js\";\n"
+        },
+    );
     if out.contains("m.") {
         header.push_str("import type * as m from \"./models.js\";\n");
     }
@@ -155,16 +165,19 @@ fn output_type(service: &Service, operation: &Operation) -> String {
 
 fn method(out: &mut String, links: &Links<'_>, operation: &Operation, name: &str) {
     let service = links.service;
-    documented_linked(
-        out,
-        links,
-        "  ",
-        Some(&crucible_codegen_common::documentation::operation(
-            service, operation,
-        )),
-        &operation.notes,
-    );
+    let mut docs = crucible_codegen_common::documentation::operation(service, operation);
+    if operation.response_mode == crucible_ir::ir::ResponseMode::ServerStream {
+        docs.push_str("\n\nOpens a single-consumer response stream. Iterate to establish completion; modeled errors can be thrown during iteration. Break, abort or cancel to release it. Successful opening is never retried.");
+    }
+    documented_linked(out, links, "  ", Some(&docs), &operation.notes);
     let (params, input) = parameters(service, operation);
+    if operation.response_mode == crucible_ir::ir::ResponseMode::ServerStream {
+        out.push_str(&format!(
+            "  {name}({params}): Promise<ResponseStream<{}>> {{\n    return this.#transport.stream(spec.{}, {input}, options);\n  }}\n",
+            output_type(service, operation), operation.name(),
+        ));
+        return;
+    }
     out.push_str(&format!(
         "  {}({params}): Promise<{}> {{\n    return this.#transport.send(spec.{}, {input}, options);\n  }}\n",
         name,

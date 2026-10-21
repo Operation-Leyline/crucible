@@ -15,6 +15,9 @@ pub struct OperationJob<'a> {
 }
 
 impl<'a> OperationJob<'a> {
+    pub fn is_streaming_response(&self) -> bool {
+        self.job.is_streaming_response()
+    }
     pub(crate) fn new(job: &'a mut Job) -> Self {
         assert!(
             job.operation().is_some(),

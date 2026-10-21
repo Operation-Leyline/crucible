@@ -1,0 +1,43 @@
+service Streams {
+    version "1"
+    protocol json
+    operations [Watch, Publish, Read]
+    errors [ValidationError, WorkFailed]
+}
+
+/// Observe a bounded or long-lived sequence of progress events.
+readonly public operation Watch {
+    http GET "/events"
+    output stream Progress
+    example "Ready" { output { ready: "ready" } }
+}
+
+public operation Publish {
+    http POST "/events"
+    input { topic: string { length 1..64 } }
+    output stream Progress
+}
+
+readonly public operation Read {
+    http GET "/read"
+    output { value: string }
+}
+
+union Progress {
+    update: Update
+    ready: string
+}
+
+structure Update {
+    text: string { length 1..64 }
+}
+
+error ValidationError {
+    status 400
+    message: string
+}
+
+error WorkFailed {
+    status 503
+    message: string
+}

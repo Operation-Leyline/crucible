@@ -418,6 +418,8 @@ export function parseTimestamp(value: string | number): Date {
 
 /** Where each member of an operation's input and output travels. */
 export interface OperationSpec {
+  /** Each item in a typed response sequence, using document encoding. */
+  readonly stream?: Schema;
   /** The release this client was generated for, sent as `Crucible-Version` (docs/api-versions-clients.md). */
   readonly apiVersion?: string;
   readonly headerEncodings?: Readonly<Record<string,"base64">>;
@@ -567,6 +569,8 @@ export interface RetryConfig {
 
 /** Configuration shared by every call; construction validates endpoint and retry settings. */
 export interface ClientConfig {
+  /** Maximum encoded SSE frame size; defaults to 1 MiB. */
+  readonly maxStreamEventBytes?: number;
   /** Absolute HTTP(S) base URL; if omitted, the generated default is used. */
   readonly endpoint?: string;
   /** Sent as a bearer token. A function is called for every attempt, so a refreshed token is picked up. */
@@ -585,6 +589,8 @@ export interface ClientConfig {
 
 /** Per-call cancellation, total timeout and header overrides. */
 export interface RequestOptions {
+  /** Overrides the response stream's encoded frame size limit. */
+  readonly maxStreamEventBytes?: number;
   /** Overrides the client budget; null disables it for this call. */
   readonly timeoutMs?: number | null;
   /** Abort this call when the signal is aborted. */
@@ -594,6 +600,134 @@ export interface RequestOptions {
 }
 
 const RETRYABLE_STATUS = new Set([500, 502, 503, 504]);
+
+/** Invalid framing or a connection ending before a terminal outcome. */
+export class StreamProtocolError extends Error {
+  constructor(message: string) { super(message); this.name = "StreamProtocolError"; }
+}
+
+/** A single-consumer stream. `break`, cancel and abort release its transport. */
+export class ResponseStream<T> implements AsyncIterableIterator<T> {
+  readonly metadata: ResponseMetadata;
+  readonly #iterator: AsyncGenerator<T>;
+  readonly #close: (reason?: unknown) => Promise<void>;
+  #claimed = false;
+  #pending = false;
+  constructor(metadata: ResponseMetadata, iterator: AsyncGenerator<T>, close: (reason?: unknown) => Promise<void>) {
+    this.metadata = metadata; this.#iterator = iterator; this.#close = close;
+  }
+  [Symbol.asyncIterator](): AsyncIterableIterator<T> {
+    if (this.#claimed) throw new TypeError("response streams have one consumer");
+    this.#claimed = true; return this;
+  }
+  async next(): Promise<IteratorResult<T>> {
+    if (this.#pending) throw new TypeError("concurrent stream reads are unsupported");
+    this.#pending = true;
+    try { return await this.#iterator.next(); }
+    catch (error) { await this.#close(error); throw error; }
+    finally { this.#pending = false; }
+  }
+  async return(): Promise<IteratorResult<T>> {
+    await this.#close();
+    return this.#iterator.return(undefined);
+  }
+  async cancel(reason?: unknown): Promise<void> { await this.#close(reason); }
+}
+
+/** One lifetime owns credentials, opening and consumption, not just headers. */
+function callLifetime(config: ClientConfig, options: RequestOptions): { signal: AbortSignal; close: () => void; abort: (reason?: unknown) => void } {
+  const timeout = options.timeoutMs === undefined ? config.timeoutMs : options.timeoutMs;
+  if (timeout != null && (!Number.isFinite(timeout) || timeout < 0)) throw new TypeError("timeoutMs must be a finite nonnegative number");
+  const controller = new AbortController();
+  const abort = () => controller.abort(options.signal?.reason);
+  if (options.signal?.aborted) abort();
+  else options.signal?.addEventListener("abort", abort, { once: true });
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  if (timeout != null) {
+    const deadline = performance.now() + timeout;
+    const arm = () => {
+      const remaining = deadline - performance.now();
+      if (remaining <= 0) controller.abort(new TimeoutError());
+      else timer = setTimeout(arm, Math.min(2_147_483_647, remaining));
+    };
+    arm();
+  }
+  return { signal: controller.signal, abort: reason => controller.abort(reason), close: () => {
+    if (timer !== undefined) clearTimeout(timer);
+    options.signal?.removeEventListener("abort", abort);
+  } };
+}
+
+/** Incremental standard SSE framing; terminal semantics belong to Crucible. */
+async function* streamEvents<T>(reader: ReadableStreamDefaultReader<Uint8Array>, signal: AbortSignal, decode: (event: string, data: unknown) => T, close: () => Promise<void>, limit: number): AsyncGenerator<T> {
+  const utf8 = new TextDecoder("utf-8", { fatal: true });
+  let buffer = "", event = "", data = "", terminal = false, eof = false, frameBytes = 0, scan = 0, lineBytes = 0;
+  try {
+    while (!eof) {
+      let chunk: ReadableStreamReadResult<Uint8Array>;
+      try { chunk = await abortable(reader.read(), signal); }
+      catch (error) { if (isAbort(error, signal)) throw error; throw new NetworkError(error); }
+      eof = chunk.done;
+      try { buffer += utf8.decode(chunk.value, { stream: !eof }); }
+      catch { throw new StreamProtocolError("invalid UTF-8 in response stream"); }
+      let start = 0;
+      let index = scan;
+      for (; index < buffer.length; index++) {
+        const char = buffer[index];
+        if (char !== "\r" && char !== "\n") {
+          const code = buffer.charCodeAt(index);
+          lineBytes += code < 0x80 ? 1 : code < 0x800 ? 2 : code >= 0xdc00 && code <= 0xdfff ? 0 : code >= 0xd800 && code <= 0xdbff ? 4 : 3;
+          if (frameBytes + lineBytes > limit) throw new StreamProtocolError("stream event exceeds the byte limit");
+          continue;
+        }
+        if (char === "\r" && index + 1 === buffer.length && !eof) break;
+        const line = buffer.slice(start, index);
+        if (terminal) throw new StreamProtocolError("data after terminal stream outcome");
+        frameBytes += lineBytes + (char === "\r" && buffer[index + 1] === "\n" ? 2 : 1);
+        lineBytes = 0;
+        if (frameBytes > limit) throw new StreamProtocolError("stream event exceeds the byte limit");
+        if (char === "\r" && buffer[index + 1] === "\n") index++;
+        start = index + 1;
+        if (line === "") {
+          if (data !== "") {
+            signal.throwIfAborted();
+            if (terminal) throw new StreamProtocolError("data after terminal stream outcome");
+            const kind = event || "message";
+            let value: unknown;
+            try { value = parseJson(data.slice(0, -1)); }
+            catch { throw new StreamProtocolError("invalid JSON in response stream"); }
+            if (kind === "crucible.complete") {
+              if (value === null || typeof value !== "object" || Array.isArray(value) || Object.keys(value).length !== 0) throw new StreamProtocolError("invalid stream completion");
+              terminal = true;
+            } else if (kind === "crucible.error") {
+              decode(kind, value); // always throws a typed service error
+              throw new StreamProtocolError("invalid terminal error");
+            } else if (kind === "message") {
+              let item: T;
+              try { item = decode(kind, value); }
+              catch { throw new StreamProtocolError("invalid modeled stream item"); }
+              yield item;
+            }
+            else throw new StreamProtocolError("unsupported stream event");
+          }
+          event = ""; data = ""; frameBytes = 0;
+        } else if (!line.startsWith(":")) {
+          const colon = line.indexOf(":");
+          const field = colon < 0 ? line : line.slice(0, colon);
+          let value = colon < 0 ? "" : line.slice(colon + 1);
+          if (value.startsWith(" ")) value = value.slice(1);
+          if (field === "event") event = value;
+          else if (field === "data") data += value + "\n";
+        }
+        if (data.length + event.length > limit) throw new StreamProtocolError("stream event exceeds the limit");
+      }
+      scan = index - start;
+      buffer = buffer.slice(start);
+      if (buffer.length + data.length > limit) throw new StreamProtocolError("stream event exceeds the limit");
+    }
+    if (!terminal || buffer.trim() !== "" || data !== "") throw new StreamProtocolError("response stream ended without a complete terminal outcome");
+  } finally { await close(); }
+}
 
 /** Execute modeled operations with authentication, middleware, retries and a total deadline. */
 export class Transport {
@@ -618,31 +752,61 @@ export class Transport {
     this.#middleware = [...defaults.middleware, ...(config.middleware ?? [])];
   }
 
+  /** Opens once; success is determined while iterating, not when headers arrive. */
+  async stream<T>(operation: OperationSpec, input: object, options: RequestOptions = {}): Promise<ResponseStream<T>> {
+    if (operation.stream === undefined) throw new TypeError("operation is not streaming");
+    const limit = options.maxStreamEventBytes ?? this.#config.maxStreamEventBytes ?? 1024 * 1024;
+    if (!Number.isSafeInteger(limit) || limit < 256) throw new TypeError("maxStreamEventBytes must be an integer of at least 256");
+    const lifetime = callLifetime(this.#config, options);
+    let reader: ReadableStreamDefaultReader<Uint8Array> | undefined;
+    let closed = false;
+    const close = async (reason?: unknown) => {
+      if (closed) return;
+      closed = true; lifetime.abort(reason); lifetime.close();
+      try { await reader?.cancel(reason); } catch { /* cancellation is best effort */ }
+      reader?.releaseLock();
+    };
+    try {
+      const response = await abortable(this.#send<Response>(operation, input, { ...options, signal: lifetime.signal }), lifetime.signal);
+      const contentType = response.headers.get("content-type") ?? "";
+      if (contentType.split(";", 1)[0].trim().toLowerCase() !== "text/event-stream" || !/;\s*crucible-stream\s*=\s*(?:"1"|1)\s*(?:;|$)/i.test(contentType) || !response.body) {
+        await response.body?.cancel(); throw new StreamProtocolError("unsupported streaming response");
+      }
+      reader = response.body.getReader();
+      const metadata: ResponseMetadata = { status: response.status, headers: response.headers, requestId: response.headers.get("x-request-id") ?? response.headers.get("x-amzn-requestid") ?? response.headers.get("x-amz-request-id") ?? undefined };
+      const decode = (kind: string, value: unknown): T => {
+        if (kind === "message") {
+          if (value === null || value === undefined) throw new TypeError("stream items cannot be null");
+          return fromWire(operation.stream, value) as T;
+        }
+        let error: ServiceException;
+        try {
+          const envelope = object(value);
+          const status = fromWire(integer(32), envelope.status) as number;
+          if (typeof envelope.type !== "string" || envelope.type.length === 0 || typeof status !== "number" || status < 400 || status > 599) throw new Error();
+          const fields = object(envelope.error);
+          const errorMetadata = { ...metadata, status };
+          const spec = operation.errors.includes(envelope.type) && Object.hasOwn(this.#errors, envelope.type) ? this.#errors[envelope.type] : undefined;
+          error = spec ? spec.create(fromWire(spec.schema, fields) as Record<string, unknown>, errorMetadata)
+            : new ServiceException(envelope.type, stringField(fields, "message") ?? "Stream failed", errorMetadata, status >= 500 ? "server" : "client");
+        } catch { throw new StreamProtocolError("invalid terminal stream error"); }
+        throw error;
+      };
+      const abortReader = () => { void close(lifetime.signal.reason); };
+      lifetime.signal.addEventListener("abort", abortReader, { once: true });
+      const cleanup = async () => { lifetime.signal.removeEventListener("abort", abortReader); await close(); };
+      return new ResponseStream(metadata, streamEvents(reader, lifetime.signal, decode, cleanup, limit), close);
+    } catch (error) { await close(error); throw error; }
+  }
+
   /** Execute one logical call with configured retries, per-call overrides and a total deadline. */
   async send<O>(operation: OperationSpec, input: object, options: RequestOptions = {}): Promise<O> {
-    const timeout = options.timeoutMs === undefined ? this.#config.timeoutMs : options.timeoutMs;
-    if (timeout != null && (!Number.isFinite(timeout) || timeout < 0)) throw new TypeError("timeoutMs must be a finite nonnegative number");
-    const controller = new AbortController();
-    const abort = () => controller.abort(options.signal?.reason);
-    if (options.signal?.aborted) abort();
-    else options.signal?.addEventListener("abort", abort, { once: true });
-    let timer: ReturnType<typeof setTimeout> | undefined;
-    if (timeout != null) {
-      const deadline = performance.now() + timeout;
-      const arm = () => {
-        const remaining = deadline - performance.now();
-        if (remaining <= 0) controller.abort(new TimeoutError());
-        else timer = setTimeout(arm, Math.min(2_147_483_647, remaining));
-      };
-      arm();
-    }
+    if (operation.stream !== undefined) throw new TypeError("use stream() for a streaming operation");
+    const lifetime = callLifetime(this.#config, options);
     try {
-      controller.signal.throwIfAborted();
-      return await abortable(this.#send<O>(operation, input, { ...options, signal: controller.signal }), controller.signal);
-    } finally {
-      if (timer !== undefined) clearTimeout(timer);
-      options.signal?.removeEventListener("abort", abort);
-    }
+      lifetime.signal.throwIfAborted();
+      return await abortable(this.#send<O>(operation, input, { ...options, signal: lifetime.signal }), lifetime.signal);
+    } finally { lifetime.close(); }
   }
 
   async #send<O>(operation: OperationSpec, input: object, options: RequestOptions): Promise<O> {
@@ -655,6 +819,7 @@ export class Transport {
       // Invalid inputs are caller errors, not transport failures.
       options.signal?.throwIfAborted();
       let request = this.#request(operation, values, options);
+      if (operation.stream !== undefined) request.headers.set("accept", "text/event-stream; crucible-stream=1");
       if (operation.bearer ?? this.#bearer) {
         try { request = await authenticate(request, this.#config); }
         catch (error) { await request.body?.cancel(error).catch(() => {}); throw error; }
@@ -671,7 +836,9 @@ export class Transport {
         // Fetch resolves at the headers; required bodies can still fail.
         // A successful operation without a modeled body needs only headers;
         // a payload is read as the bytes sent, never as text.
-        if (response.ok && operation.output?.payload !== undefined) {
+        if (response.ok && operation.stream !== undefined) {
+          // Reader ownership and the deadline pass to ResponseStream.
+        } else if (response.ok && operation.output?.payload !== undefined) {
           bytes = await readResponse(response, options.signal);
         } else if (!response.ok || operation.output?.body) {
           bytes = await readResponse(response, options.signal);text = new TextDecoder().decode(bytes);
@@ -684,7 +851,7 @@ export class Transport {
         await sleep(delay ?? backoff(attempt, retry), options.signal);
         continue;
       }
-      if (response.ok) return this.#decodeOutput(operation, response, text, bytes) as O;
+      if (response.ok) return (operation.stream !== undefined ? response : this.#decodeOutput(operation, response, text, bytes)) as O;
       const error = this.#decodeError(operation, response, text, bytes ?? new Uint8Array());
       const throttled = error.$retryable?.throttling === true;
       const transient = error.$retryable !== undefined || RETRYABLE_STATUS.has(response.status);

@@ -365,7 +365,7 @@ Every call returns a `weather_status`: `weather_service_error` for an HTTP error
 
 ## Retries and idempotency
 
-Calls are retried with backoff when a retry is safe: a modelled throttling error is retried for any operation; transport failures, HTTP 500, 502, 503 and 504 and other retryable modelled errors only for operations that are read-only, idempotent or carry an idempotency token. An idempotency token the caller leaves unset is generated once per call and reused on every attempt; set it yourself to replay one logical request across calls. These operations fill a token: `weather_operations_create_city` (`weather_models_create_city_input_set_client_token`). Set `config.max_attempts` (3, the first included; 1 turns retries off), `config.timeout` (the whole call's budget in seconds) and `config.base_delay` and `config.max_delay` before constructing the client.
+Calls are retried with backoff when a retry is safe: a modelled throttling error is retried for any operation; transport failures, HTTP 500, 502, 503 and 504 and other retryable modelled errors only for operations that are read-only, idempotent or carry an idempotency token. For operations that declare an idempotency token, an unset token is generated once per call and reused on every attempt; set it yourself to replay one logical request across calls. These operations fill a token: `weather_operations_create_city` (`weather_models_create_city_input_set_client_token`). Set `config.max_attempts` (3, the first included; 1 turns retries off), `config.timeout` (the whole call's budget in seconds) and `config.base_delay` and `config.max_delay` before constructing the client.
 
 ## Links
 

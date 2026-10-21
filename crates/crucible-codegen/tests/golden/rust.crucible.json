@@ -2,7 +2,7 @@
   "schemaVersion": 2,
   "generator": "crucible",
   "generatorVersion": "0.8.0",
-  "generatorChanges": 13,
+  "generatorChanges": 15,
   "language": "rust",
   "package": "weather-sdk",
   "packageVersion": "1.2.3",
@@ -10,5 +10,5 @@
   "service": "example.weather#Weather",
   "serviceVersion": "2026-10-01",
   "schemaSha256": "6d506a25de4e9c3af9b17009affa51c3276c279f661dab02af48cd85ed34f4fb",
-  "contentDigest": "crucible-content-1:sha256:d327bc56a8229363640b3645433f9f2ebd962fbb54e046ca7141499d45e98496"
+  "contentDigest": "crucible-content-1:sha256:371691188ec0f427a3c8be8004ad09cd9e314a4de3306d15bb5b730c0155318a"
 }

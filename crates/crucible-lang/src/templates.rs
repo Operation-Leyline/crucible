@@ -92,6 +92,10 @@ pub(crate) fn apply(
                     sides.push(body.kind);
                 }
                 match entry {
+                    OpEntry::Body(body) if body.stream.is_some() => problem(
+                        body.span,
+                        "declare response streams on operations, not role templates".to_owned(),
+                    ),
                     OpEntry::Call(call) if call.name.name == "paginated" => {}
                     OpEntry::Body(body) if body.modifiers.is_empty() => {}
                     OpEntry::Errors(..) => {}
@@ -131,6 +135,14 @@ pub(crate) fn apply(
             for entry in template.entries {
                 match entry {
                     OpEntry::Body(body) => {
+                        if body.kind == BodyKind::Output && !body.members.is_empty() && operation.entries.iter().any(|entry| {
+                            matches!(entry, OpEntry::Body(own) if own.kind == body.kind && own.stream.is_some())
+                        }) {
+                            diagnostics.push(FileDiagnostic {
+                                file: Some(file),
+                                diagnostic: Diagnostic::new(at, "a response stream cannot inherit output members from a role template"),
+                            });
+                        }
                         let has = operation
                             .entries
                             .iter()
@@ -140,6 +152,7 @@ pub(crate) fn apply(
                                 doc: None,
                                 modifiers: Vec::new(),
                                 kind: body.kind,
+                                stream: body.stream.clone(),
                                 members: Vec::new(),
                                 span: at,
                             }));

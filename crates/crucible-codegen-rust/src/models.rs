@@ -41,7 +41,16 @@ pub(crate) fn emit(
 ) -> String {
     let boxed = boxed_members(service);
     let builders = crate::builders::names(service);
-    let validated = input_reachable(service);
+    let mut validated = input_reachable(service);
+    validated.extend(reachable(
+        service,
+        service
+            .operations
+            .iter()
+            .filter(|op| op.response_mode == crucible_ir::ir::ResponseMode::ServerStream)
+            .filter_map(|op| op.output.clone())
+            .collect(),
+    ));
     let mut patterns = Patterns::default();
     let mut out = String::new();
     let mut defaults = String::new();

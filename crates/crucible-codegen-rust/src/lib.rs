@@ -117,12 +117,17 @@ pub fn capabilities() -> crucible_ir::Capabilities {
         Feature::NonBlobPayload,
         Feature::ErrorPayload,
         Feature::MediaTypeHeaders,
+        Feature::ServerStreaming,
     ])
 }
 
 /// Constructs supported by the generated client and its bundled runtime.
 pub fn client_capabilities() -> crucible_ir::Capabilities {
-    capabilities()
+    crucible_ir::Capabilities::new(
+        capabilities()
+            .iter()
+            .filter(|f| *f != crucible_ir::Feature::ServerStreaming),
+    )
 }
 
 pub fn generate(service: &Service, options: &Options) -> Result<String, Diagnostics> {
@@ -150,6 +155,35 @@ pub fn generate_with_explorer_model(
         return Err(diagnostics);
     }
     service.require_capabilities(&capabilities())?;
+    let mut adapters = Vec::new();
+    if options.mcp
+        && let Ok(projected) = crucible_ir::project(service, crucible_ir::Audience::External)
+    {
+        adapters.push(projected);
+    }
+    if let Some(audience) = options.explorer
+        && let Ok(projected) = crucible_ir::project(explorer_service, audience)
+    {
+        adapters.push(projected);
+    }
+    let mut unsupported = Diagnostics::default();
+    // Additive operations reach older projections even if their frozen release
+    // predates the operation; new streams still need historical adapters.
+    for model in adapters.iter().chain(
+        (!service.versions.is_empty())
+            .then_some(service)
+            .into_iter()
+            .chain(service.versions.iter().map(|version| &*version.service)),
+    ) {
+        for op in &model.operations {
+            if op.response_mode == crucible_ir::ir::ResponseMode::ServerStream {
+                unsupported.push(&op.id, "server-response streaming is not yet supported by MCP, the explorer, or historical-version adapters; generate a direct HTTP server without those adapters");
+            }
+        }
+    }
+    if !unsupported.is_empty() {
+        return Err(unsupported);
+    }
     for version in &service.versions {
         version.service.require_capabilities(&capabilities())?;
     }

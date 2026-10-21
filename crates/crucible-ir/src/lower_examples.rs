@@ -23,6 +23,12 @@ pub(crate) struct Check<'a> {
 impl Check<'_> {
     /// An operation's input, output or error, where no shape means Unit.
     pub(crate) fn io(&mut self, path: &str, shape: Option<&ShapeId>, value: &Value) {
+        if let Some(id) = shape
+            && matches!(self.shapes.get(id), Some(Shape::Union(_)))
+        {
+            self.value(path, id, &Constraints::default(), value);
+            return;
+        }
         let Value::Object(members) = value else {
             self.problems
                 .push(format!("{path} must be an object, not {}", kind(value)));
@@ -376,7 +382,28 @@ impl Service {
         value: &Value,
         format: Option<TimestampFormat>,
     ) -> Value {
-        let Some(shape) = self.shape(&member.target) else {
+        let format = if matches!(self.shape(&member.target), Some(Shape::Simple(simple)) if simple.kind == SimpleKind::Timestamp)
+        {
+            Some(format.unwrap_or_else(|| self.document_timestamp_format(member)))
+        } else {
+            format
+        };
+        self.wire_example_target(&member.target, value, format)
+    }
+
+    /// A validated root value as a JSON document carries it, including nested
+    /// timestamp and member encoding. No HTTP bindings apply at the root.
+    pub fn wire_shape_example(&self, target: &ShapeId, value: &Value) -> Value {
+        self.wire_example_target(target, value, None)
+    }
+
+    fn wire_example_target(
+        &self,
+        target: &ShapeId,
+        value: &Value,
+        format: Option<TimestampFormat>,
+    ) -> Value {
+        let Some(shape) = self.shape(target) else {
             return value.clone();
         };
         match (shape, value) {
@@ -391,7 +418,11 @@ impl Service {
                     .map_or_else(|| value.clone(), Value::Number)
             }
             (Shape::Simple(simple), _) if simple.kind == SimpleKind::Timestamp => {
-                let format = format.unwrap_or_else(|| self.document_timestamp_format(member));
+                let format = format.unwrap_or_else(|| {
+                    simple
+                        .timestamp_format
+                        .unwrap_or_else(|| self.protocol.timestamp_format(false))
+                });
                 crate::timestamp_default::wire_value(value, format).unwrap_or_else(|| value.clone())
             }
             (Shape::List(list), Value::Array(items)) => Value::Array(

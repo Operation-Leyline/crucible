@@ -93,3 +93,15 @@ id = 13
 languages = ["rust", "ts", "python", "go", "java", "kotlin", "csharp", "swift", "dart", "php", "ruby", "cpp", "c", "r"]
 kind = "patch"
 summary = "Every package carries a generated README.md and AGENTS.md with a call snippet, and doc-tool configuration where it had none; the Python and C# package metadata name the README."
+
+[[change]]
+id = 14
+languages = ["rust", "ts"]
+kind = "additive"
+summary = "TypeScript exposes typed response streams over Fetch with cancellation and terminal outcomes; Rust error bindings support bounded document encoding for the matching server stream profile."
+
+[[change]]
+id = 15
+languages = ["rust", "ts", "python", "go", "java", "kotlin", "csharp", "swift", "dart", "php", "ruby", "cpp", "c", "r"]
+kind = "patch"
+summary = "Generated package guides qualify automatic token generation to operations that declare an idempotency token."

@@ -24,6 +24,7 @@ pub const fn operation_info(
     traits: &'static [(&'static str, &'static str)],
 ) -> OperationInfo {
     OperationInfo {
+        server_stream: false,
         id,
         name,
         resource,

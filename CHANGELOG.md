@@ -4,7 +4,7 @@ All notable changes to Crucible are recorded here, following
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Crucible is `0.x`:
 a minor release may break the documented stable surface only with a
 **Migration** entry and a `#[deprecated]` shim kept for one minor (a removal
-may skip the shim only when its Migration entry names it); a patch release
+or unshimmable change may skip the shim only when its Migration entry names it); a patch release
 never breaks it. See the
 [stability policy](docs/releases.md#stability-policy-for-0x). Step-by-step
 upgrade instructions live in [docs/migrating.md](docs/migrating.md).
@@ -16,6 +16,13 @@ version's section when it is prepared.
 ## [Unreleased]
 
 ### Added
+
+- Typed response streams: `output stream Event`, Rust `EventStream<T>` handlers,
+  and generated TypeScript `ResponseStream<T>` clients using Fetch and SSE.
+  Explicit terminal outcomes, cancellation, item validation, total deadlines,
+  bounded event encoding, heartbeats, lifecycle observers, and streaming Lambda
+  hosting are described in [the streaming guide](docs/streaming.md).
+  OpenAPI exposes item/control metadata; unsupported targets diagnose streaming.
 
 - Standalone JSON Schema Draft 2020-12 export for a named shape through
   `crucible generate json-schema --shape`, `Generator::JsonSchema`, and
@@ -32,6 +39,13 @@ version's section when it is prepared.
 
 ### Migration
 
+- `Outcome::Stream`, `Resolution::Streaming`, and `Host::LambdaStreaming` add
+  variants to public enums. Update exhaustive matches to handle them; unary
+  operations keep their existing behavior. Regenerate Rust/TypeScript bindings.
+  No shim can preserve an exhaustive enum match. Stream handlers return
+  `Result<EventStream<Item>>`; streaming operations cannot use direct invoke,
+  buffered Lambda, or single-response idempotency replays. Existing `complete`
+  hooks still observe response readiness; use `stream_complete` for termination.
 - Direct Rust compiler/IR struct literals initialize the new `Package::exports`
   and `Service::export_roots` fields to an empty vector for previous behavior.
   Prefer `Package::new` when constructing compiler inputs. Existing model
