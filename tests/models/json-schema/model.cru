@@ -1,0 +1,31 @@
+service Renderer {
+    version "1"
+    protocol json
+    operations [Render]
+}
+operation Render {
+    http POST "/render" -> 200
+    input {
+        plan: RenderPlan
+        internal secret?: Secret
+    }
+    output {
+        unrelated: boolean
+    }
+}
+integer Seed { range 0..2147483647 }
+string Prompt { length 1..80 pattern "^[a-zA-Z ]+$" }
+structure RenderPlan {
+    seed: Seed
+    source: Source
+    label?: Prompt
+    retries: integer = 2
+    children?: Plans
+}
+list Plans: RenderPlan { length ..3 }
+union Source {
+    text: Prompt
+    prior: Seed
+    empty
+}
+internal string Secret

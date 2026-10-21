@@ -102,6 +102,7 @@ fn a_metadata_key_cannot_take_the_name_sender() {
         dependencies: Vec::new(),
         dir: None,
         baseline: None,
+        exports: Vec::new(),
     };
     let compiled = crucible_lang::compile(&package, None);
     assert!(

@@ -18,6 +18,23 @@ the package in that directory, which must declare the namespace. A package's
 declarations and `metadata` are visible to the packages that import it, and
 its rules apply to them (see Policy rules).
 
+Declare explicit shape roots independently of service operations and resources
+with `exports` under `[model]`:
+
+```toml
+[model]
+exports = ["RenderPlan", "example.shared#Settings"]
+```
+
+Names must resolve
+to declared types in the package or its imports; unknown or ambiguous roots are
+errors. The compiler lowers their full dependency closure into every selected
+service's IR, so document and native model outputs can use unattached shapes.
+Roots are sorted and deduplicated. Audience projection removes internal roots
+and their unreachable dependencies; public roots cannot reference internal types.
+An export adds no route, operation, or resource. Packages still declare a real
+service, which may have no operations. See [JSON Schema export](../json-schema.md).
+
 ## Lexical structure
 
 - **Whitespace and newlines** separate tokens and carry no meaning.

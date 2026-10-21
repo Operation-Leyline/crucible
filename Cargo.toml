@@ -27,6 +27,7 @@ crucible-ir = { path = "crates/crucible-ir" }
 crucible-lang = { path = "crates/crucible-lang" }
 crucible-codegen-ts = { path = "crates/crucible-codegen-ts" }
 crucible-codegen-openapi = { path = "crates/crucible-codegen-openapi" }
+crucible-codegen-jsonschema = { path = "crates/crucible-codegen-jsonschema" }
 crucible-codegen-docs = { path = "crates/crucible-codegen-docs" }
 crucible-codegen-infra = { path = "crates/crucible-codegen-infra" }
 crucible-codegen-cdk = { path = "crates/crucible-codegen-cdk" }

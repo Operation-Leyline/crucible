@@ -84,3 +84,53 @@ fn recursive_refs_stay_local_and_finite() {
     );
     assert!(schema["$defs"].as_object().unwrap().len() < service.shapes.len());
 }
+
+#[test]
+fn standalone_rewrites_schema_references_without_changing_defaults_or_traits() {
+    use crucible_ir::{ShapeId, ir::Shape};
+    use serde_json::json;
+
+    let mut service = load("weather");
+    let id = service
+        .operations
+        .iter()
+        .find(|op| op.name() == "CreateCity")
+        .unwrap()
+        .input
+        .clone()
+        .unwrap();
+    let document = ShapeId::prelude("Document");
+    assert!(service.shapes.contains_key(&document));
+    let data = json!({
+        "$ref": "#/components/schemas/example.weather.CitySummary",
+        "properties": {"nested": {"$ref": "#/components/schemas/example.weather.CitySummary"}},
+        "allOf": [{"$ref": "#/components/schemas/example.weather.CitySummary"}]
+    });
+    let trait_id = ShapeId::new("example.metadata", "schema");
+    let Shape::Structure(input) = service.shapes.get_mut(&id).unwrap() else {
+        panic!("input structure")
+    };
+    input.traits.insert(trait_id.clone(), data.clone());
+    let member = &mut input.members[0];
+    member.target = document;
+    member.constraints = Default::default();
+    member.default = Some(data.clone());
+    member.wire_default = Some(data.clone());
+    member.traits.insert(trait_id.clone(), data.clone());
+    let name = member.name.clone();
+
+    let schema = standalone(&service, Some(&id));
+    for root in [&schema, &schema["$defs"][key(&id)]] {
+        assert_eq!(root["x-crucible-traits"][trait_id.to_string()], data);
+        assert_eq!(root["properties"][&name]["default"], data);
+        assert_eq!(root["properties"][&name]["x-crucible-default"], data);
+        assert_eq!(
+            root["properties"][&name]["x-crucible-traits"][trait_id.to_string()],
+            data
+        );
+    }
+    assert_eq!(
+        schema["properties"]["location"]["anyOf"][0]["$ref"],
+        "#/$defs/example.weather.Location"
+    );
+}

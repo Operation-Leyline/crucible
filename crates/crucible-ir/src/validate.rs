@@ -44,6 +44,14 @@ const RESERVED_HEADERS: &[&str] = &[
 
 /// Every rule below, against `service`.
 pub fn service(service: &Service, diagnostics: &mut Diagnostics) {
+    for root in &service.export_roots {
+        if root.member().is_some() || service.shape(root).is_none() {
+            diagnostics.push(
+                root,
+                "exports.root: explicit export must name a lowered shape",
+            );
+        }
+    }
     recursion(service, diagnostics);
     operations(service, diagnostics);
     names(service, diagnostics);

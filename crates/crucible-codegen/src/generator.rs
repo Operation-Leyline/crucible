@@ -13,6 +13,8 @@ pub enum Generator {
     Server(Server),
     #[cfg(feature = "openapi")]
     OpenApi(crate::OpenApiOptions),
+    #[cfg(feature = "json-schema")]
+    JsonSchema(crate::JsonSchemaOptions),
     #[cfg(feature = "docs")]
     Docs,
     #[cfg(feature = "cdk")]
@@ -37,6 +39,8 @@ impl Generator {
             Self::Server(server) => server.target(),
             #[cfg(feature = "openapi")]
             Self::OpenApi(_) => "openapi",
+            #[cfg(feature = "json-schema")]
+            Self::JsonSchema(_) => "json-schema",
             #[cfg(feature = "docs")]
             Self::Docs => "docs",
             #[cfg(feature = "cdk")]
@@ -82,6 +86,14 @@ impl Generator {
                     }]
                 })
             }
+            #[cfg(feature = "json-schema")]
+            Self::JsonSchema(options) => crucible_codegen_jsonschema::generate(service, options)
+                .map(|contents| {
+                    vec![File {
+                        path: "schema.json".into(),
+                        contents,
+                    }]
+                }),
             #[cfg(feature = "cdk")]
             Self::Cdk { bindings, options } => {
                 let plan = crucible_codegen_infra::resolve(service, bindings)?;

@@ -24,6 +24,17 @@ version's section when it is prepared.
   hosting are described in [the streaming guide](docs/streaming.md).
   OpenAPI exposes item/control metadata; unsupported targets diagnose streaming.
 
+- Standalone JSON Schema Draft 2020-12 export for a named shape through
+  `crucible generate json-schema --shape`, `Generator::JsonSchema`, and
+  `crucible-build`'s `json-schema` feature and `.json_schema(name).shape(...)`
+  output. Schemas use the shared lowered-IR engine, local recursive `$defs`,
+  audience projection, and diagnostics for invalid or ambiguous roots.
+  See [JSON Schema export](docs/json-schema.md).
+- `[model].exports` retains declared named shapes and their dependency closure
+  independently of operations/resources. Typed `Service::export_roots` survives
+  snapshots and audience projection; empty roots remain omitted from snapshots.
+  LSP manifest completion and hover document the new key.
+
 ### Migration
 
 - `Outcome::Stream`, `Resolution::Streaming`, and `Host::LambdaStreaming` add
@@ -33,6 +44,15 @@ version's section when it is prepared.
   `Result<EventStream<Item>>`; streaming operations cannot use direct invoke,
   buffered Lambda, or single-response idempotency replays. Existing `complete`
   hooks still observe response readiness; use `stream_complete` for termination.
+- Direct Rust compiler/IR struct literals initialize the new `Package::exports`
+  and `Service::export_roots` fields to an empty vector for previous behavior.
+  Prefer `Package::new` when constructing compiler inputs. Existing model
+  manifests and release snapshots need no changes; missing roots default empty.
+
+### Fixed
+
+- Standalone JSON Schemas preserve arbitrary `$ref` fields inside defaults and
+  custom trait metadata when rewriting schema references to local `$defs`.
 
 ## [0.8.0] - 2026-10-18
 

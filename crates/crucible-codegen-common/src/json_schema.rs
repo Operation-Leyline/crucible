@@ -368,17 +368,50 @@ pub fn standalone(service: &Service, id: Option<&ShapeId>) -> Value {
     root["$defs"] = Value::Object(defs);
     fn rewrite(v: &mut Value) {
         match v {
-            Value::Object(o) => {
-                if let Some(Value::String(r)) = o.get_mut("$ref") {
-                    *r = r.replace("#/components/schemas/", "#/$defs/");
-                }
-                for v in o.values_mut() {
-                    rewrite(v);
+            Value::Object(object) => {
+                for (keyword, value) in object {
+                    match keyword.as_str() {
+                        "$ref" => {
+                            if let Value::String(reference) = value
+                                && let Some(key) = reference.strip_prefix("#/components/schemas/")
+                            {
+                                *reference = format!("#/$defs/{key}");
+                            }
+                        }
+                        "$defs" | "definitions" | "properties" | "patternProperties"
+                        | "dependentSchemas" => {
+                            if let Value::Object(schemas) = value {
+                                for schema in schemas.values_mut() {
+                                    rewrite(schema);
+                                }
+                            }
+                        }
+                        "additionalProperties"
+                        | "unevaluatedProperties"
+                        | "propertyNames"
+                        | "items"
+                        | "prefixItems"
+                        | "additionalItems"
+                        | "unevaluatedItems"
+                        | "contains"
+                        | "allOf"
+                        | "anyOf"
+                        | "oneOf"
+                        | "not"
+                        | "if"
+                        | "then"
+                        | "else"
+                        | "contentSchema"
+                        | "x-crucible-decoded-schema" => rewrite(value),
+                        // Defaults, examples, const/enum values and trait metadata are
+                        // model data even when they contain schema-looking objects.
+                        _ => {}
+                    }
                 }
             }
-            Value::Array(a) => {
-                for v in a {
-                    rewrite(v);
+            Value::Array(schemas) => {
+                for schema in schemas {
+                    rewrite(schema);
                 }
             }
             _ => {}

@@ -33,6 +33,7 @@ CONSUMER_CRATES = frozenset({
 GENERATORS = {
     # The OpenAPI emitter is qualified by Rust unit/golden and CLI tests.
     "openapi": set(),
+    "jsonschema": set(),
     # The static reference renderer is plain JS run by Node; Rust golden tests
     # cover the files the generator copies.
     "docs": {"docs_site"},

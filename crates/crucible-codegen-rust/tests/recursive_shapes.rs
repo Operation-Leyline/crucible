@@ -27,6 +27,7 @@ fn service() -> crucible_ir::ir::Service {
         dependencies: Vec::new(),
         dir: None,
         baseline: None,
+        exports: Vec::new(),
     };
     let compiled = crucible_lang::compile(&package, None);
     let messages: Vec<_> = compiled

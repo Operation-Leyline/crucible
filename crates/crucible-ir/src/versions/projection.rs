@@ -247,6 +247,7 @@ fn without_versions(service: &Service) -> Service {
         operations: service.operations.clone(),
         resources: service.resources.clone(),
         resource_roots: service.resource_roots.clone(),
+        export_roots: service.export_roots.clone(),
         resource_references: service.resource_references.clone(),
         shapes: service.shapes.clone(),
         traits: service.traits.clone(),
@@ -407,6 +408,13 @@ impl Undo<'_> {
     /// Points what names `from` at `to` instead: a reshaped definition
     /// the two releases give different ids.
     fn redirect(&mut self, from: &ShapeId, to: &ShapeId) {
+        for root in &mut self.out.export_roots {
+            if root == from {
+                *root = to.clone();
+            }
+        }
+        self.out.export_roots.sort();
+        self.out.export_roots.dedup();
         for operation in &mut self.out.operations {
             for slot in [&mut operation.input, &mut operation.output] {
                 if slot.as_ref() == Some(from) {
@@ -1449,6 +1457,7 @@ fn reached(service: &Service) -> BTreeSet<ShapeId> {
             .iter()
             .flat_map(|op| op.input.iter().chain(&op.output).chain(&op.errors))
             .chain(&service.errors)
+            .chain(&service.export_roots)
             .cloned(),
     )
 }

@@ -54,6 +54,7 @@ pub fn client_view(service: &Service) -> Service {
             operations
                 .flat_map(|op| op.input.iter().chain(&op.output).chain(&op.errors))
                 .chain(&service.errors)
+                .chain(&service.export_roots)
                 .chain(entries)
                 .cloned(),
         )
@@ -144,6 +145,9 @@ pub(crate) fn lenient_external(service: &Service) -> Service {
 fn external(service: &Service, lenient: bool) -> Result<Service, Diagnostics> {
     let mut result = service.clone();
     result
+        .export_roots
+        .retain(|id| service.shape(id).is_some_and(|shape| !shape.internal()));
+    result
         .errors
         .retain(|id| !service.internal && !service.shape(id).is_some_and(Shape::internal));
     // CORS describes the deployed server contract, which audience selection
@@ -201,11 +205,12 @@ fn external(service: &Service, lenient: bool) -> Result<Service, Diagnostics> {
         .iter()
         .flat_map(|op| op.input.iter().chain(&op.output).chain(&op.errors))
         .chain(&result.errors)
+        .chain(&result.export_roots)
         .cloned()
         .collect();
     // A resource names its entries' types without reaching them: the
-    // audience's shapes are what its operations reach, and the compiler
-    // refuses an entry of an internal type (decision 67).
+    // audience's shapes are what its operations and explicit exports reach.
+    // The compiler refuses an entry of an internal type (decision 67).
     for op in &result.operations {
         for target in op.input.iter().chain(&op.output) {
             check_target(service, &op.id, target, &mut diagnostics);

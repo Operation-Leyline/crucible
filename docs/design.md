@@ -46,6 +46,8 @@ status codes, with these conventions:
 - The request id travels in `x-request-id`.
 
 Crucible validates HTTP bindings itself, and [emits OpenAPI from its IR](openapi.md). OpenAPI is a downstream export; SDKs still consume the IR directly.
+[Standalone JSON Schema export](json-schema.md) shares the schema engine and
+exports a selected shape with local definitions.
 
 [Service API references](docs.md) consume an audience-projected IR description
 directly, preserving pagination, resources, idempotency, and documentation notes.
@@ -64,7 +66,10 @@ imports and templates, and lowers to the IR. Generators never read source.
 ## The IR
 
 `ir::Service` holds the operations (sorted by name) and every shape they
-reach, keyed by shape id. Lowering settles, once:
+reach, keyed by shape id. Explicit `[model].exports` are additional typed
+`export_roots`: their dependency closure enters the same IR independently of
+operations and resources. Audience projection retains public roots and removes
+internal ones. Lowering settles, once:
 
 - **Nullability**: a member is non-null when it is required or has a
   non-null default. A member's optionality is one fact for client and
