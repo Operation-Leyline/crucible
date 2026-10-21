@@ -25,7 +25,8 @@ structure Update {
 
 List `Watch` in the service's operations as usual. POST can combine a normal
 `input { ... }` with a streamed output. The item root must currently be a named
-structure or union. Request streams, pagination on a stream, HEAD, OPTIONS, and
+structure or union. Error declarations describe terminal failures and cannot
+be item roots. Request streams, pagination on a stream, HEAD, OPTIONS, and
 success statuses 204/205 are diagnosed. Application event kinds belong in a
 union; transport controls stay out of the model.
 
