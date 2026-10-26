@@ -17,6 +17,11 @@ version's section when it is prepared.
 
 ### Added
 
+- Operation documentation can use conventional `Use when` and `Don't use when`
+  Markdown sections. Lowering preserves the original prose and records optional
+  `Operation::intent` metadata, also exposed by `crucible.describe/1` and reference
+  output. `[rules.intent]` adds opt-in guidance warnings (`intent.operations`).
+
 - Git channels accept an optional `install_url` for consumer installation
   guidance while retaining their publishing URL. Set `install_url` when
   consumers need a different install transport from the publishing transport;
@@ -42,6 +47,10 @@ version's section when it is prepared.
   LSP manifest completion and hover document the new key.
 
 ### Migration
+
+- Direct IR `Operation` struct literals initialize the new `intent` field to
+  `None` for previous behavior. Existing models and frozen releases need no edits;
+  absent intent metadata defaults to `None` and remains omitted from snapshots.
 
 - `Outcome::Stream`, `Resolution::Streaming`, and `Host::LambdaStreaming` add
   variants to public enums. Update exhaustive matches to handle them; unary

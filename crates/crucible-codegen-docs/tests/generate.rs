@@ -10,6 +10,40 @@ const WEATHER: &str = "service-docs-weather";
 const CATALOG: &str = "service-docs";
 const LINKS: &str = "doc-links";
 
+#[test]
+fn operation_intent_opens_the_reference_without_duplicating_the_original_sections() {
+    let generated = files("operation-intent", Audience::External);
+    let page = &generated
+        .iter()
+        .find(|f| f.path == "src/operations/API_GetItem.md")
+        .unwrap()
+        .contents;
+    assert!(page.contains("<h2>Use when</h2>"), "{page}");
+    assert!(page.contains("<h2>Don't use when</h2>"), "{page}");
+    assert_eq!(page.matches("You know the item's").count(), 1);
+    assert!(page.find("<h2>Use when</h2>").unwrap() < page.find("## Authentication").unwrap());
+    assert!(page.contains("../operations/API_ListItems.md"));
+    assert!(page.contains("Returns the current value."));
+    let json: Value = serde_json::from_str(
+        &generated
+            .iter()
+            .find(|f| f.path == "describe.json")
+            .unwrap()
+            .contents,
+    )
+    .unwrap();
+    assert_eq!(
+        json["operations"]["example.intent#GetItem"]["intent"]["useWhen"]["markdown"],
+        "You know the item's **identifier**.\n"
+    );
+    let all = &generated
+        .iter()
+        .find(|f| f.path == "llms-full.txt")
+        .unwrap()
+        .contents;
+    assert!(all.contains("<h2>Use when</h2>"));
+}
+
 fn package_dir(name: &str) -> std::path::PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("../../tests/models")

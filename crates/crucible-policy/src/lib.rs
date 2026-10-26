@@ -11,6 +11,7 @@ mod documentation_target;
 mod examples;
 mod exception;
 mod finding;
+mod intent;
 mod lint;
 mod name_case;
 mod naming;
@@ -29,6 +30,7 @@ pub use documentation_target::DocumentationTarget;
 pub use examples::Examples;
 pub use exception::Exception;
 pub use finding::Finding;
+pub use intent::Intent;
 pub use lint::check;
 pub use name_case::NameCase;
 pub use naming::Naming;
@@ -47,6 +49,7 @@ pub const RULE_IDS: &[&str] = &[
     "paths.segments",
     "paths.parameters",
     "documentation.required",
+    "intent.operations",
     "examples.operations",
     "examples.errors",
     "compatibility.service",

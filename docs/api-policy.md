@@ -114,7 +114,7 @@ hover, and reports a bad value where it is written.
 `schema_version = 1` is optional; 1 is the only version. Unknown fields,
 rules, enum values, malformed regular expressions, and unsupported schema
 versions are errors. Each group accepts `severity = "error"`, `"warning"`, or
-`"off"`; the default is `"error"`, except for `rules.examples`, whose default
+`"off"`; the default is `"error"`, except for `rules.examples` and `rules.intent`, whose default
 is `"warning"`. Omitted static groups run no checks.
 
 Every check also takes its own severity. Write it bare to use the group's,
@@ -134,8 +134,26 @@ or as a table naming its value and severity:
 | `rules.naming` | `operations`, `shapes`, `members`, `enum_values`, `enum_wire_values`: optional casing conventions (`enum_values` checks the value's name; `enum_wire_values` checks what goes on the wire for string enums: the explicit `ACTIVE = "active"` value, or the name when bare; integer enums are skipped); corresponding `*_pattern` fields add whole-name Rust regex checks |
 | `rules.paths` | `prefix`: absolute literal path with segment-boundary matching; `segment_case` checks literals; `parameter_case` checks labels |
 | `rules.documentation` | `targets`: any of `service`, `operations`, `shapes`, `members`, `errors`, `enums`; empty means no documentation checks |
+| `rules.intent` | Nonempty `Use when` and `Don't use when` operation documentation sections; severity defaults to `"warning"` |
 | `rules.examples` | `operations`, `errors`: an `example` on each operation, and one showing each error the operation declares; both default to true, and the group's severity defaults to `"warning"` |
 | `compatibility` | `wire`, `sdk_source`: independently select wire and model-level public-symbol checks; both default to true |
+
+### Operation intent
+
+Enable guidance coverage with an opt-in table:
+
+```toml
+[rules.intent]
+severity = "warning"
+```
+
+`intent.operations` reports each selected operation without both nonempty
+[`## Use when` and `## Don't use when` sections](idl/reference.md#operation-intent).
+It reads the compiler's extracted metadata. A heading inside a code example does
+not satisfy the check. Missing or incomplete guidance is a warning by default;
+`severity = "error"` requires it, and `"off"` disables the check. The existing
+namespace selection and `[[exceptions]]` mechanism apply. This group leaves
+`documentation.required` and its configured severity unchanged.
 
 ### Example coverage
 

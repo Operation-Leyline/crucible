@@ -1,0 +1,56 @@
+service Intent {
+    version "1"
+    protocol json
+    operations [GetItem, ListItems, Partial, Fenced, Missing]
+}
+
+/// Reads one item.
+///
+/// ## Use when
+///
+/// You know the item's **identifier**.
+///
+/// ## Don't use when
+///
+/// You need several items; use [ListItems].
+///
+/// ## Details
+///
+/// Returns the current value.
+readonly operation GetItem { http GET "/item" }
+
+/// Lists items.
+///
+/// ## Use when
+///
+/// You need to discover identifiers.
+///
+/// ### Ordering
+///
+/// Results follow the service's default order.
+///
+/// ## Don't use when
+///
+/// You already know an identifier; use [GetItem].
+readonly operation ListItems { http GET "/items" }
+
+/// A draft operation with incomplete guidance.
+///
+/// ## Use when
+///
+/// Trying a draft.
+///
+/// ## Don't use when
+readonly operation Partial { http GET "/partial" }
+
+/// An example of the convention, not actual guidance.
+///
+/// ```markdown
+/// ## Use when
+/// This is example text.
+/// ## Don't use when
+/// This is example text too.
+/// ```
+readonly operation Fenced { http GET "/fenced" }
+
+readonly operation Missing { http GET "/missing" }
