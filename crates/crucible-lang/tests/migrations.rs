@@ -2193,3 +2193,65 @@ fn error_documentation_changes_require_no_wire_migration() {
     assert!(!checked.has_errors(), "{}", checked.render(&compiled));
     assert_eq!(checked.declared, 0);
 }
+
+#[test]
+fn error_retypes_reconcile_reason_designation_with_the_restored_member() {
+    for (old_type, declaration, expected_reason) in [
+        ("integer", "", None),
+        ("OldReason", "enum OldReason { OLD = \"a\" }", Some("a")),
+    ] {
+        // Keep the older enum reachable in both releases; its retirement
+        // would be a separate compatibility change from the member's retype.
+        let legacy = if expected_reason.is_some() {
+            "legacy?: OldReason"
+        } else {
+            ""
+        };
+        let baseline = format!(
+            "service Independent {{ version \"v1\" protocol json errors [Problem] operations [Read] }} readonly operation Read {{ http GET \"/read\" output {{}} }} error Problem {{ status 409 message: string detail?: {old_type} {legacy} }} {declaration}"
+        );
+        let current = baseline
+            .replace(
+                "protocol json",
+                "protocol json errorDocs \"https://docs.test/errors\"",
+            )
+            .replace(
+                &format!("detail?: {old_type}"),
+                "@errorReason detail?: Reason",
+            )
+            + " enum Reason { A = \"a\" }";
+        let dir = package_from(
+            &format!("error-reason-retype-{old_type}"),
+            &baseline,
+            &current,
+            "migration \"v2\" from \"v1\" { retype Problem.detail -> Reason by hook }",
+        );
+        let service = crucible_lang::load_versioned_service(&dir)
+            .unwrap_or_else(|error| panic!("{old_type}: {error}"));
+        let id = crucible_ir::ShapeId::new("example.shop", "Problem");
+        let current = service.error_documentation(&id).unwrap();
+        assert_eq!(current.reason_member.as_deref(), Some("detail"));
+        assert_eq!(current.reasons[0].value, "a");
+        let projected = crucible_ir::versions::projections(&service).unwrap();
+        let historical = projected[0].service.error_documentation(&id).unwrap();
+        assert_eq!(
+            historical.url.as_deref(),
+            Some("https://docs.test/errors/Problem")
+        );
+        match expected_reason {
+            Some(value) => {
+                assert_eq!(historical.reason_member.as_deref(), Some("detail"));
+                assert_eq!(historical.reasons[0].value, value);
+                assert_eq!(historical.reasons[0].name, "OLD");
+                assert_eq!(
+                    historical.reasons[0].url.as_deref(),
+                    Some("https://docs.test/errors/Problem/reason-a")
+                );
+            }
+            None => {
+                assert_eq!(historical.reason_member, None);
+                assert!(historical.reasons.is_empty());
+            }
+        }
+    }
+}

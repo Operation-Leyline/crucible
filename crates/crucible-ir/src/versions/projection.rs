@@ -636,6 +636,15 @@ impl Undo<'_> {
         self.changed.insert(new.clone());
         self.restored_members.insert(new.with_member(member));
         self.resolve(&target);
+        // The current model's documentation role cannot describe an older
+        // scalar restored by retype. An older enum still has literal reasons.
+        if !matches!(self.out.shapes.get(&target), Some(Shape::Enum(_)))
+            && let Some(Shape::Structure(shape)) = self.out.shapes.get_mut(new)
+            && let Some(error) = &mut shape.error
+            && error.reason_member.as_deref() == Some(member)
+        {
+            error.reason_member = None;
+        }
         // Where the member travels is the release's too, whole: a body
         // member, a header or a payload, with its kind, media type and
         // encodings. A release with no binding to take from leaves it as it
