@@ -177,7 +177,7 @@ def main():
     target = Path(os.environ.get("CARGO_TARGET_DIR") or ROOT / "target").resolve()
     env = {**os.environ, "CARGO_TARGET_DIR": str(target)}
     env.setdefault("CARGO_BUILD_JOBS", "1")
-    report = {"browsers": [], "scope": "local native browser Fetch/CORS and generated TypeScript-to-Rust HTTP; no deployed AWS or other native-client qualification"}
+    report = {"status": "running", "browsers": [], "scope": "local native browser Fetch/CORS and generated TypeScript-to-Rust HTTP; no deployed AWS or other native-client qualification"}
     try:
         from playwright.sync_api import sync_playwright
         with tempfile.TemporaryDirectory(prefix="crucible-browser-streaming-") as directory:
@@ -228,7 +228,9 @@ def main():
                                 context.close()
                         finally:
                             browser.close()
+        report["status"] = "passed"
     except BaseException as error:
+        report["status"] = "failed"
         report["error"] = f"{type(error).__name__}: {error}"
         raise
     finally:
