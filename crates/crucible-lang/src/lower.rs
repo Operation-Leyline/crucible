@@ -660,6 +660,9 @@ impl<'a> Lowerer<'a> {
         operations: &[&IrOperation],
         shapes: &BTreeMap<ShapeId, Shape>,
     ) -> (BTreeMap<String, ShapeId>, BTreeMap<String, ShapeId>) {
+        if !self.rejected_bodies.is_empty() {
+            return self.resolve_colliding_body_doc_links(service, operations, shapes);
+        }
         let mut links = BTreeMap::new();
         let mut owners = BTreeMap::new();
         for (label, file, start, end) in std::mem::take(&mut self.doc_link_sites) {
@@ -5677,7 +5680,6 @@ impl<'a> Lowerer<'a> {
         // in the table and render as plain text, having no target in it.
         let operations: Vec<&IrOperation> =
             service.operations.iter().chain(&probe.operations).collect();
-        self.check_rejected_bodies(&service.id, &operations, &probe.shapes);
         let (doc_links, owners) =
             self.resolve_doc_links(Some(&service.id), &operations, &probe.shapes);
         service.doc_links = doc_links;
@@ -5831,50 +5833,78 @@ impl<'a> Lowerer<'a> {
         }
     }
 
-    /// All registrations and ordinary lowering finish first, so references
-    /// see the complete model. Keep only diagnostics from each rejected body:
-    /// lowering members also changes source locations and semantic bookkeeping.
-    fn check_rejected_bodies(
+    /// Check rejected bodies and every doc-link site in one isolated view.
+    /// Each rejected side has its own identity there, so two operations, or
+    /// both sides of one operation, cannot borrow each other's members.
+    fn resolve_colliding_body_doc_links(
         &mut self,
-        service: &ShapeId,
+        service: Option<&ShapeId>,
         operations: &[&IrOperation],
         shapes: &BTreeMap<ShapeId, Shape>,
-    ) {
+    ) -> (BTreeMap<String, ShapeId>, BTreeMap<String, ShapeId>) {
+        let mut probe = self.clone();
+        probe.diagnostics.clear();
+        probe.rejected_bodies.clear();
+        let mut view_shapes = shapes.clone();
+        let mut view_operations: Vec<IrOperation> = operations
+            .iter()
+            .map(|operation| (**operation).clone())
+            .collect();
+        let mut synthetic = BTreeSet::new();
+        let mut next_id = 0;
         for (id, source) in &self.rejected_bodies {
-            let mut probe = self.clone();
-            probe.diagnostics.clear();
-            probe.doc_link_sites.clear();
-            probe.migration_link_sites.clear();
-            probe.shapes = shapes.clone();
-            probe.locate(id.clone(), source.file, source.body.span);
-            probe.shapes.remove(id);
-            probe.visiting.insert(id.clone());
-            probe.pending.insert(id.clone(), Pending::Structure);
-            probe.http_inputs.remove(id);
-            probe.http_outputs.remove(id);
+            // Member lowering has source-map and semantic side effects. None
+            // may change the retained body or another rejected body's checks.
+            let mut body_probe = self.clone();
+            body_probe.diagnostics.clear();
+            body_probe.doc_link_sites.clear();
+            body_probe.shapes = shapes.clone();
+            body_probe.locate(id.clone(), source.file, source.body.span);
+            body_probe.shapes.remove(id);
+            body_probe.visiting.insert(id.clone());
+            body_probe.pending.insert(id.clone(), Pending::Structure);
+            body_probe.http_inputs.remove(id);
+            body_probe.http_outputs.remove(id);
             match source.body.kind {
-                BodyKind::Input => probe.http_inputs.insert(id.clone()),
-                BodyKind::Output => probe.http_outputs.insert(id.clone()),
+                BodyKind::Input => body_probe.http_inputs.insert(id.clone()),
+                BodyKind::Output => body_probe.http_outputs.insert(id.clone()),
             };
-            let shape = probe.body_shape(id, source);
-            probe.shapes.insert(id.clone(), shape);
-            for (label, file, start, end) in std::mem::take(&mut probe.doc_link_sites) {
-                // Only this operation's links see its rejected body. Another
-                // operation sharing the id still names the retained body.
-                let linked_shapes =
-                    if crucible_ir::doc_links::split(&label).0 == source.operation.name.name {
-                        &probe.shapes
-                    } else {
-                        shapes
-                    };
-                if let Err(message) =
-                    probe.doc_link(&label, Some(service), operations, linked_shapes)
-                {
-                    probe.error(file, Span { start, end }, message);
+            // Lower against the source id so diagnostics never name a
+            // synthetic identity. Only the doc resolver sees this new id.
+            let shape = body_probe.body_shape(id, source);
+            let view_id = loop {
+                let candidate =
+                    ShapeId::new(crucible_ir::PRELUDE, &format!("__RejectedBody{next_id}"));
+                next_id += 1;
+                if !view_shapes.contains_key(&candidate) {
+                    break candidate;
+                }
+            };
+            view_shapes.insert(view_id.clone(), shape);
+            synthetic.insert(view_id.clone());
+            let operation_id = self.id(&source.operation.name.name);
+            for operation in view_operations
+                .iter_mut()
+                .filter(|op| op.id == operation_id)
+            {
+                match source.body.kind {
+                    BodyKind::Input => operation.input = Some(view_id.clone()),
+                    BodyKind::Output => operation.output = Some(view_id.clone()),
                 }
             }
-            self.diagnostics.extend(probe.diagnostics);
+            probe.diagnostics.extend(body_probe.diagnostics);
+            probe.doc_link_sites.extend(body_probe.doc_link_sites);
         }
+        let operations: Vec<&IrOperation> = view_operations.iter().collect();
+        let (mut links, mut owners) = probe.resolve_doc_links(service, &operations, &view_shapes);
+        // A rejected member is valid to name in source, but has no published
+        // target. Diagnostic-only ids must not enter the editor's best-effort IR.
+        links.retain(|_, id| !synthetic.contains(&id.root()));
+        owners.retain(|label, _| links.contains_key(label));
+        self.doc_link_sites.clear();
+        self.migration_link_sites.clear();
+        self.diagnostics.extend(probe.diagnostics);
+        (links, owners)
     }
 }
 
