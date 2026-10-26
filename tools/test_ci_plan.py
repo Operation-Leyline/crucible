@@ -21,6 +21,12 @@ EVENT = {"pull_request": {"base": {"sha": "a" * 40}, "head": {"sha": "b" * 40}}}
 
 
 class PlanTests(unittest.TestCase):
+    def test_browser_streaming_sources_select_native_browser_and_http_gates(self):
+        for path in ("tools/test-streaming-browser.py", "tools/streaming-browser.mjs", "tools/requirements-browser.txt"):
+            with self.subTest(path=path):
+                self.assertEqual(affected_groups([path]), {"rust", "typescript", "e2e"})
+        self.assertEqual(affected_groups(["tests/consumers/streaming/src/browser_fixture.rs"]), {"rust", "typescript", "e2e", "consumers"})
+
     def test_server_runtime_rename_keeps_old_and_new_paths_qualified(self):
         self.assertEqual(affected_groups(["crates/crucible/src/lib.rs"]), set(CORE_GROUPS))
         self.assertEqual(affected_groups(["crates/crucible-server-runtime-rust/src/lib.rs"]), CORE_GROUPS | CONSUMERS)
@@ -340,13 +346,14 @@ class PlanTests(unittest.TestCase):
                 selected.extend((name, variant) for variant in variants)
             return selected
 
-        self.assertEqual(len(selected_jobs(CORE_GROUPS, False)), 6)
+        self.assertEqual(len(selected_jobs(CORE_GROUPS, False)), 7)
+        self.assertIn(("browser-streaming", None), selected_jobs(CORE_GROUPS, False))
         # Python and Go reuse one tools build instead of compiling twice.
-        self.assertEqual(len(selected_jobs(MODEL_GROUPS, False)), 9)
+        self.assertEqual(len(selected_jobs(MODEL_GROUPS, False)), 10)
         self.assertEqual(len(selected_jobs({"rust", "kotlin"}, False)), 6)
-        # Preserve the 36 test variants (including consumers) plus planner/aggregate, one tools build
+        # Preserve the 37 test variants (including consumers and browser) plus planner/aggregate, one tools build
         # and the release-only language server build.
-        self.assertEqual(len(selected_jobs(GROUPS, True)), 40)
+        self.assertEqual(len(selected_jobs(GROUPS, True)), 41)
         for name, variant in selected_jobs(GROUPS, False)[2:]:
             self.assertNotIn(name, {"c-windows", "cpp-windows", "swift-apple", "kotlin-android"})
             if isinstance(variant, dict):
