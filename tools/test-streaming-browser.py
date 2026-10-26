@@ -174,12 +174,12 @@ def main():
     parser.add_argument("--channel", action="append", choices=["chromium", "chrome", "msedge"], help="repeat to qualify multiple installed Chromium builds; default: Playwright chromium")
     parser.add_argument("--report", type=Path, help="write browser versions and passed checks as JSON")
     args = parser.parse_args()
-    from playwright.sync_api import sync_playwright
     target = Path(os.environ.get("CARGO_TARGET_DIR") or ROOT / "target").resolve()
     env = {**os.environ, "CARGO_TARGET_DIR": str(target)}
     env.setdefault("CARGO_BUILD_JOBS", "1")
     report = {"browsers": [], "scope": "local native browser Fetch/CORS and generated TypeScript-to-Rust HTTP; no deployed AWS or other native-client qualification"}
     try:
+        from playwright.sync_api import sync_playwright
         with tempfile.TemporaryDirectory(prefix="crucible-browser-streaming-") as directory:
             work = Path(directory)
             binary, www = build(work, env)
@@ -228,6 +228,9 @@ def main():
                                 context.close()
                         finally:
                             browser.close()
+    except BaseException as error:
+        report["error"] = f"{type(error).__name__}: {error}"
+        raise
     finally:
         if args.report:
             args.report.parent.mkdir(parents=True, exist_ok=True)
