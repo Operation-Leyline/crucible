@@ -4438,7 +4438,7 @@ pub mod shop {
                 .add_versioned::<v1::ListItems, super::ListItems>(V1, __conversions::chains::LIST_ITEMS_0, None)
                 .add_versioned::<v1::ListLabels, super::ListLabels>(V1, __conversions::chains::LIST_LABELS_0, None)
                 .add_versioned::<v1::PutLabel, super::PutLabel>(V1, __conversions::chains::PUT_LABEL_0, None)
-                .add_versioned::<v1::RecordPayment, super::RecordPayment>(V1, __conversions::chains::RECORD_PAYMENT_0, None)
+                .add_versioned_identity::<v1::RecordPayment, super::RecordPayment>(V1, __conversions::chains::RECORD_PAYMENT_0)
                 .add_versioned::<v2::CountItems, v2::CountItems>(V2, __conversions::chains::COUNT_ITEMS_1, Some((V2, "versions::v2::Migration::count_items")))
                 .add_versioned::<v2::DeleteItem, super::DeleteItem>(V2, __conversions::chains::DELETE_ITEM_1, None)
                 .add_versioned::<v2::GetItem, super::GetItem>(V2, __conversions::chains::GET_ITEM_1, None)
@@ -4446,14 +4446,14 @@ pub mod shop {
                 .add_versioned::<v2::ListItems, super::ListItems>(V2, __conversions::chains::LIST_ITEMS_1, None)
                 .add_versioned::<v2::ListLabels, super::ListLabels>(V2, __conversions::chains::LIST_LABELS_1, None)
                 .add_versioned::<v2::PutLabel, super::PutLabel>(V2, __conversions::chains::PUT_LABEL_1, None)
-                .add_versioned::<v2::RecordPayment, super::RecordPayment>(V2, __conversions::chains::RECORD_PAYMENT_1, None)
-                .add_versioned::<v3::DeleteItem, super::DeleteItem>(V3, __conversions::chains::DELETE_ITEM_2, None)
+                .add_versioned_identity::<v2::RecordPayment, super::RecordPayment>(V2, __conversions::chains::RECORD_PAYMENT_1)
+                .add_versioned_identity::<v3::DeleteItem, super::DeleteItem>(V3, __conversions::chains::DELETE_ITEM_2)
                 .add_versioned::<v3::GetItem, super::GetItem>(V3, __conversions::chains::GET_ITEM_2, None)
                 .add_versioned::<v3::GetLabel, super::GetLabel>(V3, __conversions::chains::GET_LABEL_2, None)
-                .add_versioned::<v3::ListItems, super::ListItems>(V3, __conversions::chains::LIST_ITEMS_2, None)
+                .add_versioned_identity::<v3::ListItems, super::ListItems>(V3, __conversions::chains::LIST_ITEMS_2)
                 .add_versioned::<v3::ListLabels, super::ListLabels>(V3, __conversions::chains::LIST_LABELS_2, None)
                 .add_versioned::<v3::PutLabel, super::PutLabel>(V3, __conversions::chains::PUT_LABEL_2, None)
-                .add_versioned::<v3::RecordPayment, super::RecordPayment>(V3, __conversions::chains::RECORD_PAYMENT_2, None)
+                .add_versioned_identity::<v3::RecordPayment, super::RecordPayment>(V3, __conversions::chains::RECORD_PAYMENT_2)
         }
 
         /// Every migration's hooks, for a service that writes them on one type.

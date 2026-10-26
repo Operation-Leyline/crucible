@@ -5218,6 +5218,9 @@ impl<'a> Lowerer<'a> {
             auth,
             public: modifiers.contains("public"),
             resource,
+            intent: docs
+                .as_deref()
+                .and_then(crucible_ir::ir::OperationIntent::from_markdown),
             docs,
             notes: annotations.notes,
             method,

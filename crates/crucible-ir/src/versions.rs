@@ -12,6 +12,9 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
+mod identity;
+pub use identity::identical_operation_closure;
+
 mod line;
 mod projection;
 pub use line::{is_line, line, line_current, releases};

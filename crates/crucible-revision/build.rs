@@ -46,12 +46,7 @@ fn main() {
     if revision.len() != 40 || !revision.bytes().all(|c| c.is_ascii_hexdigit()) {
         return;
     }
-    // --git-path resolves linked worktree HEADs and their shared branch refs.
-    watch(&workspace, "HEAD");
-    watch(&workspace, "packed-refs");
-    if let Some(reference) = git(&workspace, &["symbolic-ref", "--quiet", "HEAD"]) {
-        watch(&workspace, &reference);
-    }
+    watch_refs(&workspace);
     println!("cargo::rustc-env=CRUCIBLE_GENERATOR_REVISION={revision}");
     // A source edit or untracked source file means HEAD does not reproduce
     // this generator. Only the trees compiled into the binaries count (docs
@@ -73,6 +68,29 @@ fn main() {
     let dirty = git(&workspace, &arguments).is_none_or(|status| !status.is_empty());
     if dirty {
         println!("cargo::rustc-env=CRUCIBLE_GENERATOR_DIRTY=1");
+    }
+}
+
+fn watch_refs(workspace: &Path) {
+    // --git-path resolves the linked worktree's own HEAD and ref store.
+    watch(workspace, "HEAD");
+    if git(workspace, &["rev-parse", "--show-ref-format"]).as_deref() == Some("reftable") {
+        // Ref transactions replace tables.list atomically. Watching that file
+        // covers new tables and compaction without depending on transient names.
+        watch(workspace, "reftable/tables.list");
+        if let Some(common) = git(workspace, &["rev-parse", "--git-common-dir"]) {
+            let shared = workspace.join(common).join("reftable/tables.list");
+            if shared.is_file() {
+                // A linked worktree stores HEAD locally and branches in the
+                // common stack; updating either must invalidate its revision.
+                println!("cargo::rerun-if-changed={}", shared.display());
+            }
+        }
+    } else {
+        watch(workspace, "packed-refs");
+        if let Some(reference) = git(workspace, &["symbolic-ref", "--quiet", "HEAD"]) {
+            watch(workspace, &reference);
+        }
     }
 }
 
@@ -222,6 +240,8 @@ fn git(workspace: &Path, arguments: &[&str]) -> Option<String> {
         .arg("-C")
         .arg(workspace)
         .args(arguments)
+        // These read-only queries must not refresh the index that Cargo watches.
+        .env("GIT_OPTIONAL_LOCKS", "0")
         .output()
         .ok()?;
     if !output.status.success() {
