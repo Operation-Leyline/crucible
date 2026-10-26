@@ -83,7 +83,11 @@ fn init(root: &Path, repository: &str) {
     )
     .unwrap();
     fs::write(root.join(".gitignore"), "").unwrap();
-    git(root, &["init", "-q", "-b", "main"]);
+    // A caller may have selected a non-default ref backend before creating
+    // this fixture. Do not reinitialize it with Git's default format.
+    if !root.join(".git").exists() {
+        git(root, &["init", "-q", "-b", "main"]);
+    }
     git(root, &["config", "user.name", "Crucible provenance test"]);
     git(
         root,
@@ -830,8 +834,12 @@ fn incremental_cargo_notices_reftable_main_and_worktree_ref_updates() {
         return;
     }
     success(init);
-    // Reinitializing an existing repository retains its selected ref backend.
     incremental_repository(&root);
+    assert_eq!(
+        git(&root, &["config", "--get", "extensions.refStorage"]),
+        "reftable",
+        "fixture setup must preserve its selected ref backend"
+    );
     let target = directory.path().join("target");
     let initial = git(&root, &["rev-parse", "HEAD"]);
     assert_eq!(incremental_build(&root, &target).0, initial);
