@@ -274,12 +274,13 @@ internal class ClientRuntime(input: ClientConfig, endpoint: String,
     }
     private fun decodeError(op: JsonObject, response: WireResponse): ServiceError {
         // BEGIN ERROR DOCUMENTATION
-        var documentationBodyValid = response.body.isEmpty()
+        val documentationBodyAbsent = response.body.all { it == 0x20.toByte() || it == 0x09.toByte() || it == 0x0d.toByte() || it == 0x0a.toByte() }
+        var documentationBodyValid = documentationBodyAbsent
         // END ERROR DOCUMENTATION
         val body = try {
             val parsed = codec.parse(response.body.decodeToString()) as? JsonObject
             // BEGIN ERROR DOCUMENTATION
-            documentationBodyValid = response.body.isEmpty() || parsed != null
+            documentationBodyValid = documentationBodyAbsent || parsed != null
             // END ERROR DOCUMENTATION
             parsed?.toMutableMap() ?: mutableMapOf()
         } catch (_: Exception) { mutableMapOf() }

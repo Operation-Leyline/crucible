@@ -513,7 +513,9 @@ annotation. The bundled `ValidationException.reason` is designated explicitly.
 Descriptions list designated reasons even without a base. With a base, SDK errors
 select a static reason page for a known effective value. An absent reason applies
 its model default, including an empty-string default. Without a known default,
-absence uses the code page, as do explicit null and future values. Unknown error
+absence uses the code page, as do explicit null and future values. An ordinary
+body containing only JSON whitespace (space, TAB, CR and LF) is absent, matching
+the shared wire reader. Other blank characters are malformed JSON bodies. Unknown error
 identities have no documentation URL. External
 outputs omit internal reason values. Whole definitions shown in frozen release
 history retain their frozen designation; a member named `reason` in an older

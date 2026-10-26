@@ -388,6 +388,60 @@
       "header": "",
       "docUrl": "https://docs.example.test/errors/BlobPayloadError/reason-",
       "typed": true
+    },
+    {
+      "name": "DefaultReason-json-whitespace",
+      "status": 419,
+      "identity": "DefaultReason",
+      "body": " \t\r\n ",
+      "header": null,
+      "docUrl": "https://docs.example.test/errors/DefaultReason/reason-access%2Fneeded",
+      "typed": true
+    },
+    {
+      "name": "DefaultReason-vertical-tab",
+      "status": 419,
+      "identity": "DefaultReason",
+      "body": "\u000b",
+      "header": null,
+      "docUrl": "https://docs.example.test/errors/DefaultReason",
+      "typed": false
+    },
+    {
+      "name": "DefaultReason-nonbreaking-space",
+      "status": 419,
+      "identity": "DefaultReason",
+      "body": " ",
+      "header": null,
+      "docUrl": "https://docs.example.test/errors/DefaultReason",
+      "typed": false
+    },
+    {
+      "name": "DefaultEmptyReason-json-whitespace",
+      "status": 420,
+      "identity": "DefaultEmptyReason",
+      "body": " \t\r\n ",
+      "header": null,
+      "docUrl": "https://docs.example.test/errors/DefaultEmptyReason/reason-",
+      "typed": true
+    },
+    {
+      "name": "DefaultEmptyReason-vertical-tab",
+      "status": 420,
+      "identity": "DefaultEmptyReason",
+      "body": "\u000b",
+      "header": null,
+      "docUrl": "https://docs.example.test/errors/DefaultEmptyReason",
+      "typed": false
+    },
+    {
+      "name": "DefaultEmptyReason-nonbreaking-space",
+      "status": 420,
+      "identity": "DefaultEmptyReason",
+      "body": " ",
+      "header": null,
+      "docUrl": "https://docs.example.test/errors/DefaultEmptyReason",
+      "typed": false
     }
   ]
 }

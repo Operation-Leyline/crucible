@@ -990,7 +990,7 @@ export class Transport {
     let parsed: unknown;
     try { parsed = readJson(text); } catch { /* An HTTP error may have a non-JSON body. */ }
     // BEGIN ERROR DOCUMENTATION
-    const documentationBodyValid = text.length === 0 || (parsed !== null && typeof parsed === "object" && !Array.isArray(parsed));
+    const documentationBodyValid = !/[^ \t\r\n]/.test(text) || (parsed !== null && typeof parsed === "object" && !Array.isArray(parsed));
     // END ERROR DOCUMENTATION
     const body = (parsed !== null && typeof parsed === "object" ? parsed : {}) as Record<string, unknown>;
     const metadata: ResponseMetadata = {

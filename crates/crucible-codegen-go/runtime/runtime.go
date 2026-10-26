@@ -1247,7 +1247,7 @@ func (c *clientRuntime) decode(op operationDescription, response *http.Response,
 		return values, nil
 	}
 // BEGIN ERROR DOCUMENTATION
-    documentationBodyValid := len(data) == 0
+    documentationBodyValid := len(bytes.Trim(data, " \t\r\n")) == 0
 // END ERROR DOCUMENTATION
 	if value, err := parseJSON(data); err == nil {
 		if object, ok := value.(map[string]any); ok {

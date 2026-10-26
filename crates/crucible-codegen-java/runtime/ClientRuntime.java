@@ -863,12 +863,13 @@ final class ClientRuntime {
       return values;
     }
     // BEGIN ERROR DOCUMENTATION
-    boolean documentationBodyValid = body.isEmpty();
+    boolean documentationBodyAbsent = body.chars().allMatch(c -> c == ' ' || c == '\t' || c == '\r' || c == '\n');
+    boolean documentationBodyValid = documentationBodyAbsent;
     // END ERROR DOCUMENTATION
     try {
       JsonElement parsed = JSON.fromJson(body, JsonElement.class);
       // BEGIN ERROR DOCUMENTATION
-      documentationBodyValid = body.isEmpty() || (parsed != null && parsed.isJsonObject());
+      documentationBodyValid = documentationBodyAbsent || (parsed != null && parsed.isJsonObject());
       // END ERROR DOCUMENTATION
       if (parsed != null && parsed.isJsonObject()) values = parsed.getAsJsonObject();
     } catch (RuntimeException ignored) {

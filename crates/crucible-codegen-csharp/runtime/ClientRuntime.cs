@@ -502,13 +502,14 @@ internal sealed partial class ClientRuntime : IDisposable
     {
         JsonObject body;
         // BEGIN ERROR DOCUMENTATION
-        var documentationBodyValid = bytes.Length == 0;
+        var documentationBodyAbsent = bytes.All(value => value is 0x20 or 0x09 or 0x0d or 0x0a);
+        var documentationBodyValid = documentationBodyAbsent;
         // END ERROR DOCUMENTATION
         try
         {
             var parsed = JsonNode.Parse(bytes) as JsonObject;
             // BEGIN ERROR DOCUMENTATION
-            documentationBodyValid = bytes.Length == 0 || parsed is not null;
+            documentationBodyValid = documentationBodyAbsent || parsed is not null;
             // END ERROR DOCUMENTATION
             body = parsed ?? new JsonObject();
         }

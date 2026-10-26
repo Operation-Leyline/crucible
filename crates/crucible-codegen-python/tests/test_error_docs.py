@@ -43,6 +43,12 @@ def cases():
     yield "DefaultEmptyReason-empty-body", "DefaultEmptyReason", 420, b'', {}, "DefaultEmptyReason/reason-", None, None
     yield "blob-payload", "BlobPayloadError", 421, b'not-json /blob', {"X-Error-Reason": "access/needed"}, "BlobPayloadError/reason-access%2Fneeded", None, None
     yield "empty-blob-payload", "BlobPayloadError", 421, b'', {"X-Error-Reason": ""}, "BlobPayloadError/reason-", None, None
+    yield "DefaultReason-json-whitespace", "DefaultReason", 419, b' \t\r\n ', {}, "DefaultReason/reason-access%2Fneeded", None, None
+    yield "DefaultReason-vertical-tab", "DefaultReason", 419, b'\x0b', {}, "DefaultReason", None, None
+    yield "DefaultReason-nonbreaking-space", "DefaultReason", 419, b'\xc2\xa0', {}, "DefaultReason", None, None
+    yield "DefaultEmptyReason-json-whitespace", "DefaultEmptyReason", 420, b' \t\r\n ', {}, "DefaultEmptyReason/reason-", None, None
+    yield "DefaultEmptyReason-vertical-tab", "DefaultEmptyReason", 420, b'\x0b', {}, "DefaultEmptyReason", None, None
+    yield "DefaultEmptyReason-nonbreaking-space", "DefaultEmptyReason", 420, b'\xc2\xa0', {}, "DefaultEmptyReason", None, None
     yield "absent", "Denied", 403, body(message="problem"), {}, "Denied", None, None
     yield "wire-url-untrusted", "Denied", 403, body(detail="future", doc_url="https://evil.test", docUrl="https://evil.test"), {}, "Denied", None, None
     yield "body-identity", None, 403, body(__type="Denied", detail="access/needed"), {}, "Denied/reason-access%2Fneeded", "detail", "access/needed"

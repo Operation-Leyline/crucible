@@ -658,7 +658,7 @@ class _Base:
             self._response_bindings(target, op["response"], response, values)
             return self._codec.convert(target, values, decode=True)
 # BEGIN ERROR DOCUMENTATION
-        documentation_body_valid = not body
+        documentation_body_valid = not body.strip(b" \t\r\n")
 # END ERROR DOCUMENTATION
         try:
             fields = json.loads(body, parse_float=Decimal)

@@ -594,7 +594,7 @@ fn documentation_body_guard_distinguishes_null_from_effective_omission() {
             .reason,
         "access/needed"
     );
-    for body in [b"".as_slice(), b"{}"] {
+    for body in [b"".as_slice(), b"{}", b" \t\r\n "] {
         assert_eq!(
             decode_documented_modelled::<Defaulted>(&INFO, &headers, body)
                 .unwrap()
@@ -602,7 +602,15 @@ fn documentation_body_guard_distinguishes_null_from_effective_omission() {
             "access/needed"
         );
     }
-    for body in [b"null".as_slice(), b"[]", b"42", b"{invalid"] {
+    for body in [
+        b"null".as_slice(),
+        b"[]",
+        b"42",
+        b"{invalid",
+        b"\x0b",
+        b"\x0c",
+        b"\xc2\xa0",
+    ] {
         assert!(decode_documented_modelled::<Defaulted>(&INFO, &headers, body).is_none());
     }
 }

@@ -609,7 +609,7 @@ pub fn decode_documented_modelled<T: DeserializeOwned>(
     body: &[u8],
 ) -> Option<T> {
     if Location::payload(info.members).is_none()
-        && !body.is_empty()
+        && !crucible_wire::text::empty_json_body(body)
         && (body.trim_ascii().first() != Some(&b'{')
             || serde_json::from_slice::<serde::de::IgnoredAny>(body).is_err())
     {

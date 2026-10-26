@@ -623,6 +623,12 @@ async fn main() {
     let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
     let endpoint = format!("http://{}", listener.local_addr().unwrap());
     let cases = [
+        (419, "X-Crucible-Error: DefaultReason\r\n", " \t\r\n ", Some("DefaultReason/reason-access%2Fneeded")),
+        (419, "X-Crucible-Error: DefaultReason\r\n", "\u{000b}", Some("DefaultReason")),
+        (419, "X-Crucible-Error: DefaultReason\r\n", "\u{00a0}", Some("DefaultReason")),
+        (420, "X-Crucible-Error: DefaultEmptyReason\r\n", " \t\r\n ", Some("DefaultEmptyReason/reason-")),
+        (420, "X-Crucible-Error: DefaultEmptyReason\r\n", "\u{000b}", Some("DefaultEmptyReason")),
+        (420, "X-Crucible-Error: DefaultEmptyReason\r\n", "\u{00a0}", Some("DefaultEmptyReason")),
         (421, "X-Crucible-Error: BlobPayloadError\r\nX-Error-Reason: access/needed\r\n", r#"not-json /blob"#, Some("BlobPayloadError/reason-access%2Fneeded")),
         (421, "X-Crucible-Error: BlobPayloadError\r\nX-Error-Reason: \r\n", r#""#, Some("BlobPayloadError/reason-")),
         (419, "X-Crucible-Error: DefaultReason\r\n", r#"{invalid"#, Some("DefaultReason")),
