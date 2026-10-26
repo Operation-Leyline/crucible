@@ -57,6 +57,8 @@ version's section when it is prepared.
 
 ### Fixed
 
+- Operation-body naming collisions now report errors at both source bodies
+  instead of silently replacing another operation's input or output contract.
 - Rust SDK development guides no longer advertise the Crucible version as
   a published SDK Git tag. They retain the public-registry package-substitution
   warning and direct consumers to the SDK publisher for a published release.

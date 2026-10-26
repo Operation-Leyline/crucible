@@ -1,0 +1,7 @@
+schema_version = 1
+[model]
+namespace = "example.collision"
+sources = ["."]
+[model.naming]
+input = "{Operation}Body"
+output = "A{Operation}Body"

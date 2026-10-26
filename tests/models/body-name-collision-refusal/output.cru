@@ -1,0 +1,4 @@
+readonly operation Consume {
+    http GET "/output"
+    output { outputOnly: integer }
+}

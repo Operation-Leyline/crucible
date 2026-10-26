@@ -5765,6 +5765,19 @@ impl<'a> Lowerer<'a> {
                         BodyKind::Output => self.naming.output(&op.name.name),
                     };
                     let body_id = ShapeId::new(self.ns, &name);
+                    if let Some(previous) = self.bodies.get(&body_id) {
+                        if !std::ptr::eq(previous.body, body) {
+                            let (file, span) = (previous.file, previous.body.span);
+                            let message = format!(
+                                "`{name}` is the generated name of more than one operation body"
+                            );
+                            self.error(file, span, &message);
+                            self.error(decl.file, body.span, message);
+                        }
+                        // Keep the first body and its HTTP role for editor recovery;
+                        // repeating the same operation's registration is harmless.
+                        continue;
+                    }
                     match body.kind {
                         BodyKind::Input => self.http_inputs.insert(body_id.clone()),
                         BodyKind::Output => self.http_outputs.insert(body_id.clone()),
