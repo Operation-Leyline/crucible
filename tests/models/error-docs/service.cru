@@ -2,7 +2,7 @@ service Troubleshooting {
     version "1"
     protocol json
     errorDocs "https://docs.example.test/errors/"
-    errors [Denied, HeaderError, PayloadError, PlainError, RequiredReason, MappedReasonError]
+    errors [Denied, HeaderError, PayloadError, PlainError, RequiredReason, MappedReasonError, DefaultReason, DefaultEmptyReason]
     operations [Inspect]
 }
 
@@ -60,4 +60,18 @@ enum Reason {
     DOT = ".."
     UNICODE = "café"
     internal SECRET = "secret"
+}
+
+error DefaultReason {
+    status 419
+    message: string
+    @errorReason
+    detail: Reason = ACCESS
+}
+
+error DefaultEmptyReason {
+    status 420
+    message: string
+    @errorReason
+    detail: Reason = EMPTY
 }

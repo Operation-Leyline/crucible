@@ -8,6 +8,8 @@ pub struct ErrorDocumentation {
     pub url: Option<String>,
     pub reason_member: Option<String>,
     pub reasons: Vec<ErrorReason>,
+    /// Effective default, only when it is a known literal in this audience.
+    pub reason_default: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -104,10 +106,15 @@ impl Service {
             _ => Vec::new(),
         };
         reasons.sort_by(|a, b| a.value.cmp(&b.value).then(a.name.cmp(&b.name)));
+        let reason_default = reason_member
+            .and_then(|member| self.document_wire_default(member))
+            .and_then(|value| value.as_str().map(str::to_owned))
+            .filter(|value| reasons.iter().any(|reason| reason.value == *value));
         Some(ErrorDocumentation {
             url,
             reason_member: reason_member.map(|m| m.name.clone()),
             reasons,
+            reason_default,
         })
     }
 }

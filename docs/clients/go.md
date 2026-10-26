@@ -69,8 +69,8 @@ for pages.HasMorePages() {
 With service [`errorDocs`](../idl/reference.md#error-documentation), response
 metadata provides `DocURL`: read `ServiceError.Metadata.DocURL` after matching a
 service error with `errors.As`. Known designated reasons select their static
-pages; absent, null and future reasons use the error-code page. Unknown error
-identities have an empty URL. Recognized errors with malformed fields retain the
+pages; absent reasons apply their model default; otherwise absence, null and future
+reasons use the error-code page. Unknown error identities have an empty URL. Recognized errors with malformed fields retain the
 code page. The field is added only for configured services.
 
 Every operation takes a context. A payload-free operation uses `Unit{}`.

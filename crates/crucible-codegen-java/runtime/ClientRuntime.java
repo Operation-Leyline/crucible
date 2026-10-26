@@ -902,6 +902,7 @@ final class ClientRuntime {
         if (documentation != null) {
           String member = text(documentation, "reasonMember");
           JsonElement reason = member == null ? null : typedValues.get(member);
+          if (member != null && !typedValues.has(member)) reason = documentation.get("reasonDefault");
           JsonObject pages = documentation.getAsJsonObject("reasonUrls");
           if (reason != null && reason.isJsonPrimitive() && reason.getAsJsonPrimitive().isString()
               && pages.has(reason.getAsString())) {

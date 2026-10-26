@@ -61,8 +61,8 @@ async with AsyncWeatherClient(token=async_access_token) as client:
 
 With service [`errorDocs`](../idl/reference.md#error-documentation), service errors
 provide optional `doc_url`. Known designated reasons select their static pages;
-absent, null and future reasons use the error-code page. Unknown error identities
-have no URL. Recognized errors with malformed fields retain the code page. This
+absent reasons apply their model default; otherwise absence, null and future
+reasons use the error-code page. Unknown error identities have no URL. Recognized errors with malformed fields retain the code page. This
 attribute is added only for configured services, which diagnose an error member
 that claims the same attribute name.
 

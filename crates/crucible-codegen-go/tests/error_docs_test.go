@@ -23,6 +23,11 @@ func TestErrorDocumentationOverHTTP(t *testing.T) {
 		reason      string
 		checkReason bool
 	}{
+		{name: "default-known", code: "DefaultReason", status: 419, body: `{"message":"problem"}`, page: "DefaultReason/reason-access%2Fneeded", reason: "access/needed", checkReason: true},
+		{name: "default-empty", code: "DefaultEmptyReason", status: 420, body: `{"message":"problem"}`, page: "DefaultEmptyReason/reason-", checkReason: true},
+		{name: "default-explicit-null", code: "DefaultReason", status: 419, body: `{"message":"problem","detail":null}`, page: "DefaultReason"},
+		{name: "default-future", code: "DefaultReason", status: 419, body: `{"message":"problem","detail":"future"}`, page: "DefaultReason", reason: "future", checkReason: true},
+
 		{name: "access", code: "Denied", status: 403, body: `{"detail":"access/needed","message":"problem"}`, page: "Denied/reason-access%2Fneeded", reason: "access/needed", checkReason: true},
 		{name: "empty", code: "Denied", status: 403, body: `{"detail":"","message":"problem"}`, page: "Denied/reason-", checkReason: true},
 		{name: "dots", code: "Denied", status: 403, body: `{"detail":"..","message":"problem"}`, page: "Denied/reason-%2E%2E", reason: "..", checkReason: true},
@@ -100,6 +105,10 @@ func TestErrorDocumentationOverHTTP(t *testing.T) {
 			if test.checkReason {
 				var reason string
 				switch e := err.(type) {
+				case *sdk.DefaultReason:
+					reason = string(e.GetDetail())
+				case *sdk.DefaultEmptyReason:
+					reason = string(e.GetDetail())
 				case *sdk.Denied:
 					reason = string(e.GetDetail())
 				case *sdk.HeaderError:

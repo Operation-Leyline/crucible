@@ -129,7 +129,8 @@ not establish deployed service or application executor behavior.
 
 With service [`errorDocs`](../idl/reference.md#error-documentation), `ServiceError`
 provides nullable `docUrl()`. Known designated reasons select their static pages;
-absent, null and future reasons use the error-code page. An unknown error identity
+absent reasons apply their model default; otherwise absence, null and future
+reasons use the error-code page. An unknown error identity
 has no URL. Recognized errors with malformed fields retain the code page. The
 accessor is added only for configured services; a configured error member cannot
 claim the same accessor name.

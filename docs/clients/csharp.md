@@ -75,7 +75,8 @@ members are not read.
 
 With service [`errorDocs`](../idl/reference.md#error-documentation), service errors
 provide nullable `DocUrl`. Known designated reasons select their static pages;
-absent, null and future reasons use the error-code page. Unknown error identities
+absent reasons apply their model default; otherwise absence, null and future
+reasons use the error-code page. Unknown error identities
 have no URL. Recognized errors with malformed fields retain the code page. This
 property is added only for configured services; a configured error member cannot
 claim the same property name.

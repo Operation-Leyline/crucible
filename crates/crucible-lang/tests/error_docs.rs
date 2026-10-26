@@ -185,3 +185,44 @@ fn direct_ir_bases_derive_the_same_urls_as_compiler_normalized_bases() {
         );
     }
 }
+
+#[test]
+fn reason_defaults_are_wire_literals_filtered_by_the_projected_reason_set() {
+    let service = load();
+    for (name, expected) in [
+        ("DefaultReason", Some("access/needed")),
+        ("DefaultEmptyReason", Some("")),
+        ("Denied", None),
+    ] {
+        assert_eq!(
+            service
+                .error_documentation(&id(name))
+                .unwrap()
+                .reason_default
+                .as_deref(),
+            expected
+        );
+    }
+    let mut projected = project(&service, Audience::External).unwrap();
+    // Even manually assembled/projected IR cannot put a removed or future
+    // literal into the shared runtime's default selection metadata.
+    for default in ["secret", "future"] {
+        let Shape::Structure(error) = projected.shapes.get_mut(&id("DefaultReason")).unwrap()
+        else {
+            panic!()
+        };
+        error
+            .members
+            .iter_mut()
+            .find(|m| m.name == "detail")
+            .unwrap()
+            .default = Some(serde_json::json!(default));
+        assert_eq!(
+            projected
+                .error_documentation(&id("DefaultReason"))
+                .unwrap()
+                .reason_default,
+            None
+        );
+    }
+}

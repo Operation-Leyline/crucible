@@ -244,7 +244,12 @@ pub fn error_documentation(service: &Service, id: &crucible_ir::ShapeId) -> Opti
         .iter()
         .filter_map(|reason| reason.url.as_ref().map(|url| (&reason.value, url)))
         .collect();
-    Some(json!({"url": url, "reasonMember": documentation.reason_member, "reasonUrls": reasons}))
+    let mut value =
+        json!({"url": url, "reasonMember": documentation.reason_member, "reasonUrls": reasons});
+    if let Some(default) = documentation.reason_default {
+        value["reasonDefault"] = json!(default);
+    }
+    Some(value)
 }
 
 #[cfg(test)]

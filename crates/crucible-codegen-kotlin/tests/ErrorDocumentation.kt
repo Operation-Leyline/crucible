@@ -10,6 +10,10 @@ private data class Case(val status: Int, val identity: String?, val body: String
 fun main() = runBlocking {
     fun denied(reason: String, suffix: String) = Case(403, "Denied", "{\"message\":\"denied\",\"detail\":$reason}", null, "Denied$suffix")
     val cases = listOf(
+        Case(419, "DefaultReason", "{\"message\":\"denied\"}", null, "DefaultReason/reason-access%2Fneeded", true),
+        Case(420, "DefaultEmptyReason", "{\"message\":\"denied\"}", null, "DefaultEmptyReason/reason-", true),
+        Case(419, "DefaultReason", "{\"message\":\"denied\",\"detail\":null}", null, "DefaultReason", false),
+        Case(419, "DefaultReason", "{\"message\":\"denied\",\"detail\":\"future\"}", null, "DefaultReason", true),
         denied("\"access/needed\"", "/reason-access%2Fneeded"),
         denied("\"\"", "/reason-"), denied("\"..\"", "/reason-%2E%2E"),
         denied("\"caf\u00e9\"", "/reason-caf%C3%A9"), denied("null", ""),

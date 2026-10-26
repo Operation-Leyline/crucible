@@ -215,13 +215,17 @@ type memberDescription struct {
 type errorDocumentation struct {
     URL string
     ReasonMember *string
+    ReasonDefault *string
     ReasonURLs map[string]string
 }
 
 func errorDocURL(documentation *errorDocumentation, values map[string]any) string {
     if documentation == nil { return "" }
-    if documentation.ReasonMember != nil {
-        if reason, ok := values[*documentation.ReasonMember].(string); ok {
+    // nil values classify a malformed response; its code page remains authoritative.
+    if documentation.ReasonMember != nil && values != nil {
+        value, present := values[*documentation.ReasonMember]
+        if !present && documentation.ReasonDefault != nil { value = *documentation.ReasonDefault }
+        if reason, ok := value.(string); ok {
             if url, exists := documentation.ReasonURLs[reason]; exists { return url }
         }
     }

@@ -617,12 +617,16 @@ fn independent_error_documentation_consumer_decodes_body_header_payload_and_futu
     fs::write(consumer.join("Cargo.toml"), "[package]\nname = 'error-docs-consumer'\nversion = '0.1.0'\nedition = '2024'\n[dependencies]\nerror-docs-sdk = { path = '../sdk' }\ntokio = { version = '1', features = ['rt', 'macros'] }\n[workspace]\n").unwrap();
     fs::write(consumer.join("src/main.rs"), r##"
 use std::io::{Read, Write};
-use error_docs_sdk::{Config, Denied, Error, InspectError, Reason, TroubleshootingClient, TroubleshootingException};
+use error_docs_sdk::{Config, DefaultReason, DefaultEmptyReason, Denied, Error, InspectError, Reason, TroubleshootingClient, TroubleshootingException};
 #[tokio::main(flavor = "current_thread")]
 async fn main() {
     let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
     let endpoint = format!("http://{}", listener.local_addr().unwrap());
     let cases = [
+        (419, "", r#"{"__type":"DefaultReason","message":"denied"}"#, Some("DefaultReason/reason-access%2Fneeded")),
+        (420, "", r#"{"__type":"DefaultEmptyReason","message":"denied"}"#, Some("DefaultEmptyReason/reason-")),
+        (419, "", r#"{"__type":"DefaultReason","message":"denied","detail":null}"#, Some("DefaultReason")),
+        (419, "", r#"{"__type":"DefaultReason","message":"denied","detail":"future"}"#, Some("DefaultReason")),
         (403, "", r#"{"__type":"Denied","message":"denied","detail":"access/needed"}"#, Some("Denied/reason-access%2Fneeded")),
         (403, "", r#"{"__type":"Denied","message":"denied","detail":"future"}"#, Some("Denied")),
         (403, "", r#"{"__type":"Denied","message":"denied","detail":null}"#, Some("Denied")),
@@ -657,6 +661,10 @@ async fn main() {
         }
     }
     server.join().unwrap();
+    let defaulted = DefaultReason::builder().message("denied").build().unwrap();
+    assert_eq!(defaulted.doc_url(), Some("https://docs.example.test/errors/DefaultReason/reason-access%2Fneeded"));
+    let empty = DefaultEmptyReason::builder().message("denied").build().unwrap();
+    assert_eq!(empty.doc_url(), Some("https://docs.example.test/errors/DefaultEmptyReason/reason-"));
     let modeled = Denied::builder().message("denied").detail(Reason::Dot).build().unwrap();
     assert_eq!(modeled.doc_url(), Some("https://docs.example.test/errors/Denied/reason-%2E%2E"));
     assert_eq!(InspectError::Denied(modeled).doc_url(), Some("https://docs.example.test/errors/Denied/reason-%2E%2E"));

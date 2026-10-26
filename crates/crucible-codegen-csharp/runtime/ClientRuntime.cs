@@ -524,7 +524,7 @@ internal sealed partial class ClientRuntime : IDisposable
                 error = (ServiceError)Decode(target, body)!;
                 // BEGIN ERROR DOCUMENTATION
                 var member = Text(documentation?["reasonMember"]);
-                var reason = member is null ? null : StringValue(body[member]);
+                var reason = member is null ? null : StringValue(body.ContainsKey(member) ? body[member] : documentation?["reasonDefault"]);
                 if (reason is not null && documentation?["reasonUrls"] is JsonObject pages
                     && pages.TryGetPropertyValue(reason, out var page)) documentationUrl = Text(page);
                 // END ERROR DOCUMENTATION

@@ -2255,3 +2255,48 @@ fn error_retypes_reconcile_reason_designation_with_the_restored_member() {
         }
     }
 }
+
+#[test]
+fn historical_error_reason_defaults_come_from_the_restored_member() {
+    let baseline = r#"service Independent { version "v1" protocol json errors [Problem] operations [Read] }
+        readonly operation Read { http GET "/read" output {} }
+        error Problem { status 409 message: string detail: OldReason = EMPTY legacy?: OldReason }
+        enum OldReason { EMPTY = "access/needed" }"#;
+    let current = baseline
+        .replace(
+            "protocol json",
+            "protocol json errorDocs \"https://docs.test/errors\"",
+        )
+        .replace(
+            "detail: OldReason = EMPTY",
+            "@errorReason detail: Reason = ACCESS",
+        )
+        + " enum Reason { ACCESS = \"access/needed\" }";
+    let dir = package_from(
+        "error-reason-default-retype",
+        baseline,
+        &current,
+        "migration \"v2\" from \"v1\" { retype Problem.detail -> Reason by hook }",
+    );
+    let service =
+        crucible_lang::load_versioned_service(&dir).unwrap_or_else(|error| panic!("{error}"));
+    let id = crucible_ir::ShapeId::new("example.shop", "Problem");
+    assert_eq!(
+        service
+            .error_documentation(&id)
+            .unwrap()
+            .reason_default
+            .as_deref(),
+        Some("access/needed")
+    );
+    let projected = crucible_ir::versions::projections(&service).unwrap();
+    assert_eq!(
+        projected[0]
+            .service
+            .error_documentation(&id)
+            .unwrap()
+            .reason_default
+            .as_deref(),
+        Some("access/needed")
+    );
+}

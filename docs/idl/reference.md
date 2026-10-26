@@ -511,8 +511,10 @@ payload bindings. A member named `reason` has no special role without the
 annotation. The bundled `ValidationException.reason` is designated explicitly.
 
 Descriptions list designated reasons even without a base. With a base, SDK errors
-select a static reason page for a known value and the code page for absent, null
-or future values. Unknown error identities have no documentation URL. External
+select a static reason page for a known effective value. An absent reason applies
+its model default, including an empty-string default. Without a known default,
+absence uses the code page, as do explicit null and future values. Unknown error
+identities have no documentation URL. External
 outputs omit internal reason values. Documentation metadata changes no error wire
 field and requires no wire migration. See [API references](../docs.md#error-documentation-urls)
 and the client guides for [Rust](../clients/rust.md#models-and-errors),

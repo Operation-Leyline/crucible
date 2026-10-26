@@ -226,6 +226,42 @@
       "header": null,
       "docUrl": "https://docs.example.test/errors/Denied",
       "typed": true
+    },
+    {
+      "name": "default-known",
+      "status": 419,
+      "identity": "DefaultReason",
+      "body": "{\"message\": \"denied\"}",
+      "header": null,
+      "docUrl": "https://docs.example.test/errors/DefaultReason/reason-access%2Fneeded",
+      "typed": true
+    },
+    {
+      "name": "default-empty",
+      "status": 420,
+      "identity": "DefaultEmptyReason",
+      "body": "{\"message\": \"denied\"}",
+      "header": null,
+      "docUrl": "https://docs.example.test/errors/DefaultEmptyReason/reason-",
+      "typed": true
+    },
+    {
+      "name": "default-null",
+      "status": 419,
+      "identity": "DefaultReason",
+      "body": "{\"message\": \"denied\", \"detail\": null}",
+      "header": null,
+      "docUrl": "https://docs.example.test/errors/DefaultReason",
+      "typed": false
+    },
+    {
+      "name": "default-future",
+      "status": 419,
+      "identity": "DefaultReason",
+      "body": "{\"message\": \"denied\", \"detail\": \"future\"}",
+      "header": null,
+      "docUrl": "https://docs.example.test/errors/DefaultReason",
+      "typed": true
     }
   ]
 }

@@ -1,11 +1,15 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { TroubleshootingClient, TroubleshootingException, Denied } from "./generated-error-docs/src/index.js";
+import { TroubleshootingClient, TroubleshootingException, Denied, DefaultReason, DefaultEmptyReason } from "./generated-error-docs/src/index.js";
 import { NotFoundError } from "./generated/src/index.js";
 
 const base = "https://docs.example.test/errors";
 
 for (const [name, status, body, headers, expected] of [
+  ["default known", 419, { __type: "DefaultReason", message: "denied" }, {}, `${base}/DefaultReason/reason-access%2Fneeded`],
+  ["default empty", 420, { __type: "DefaultEmptyReason", message: "denied" }, {}, `${base}/DefaultEmptyReason/reason-`],
+  ["default null", 419, { __type: "DefaultReason", message: "denied", detail: null }, {}, `${base}/DefaultReason`],
+  ["default future", 419, { __type: "DefaultReason", message: "denied", detail: "future" }, {}, `${base}/DefaultReason`],
   ["body", 403, { __type: "Denied", message: "denied", detail: "access/needed" }, {}, `${base}/Denied/reason-access%2Fneeded`],
   ["empty", 403, { __type: "Denied", message: "denied", detail: "" }, {}, `${base}/Denied/reason-`],
   ["dot", 403, { __type: "Denied", message: "denied", detail: ".." }, {}, `${base}/Denied/reason-%2E%2E`],
@@ -43,4 +47,15 @@ test("constructing an error does not treat an inherited property as its reason",
   const error = new Denied(Object.create({ detail: "access/needed" }), { status: 403, headers: new Headers() });
   assert.equal(error.docUrl, `${base}/Denied`);
   assert.ok(!Object.hasOwn(error, "detail"));
+});
+
+test("constructed defaulted errors distinguish undefined from null and future values", () => {
+  const metadata = { status: 419, headers: new Headers() };
+  for (const fields of [{}, { detail: undefined }]) {
+    assert.equal(new DefaultReason(fields, metadata).docUrl, `${base}/DefaultReason/reason-access%2Fneeded`);
+  }
+  for (const detail of [null, "future"]) {
+    assert.equal(new DefaultReason({ detail }, metadata).docUrl, `${base}/DefaultReason`);
+  }
+  assert.equal(new DefaultEmptyReason({}, metadata).docUrl, `${base}/DefaultEmptyReason/reason-`);
 });

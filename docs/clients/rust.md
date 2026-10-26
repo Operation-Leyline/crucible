@@ -211,8 +211,9 @@ When the service declares [`errorDocs`](../idl/reference.md#error-documentation)
 generated modeled errors, operation error enums and the service exception enum
 provide `doc_url() -> Option<&'static str>`. The runtime's `Error<E>` and
 `ServiceError<E>` expose the same method for generated operation errors. A known
-designated reason selects its static page; absent, null and future reason values
-select the code page. An unknown error identity or a transport failure has no URL.
+designated reason selects its static page. An absent reason applies its model
+default; otherwise absence, null and future values select the code page. An unknown
+error identity or a transport failure has no URL.
 An error recognized by code but with malformed modeled fields retains its code
 page through `Error<E>::doc_url()`. Packages without a documentation base keep
 their generated model APIs unchanged.

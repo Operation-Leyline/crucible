@@ -506,12 +506,14 @@ export class ServiceException extends ServiceError {}
 export interface ErrorDocumentation {
   readonly url: string;
   readonly reasonMember: string | null;
+  readonly reasonDefault?: string;
   readonly reasonUrls: Readonly<Record<string, string>>;
 }
-/** Select only declared reason pages; absent, null and future values use the code page. */
+/** Select declared pages from the effective value; only absence applies the model default. */
 export function errorDocUrl(documentation: ErrorDocumentation, fields: Record<string, unknown>): string {
-  const reason = documentation.reasonMember === null || !Object.hasOwn(fields, documentation.reasonMember)
+  const value = documentation.reasonMember === null || !Object.hasOwn(fields, documentation.reasonMember)
     ? undefined : fields[documentation.reasonMember];
+  const reason = value === undefined ? documentation.reasonDefault : value;
   return typeof reason === "string" && Object.hasOwn(documentation.reasonUrls, reason)
     ? documentation.reasonUrls[reason] : documentation.url;
 }

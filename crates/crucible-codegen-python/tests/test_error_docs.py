@@ -25,6 +25,10 @@ def cases():
         ("null", None, None),
     ):
         yield label, "Denied", 403, body(detail=value), {}, "Denied" + ("/" + suffix if suffix else ""), "detail", value
+    yield "default-known", "DefaultReason", 419, body(), {}, "DefaultReason/reason-access%2Fneeded", "detail", "access/needed"
+    yield "default-empty", "DefaultEmptyReason", 420, body(), {}, "DefaultEmptyReason/reason-", "detail", ""
+    yield "default-null", "DefaultReason", 419, body(detail=None), {}, "DefaultReason", None, None
+    yield "default-future", "DefaultReason", 419, body(detail="future"), {}, "DefaultReason", "detail", "future"
     yield "absent", "Denied", 403, body(message="problem"), {}, "Denied", None, None
     yield "wire-url-untrusted", "Denied", 403, body(detail="future", doc_url="https://evil.test", docUrl="https://evil.test"), {}, "Denied", None, None
     yield "body-identity", None, 403, body(__type="Denied", detail="access/needed"), {}, "Denied/reason-access%2Fneeded", "detail", "access/needed"

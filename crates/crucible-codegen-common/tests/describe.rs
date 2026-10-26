@@ -98,6 +98,18 @@ fn error_reasons_and_urls_use_the_projected_ir_in_descriptions_and_runtime_schem
         "https://docs.example.test/errors/HeaderError/reason-access%2Fneeded"
     );
     assert!(docs["reasonUrls"].get("secret").is_none());
+    assert!(docs.get("reasonDefault").is_none());
+    for (name, expected) in [
+        ("DefaultReason", "access/needed"),
+        ("DefaultEmptyReason", ""),
+    ] {
+        let docs =
+            &runtime["shapes"][format!("example.error_docs#{name}")]["error"]["documentation"];
+        assert_eq!(docs["reasonDefault"], expected);
+        assert_eq!(docs.as_object().unwrap().len(), 4);
+    }
+    assert_eq!(docs.as_object().unwrap().len(), 3);
+
     assert_eq!(
         description.shapes["example.error_docs#PlainError"]["error"]["reasons"],
         serde_json::json!([])

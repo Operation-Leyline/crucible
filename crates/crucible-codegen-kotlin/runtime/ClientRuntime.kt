@@ -291,7 +291,8 @@ internal class ClientRuntime(input: ClientConfig, endpoint: String,
             val decoded = codec.decode(target, JsonObject(body)) as ServiceError
             // BEGIN ERROR DOCUMENTATION
             val member = documentation?.text("reasonMember")
-            val reason = (member?.let { body[it] } as? JsonPrimitive)?.takeIf { it.isString }?.content
+            val value = member?.let { if (body.containsKey(it)) body[it] else documentation?.get("reasonDefault") }
+            val reason = (value as? JsonPrimitive)?.takeIf { it.isString }?.content
             if (reason != null) {
                 val pages = documentation?.get("reasonUrls") as? JsonObject
                 if (pages?.containsKey(reason) == true) documentationUrl = pages.text(reason)

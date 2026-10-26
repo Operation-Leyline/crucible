@@ -17,6 +17,10 @@ public final class ErrorDocumentationTest {
   }
   public static void main(String[] args) throws Exception {
     var cases = List.of(
+        new Case(419, "DefaultReason", "{\"message\":\"denied\"}", null, "DefaultReason/reason-access%2Fneeded", true),
+        new Case(420, "DefaultEmptyReason", "{\"message\":\"denied\"}", null, "DefaultEmptyReason/reason-", true),
+        new Case(419, "DefaultReason", "{\"message\":\"denied\",\"detail\":null}", null, "DefaultReason", false),
+        new Case(419, "DefaultReason", "{\"message\":\"denied\",\"detail\":\"future\"}", null, "DefaultReason", true),
         denied("\"access/needed\"", "/reason-access%2Fneeded"),
         denied("\"\"", "/reason-"), denied("\"..\"", "/reason-%2E%2E"),
         denied("\"caf\u00e9\"", "/reason-caf%C3%A9"), denied("null", ""),
