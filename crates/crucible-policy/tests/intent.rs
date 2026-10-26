@@ -76,3 +76,24 @@ fn intent_severity_and_exceptions_use_the_existing_policy_path() {
     assert_eq!(report.findings[0].rule, "documentation.required");
     assert_eq!(report.findings[0].severity, Severity::Error);
 }
+
+#[test]
+fn intent_context_a_thematic_break_does_not_count_as_guidance() {
+    let mut service = service();
+    let operation = service
+        .operations
+        .iter_mut()
+        .find(|op| op.name() == "GetItem")
+        .unwrap();
+    operation.intent = crucible_ir::ir::OperationIntent::from_markdown(
+        "## Use when\n\n---\n\n## Don't use when\nUse a list for several items.",
+    );
+    let report = check(&service, &Config::parse("[rules.intent]").unwrap());
+    assert!(
+        report
+            .findings
+            .iter()
+            .any(|finding| finding.shape == "example.intent#GetItem"
+                && finding.rule == "intent.operations")
+    );
+}

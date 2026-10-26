@@ -57,12 +57,15 @@ readonly operation GetItem { http GET "/item" }
 Use the exact plain headings `## Use when` and `## Don't use when`, outside
 lists, block quotes, and code blocks. CommonMark's equivalent level-two setext
 heading also works. Each section continues to the next top-level level-one or
-level-two heading, including any level-three subheadings. Empty sections are
-absent; repeated sections concatenate in source order. Other headings and prose
+level-two heading, including any level-three subheadings. Sections without
+guidance text (a divider alone, for example) are absent; repeated sections
+concatenate in source order. Other headings and prose
 remain ordinary documentation. Inline formatting in the section title does not
 declare intent; formatting, lists, code and links in its body are preserved.
-Reference-link definitions elsewhere in the comment accompany extracted text
-when needed to keep its links working.
+Extraction removes blank boundary lines while preserving content indentation,
+trailing spaces and line endings. The original comment's winning reference-link
+definitions used by a section precede its extracted text, preserving targets and
+titles even when the section contains duplicate definitions or an unclosed fence.
 
 The compiler records these sections in `Operation::intent`; it keeps the complete
 original Markdown in `Operation::docs`. This is a documentation convention, with

@@ -34,7 +34,7 @@ fn operation_intent_opens_the_reference_without_duplicating_the_original_section
     .unwrap();
     assert_eq!(
         json["operations"]["example.intent#GetItem"]["intent"]["useWhen"]["markdown"],
-        "You know the item's **identifier**."
+        "You know the item's **identifier**.\n"
     );
     let all = &generated
         .iter()

@@ -23,11 +23,11 @@ fn lowering_extracts_intent_and_keeps_all_original_documentation() {
     let intent = get.intent.as_ref().unwrap();
     assert_eq!(
         intent.use_when.as_deref(),
-        Some("You know the item's **identifier**.")
+        Some("You know the item's **identifier**.\n")
     );
     assert_eq!(
         intent.dont_use_when.as_deref(),
-        Some("You need several items; use [ListItems].")
+        Some("You need several items; use [ListItems].\n")
     );
     assert!(intent.is_complete());
     assert_eq!(

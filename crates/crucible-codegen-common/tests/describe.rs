@@ -18,7 +18,7 @@ fn operation_intent_is_additive_rendered_metadata_and_original_docs_stay_intact(
     let get = &description.operations["example.intent#GetItem"];
     assert_eq!(
         get["intent"]["useWhen"]["markdown"],
-        "You know the item's **identifier**."
+        "You know the item's **identifier**.\n"
     );
     assert_eq!(
         get["intent"]["useWhen"]["text"],
