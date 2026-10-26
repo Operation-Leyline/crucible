@@ -111,3 +111,9 @@ id = 16
 languages = ["rust", "ts", "python", "go", "java", "kotlin", "csharp", "swift", "dart", "php", "ruby", "cpp", "c", "r"]
 kind = "patch"
 summary = "Git channel install_url selects the consumer repository for generated installation guidance; Rust development exports no longer advertise the Crucible version as a released SDK tag."
+
+[[change]]
+id = 17
+languages = ["rust", "ts", "python", "go", "java", "kotlin", "csharp", "swift", "dart", "php", "ruby", "cpp", "c", "r"]
+kind = "patch"
+summary = "Git-channel development exports in every language omit invented release tags; Rust guides preserve home-relative SCP paths in Cargo SSH URLs."

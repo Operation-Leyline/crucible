@@ -364,7 +364,9 @@ struct Install {
 }
 
 fn install(surface: &Surface, guide: &Guide) -> Install {
-    if guide.public_registry && !guide.published() {
+    let git_development =
+        matches!(guide.metadata.registry, Some(Registry::Git)) && guide.metadata.git.is_none();
+    if git_development || (guide.public_registry && !guide.published()) {
         return Install {
             lines: Vec::new(),
             manifest: None,

@@ -61,6 +61,10 @@ version's section when it is prepared.
   conversion chains and identical types permit it. Unproven Rust representation
   round trips retain conversion. Frozen strictness, historical operation
   metadata and authentication behavior remain unchanged.
+- Git-channel SDK development exports in every client language omit invented
+  release tags and identify the package as a local development export. Rust
+  installation guides preserve home-relative SCP repository paths when
+  converting them to Cargo SSH URLs; explicit absolute paths remain absolute.
 - Rust SDK development guides no longer advertise the Crucible version as
   a published SDK Git tag. They retain the public-registry package-substitution
   warning and direct consumers to the SDK publisher for a published release.
