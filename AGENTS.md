@@ -37,8 +37,10 @@ compiling rather than editing it to pass, unless the policy allows the break.
 `tools/test-consumers.py` builds with `-D deprecated`, so in-repo consumers use
 the current API, never a deprecated shim.
 
-Changes land by pull request (branch `claude/<slug>`, `gh pr create`),
-reviewed by CodeRabbit; never push to main.
+Changes land by pull request (branch `claude/<slug>`, `gh pr create`); never push to main.
+Require green CI and one completed AI review before merging. Fix or explicitly
+dismiss every finding with evidence. Any AI reviewer is sufficient; no named
+provider or second AI review is required.
 
 ## Boundaries
 
