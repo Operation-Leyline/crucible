@@ -165,7 +165,7 @@ fn copy_checkout(root: &Path, repository: &Path, build_target: Option<&Path>) {
     let root = root.canonicalize().unwrap();
     let build_target = build_target
         .and_then(|target| target.canonicalize().ok())
-        .filter(|target| target != &root);
+        .filter(|target| target != &root && target.starts_with(&root));
     let output = Command::new("git")
         .arg("-C")
         .arg(&root)
@@ -437,4 +437,30 @@ fn scratch_checkout_excludes_only_the_active_cargo_target() {
         fs::read_to_string(copy.join(".codex-target/source.rs")).unwrap(),
         "// nonignored source"
     );
+}
+
+#[test]
+fn scratch_checkout_preserves_sources_with_external_cargo_targets() {
+    let directory = tempfile::tempdir().unwrap();
+    let root = directory.path().join("repository");
+    init(&root, "https://github.com/Operation-Leyline/crucible");
+    let sibling = directory.path().join("sibling target");
+    fs::create_dir(&sibling).unwrap();
+    fs::write(root.join("new module.rs"), "// untracked source").unwrap();
+    for (index, target) in [directory.path(), sibling.as_path(), root.as_path()]
+        .into_iter()
+        .enumerate()
+    {
+        let copy = directory.path().join(format!("copy-{index}"));
+        fs::create_dir(&copy).unwrap();
+        copy_checkout(&root, &copy, Some(target));
+        assert_eq!(
+            fs::read_to_string(copy.join("Cargo.toml")).unwrap(),
+            fs::read_to_string(root.join("Cargo.toml")).unwrap()
+        );
+        assert_eq!(
+            fs::read_to_string(copy.join("new module.rs")).unwrap(),
+            "// untracked source"
+        );
+    }
 }
