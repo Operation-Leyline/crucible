@@ -21,6 +21,7 @@ fn git(root: &Path, args: &[&str]) -> String {
             .arg("-C")
             .arg(root)
             .args(args)
+            .env("GIT_CONFIG_COUNT", "0")
             .output()
             .unwrap(),
     )
@@ -81,6 +82,7 @@ fn init(root: &Path, repository: &str) {
         "[package]\nname = 'crucible-client-runtime-rust'\n",
     )
     .unwrap();
+    fs::write(root.join(".gitignore"), "").unwrap();
     git(root, &["init", "-q", "-b", "main"]);
     git(root, &["config", "user.name", "Crucible provenance test"]);
     git(
@@ -161,19 +163,21 @@ fn a_vendored_emitter_does_not_capture_the_enclosing_consumers_revision() {
     assert!(!probe(&executable, &vendored).contains("CRUCIBLE_GENERATOR_REVISION"));
 }
 
-#[test]
-fn automatic_runtime_revision_survives_an_actual_cargo_git_source_checkout() {
-    let directory = tempfile::tempdir().unwrap();
-    let root = Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../..")
-        .canonicalize()
-        .unwrap();
-    let repository = directory.path().join("repository");
-    fs::create_dir(&repository).unwrap();
+fn copy_checkout(root: &Path, repository: &Path, build_target: Option<&Path>) {
+    let root = root.canonicalize().unwrap();
+    let build_target = build_target
+        .and_then(|target| target.canonicalize().ok())
+        .filter(|target| target != &root && target.starts_with(&root));
     let output = Command::new("git")
         .arg("-C")
         .arg(&root)
-        .args(["ls-files", "-z"])
+        .args([
+            "ls-files",
+            "-z",
+            "--cached",
+            "--others",
+            "--exclude-standard",
+        ])
         .output()
         .unwrap();
     assert!(output.status.success());
@@ -184,43 +188,36 @@ fn automatic_runtime_revision_survives_an_actual_cargo_git_source_checkout() {
     {
         let relative = std::str::from_utf8(relative).unwrap();
         let source = root.join(relative);
+        if build_target
+            .as_ref()
+            .is_some_and(|target| source.starts_with(target))
+        {
+            continue;
+        }
         if source.is_file() {
             let target = repository.join(relative);
             fs::create_dir_all(target.parent().unwrap()).unwrap();
             fs::copy(source, target).unwrap();
         }
     }
-    // The feature under test may still be uncommitted in the caller checkout.
-    fn copy_tree(source: &Path, destination: &Path) {
-        fs::create_dir_all(destination).unwrap();
-        for entry in fs::read_dir(source).unwrap() {
-            let entry = entry.unwrap();
-            if matches!(
-                entry.file_name().to_str(),
-                Some("target" | ".codex-target" | ".git")
-            ) {
-                continue;
-            }
-            let target = destination.join(entry.file_name());
-            if entry.file_type().unwrap().is_dir() {
-                copy_tree(&entry.path(), &target);
-            } else {
-                fs::copy(entry.path(), target).unwrap();
-            }
-        }
-    }
-    for crate_name in [
-        "crucible-codegen-rust",
-        "crucible-codegen-common",
-        "crucible-revision",
-    ] {
-        // The tracked copy may be removed (a moved build script).
-        let _ = fs::remove_dir_all(repository.join("crates").join(crate_name));
-        copy_tree(
-            &root.join("crates").join(crate_name),
-            &repository.join("crates").join(crate_name),
-        );
-    }
+}
+
+#[test]
+fn automatic_runtime_revision_survives_an_actual_cargo_git_source_checkout() {
+    let directory = tempfile::tempdir().unwrap();
+    let root = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../..")
+        .canonicalize()
+        .unwrap();
+    let repository = directory.path().join("repository");
+    fs::create_dir(&repository).unwrap();
+    // Cargo identifies its active output directory even when target-dir is
+    // configured outside Git's ignore rules. Other nonignored paths are sources.
+    copy_checkout(
+        &root,
+        &repository,
+        Path::new(env!("CARGO_TARGET_TMPDIR")).parent(),
+    );
     git(&repository, &["init", "-q", "-b", "main"]);
     git(
         &repository,
@@ -239,6 +236,24 @@ fn automatic_runtime_revision_survives_an_actual_cargo_git_source_checkout() {
     let consumer = directory.path().join("consumer");
     fs::create_dir_all(consumer.join("src")).unwrap();
     fs::write(consumer.join("Cargo.toml"), format!("[package]\nname = 'git-source-sdk-emitter'\nversion = '0.1.0'\nedition = '2024'\n[dependencies]\ncrucible-codegen-rust = {{ git = {url:?}, rev = {revision:?} }}\ncrucible-ir = {{ git = {url:?}, rev = {revision:?} }}\ncrucible-lang = {{ git = {url:?}, rev = {revision:?} }}\n[workspace]\n")).unwrap();
+    fn copy_tree(source: &Path, destination: &Path) {
+        fs::create_dir_all(destination).unwrap();
+        for entry in fs::read_dir(source).unwrap() {
+            let entry = entry.unwrap();
+            if matches!(
+                entry.file_name().to_str(),
+                Some("target" | ".codex-target" | ".git")
+            ) {
+                continue;
+            }
+            let target = destination.join(entry.file_name());
+            if entry.file_type().unwrap().is_dir() {
+                copy_tree(&entry.path(), &target);
+            } else {
+                fs::copy(entry.path(), target).unwrap();
+            }
+        }
+    }
     copy_tree(
         &root.join("tests/models/weather"),
         &consumer.join("weather"),
@@ -265,7 +280,7 @@ fn automatic_runtime_revision_survives_an_actual_cargo_git_source_checkout() {
     assert!(dependency.get("path").is_none());
 }
 
-/// A checkout whose tracked files differ from HEAD has no verified
+/// A checkout whose source files differ from HEAD has no verified
 /// revision: the build script marks it dirty, and watches the sources so
 /// the mark never goes stale.
 #[test]
@@ -304,4 +319,400 @@ fn uncommitted_changes_mark_the_revision_dirty() {
     )
     .unwrap();
     assert!(probe(&executable, &root).contains("cargo::rustc-env=CRUCIBLE_GENERATOR_DIRTY=1"));
+}
+
+#[test]
+fn scratch_checkout_includes_untracked_files_but_excludes_ignored_files() {
+    let directory = tempfile::tempdir().unwrap();
+    let root = directory.path().join("repository");
+    init(&root, "https://github.com/Operation-Leyline/crucible");
+    for name in [
+        "crucible-codegen-common",
+        "crucible-revision",
+        "crucible-ir",
+    ] {
+        fs::create_dir_all(root.join("crates").join(name).join("src")).unwrap();
+        fs::write(
+            root.join("crates").join(name).join("src/lib.rs"),
+            "original",
+        )
+        .unwrap();
+    }
+    fs::write(root.join(".gitignore"), "*.ignored\n").unwrap();
+    git(&root, &["add", "."]);
+    git(&root, &["commit", "-qm", "tracked fixture"]);
+    fs::write(
+        root.join("crates/crucible-ir/src/lib.rs"),
+        "mod projection;",
+    )
+    .unwrap();
+    fs::remove_file(root.join("crates/crucible-codegen-common/src/lib.rs")).unwrap();
+    fs::write(
+        root.join("crates/crucible-ir/src/projection.rs"),
+        "// new module",
+    )
+    .unwrap();
+    fs::create_dir_all(root.join("docs")).unwrap();
+    fs::write(root.join("docs/new guide.md"), "new guide").unwrap();
+    fs::write(
+        root.join("crates/crucible-revision/src/cache.ignored"),
+        "ignored",
+    )
+    .unwrap();
+    let copy = directory.path().join("copy");
+    fs::create_dir(&copy).unwrap();
+    copy_checkout(&root, &copy, None);
+    assert_eq!(
+        fs::read_to_string(copy.join("crates/crucible-ir/src/lib.rs")).unwrap(),
+        "mod projection;"
+    );
+    assert!(
+        !copy
+            .join("crates/crucible-codegen-common/src/lib.rs")
+            .exists()
+    );
+    assert_eq!(
+        fs::read_to_string(copy.join("crates/crucible-ir/src/projection.rs")).unwrap(),
+        "// new module"
+    );
+    assert_eq!(
+        fs::read_to_string(copy.join("docs/new guide.md")).unwrap(),
+        "new guide"
+    );
+    assert!(
+        !copy
+            .join("crates/crucible-revision/src/cache.ignored")
+            .exists()
+    );
+}
+
+#[test]
+fn untracked_source_files_mark_revision_dirty_but_ignored_files_and_docs_do_not() {
+    let directory = tempfile::tempdir().unwrap();
+    let executable = probe_binary(directory.path());
+    let root = directory.path().join("repository");
+    init(&root, "https://github.com/Operation-Leyline/crucible");
+    fs::write(root.join(".gitignore"), "*.ignored\n").unwrap();
+    git(&root, &["add", ".gitignore"]);
+    git(&root, &["commit", "-qm", "ignore build artifacts"]);
+    fs::create_dir_all(root.join("docs")).unwrap();
+    fs::write(root.join("docs/new guide.md"), "guide").unwrap();
+    fs::write(
+        root.join("crates/crucible-codegen-rust/cache.ignored"),
+        "cache",
+    )
+    .unwrap();
+    let clean = probe(&executable, &root);
+    assert!(clean.contains("CRUCIBLE_GENERATOR_REVISION="));
+    assert!(!clean.contains("CRUCIBLE_GENERATOR_DIRTY"), "{clean}");
+    let source = root.join("crates/crucible-ir/src/projection.rs");
+    fs::create_dir_all(source.parent().unwrap()).unwrap();
+    fs::write(&source, "// new module").unwrap();
+    let dirty = probe(&executable, &root);
+    assert!(
+        dirty.contains("cargo::rustc-env=CRUCIBLE_GENERATOR_DIRTY=1"),
+        "{dirty}"
+    );
+    fs::remove_file(source).unwrap();
+    let clean_again = probe(&executable, &root);
+    assert!(
+        !clean_again.contains("CRUCIBLE_GENERATOR_DIRTY"),
+        "{clean_again}"
+    );
+}
+
+#[test]
+fn scratch_checkout_excludes_only_the_active_cargo_target() {
+    let directory = tempfile::tempdir().unwrap();
+    let root = directory.path().join("repository");
+    init(&root, "https://github.com/Operation-Leyline/crucible");
+    let target = root.join("custom build output");
+    fs::create_dir_all(target.join("debug")).unwrap();
+    fs::write(target.join("debug/artifact"), "build output").unwrap();
+    fs::create_dir_all(root.join(".codex-target")).unwrap();
+    fs::write(root.join(".codex-target/source.rs"), "// nonignored source").unwrap();
+    let copy = directory.path().join("copy");
+    fs::create_dir(&copy).unwrap();
+    copy_checkout(&root, &copy, Some(&target));
+    assert!(!copy.join("custom build output").exists());
+    assert_eq!(
+        fs::read_to_string(copy.join(".codex-target/source.rs")).unwrap(),
+        "// nonignored source"
+    );
+}
+
+#[test]
+fn scratch_checkout_preserves_sources_with_external_cargo_targets() {
+    let directory = tempfile::tempdir().unwrap();
+    let root = directory.path().join("repository");
+    init(&root, "https://github.com/Operation-Leyline/crucible");
+    let sibling = directory.path().join("sibling target");
+    fs::create_dir(&sibling).unwrap();
+    fs::write(root.join("new module.rs"), "// untracked source").unwrap();
+    for (index, target) in [directory.path(), sibling.as_path(), root.as_path()]
+        .into_iter()
+        .enumerate()
+    {
+        let copy = directory.path().join(format!("copy-{index}"));
+        fs::create_dir(&copy).unwrap();
+        copy_checkout(&root, &copy, Some(target));
+        assert_eq!(
+            fs::read_to_string(copy.join("Cargo.toml")).unwrap(),
+            fs::read_to_string(root.join("Cargo.toml")).unwrap()
+        );
+        assert_eq!(
+            fs::read_to_string(copy.join("new module.rs")).unwrap(),
+            "// untracked source"
+        );
+    }
+}
+
+fn incremental_repository(root: &Path) {
+    init(root, "https://github.com/Operation-Leyline/crucible");
+    fs::write(root.join("Cargo.toml"), "[workspace]\nmembers = ['crates/crucible-revision', 'probe']\nresolver = '3'\n[workspace.package]\nrepository = \"https://github.com/Operation-Leyline/crucible\"\n").unwrap();
+    let revision = root.join("crates/crucible-revision");
+    fs::create_dir_all(revision.join("src")).unwrap();
+    fs::write(
+        revision.join("Cargo.toml"),
+        "[package]\nname = 'crucible-revision'\nversion = '0.0.0'\nedition = '2024'\n",
+    )
+    .unwrap();
+    let source = Path::new(env!("CARGO_MANIFEST_DIR")).join("../crucible-revision");
+    for file in ["build.rs", "src/lib.rs"] {
+        fs::copy(source.join(file), revision.join(file)).unwrap();
+    }
+    fs::create_dir_all(root.join("probe/src")).unwrap();
+    fs::write(root.join("probe/Cargo.toml"), "[package]\nname = 'incremental-revision-probe'\nversion = '0.0.0'\nedition = '2024'\n[dependencies]\ncrucible-revision = { path = '../crates/crucible-revision' }\n").unwrap();
+    fs::write(
+        root.join("probe/src/main.rs"),
+        "fn main() { println!(\"{}\", crucible_revision::recorded_revision().unwrap()); }\n",
+    )
+    .unwrap();
+    fs::write(root.join(".gitignore"), "").unwrap();
+    success(
+        Command::new(env!("CARGO"))
+            .args(["generate-lockfile", "--offline", "--manifest-path"])
+            .arg(root.join("Cargo.toml"))
+            .output()
+            .unwrap(),
+    );
+    git(root, &["add", "."]);
+    git(root, &["commit", "-qm", "revision consumer"]);
+}
+
+fn incremental_build(root: &Path, target: &Path) -> (String, String) {
+    incremental_build_with_env(root, target, &[])
+}
+
+fn incremental_build_with_env(
+    root: &Path,
+    target: &Path,
+    environment: &[(&str, &str)],
+) -> (String, String) {
+    let output = Command::new(env!("CARGO"))
+        .args([
+            "run",
+            "--verbose",
+            "--offline",
+            "--color",
+            "never",
+            "--manifest-path",
+        ])
+        .arg(root.join("Cargo.toml"))
+        .env("CARGO_TARGET_DIR", target)
+        .env("CARGO_BUILD_JOBS", "1")
+        // Git status must not rewrite a watched input after Cargo timestamps it.
+        .env("GIT_OPTIONAL_LOCKS", "0")
+        .env("GIT_CONFIG_COUNT", "0")
+        .envs(environment.iter().copied())
+        .output()
+        .unwrap();
+    let log = String::from_utf8_lossy(&output.stderr).into_owned();
+    (success(output).trim().to_owned(), log)
+}
+
+fn configuration_input(input: &str) {
+    let directory = tempfile::tempdir().unwrap();
+    let root = directory.path().join("repository");
+    incremental_repository(&root);
+    let config = directory.path().join("global config");
+    let included = directory.path().join("included config");
+    fs::write(&included, "").unwrap();
+    fs::write(
+        &config,
+        if input == "empty include" {
+            "[include]\npath = \"included config\"\n".to_owned()
+        } else {
+            String::new()
+        },
+    )
+    .unwrap();
+    let rules = directory.path().join("global excludes");
+    fs::write(&rules, "/crates/new.rs\n").unwrap();
+    fs::write(root.join("crates/new.rs"), "// source\n").unwrap();
+    let target = directory.path().join("target");
+    let mut environment = vec![
+        ("GIT_CONFIG_GLOBAL", config.to_str().unwrap()),
+        ("GIT_CONFIG_NOSYSTEM", "1"),
+        ("GIT_CONFIG_COUNT", "0"),
+    ];
+    let build =
+        |environment: &[(&str, &str)]| incremental_build_with_env(&root, &target, environment);
+    let revision = git(&root, &["rev-parse", "HEAD"]);
+    assert_eq!(build(&environment).0, format!("{revision}+dirty"));
+    assert!(build(&environment).1.contains("Fresh crucible-revision"));
+    if input == "environment" {
+        environment[2].1 = "1";
+        environment.extend([
+            ("GIT_CONFIG_KEY_0", "core.excludesFile"),
+            ("GIT_CONFIG_VALUE_0", rules.to_str().unwrap()),
+        ]);
+        assert_eq!(build(&environment).0, revision, "config count activation");
+        let empty = directory.path().join("empty excludes");
+        fs::write(&empty, "").unwrap();
+        environment[4].1 = empty.to_str().unwrap();
+        assert_eq!(
+            build(&environment).0,
+            format!("{revision}+dirty"),
+            "config value change"
+        );
+        environment[4].1 = rules.to_str().unwrap();
+        assert_eq!(build(&environment).0, revision);
+        environment[3].1 = "provenance.unused";
+        assert_eq!(
+            build(&environment).0,
+            format!("{revision}+dirty"),
+            "config key change"
+        );
+        environment[3].1 = "core.excludesFile";
+        assert_eq!(build(&environment).0, revision);
+        environment[2].1 = "0";
+        assert_eq!(
+            build(&environment).0,
+            format!("{revision}+dirty"),
+            "config count removal"
+        );
+    } else {
+        let selected = if input == "empty include" {
+            &included
+        } else {
+            &config
+        };
+        fs::write(
+            selected,
+            format!(
+                "[core]\nexcludesFile = {:?}\n",
+                rules.to_str().unwrap().replace('\\', "/")
+            ),
+        )
+        .unwrap();
+        assert_eq!(
+            build(&environment).0,
+            revision,
+            "{input}: add excludes setting"
+        );
+        fs::write(selected, "").unwrap();
+        assert_eq!(
+            build(&environment).0,
+            format!("{revision}+dirty"),
+            "{input}: remove excludes setting"
+        );
+    }
+}
+
+#[test]
+fn incremental_cargo_rechecks_git_environment() {
+    configuration_input("environment");
+}
+#[test]
+fn incremental_cargo_rechecks_empty_global_config() {
+    configuration_input("empty global");
+}
+#[test]
+fn incremental_cargo_rechecks_empty_included_config() {
+    configuration_input("empty include");
+}
+
+#[test]
+fn incremental_cargo_rechecks_ignore_decisions_without_source_edits() {
+    for input in [".gitignore", ".git/info/exclude", "global excludes"] {
+        let directory = tempfile::tempdir().unwrap();
+        let root = directory.path().join("repository");
+        incremental_repository(&root);
+        let rules = if input == "global excludes" {
+            let rules = directory.path().join(input);
+            git(
+                &root,
+                &["config", "core.excludesFile", rules.to_str().unwrap()],
+            );
+            rules
+        } else {
+            // A host global exclude must not hide the file after the repository
+            // rule is cleared. Select an existing controlled empty rules file.
+            let empty = directory.path().join("empty global excludes");
+            fs::write(&empty, "").unwrap();
+            git(
+                &root,
+                &["config", "core.excludesFile", empty.to_str().unwrap()],
+            );
+            root.join(input)
+        };
+        fs::write(&rules, "/crates/new.rs\n").unwrap();
+        fs::write(root.join("crates/new.rs"), "// source\n").unwrap();
+        let target = directory.path().join("target");
+        let revision = git(&root, &["rev-parse", "HEAD"]);
+        assert_eq!(incremental_build(&root, &target).0, revision, "{input}");
+        let (_, log) = incremental_build(&root, &target);
+        assert!(log.contains("Fresh crucible-revision"), "{input}: {log}");
+        fs::write(&rules, "").unwrap();
+        assert_eq!(
+            incremental_build(&root, &target).0,
+            format!("{revision}+dirty"),
+            "{input}: unignore"
+        );
+        fs::write(&rules, "/crates/new.rs\n").unwrap();
+        assert_eq!(
+            incremental_build(&root, &target).0,
+            revision,
+            "{input}: ignore again"
+        );
+        if input == ".git/info/exclude" {
+            fs::remove_file(&rules).unwrap();
+            assert_eq!(
+                incremental_build(&root, &target).0,
+                format!("{revision}+dirty"),
+                "remove repository rules"
+            );
+            let (_, log) = incremental_build(&root, &target);
+            assert!(log.contains("Fresh crucible-revision"), "{log}");
+            fs::write(&rules, "/crates/new.rs\n").unwrap();
+            assert_eq!(
+                incremental_build(&root, &target).0,
+                revision,
+                "recreate repository rules"
+            );
+        }
+        if input == "global excludes" {
+            let other = directory.path().join("other excludes");
+            fs::write(&other, "").unwrap();
+            git(
+                &root,
+                &["config", "core.excludesFile", other.to_str().unwrap()],
+            );
+            assert_eq!(
+                incremental_build(&root, &target).0,
+                format!("{revision}+dirty"),
+                "new config selects empty rules"
+            );
+            git(
+                &root,
+                &["config", "core.excludesFile", rules.to_str().unwrap()],
+            );
+            assert_eq!(
+                incremental_build(&root, &target).0,
+                revision,
+                "config restores ignore rules"
+            );
+        }
+    }
 }
