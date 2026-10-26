@@ -127,6 +127,13 @@ not establish deployed service or application executor behavior.
 
 ## Models and errors
 
+With service [`errorDocs`](../idl/reference.md#error-documentation), `ServiceError`
+provides nullable `docUrl()`. Known designated reasons select their static pages;
+absent, null and future reasons use the error-code page. An unknown error identity
+has no URL. Recognized errors with malformed fields retain the code page. The
+accessor is added only for configured services; a configured error member cannot
+claim the same accessor name.
+
 Models are top-level public types in the `.model` package. Import request and
 response types directly, for example `example.weather.model.CreateCityInput`.
 Structures provide fluent builders and native-value accessors. Operations also

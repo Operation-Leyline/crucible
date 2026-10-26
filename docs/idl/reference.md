@@ -516,7 +516,9 @@ or future values. Unknown error identities have no documentation URL. External
 outputs omit internal reason values. Documentation metadata changes no error wire
 field and requires no wire migration. See [API references](../docs.md#error-documentation-urls)
 and the [Rust](../clients/rust.md#models-and-errors) and
-[TypeScript](../clients/typescript.md#models-and-errors) client guides.
+[TypeScript](../clients/typescript.md#models-and-errors),
+[Java](../clients/java.md#models-and-errors) and
+[Kotlin](../clients/kotlin.md#models-and-errors) client guides.
 
 ## Sender-signed operations
 

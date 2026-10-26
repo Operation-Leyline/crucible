@@ -131,6 +131,13 @@ The provider participates in the overall deadline.
 
 ## Models and errors
 
+With service [`errorDocs`](../idl/reference.md#error-documentation), `ServiceError`
+provides nullable `docUrl`. Known designated reasons select their static pages;
+absent, null and future reasons use the error-code page. An unknown error identity
+has no URL. Recognized errors with malformed fields retain the code page. The
+property is added only for configured services; a configured error member cannot
+claim the same property name.
+
 Optional members expose `T?`. A builder tracks assignment internally: leaving a
 property untouched omits it, assigning `null` sends explicit null, and assigning
 a value sends that value. Use `hasLocation()` when the distinction matters on a

@@ -19,8 +19,8 @@ version's section when it is prepared.
 
 - Services can declare `errorDocs` and designate an error's enum member with
   `@errorReason`. API descriptions and Markdown references list literal reasons
-  and static documentation URLs. Configured Rust and TypeScript SDK errors expose
-  `doc_url()` and `docUrl`; other SDK targets diagnose the unsupported capability
+  and static documentation URLs. Configured Rust, TypeScript, Java and Kotlin SDK
+  errors expose native URL accessors; other SDK targets diagnose the unsupported capability
   until their runtime supports it. Error wire responses are unchanged.
 
 - Operation documentation can use conventional `Use when` and `Don't use when`
@@ -53,6 +53,11 @@ version's section when it is prepared.
   LSP manifest completion and hover document the new key.
 
 ### Migration
+
+- Direct IR `Service` and `ErrorInfo` struct literals initialize the new
+  `error_docs_base` and `reason_member` fields to `None`. Struct field additions
+  cannot be shimmed for literals. Existing model sources and frozen releases need
+  no edits: absent documentation metadata defaults to `None` and stays omitted.
 
 - Direct IR `Operation` struct literals initialize the new `intent` field to
   `None` for previous behavior. Existing models and frozen releases need no edits;
