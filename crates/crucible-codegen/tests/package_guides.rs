@@ -292,7 +292,7 @@ fn rust_git_guides_preserve_unconfigured_remote_transports() {
             "ssh://git@internal.example:2222/team/sdk.git",
         ),
         (
-            "git@internal.example:team/sdk.git",
+            "git@internal.example:/team/sdk.git",
             "ssh://git@internal.example/team/sdk.git",
         ),
         (
