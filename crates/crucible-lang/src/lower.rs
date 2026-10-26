@@ -67,6 +67,7 @@ pub(crate) fn lower(
         naming: &package.naming,
         decls: BTreeMap::new(),
         bodies: BTreeMap::new(),
+        rejected_bodies: Vec::new(),
         diagnostics: template_problems,
         source_map: SourceMap::new(),
         protocol: Protocol::CrucibleJson,
@@ -474,6 +475,7 @@ fn doc_text(doc: Option<&Doc>) -> Option<String> {
     doc.map(|doc| doc.text.clone())
 }
 
+#[derive(Clone)]
 struct Lowerer<'a> {
     /// The members role templates add to operations, by operation and side.
     template_extras: crate::templates::Extras<'a>,
@@ -487,6 +489,9 @@ struct Lowerer<'a> {
     naming: &'a Naming,
     decls: BTreeMap<&'a str, DeclRef<'a>>,
     bodies: BTreeMap<ShapeId, BodySource<'a>>,
+    /// Colliding bodies still need checking, without replacing the first
+    /// body's shape, HTTP role, or source locations during editor recovery.
+    rejected_bodies: Vec<(ShapeId, BodySource<'a>)>,
     diagnostics: Vec<FileDiagnostic>,
     source_map: SourceMap,
     protocol: Protocol,
@@ -5672,6 +5677,7 @@ impl<'a> Lowerer<'a> {
         // in the table and render as plain text, having no target in it.
         let operations: Vec<&IrOperation> =
             service.operations.iter().chain(&probe.operations).collect();
+        self.check_rejected_bodies(&service.id, &operations, &probe.shapes);
         let (doc_links, owners) =
             self.resolve_doc_links(Some(&service.id), &operations, &probe.shapes);
         service.doc_links = doc_links;
@@ -5773,6 +5779,21 @@ impl<'a> Lowerer<'a> {
                             );
                             self.error(file, span, &message);
                             self.error(decl.file, body.span, message);
+                            if !self
+                                .rejected_bodies
+                                .iter()
+                                .any(|(_, source)| std::ptr::eq(source.body, body))
+                            {
+                                self.rejected_bodies.push((
+                                    body_id.clone(),
+                                    BodySource {
+                                        file: decl.file,
+                                        operation: op,
+                                        body,
+                                        labels: labels.clone(),
+                                    },
+                                ));
+                            }
                         }
                         // Keep the first body and its HTTP role for editor recovery;
                         // repeating the same operation's registration is harmless.
@@ -5807,6 +5828,52 @@ impl<'a> Lowerer<'a> {
                 }
                 _ => {}
             }
+        }
+    }
+
+    /// All registrations and ordinary lowering finish first, so references
+    /// see the complete model. Keep only diagnostics from each rejected body:
+    /// lowering members also changes source locations and semantic bookkeeping.
+    fn check_rejected_bodies(
+        &mut self,
+        service: &ShapeId,
+        operations: &[&IrOperation],
+        shapes: &BTreeMap<ShapeId, Shape>,
+    ) {
+        for (id, source) in &self.rejected_bodies {
+            let mut probe = self.clone();
+            probe.diagnostics.clear();
+            probe.doc_link_sites.clear();
+            probe.migration_link_sites.clear();
+            probe.shapes = shapes.clone();
+            probe.locate(id.clone(), source.file, source.body.span);
+            probe.shapes.remove(id);
+            probe.visiting.insert(id.clone());
+            probe.pending.insert(id.clone(), Pending::Structure);
+            probe.http_inputs.remove(id);
+            probe.http_outputs.remove(id);
+            match source.body.kind {
+                BodyKind::Input => probe.http_inputs.insert(id.clone()),
+                BodyKind::Output => probe.http_outputs.insert(id.clone()),
+            };
+            let shape = probe.body_shape(id, source);
+            probe.shapes.insert(id.clone(), shape);
+            for (label, file, start, end) in std::mem::take(&mut probe.doc_link_sites) {
+                // Only this operation's links see its rejected body. Another
+                // operation sharing the id still names the retained body.
+                let linked_shapes =
+                    if crucible_ir::doc_links::split(&label).0 == source.operation.name.name {
+                        &probe.shapes
+                    } else {
+                        shapes
+                    };
+                if let Err(message) =
+                    probe.doc_link(&label, Some(service), operations, linked_shapes)
+                {
+                    probe.error(file, Span { start, end }, message);
+                }
+            }
+            self.diagnostics.extend(probe.diagnostics);
         }
     }
 }
