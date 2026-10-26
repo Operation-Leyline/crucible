@@ -515,11 +515,11 @@ select a static reason page for a known value and the code page for absent, null
 or future values. Unknown error identities have no documentation URL. External
 outputs omit internal reason values. Documentation metadata changes no error wire
 field and requires no wire migration. See [API references](../docs.md#error-documentation-urls)
-and the [Rust](../clients/rust.md#models-and-errors) and
+and the client guides for [Rust](../clients/rust.md#models-and-errors),
 [TypeScript](../clients/typescript.md#models-and-errors),
-[Java](../clients/java.md#models-and-errors) and
-[Kotlin](../clients/kotlin.md#models-and-errors), and the
-[C#](../clients/csharp.md#models-and-errors) client guide.
+[Python](../clients/python.md#models-and-precision), [Go](../clients/go.md#models-and-errors),
+[Java](../clients/java.md#models-and-errors), [Kotlin](../clients/kotlin.md#models-and-errors)
+and [C#](../clients/csharp.md#models-and-errors).
 
 ## Sender-signed operations
 

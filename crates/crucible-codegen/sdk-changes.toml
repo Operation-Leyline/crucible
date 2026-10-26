@@ -120,6 +120,6 @@ summary = "Git-channel development exports in every language omit invented relea
 
 [[change]]
 id = 18
-languages = ["rust", "ts", "java", "kotlin", "csharp"]
+languages = ["rust", "ts", "python", "go", "java", "kotlin", "csharp"]
 kind = "additive"
 summary = "Configured error documentation exposes static code and known-reason URLs on SDK errors; unknown reasons retain the code page."

@@ -66,6 +66,13 @@ for pages.HasMorePages() {
 
 ## Models and errors
 
+With service [`errorDocs`](../idl/reference.md#error-documentation), response
+metadata provides `DocURL`: read `ServiceError.Metadata.DocURL` after matching a
+service error with `errors.As`. Known designated reasons select their static
+pages; absent, null and future reasons use the error-code page. Unknown error
+identities have an empty URL. Recognized errors with malformed fields retain the
+code page. The field is added only for configured services.
+
 Every operation takes a context. A payload-free operation uses `Unit{}`.
 For ordinary input construction, use native-value setters such as
 `input.SetName("Oslo")` and `input.SetTags([]string{"capital"})`. Optional response

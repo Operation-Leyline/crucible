@@ -19,9 +19,10 @@ version's section when it is prepared.
 
 - Services can declare `errorDocs` and designate an error's enum member with
   `@errorReason`. API descriptions and Markdown references list literal reasons
-  and static documentation URLs. Configured Rust, TypeScript, Java, Kotlin and C# SDK
-  errors expose native URL accessors; other SDK targets diagnose the unsupported capability
-  until their runtime supports it. Error wire responses are unchanged.
+  and static documentation URLs. Configured Rust, TypeScript, Python, Go, Java,
+  Kotlin and C# SDK errors expose native URL accessors; other SDK targets diagnose
+  the unsupported capability until their runtime supports it. Error wire responses
+  are unchanged.
 
 - Operation documentation can use conventional `Use when` and `Don't use when`
   Markdown sections. Lowering preserves the original prose and records optional
