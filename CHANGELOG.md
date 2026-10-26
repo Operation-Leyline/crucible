@@ -61,6 +61,9 @@ version's section when it is prepared.
   a published SDK Git tag. They retain the public-registry package-substitution
   warning and direct consumers to the SDK publisher for a published release.
   Release guides use the selected SDK version and configured tag template.
+- Adding pagination to an existing unpaged operation now reports
+  `compatibility.pagination`, including in baseline and older-release projection
+  checks. Intentional changes can use the existing manifest exception.
 - Standalone JSON Schemas preserve arbitrary `$ref` fields inside defaults and
   custom trait metadata when rewriting schema references to local `$defs`.
 

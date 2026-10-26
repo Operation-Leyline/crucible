@@ -98,7 +98,7 @@ impl Checker<'_> {
                     "authentication contract changed; assess existing credentials and callers",
                 );
             }
-            if old_op.paginated != new_op.paginated && old_op.paginated.is_some() {
+            if old_op.paginated != new_op.paginated {
                 self.push(
                     "compatibility.pagination",
                     &old_op.id,
