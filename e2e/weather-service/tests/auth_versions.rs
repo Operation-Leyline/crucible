@@ -228,16 +228,27 @@ impl crucible_auth::Authenticator for Bearer {
 }
 
 fn operations() -> Operations {
-    Operations::builder(&SERVICE)
+    operations_with_identity(false)
+}
+
+fn operations_with_identity(identity: bool) -> Operations {
+    let builder = Operations::builder(&SERVICE)
         .add::<Current, _, _>(Arc::new(()), |_, _| async { Ok(Unit {}) })
         .add::<OpenCurrent, _, _>(Arc::new(()), |_, _| async { Ok(Unit {}) })
         .add::<GateCurrent, _, _>(Arc::new(()), |_, _| async { Ok(Unit {}) })
-        .versions(V2, &OLDER_VERSIONS)
-        .add_versioned::<Older, Current>(V1, &[], None)
-        .add_versioned::<OpenOlder, OpenCurrent>(V1, &[], None)
-        .add_versioned::<GateOlder, GateCurrent>(V1, &[], None)
-        .build()
-        .unwrap()
+        .versions(V2, &OLDER_VERSIONS);
+    let builder = if identity {
+        builder
+            .add_versioned_identity::<Older, Current>(V1, &[])
+            .add_versioned_identity::<OpenOlder, OpenCurrent>(V1, &[])
+            .add_versioned_identity::<GateOlder, GateCurrent>(V1, &[])
+    } else {
+        builder
+            .add_versioned::<Older, Current>(V1, &[], None)
+            .add_versioned::<OpenOlder, OpenCurrent>(V1, &[], None)
+            .add_versioned::<GateOlder, GateCurrent>(V1, &[], None)
+    };
+    builder.build().unwrap()
 }
 
 async fn status(service: &Crucible, version: &str) -> u16 {
@@ -548,5 +559,22 @@ async fn a_projected_release_authenticates_what_it_had_by_its_own_schemes() {
     ] {
         assert_eq!(call(&service, path, "v1").await, v1, "{path} at v1");
         assert_eq!(call(&service, path, "v2").await, v2, "{path} at v2");
+    }
+}
+
+#[tokio::test]
+async fn identity_entries_keep_each_releases_authentication_contract() {
+    let service = Crucible::builder(operations_with_identity(true))
+        .defaults()
+        .api_version(Unversioned::Oldest)
+        .on_rejection(weather_service::weather::SERVICE.reject.unwrap())
+        .operation_middleware(crucible_auth::AuthenticatorChain::new(vec![Arc::new(
+            Bearer,
+        )]))
+        .build()
+        .unwrap();
+    for (path, older, current) in [("/open", 401, 200), ("/gate", 200, 401)] {
+        assert_eq!(call(&service, path, "v1").await, older);
+        assert_eq!(call(&service, path, "v2").await, current);
     }
 }

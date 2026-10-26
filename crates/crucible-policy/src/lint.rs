@@ -287,6 +287,23 @@ pub fn check(service: &Service, config: &Config) -> Report {
             }
         }
     }
+    if let Some(rule) = &config.rules.intent {
+        for operation in &service.operations {
+            if selected(&operation.id)
+                && !operation
+                    .intent
+                    .as_ref()
+                    .is_some_and(|intent| intent.is_complete())
+            {
+                report.push(
+                    "intent.operations",
+                    &operation.id,
+                    rule.severity,
+                    "operation intent needs nonempty `## Use when` and `## Don't use when` documentation sections",
+                );
+            }
+        }
+    }
     if let Some(rule) = &config.rules.examples {
         examples(&mut report, service, rule, &selected);
     }

@@ -111,6 +111,7 @@ fn typed_contract(service: &mut Service) {
     }
     for op in &mut service.operations {
         op.docs = None;
+        op.intent = None;
         strip(&mut op.traits);
         for example in &mut op.examples {
             example.docs = None;

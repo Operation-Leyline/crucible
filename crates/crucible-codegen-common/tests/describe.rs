@@ -1,6 +1,62 @@
 use crucible_codegen_common::{describe, documentation};
 use crucible_ir::{Audience, project};
 
+#[test]
+fn operation_intent_is_additive_rendered_metadata_and_original_docs_stay_intact() {
+    let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../tests/models/operation-intent");
+    let service = crucible_lang::load_service(&dir).unwrap();
+    let operation = service
+        .operations
+        .iter()
+        .find(|op| op.name() == "GetItem")
+        .unwrap();
+    let native_docs = documentation::operation(&service, operation);
+    assert!(native_docs.starts_with(operation.docs.as_deref().unwrap()));
+    assert_eq!(native_docs.matches("## Use when").count(), 1);
+    let description = describe::describe(&service).unwrap();
+    let get = &description.operations["example.intent#GetItem"];
+    assert_eq!(
+        get["intent"]["useWhen"]["markdown"],
+        "You know the item's **identifier**.\n"
+    );
+    assert_eq!(
+        get["intent"]["useWhen"]["text"],
+        "You know the item's identifier."
+    );
+    assert!(
+        get["intent"]["useWhen"]["html"]
+            .as_str()
+            .unwrap()
+            .contains("<strong>identifier</strong>")
+    );
+    assert!(
+        get["intent"]["dontUseWhen"]["html"]
+            .as_str()
+            .unwrap()
+            .contains("data-crucible-ref=\"example.intent#ListItems\"")
+    );
+    assert!(
+        get["documentation"]["markdown"]
+            .as_str()
+            .unwrap()
+            .contains("## Details\n\nReturns the current value.")
+    );
+    assert!(description.operations["example.intent#Partial"]["intent"]["dontUseWhen"].is_null());
+    assert!(
+        description.operations["example.intent#Missing"]
+            .get("intent")
+            .is_none()
+    );
+    assert!(
+        description.operations["example.intent#Fenced"]
+            .get("intent")
+            .is_none()
+    );
+    let restored: describe::Description = serde_json::from_str(&description.to_json()).unwrap();
+    assert_eq!(restored.to_json(), description.to_json());
+}
+
 fn load(name: &str) -> crucible_ir::ir::Service {
     let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("../../tests/models")

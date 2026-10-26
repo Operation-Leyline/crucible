@@ -23,6 +23,11 @@ version's section when it is prepared.
   `doc_url()` and `docUrl`; other SDK targets diagnose the unsupported capability
   until their runtime supports it. Error wire responses are unchanged.
 
+- Operation documentation can use conventional `Use when` and `Don't use when`
+  Markdown sections. Lowering preserves the original prose and records optional
+  `Operation::intent` metadata, also exposed by `crucible.describe/1` and reference
+  output. `[rules.intent]` adds opt-in guidance warnings (`intent.operations`).
+
 - Git channels accept an optional `install_url` for consumer installation
   guidance while retaining their publishing URL. Set `install_url` when
   consumers need a different install transport from the publishing transport;
@@ -49,6 +54,10 @@ version's section when it is prepared.
 
 ### Migration
 
+- Direct IR `Operation` struct literals initialize the new `intent` field to
+  `None` for previous behavior. Existing models and frozen releases need no edits;
+  absent intent metadata defaults to `None` and remains omitted from snapshots.
+
 - `Outcome::Stream`, `Resolution::Streaming`, and `Host::LambdaStreaming` add
   variants to public enums. Update exhaustive matches to handle them; unary
   operations keep their existing behavior. Regenerate Rust/TypeScript bindings.
@@ -61,8 +70,20 @@ version's section when it is prepared.
   Prefer `Package::new` when constructing compiler inputs. Existing model
   manifests and release snapshots need no changes; missing roots default empty.
 
+### Changed
+
+- Older Rust API versions skip intermediate JSON conversion when their empty
+  conversion chains and identical types permit it. Unproven Rust representation
+  round trips retain conversion. Frozen strictness, historical operation
+  metadata and authentication behavior remain unchanged.
+
 ### Fixed
 
+- Operation-body naming collisions now report errors at both source bodies
+  instead of silently replacing another operation's input or output contract.
+- Generator revision provenance follows Git reftable ref updates, including
+  shared branches and detached linked-worktree HEADs. Read-only Git queries no
+  longer refresh the watched index and trigger an unnecessary second build.
 - Git-channel SDK development exports in every client language omit invented
   release tags and identify the package as a local development export. Rust
   installation guides preserve home-relative SCP repository paths when

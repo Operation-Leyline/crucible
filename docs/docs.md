@@ -135,6 +135,23 @@ model's examples or, without any, the generated sample.
 With mdBook installed, `mdbook build generated/weather-docs` renders the
 Markdown. Crucible does not launch mdBook or serve the HTML reference.
 
+## Operation intent
+
+Operations can explain their purpose with the conventional
+[`Use when` and `Don't use when` doc-comment sections](idl/reference.md#operation-intent).
+The complete original documentation appears once at the top of each Markdown
+and static HTML operation page, and in `llms-full.txt`. Native SDK method
+documentation keeps the same sections through its existing Markdown rendering.
+
+`crucible.describe/1` adds an optional operation `intent` object, omitted when
+neither section has content. Its `useWhen` and `dontUseWhen` fields each hold the
+usual `{markdown, html, text}` documentation object, or `null` when that section
+is absent. `documentation` still contains the full original comment, so existing
+consumers continue to render it unchanged. New consumers can show structured
+intent without reparsing Markdown. Extraction happens during lowering; every
+output reads the same IR metadata. Frozen releases retain their intent, while
+older releases without the field load with no intent.
+
 ## Every release's reference
 
 `generate docs --api-version v1` documents an older supported release

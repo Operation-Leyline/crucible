@@ -83,7 +83,11 @@ fn init(root: &Path, repository: &str) {
     )
     .unwrap();
     fs::write(root.join(".gitignore"), "").unwrap();
-    git(root, &["init", "-q", "-b", "main"]);
+    // A caller may have selected a non-default ref backend before creating
+    // this fixture. Do not reinitialize it with Git's default format.
+    if !root.join(".git").exists() {
+        git(root, &["init", "-q", "-b", "main"]);
+    }
     git(root, &["config", "user.name", "Crucible provenance test"]);
     git(
         root,
@@ -521,8 +525,8 @@ fn incremental_build_with_env(
         .arg(root.join("Cargo.toml"))
         .env("CARGO_TARGET_DIR", target)
         .env("CARGO_BUILD_JOBS", "1")
-        // Git status must not rewrite a watched input after Cargo timestamps it.
-        .env("GIT_OPTIONAL_LOCKS", "0")
+        // Exercise production Git commands without test-only lock suppression.
+        .env_remove("GIT_OPTIONAL_LOCKS")
         .env("GIT_CONFIG_COUNT", "0")
         .envs(environment.iter().copied())
         .output()
@@ -744,6 +748,8 @@ fn incremental_cargo_notices_a_packed_branch_gaining_a_loose_ref() {
         index_before,
         "child git status rewrote the watched index"
     );
+    let (_, log) = build();
+    assert!(log.contains("Fresh crucible-revision"), "{log}");
     // Positive control: the same status is allowed to refresh the stale cache
     // when optional locks are enabled, so the unchanged-index check is meaningful.
     let status = success(
@@ -810,4 +816,81 @@ fn packed_nested_branch_watches_the_nearest_existing_ref_parent() {
         .collect();
     assert!(watched.contains(&heads.as_path()), "{output}");
     assert!(!watched.contains(&refs.as_path()), "{output}");
+}
+
+#[test]
+fn incremental_cargo_notices_reftable_main_and_worktree_ref_updates() {
+    let directory = tempfile::tempdir().unwrap();
+    let root = directory.path().join("repository");
+    fs::create_dir_all(&root).unwrap();
+    let init = Command::new("git")
+        .arg("-C")
+        .arg(&root)
+        .args(["init", "--ref-format=reftable", "-b", "main"])
+        .output()
+        .unwrap();
+    if !init.status.success() && String::from_utf8_lossy(&init.stderr).contains("unknown option") {
+        eprintln!("installed Git does not support reftable repositories");
+        return;
+    }
+    success(init);
+    incremental_repository(&root);
+    assert_eq!(
+        git(&root, &["config", "--get", "extensions.refStorage"]),
+        "reftable",
+        "fixture setup must preserve its selected ref backend"
+    );
+    let target = directory.path().join("target");
+    let initial = git(&root, &["rev-parse", "HEAD"]);
+    assert_eq!(incremental_build(&root, &target).0, initial);
+    let (_, log) = incremental_build(&root, &target);
+    assert!(log.contains("Fresh crucible-revision"), "{log}");
+    git(&root, &["commit", "--allow-empty", "-qm", "advance main"]);
+    let next = git(&root, &["rev-parse", "HEAD"]);
+    assert_ne!(next, initial);
+    assert_eq!(incremental_build(&root, &target).0, next);
+
+    let worktree = directory.path().join("linked");
+    git(
+        &root,
+        &[
+            "worktree",
+            "add",
+            "-b",
+            "linked",
+            worktree.to_str().unwrap(),
+        ],
+    );
+    let target = directory.path().join("linked-target");
+    assert_eq!(incremental_build(&worktree, &target).0, next);
+    let (_, log) = incremental_build(&worktree, &target);
+    assert!(log.contains("Fresh crucible-revision"), "{log}");
+    // A branch update in the common store need not touch the worktree's HEAD
+    // store. Its source bytes remain identical because these are empty commits.
+    let local_tables = worktree.join(git(
+        &worktree,
+        &["rev-parse", "--git-path", "reftable/tables.list"],
+    ));
+    let local_before = fs::read(&local_tables).unwrap();
+    git(&root, &["commit", "--allow-empty", "-qm", "advance common"]);
+    let common = git(&root, &["rev-parse", "HEAD"]);
+    git(&root, &["update-ref", "refs/heads/linked", &common]);
+    assert_eq!(fs::read(&local_tables).unwrap(), local_before);
+    assert_eq!(incremental_build(&worktree, &target).0, common);
+
+    git(&worktree, &["checkout", "--detach", "-q"]);
+    assert_eq!(incremental_build(&worktree, &target).0, common);
+    let (_, log) = incremental_build(&worktree, &target);
+    assert!(log.contains("Fresh crucible-revision"), "{log}");
+    // Detached HEAD is stored only in the worktree-specific reftable stack.
+    let common_tables = root.join(git(
+        &root,
+        &["rev-parse", "--git-path", "reftable/tables.list"],
+    ));
+    let common_before = fs::read(&common_tables).unwrap();
+    git(&worktree, &["update-ref", "HEAD", &initial]);
+    assert_eq!(fs::read(&common_tables).unwrap(), common_before);
+    assert_eq!(incremental_build(&worktree, &target).0, initial);
+    let (_, log) = incremental_build(&worktree, &target);
+    assert!(log.contains("Fresh crucible-revision"), "{log}");
 }

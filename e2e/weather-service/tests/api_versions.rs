@@ -614,3 +614,48 @@ async fn a_strict_structure_its_releases_outputs_reached_reads_what_it_does_not_
         }
     }
 }
+
+/// RecordPayment has identical projected types and no conversions at any
+/// release. Its current handler still sees the requested old version.
+#[tokio::test]
+async fn an_identity_operation_keeps_version_headers_and_bound_input_rejections() {
+    let service = service(Unversioned::Required);
+    for version in ["v1", "v2", "v3", "v4"] {
+        let response = service
+            .handle(
+                Request::post("/payments")
+                    .header("crucible-version", version)
+                    .header("payment-signature", "t=1,v1=abc")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await;
+        assert_eq!(response.status(), StatusCode::OK);
+        assert_eq!(response.headers()["crucible-version"], version);
+        assert_eq!(response.headers()["vary"], "crucible-version");
+        let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+            .await
+            .unwrap();
+        assert_eq!(
+            serde_json::from_slice::<Value>(&body).unwrap(),
+            json!({ "release": version })
+        );
+        // A missing required bound member is rejected before the current handler.
+        let response = service
+            .handle(
+                Request::post("/payments")
+                    .header("crucible-version", version)
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await;
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+        assert_eq!(response.headers()["crucible-version"], version);
+        let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+            .await
+            .unwrap();
+        let error: Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(error["__type"], "ValidationException");
+        assert!(error.to_string().contains("signature"), "{error}");
+    }
+}

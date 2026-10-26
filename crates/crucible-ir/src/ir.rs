@@ -11,6 +11,7 @@ use std::fmt;
 
 pub use crate::doc_notes::{Deprecation, DocNotes};
 pub use crate::extensions::*;
+pub use crate::operation_intent::OperationIntent;
 pub use crate::recursion::{RecursiveGroup, groups as recursive_groups};
 pub use crate::{Protocol, ProtocolSettings};
 pub use serde_json::{Number, Value};
@@ -981,6 +982,9 @@ pub struct Operation {
     /// The resource that binds the operation; `None` when the service does.
     pub resource: Option<ShapeId>,
     pub docs: Option<String>,
+    /// Guidance settled from the operation's conventional documentation sections.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub intent: Option<OperationIntent>,
     /// `@deprecated`, `@since`, `@unstable` and `@externalDocumentation`.
     pub notes: DocNotes,
     pub method: String,

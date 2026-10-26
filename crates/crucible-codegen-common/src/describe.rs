@@ -613,6 +613,12 @@ fn operation(service: &Service, op: &Operation, explorer: bool) -> Value {
                     "message":error_message(service,&e.shape,info,&e.content)})
             })})).collect::<Vec<_>>(),
         "sample":sample(service,op)});
+    if let Some(intent) = &op.intent {
+        value["intent"] = json!({
+            "useWhen": intent.use_when.as_deref().map(|text| documentation(service, Some(text))),
+            "dontUseWhen": intent.dont_use_when.as_deref().map(|text| documentation(service, Some(text))),
+        });
+    }
     if op.response_mode == crucible_ir::ir::ResponseMode::ServerStream {
         value["responseMode"] = json!("server-stream");
         value["stream"] = json!({"item":op.output.as_ref().map(ToString::to_string), "profile":"crucible-json-sse/1"});

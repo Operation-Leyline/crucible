@@ -14,6 +14,7 @@ mod extensions;
 pub mod ir;
 mod lower_examples;
 mod names;
+mod operation_intent;
 mod pattern;
 mod protocol;
 mod recursion;

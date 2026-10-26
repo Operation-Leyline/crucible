@@ -247,8 +247,7 @@ pub(crate) fn body_with(
     parent_permissions: bool,
     diagnostics: &mut Diagnostics,
 ) -> String {
-    let mut strict = models::strict_shapes(service, options.strict_inputs);
-    strict.retain(|id| !lenient.contains(id));
+    let strict = models::effective_strict(service, options.strict_inputs, lenient);
     let model = models::emit(service, &strict, false, diagnostics);
     let errors = errors::emit(service, false, diagnostics);
     check_patterns(service, diagnostics);
