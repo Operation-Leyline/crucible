@@ -202,8 +202,17 @@ fn watch(workspace: &Path, name: &str) {
         } else {
             workspace.join(path)
         };
-        if absolute.is_file() {
-            println!("cargo::rerun-if-changed={}", absolute.display());
+        let watched = if absolute.is_file() {
+            Some(absolute.as_path())
+        } else if name.starts_with("refs/") {
+            // A packed branch has no loose ref until its next commit. Watch
+            // its nearest existing parent, including when nested dirs are absent.
+            absolute.ancestors().skip(1).find(|path| path.is_dir())
+        } else {
+            None
+        };
+        if let Some(path) = watched {
+            println!("cargo::rerun-if-changed={}", path.display());
         }
     }
 }
