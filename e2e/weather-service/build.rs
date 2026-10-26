@@ -1,4 +1,12 @@
 fn main() {
+    let document = "tests/fixtures/version-identity-document";
+    println!("cargo::rerun-if-changed={document}");
+    let document_out = std::path::PathBuf::from(std::env::var_os("OUT_DIR").expect("OUT_DIR"));
+    std::fs::write(
+        document_out.join("version_identity_document.rs"),
+        crucible_build::model(document).server().render().unwrap(),
+    )
+    .unwrap();
     let auth = "tests/fixtures/auth-chain";
     println!("cargo::rerun-if-changed={auth}");
     let auth_out = std::path::PathBuf::from(std::env::var_os("OUT_DIR").expect("OUT_DIR"));

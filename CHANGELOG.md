@@ -64,6 +64,13 @@ version's section when it is prepared.
   Prefer `Package::new` when constructing compiler inputs. Existing model
   manifests and release snapshots need no changes; missing roots default empty.
 
+### Changed
+
+- Older Rust API versions skip intermediate JSON conversion when their empty
+  conversion chains and identical types permit it. Unproven Rust representation
+  round trips retain conversion. Frozen strictness, historical operation
+  metadata and authentication behavior remain unchanged.
+
 ### Fixed
 
 - Generator revision provenance follows Git reftable ref updates, including

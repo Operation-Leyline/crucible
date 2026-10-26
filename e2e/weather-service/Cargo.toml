@@ -40,3 +40,7 @@ harness = false
 [[bench]]
 name = "allocations"
 harness = false
+
+[[bench]]
+name = "version_identity"
+harness = false
