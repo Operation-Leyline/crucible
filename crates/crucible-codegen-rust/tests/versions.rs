@@ -1333,7 +1333,18 @@ fn changed_types_errors_and_bindings_keep_the_conversion_path() {
 
     let fixture = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../e2e/weather-service/versioned");
     let current = lower(&fixture);
-    for changed in ["input", "output", "nested", "error", "binding"] {
+    for changed in [
+        "input",
+        "output",
+        "nested",
+        "error",
+        "binding",
+        "method",
+        "uri",
+        "status",
+        "request_protocol_header",
+        "response_protocol_header",
+    ] {
         let mut service = current.clone();
         let older = &mut service.versions[0].service;
         let operation = older
@@ -1342,6 +1353,22 @@ fn changed_types_errors_and_bindings_keep_the_conversion_path() {
             .find(|op| op.name() == "RecordPayment")
             .unwrap();
         match changed {
+            "method" => operation.method = "PUT".into(),
+            "uri" => {
+                operation.uri.segments =
+                    vec![crucible_ir::ir::Segment::Literal("old-payments".into())]
+            }
+            "status" => operation.status = 201,
+            "request_protocol_header" => {
+                operation
+                    .protocol_headers
+                    .insert("old-header".into(), "old".into());
+            }
+            "response_protocol_header" => {
+                operation
+                    .response_protocol_headers
+                    .insert("old-header".into(), "old".into());
+            }
             "binding" => operation.request.headers[0].name = "Old-Payment-Signature".into(),
             "input" | "output" => {
                 let id = if changed == "input" {
@@ -1440,4 +1467,15 @@ fn unproven_scalar_round_trips_keep_the_existing_conversion_path() {
             "{kind:?}"
         );
     }
+}
+
+/// Frozen public model: optional document null is not a fixed point of the
+/// old output JSON round trip, even when the operation and migration are equal.
+#[test]
+fn optional_document_output_retains_the_frozen_conversion_registration() {
+    let fixture = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../e2e/weather-service/tests/fixtures/version-identity-document");
+    let code = generate(&lower(&fixture), &Options::default()).unwrap();
+    assert!(code.contains(".add_versioned::<v1::Read, super::Read>(V1,"));
+    assert!(!code.contains(".add_versioned_identity::<v1::Read, super::Read>"));
 }

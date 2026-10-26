@@ -33,6 +33,17 @@ pub(crate) fn strict_shapes(service: &Service, all_inputs: bool) -> BTreeSet<Sha
     strict
 }
 
+/// Effective decoding policy after frozen-release output leniency.
+pub(crate) fn effective_strict(
+    service: &Service,
+    all_inputs: bool,
+    lenient: &BTreeSet<ShapeId>,
+) -> BTreeSet<ShapeId> {
+    let mut strict = strict_shapes(service, all_inputs);
+    strict.retain(|id| !lenient.contains(id));
+    strict
+}
+
 pub(crate) fn emit(
     service: &Service,
     strict: &BTreeSet<ShapeId>,

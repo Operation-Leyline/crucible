@@ -23,6 +23,11 @@ pub fn identical_operation_closure(
         || new.response_mode != ResponseMode::Unary
         || old.input != new.input
         || old.output != new.output
+        || old.method != new.method
+        || !same(&old.uri, &new.uri)
+        || old.status != new.status
+        || old.protocol_headers != new.protocol_headers
+        || old.response_protocol_headers != new.response_protocol_headers
         || old.errors != new.errors
         || older.protocol != current.protocol
         || !same(&older.protocol_settings, &current.protocol_settings)

@@ -55,12 +55,15 @@ version's section when it is prepared.
   Prefer `Package::new` when constructing compiler inputs. Existing model
   manifests and release snapshots need no changes; missing roots default empty.
 
-### Fixed
+### Changed
 
 - Older Rust API versions skip intermediate JSON conversion when their empty
   conversion chains and identical types permit it. Unproven Rust representation
   round trips retain conversion. Frozen strictness, historical operation
   metadata and authentication behavior remain unchanged.
+
+### Fixed
+
 - Git-channel SDK development exports in every client language omit invented
   release tags and identify the package as a local development export. Rust
   installation guides preserve home-relative SCP repository paths when

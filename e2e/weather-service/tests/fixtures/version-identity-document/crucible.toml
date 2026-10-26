@@ -1,0 +1,5 @@
+[model]
+namespace="probe.identity"
+imports=["crucible.errors"]
+[model.baseline]
+path="releases/v1.json"

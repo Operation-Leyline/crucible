@@ -116,16 +116,17 @@ pub(crate) fn emit(
     let mut chains = String::new();
     let mut registrations = String::new();
     let mut built = BTreeMap::<String, bool>::new();
+    let mut lenient: Vec<_> = service
+        .versions
+        .iter()
+        .map(|version| crate::models::output_reachable(&version.release))
+        .collect();
+    lenient.push(BTreeSet::new());
     let strict: Vec<_> = models
         .iter()
-        .enumerate()
-        .map(|(index, model)| {
-            let mut strict = crate::models::strict_shapes(model, options.strict_inputs);
-            if index < current {
-                let lenient = crate::models::output_reachable(&service.versions[index].release);
-                strict.retain(|id| !lenient.contains(id));
-            }
-            strict
+        .zip(&lenient)
+        .map(|(model, lenient)| {
+            crate::models::effective_strict(model, options.strict_inputs, lenient)
         })
         .collect();
     // Operations gone without a handler, by the migration that dropped
@@ -328,12 +329,11 @@ pub(crate) fn emit(
         // Output reachability is the frozen release's, by the ids every
         // release shares (decision 71): an operation added since does not
         // make a strict structure only the release's inputs reached lenient.
-        let lenient = crate::models::output_reachable(&version.release);
         let mut body = crate::body_with(
             &module,
             &old_options,
             &module,
-            &lenient,
+            &lenient[index],
             parent,
             diagnostics,
         );
@@ -1821,7 +1821,8 @@ fn enum_value(service: &Service, shape: &ShapeId, name: &str) -> Option<String> 
 
 /// Model equality is necessary, but a native value must also survive the
 /// removed JSON round trip unchanged. Keep unproven scalar codecs on the old
-/// path (for example, a non-finite f64 serializes as null). A positive list
+/// path (non-finite f64 serializes as null; optional document Some(Null)
+/// decodes as None). A positive list
 /// also makes a future scalar representation conservatively keep conversion.
 fn identity_representation(shape: &Shape) -> bool {
     use crucible_ir::ir::SimpleKind;
@@ -1835,7 +1836,6 @@ fn identity_representation(shape: &Shape) -> bool {
                 | SimpleKind::Short
                 | SimpleKind::Integer
                 | SimpleKind::Long
-                | SimpleKind::Document
                 | SimpleKind::Blob
         ),
         _ => true,

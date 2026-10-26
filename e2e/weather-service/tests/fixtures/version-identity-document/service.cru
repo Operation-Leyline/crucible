@@ -1,0 +1,12 @@
+service Probe {
+    version "v2"
+    protocol json
+    operations [Read]
+    errors [ValidationException, InternalServerException]
+}
+readonly operation Read {
+    http GET "/read"
+    output { value?: document }
+}
+
+migration "v2" from "v1" {}

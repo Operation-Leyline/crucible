@@ -198,7 +198,9 @@ Host
   the current codecs directly when its projected input, output and error
   closure is identical, including effective strict decoding, and the Rust
   representations have proven JSON round-trip identity. Floating point,
-  timestamps and arbitrary-precision numbers conservatively keep conversion.
+  timestamps, documents and arbitrary-precision numbers conservatively keep
+  conversion. Optional document nulls, for example, do not survive the old
+  output round trip unchanged.
   The fast path keeps the older operation description and authentication
   metadata. Other operations convert through JSON as described above.
   Generation settles the choice, with no equality checks per request.
