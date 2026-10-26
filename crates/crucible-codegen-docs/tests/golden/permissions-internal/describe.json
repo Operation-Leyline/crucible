@@ -2560,6 +2560,7 @@
         "protocolHeaders": {
           "Content-Type": "application/json"
         },
+        "reasons": [],
         "retryable": {
           "throttling": false
         },
@@ -2703,6 +2704,7 @@
         "protocolHeaders": {
           "Content-Type": "application/json"
         },
+        "reasons": [],
         "retryable": null,
         "sample": {
           "fallbacks": [],
@@ -2845,6 +2847,73 @@
         "protocolHeaders": {
           "Content-Type": "application/json"
         },
+        "reasonMember": "reason",
+        "reasons": [
+          {
+            "docUrl": null,
+            "documentation": {
+              "html": "",
+              "markdown": "",
+              "text": ""
+            },
+            "name": "CANNOT_PARSE",
+            "notes": {
+              "deprecated": null,
+              "externalDocs": {},
+              "since": null,
+              "unstable": false
+            },
+            "value": "cannotParse"
+          },
+          {
+            "docUrl": null,
+            "documentation": {
+              "html": "",
+              "markdown": "",
+              "text": ""
+            },
+            "name": "FIELD_VALIDATION_FAILED",
+            "notes": {
+              "deprecated": null,
+              "externalDocs": {},
+              "since": null,
+              "unstable": false
+            },
+            "value": "fieldValidationFailed"
+          },
+          {
+            "docUrl": null,
+            "documentation": {
+              "html": "",
+              "markdown": "",
+              "text": ""
+            },
+            "name": "OTHER",
+            "notes": {
+              "deprecated": null,
+              "externalDocs": {},
+              "since": null,
+              "unstable": false
+            },
+            "value": "other"
+          },
+          {
+            "docUrl": null,
+            "documentation": {
+              "html": "",
+              "markdown": "",
+              "text": ""
+            },
+            "name": "UNKNOWN_OPERATION",
+            "notes": {
+              "deprecated": null,
+              "externalDocs": {},
+              "since": null,
+              "unstable": false
+            },
+            "value": "unknownOperation"
+          }
+        ],
         "retryable": null,
         "sample": {
           "fallbacks": [],

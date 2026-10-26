@@ -1473,6 +1473,7 @@
         "protocolHeaders": {
           "Content-Type": "application/json"
         },
+        "reasons": [],
         "retryable": {
           "throttling": false
         },
