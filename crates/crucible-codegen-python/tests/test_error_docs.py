@@ -29,6 +29,20 @@ def cases():
     yield "default-empty", "DefaultEmptyReason", 420, body(), {}, "DefaultEmptyReason/reason-", "detail", ""
     yield "default-null", "DefaultReason", 419, body(detail=None), {}, "DefaultReason", None, None
     yield "default-future", "DefaultReason", 419, body(detail="future"), {}, "DefaultReason", "detail", "future"
+    yield "DefaultReason-malformed", "DefaultReason", 419, b'{invalid', {}, "DefaultReason", None, None
+    yield "DefaultReason-scalar", "DefaultReason", 419, b'42', {}, "DefaultReason", None, None
+    yield "DefaultReason-array", "DefaultReason", 419, b'[]', {}, "DefaultReason", None, None
+    yield "DefaultReason-json-null", "DefaultReason", 419, b'null', {}, "DefaultReason", None, None
+    yield "DefaultReason-empty-object", "DefaultReason", 419, b'{}', {}, "DefaultReason/reason-access%2Fneeded", None, None
+    yield "DefaultEmptyReason-malformed", "DefaultEmptyReason", 420, b'{invalid', {}, "DefaultEmptyReason", None, None
+    yield "DefaultEmptyReason-scalar", "DefaultEmptyReason", 420, b'42', {}, "DefaultEmptyReason", None, None
+    yield "DefaultEmptyReason-array", "DefaultEmptyReason", 420, b'[]', {}, "DefaultEmptyReason", None, None
+    yield "DefaultEmptyReason-json-null", "DefaultEmptyReason", 420, b'null', {}, "DefaultEmptyReason", None, None
+    yield "DefaultEmptyReason-empty-object", "DefaultEmptyReason", 420, b'{}', {}, "DefaultEmptyReason/reason-", None, None
+    yield "DefaultReason-empty-body", "DefaultReason", 419, b'', {}, "DefaultReason/reason-access%2Fneeded", None, None
+    yield "DefaultEmptyReason-empty-body", "DefaultEmptyReason", 420, b'', {}, "DefaultEmptyReason/reason-", None, None
+    yield "blob-payload", "BlobPayloadError", 421, b'not-json /blob', {"X-Error-Reason": "access/needed"}, "BlobPayloadError/reason-access%2Fneeded", None, None
+    yield "empty-blob-payload", "BlobPayloadError", 421, b'', {"X-Error-Reason": ""}, "BlobPayloadError/reason-", None, None
     yield "absent", "Denied", 403, body(message="problem"), {}, "Denied", None, None
     yield "wire-url-untrusted", "Denied", 403, body(detail="future", doc_url="https://evil.test", docUrl="https://evil.test"), {}, "Denied", None, None
     yield "body-identity", None, 403, body(__type="Denied", detail="access/needed"), {}, "Denied/reason-access%2Fneeded", "detail", "access/needed"

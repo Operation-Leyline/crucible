@@ -989,6 +989,9 @@ export class Transport {
   #decodeError(operation: OperationSpec, response: Response, text: string, bytes: Uint8Array): ServiceError {
     let parsed: unknown;
     try { parsed = readJson(text); } catch { /* An HTTP error may have a non-JSON body. */ }
+    // BEGIN ERROR DOCUMENTATION
+    const documentationBodyValid = text.length === 0 || (parsed !== null && typeof parsed === "object" && !Array.isArray(parsed));
+    // END ERROR DOCUMENTATION
     const body = (parsed !== null && typeof parsed === "object" ? parsed : {}) as Record<string, unknown>;
     const metadata: ResponseMetadata = {
       status: response.status,
@@ -1004,6 +1007,9 @@ export class Transport {
     }
     let fields: Record<string, unknown>;
     try {
+      // BEGIN ERROR DOCUMENTATION
+      if (spec.payload === undefined && !documentationBodyValid) throw new TypeError("modeled error body requires an object");
+      // END ERROR DOCUMENTATION
       if (spec.payload!==undefined) Object.defineProperty(body,spec.payload,{value:decodePayload(spec.payloadKind,bytes),writable:true,configurable:true,enumerable:true});
       readHeaders(response.headers, spec.headers, body, true, spec.headerEncodings);
       fields = fromWire(spec.schema, body) as Record<string, unknown>;

@@ -828,3 +828,33 @@ fn doc_links_are_their_text_in_descriptions() {
         "{schemas:#?}"
     );
 }
+
+#[test]
+fn error_documentation_extension_uses_the_shared_projected_metadata() {
+    let service =
+        crucible_ir::project(&load("error-docs"), crucible_ir::Audience::External).unwrap();
+    let value: Value =
+        serde_json::from_str(&generate(&service, &Options::default()).unwrap()).unwrap();
+    let schemas = value["components"]["schemas"].as_object().unwrap();
+    let documentation = schemas
+        .values()
+        .find_map(|shape| {
+            shape
+                .get("x-crucible-error-documentation")
+                .filter(|docs| docs["url"] == "https://docs.example.test/errors/DefaultReason")
+        })
+        .unwrap();
+    assert_eq!(documentation["reasonDefault"], "access/needed");
+    assert_eq!(
+        documentation["reasonUrls"][""],
+        "https://docs.example.test/errors/DefaultReason/reason-"
+    );
+    assert!(documentation["reasonUrls"].get("secret").is_none());
+    let mut without_base = service;
+    without_base.error_docs_base = None;
+    assert!(
+        !generate(&without_base, &Options::default())
+            .unwrap()
+            .contains("x-crucible-error-documentation")
+    );
+}

@@ -1231,7 +1231,8 @@ fn step_span(step: &Step) -> Span {
 }
 
 /// A shape as its wire and SDK contract has it: documentation, notes and
-/// raw traits left out, and whether lowering met it as an input, so two
+/// raw traits and documentation-only error reason designation left out, along
+/// with whether lowering met it as an input, so two
 /// definitions that differ only there are the same shape.
 fn structure(shape: &Shape) -> serde_json::Value {
     fn strip(value: &mut serde_json::Value) {

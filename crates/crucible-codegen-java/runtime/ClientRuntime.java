@@ -862,8 +862,14 @@ final class ClientRuntime {
           response);
       return values;
     }
+    // BEGIN ERROR DOCUMENTATION
+    boolean documentationBodyValid = body.isEmpty();
+    // END ERROR DOCUMENTATION
     try {
       JsonElement parsed = JSON.fromJson(body, JsonElement.class);
+      // BEGIN ERROR DOCUMENTATION
+      documentationBodyValid = body.isEmpty() || (parsed != null && parsed.isJsonObject());
+      // END ERROR DOCUMENTATION
       if (parsed != null && parsed.isJsonObject()) values = parsed.getAsJsonObject();
     } catch (RuntimeException ignored) {
     }
@@ -895,6 +901,9 @@ final class ClientRuntime {
       try {
         JsonObject typedValues = values.deepCopy();
         String payload = payloadMember(traits);
+        // BEGIN ERROR DOCUMENTATION
+        if (payload == null && !documentationBodyValid) throw new IllegalArgumentException("modeled error body requires object");
+        // END ERROR DOCUMENTATION
         if (payload != null) typedValues.add(payload, payloadValue(traits, bytes));
         applyHeaders(typedValues, target, traits, response);
         error = (ServiceError) decode(target, typedValues, null);

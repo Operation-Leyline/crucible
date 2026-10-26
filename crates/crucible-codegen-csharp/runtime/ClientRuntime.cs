@@ -501,7 +501,18 @@ internal sealed partial class ClientRuntime : IDisposable
     private ServiceError Error(JsonObject op, int status, Dictionary<string, string> headers, byte[] bytes)
     {
         JsonObject body;
-        try { body = JsonNode.Parse(bytes) as JsonObject ?? new JsonObject(); } catch (JsonException) { body = new(); }
+        // BEGIN ERROR DOCUMENTATION
+        var documentationBodyValid = bytes.Length == 0;
+        // END ERROR DOCUMENTATION
+        try
+        {
+            var parsed = JsonNode.Parse(bytes) as JsonObject;
+            // BEGIN ERROR DOCUMENTATION
+            documentationBodyValid = bytes.Length == 0 || parsed is not null;
+            // END ERROR DOCUMENTATION
+            body = parsed ?? new JsonObject();
+        }
+        catch (JsonException) { body = new(); }
         static string? StringValue(JsonNode? v) => v is JsonValue j && j.TryGetValue<string>(out var s) ? s : null;
         var name = headers.GetValueOrDefault("x-crucible-error") ?? StringValue(body["__type"]);
         var candidates = op["errors"]!.AsArray().Select(n => Text(n)!).ToList();
@@ -518,6 +529,10 @@ internal sealed partial class ClientRuntime : IDisposable
         {
             try
             {
+                // BEGIN ERROR DOCUMENTATION
+                if (metadata!["payload"] is not JsonArray && !documentationBodyValid)
+                    throw new JsonException("modeled error body requires object");
+                // END ERROR DOCUMENTATION
                 if (metadata!["payload"] is JsonArray payload)
                     body = new JsonObject { [Text(payload[0])!] = PayloadValue(Text(metadata["payloadKind"]), bytes) };
                 ResponseBindings(target, metadata!, headers, body);

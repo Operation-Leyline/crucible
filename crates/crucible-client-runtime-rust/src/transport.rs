@@ -600,6 +600,24 @@ pub fn decode_modelled<T: DeserializeOwned>(
     read_response(info.members, headers, body, || Bytes::copy_from_slice(body)).ok()
 }
 
+/// Configured error documentation distinguishes malformed bodies from omission.
+/// Payload-bound errors consume raw bytes; only ordinary bodies require objects.
+#[doc(hidden)]
+pub fn decode_documented_modelled<T: DeserializeOwned>(
+    info: &'static ErrorInfo,
+    headers: &HeaderMap,
+    body: &[u8],
+) -> Option<T> {
+    if Location::payload(info.members).is_none()
+        && !body.is_empty()
+        && (body.trim_ascii().first() != Some(&b'{')
+            || serde_json::from_slice::<serde::de::IgnoredAny>(body).is_err())
+    {
+        return None;
+    }
+    decode_modelled(info, headers, body)
+}
+
 /// For generated `OperationErrors::decode`: the one error of `errors` with
 /// this status, if exactly one has it.
 pub fn by_status(status: u16, errors: &[&'static ErrorInfo]) -> Option<&'static str> {

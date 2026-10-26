@@ -262,6 +262,132 @@
       "header": null,
       "docUrl": "https://docs.example.test/errors/DefaultReason",
       "typed": true
+    },
+    {
+      "name": "DefaultReason-malformed",
+      "status": 419,
+      "identity": "DefaultReason",
+      "body": "{invalid",
+      "header": null,
+      "docUrl": "https://docs.example.test/errors/DefaultReason",
+      "typed": false
+    },
+    {
+      "name": "DefaultReason-scalar",
+      "status": 419,
+      "identity": "DefaultReason",
+      "body": "42",
+      "header": null,
+      "docUrl": "https://docs.example.test/errors/DefaultReason",
+      "typed": false
+    },
+    {
+      "name": "DefaultReason-array",
+      "status": 419,
+      "identity": "DefaultReason",
+      "body": "[]",
+      "header": null,
+      "docUrl": "https://docs.example.test/errors/DefaultReason",
+      "typed": false
+    },
+    {
+      "name": "DefaultReason-json-null",
+      "status": 419,
+      "identity": "DefaultReason",
+      "body": "null",
+      "header": null,
+      "docUrl": "https://docs.example.test/errors/DefaultReason",
+      "typed": false
+    },
+    {
+      "name": "DefaultReason-empty-object",
+      "status": 419,
+      "identity": "DefaultReason",
+      "body": "{}",
+      "header": null,
+      "docUrl": "https://docs.example.test/errors/DefaultReason/reason-access%2Fneeded",
+      "typed": true
+    },
+    {
+      "name": "DefaultEmptyReason-malformed",
+      "status": 420,
+      "identity": "DefaultEmptyReason",
+      "body": "{invalid",
+      "header": null,
+      "docUrl": "https://docs.example.test/errors/DefaultEmptyReason",
+      "typed": false
+    },
+    {
+      "name": "DefaultEmptyReason-scalar",
+      "status": 420,
+      "identity": "DefaultEmptyReason",
+      "body": "42",
+      "header": null,
+      "docUrl": "https://docs.example.test/errors/DefaultEmptyReason",
+      "typed": false
+    },
+    {
+      "name": "DefaultEmptyReason-array",
+      "status": 420,
+      "identity": "DefaultEmptyReason",
+      "body": "[]",
+      "header": null,
+      "docUrl": "https://docs.example.test/errors/DefaultEmptyReason",
+      "typed": false
+    },
+    {
+      "name": "DefaultEmptyReason-json-null",
+      "status": 420,
+      "identity": "DefaultEmptyReason",
+      "body": "null",
+      "header": null,
+      "docUrl": "https://docs.example.test/errors/DefaultEmptyReason",
+      "typed": false
+    },
+    {
+      "name": "DefaultEmptyReason-empty-object",
+      "status": 420,
+      "identity": "DefaultEmptyReason",
+      "body": "{}",
+      "header": null,
+      "docUrl": "https://docs.example.test/errors/DefaultEmptyReason/reason-",
+      "typed": true
+    },
+    {
+      "name": "DefaultReason-empty-body",
+      "status": 419,
+      "identity": "DefaultReason",
+      "body": "",
+      "header": null,
+      "docUrl": "https://docs.example.test/errors/DefaultReason/reason-access%2Fneeded",
+      "typed": true
+    },
+    {
+      "name": "DefaultEmptyReason-empty-body",
+      "status": 420,
+      "identity": "DefaultEmptyReason",
+      "body": "",
+      "header": null,
+      "docUrl": "https://docs.example.test/errors/DefaultEmptyReason/reason-",
+      "typed": true
+    },
+    {
+      "name": "blob-payload",
+      "status": 421,
+      "identity": "BlobPayloadError",
+      "body": "not-json /blob",
+      "header": "access/needed",
+      "docUrl": "https://docs.example.test/errors/BlobPayloadError/reason-access%2Fneeded",
+      "typed": true
+    },
+    {
+      "name": "empty-blob-payload",
+      "status": 421,
+      "identity": "BlobPayloadError",
+      "body": "",
+      "header": "",
+      "docUrl": "https://docs.example.test/errors/BlobPayloadError/reason-",
+      "typed": true
     }
   ]
 }

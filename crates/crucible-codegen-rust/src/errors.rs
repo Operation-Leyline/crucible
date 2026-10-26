@@ -254,10 +254,7 @@ pub(crate) fn unknown(service: &Service, validation: Option<&ShapeId>) -> Option
     ))
 }
 
-/// `model::Enum::Variant` for the value of `member`'s enum target that is
-/// the standard value `standard`, if it has one. Spelling is the model's:
-/// `cannotParse`, `cannot_parse` and `CANNOT_PARSE` all match, so a service
-/// keeps its own enum casing.
+/// Static code and reason pages from the projected IR.
 fn documentation_method(service: &Service, id: &ShapeId, structure: &Structure) -> String {
     let Some(documentation) = service.error_documentation(id) else {
         return String::new();
@@ -279,6 +276,10 @@ fn documentation_method(service: &Service, id: &ShapeId, structure: &Structure) 
     )
 }
 
+/// `model::Enum::Variant` for the value of `member`'s enum target that is
+/// the standard value `standard`, if it has one. Spelling is the model's:
+/// `cannotParse`, `cannot_parse` and `CANNOT_PARSE` all match, so a service
+/// keeps its own enum casing.
 fn enum_value(service: &Service, member: &Member, standard: &str) -> Option<String> {
     let Some(Shape::Enum(values)) = service.shape(&member.target) else {
         return None;

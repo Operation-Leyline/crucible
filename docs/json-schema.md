@@ -20,6 +20,12 @@ and members; audience projection happens before root selection. No server-only
 shape is restored to satisfy a reference. The CLI's `--out` names a file in an
 existing directory; generation diagnostics leave it unchanged.
 
+Error documentation (`errorDocs` and `@errorReason`) is outside this value-schema
+format: it describes SDK error accessors and reference links, rather than the JSON
+value accepted by a shape. Configured services remain accepted, and their value
+schemas are unchanged. Use [API references](docs.md#error-documentation-urls) or
+[OpenAPI](openapi.md) for error-documentation metadata.
+
 ## Shapes independent of operations and resources
 
 Declare standalone model roots in `crucible.toml`:

@@ -291,11 +291,16 @@ fn error_enum(service: &Service, op: &Operation) -> String {
         .iter()
         .map(|error| format!("&errors::{}", info_static(error)))
         .collect();
+    let decoder = if service.error_docs_base.is_some() {
+        "decode_documented_modelled"
+    } else {
+        "decode_modelled"
+    };
     let arms: String = errors
         .iter()
         .map(|error| {
             format!(
-                "            {} => ::crucible_server_runtime_rust::__generated::decode_modelled(&errors::{}, headers, body).map(Self::{error}),\n",
+                "            {} => ::crucible_server_runtime_rust::__generated::{decoder}(&errors::{}, headers, body).map(Self::{error}),\n",
                 literal(&wire_error(service, op, error)),
                 info_static(error)
             )

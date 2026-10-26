@@ -2,7 +2,7 @@ service Troubleshooting {
     version "1"
     protocol json
     errorDocs "https://docs.example.test/errors/"
-    errors [Denied, HeaderError, PayloadError, PlainError, RequiredReason, MappedReasonError, DefaultReason, DefaultEmptyReason]
+    errors [Denied, HeaderError, PayloadError, PlainError, RequiredReason, MappedReasonError, DefaultReason, DefaultEmptyReason, BlobPayloadError]
     operations [Inspect]
 }
 
@@ -64,14 +64,23 @@ enum Reason {
 
 error DefaultReason {
     status 419
-    message: string
+    message: string = "denied"
     @errorReason
     detail: Reason = ACCESS
 }
 
 error DefaultEmptyReason {
     status 420
-    message: string
+    message: string = "denied"
     @errorReason
     detail: Reason = EMPTY
+}
+
+error BlobPayloadError {
+    status 421
+    @errorReason
+    @header("X-Error-Reason")
+    reason?: Reason
+    @payload
+    data?: blob
 }

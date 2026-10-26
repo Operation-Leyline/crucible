@@ -623,6 +623,20 @@ async fn main() {
     let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
     let endpoint = format!("http://{}", listener.local_addr().unwrap());
     let cases = [
+        (421, "X-Crucible-Error: BlobPayloadError\r\nX-Error-Reason: access/needed\r\n", r#"not-json /blob"#, Some("BlobPayloadError/reason-access%2Fneeded")),
+        (421, "X-Crucible-Error: BlobPayloadError\r\nX-Error-Reason: \r\n", r#""#, Some("BlobPayloadError/reason-")),
+        (419, "X-Crucible-Error: DefaultReason\r\n", r#"{invalid"#, Some("DefaultReason")),
+        (419, "X-Crucible-Error: DefaultReason\r\n", r#"42"#, Some("DefaultReason")),
+        (419, "X-Crucible-Error: DefaultReason\r\n", r#"[]"#, Some("DefaultReason")),
+        (419, "X-Crucible-Error: DefaultReason\r\n", r#"null"#, Some("DefaultReason")),
+        (419, "X-Crucible-Error: DefaultReason\r\n", r#"{}"#, Some("DefaultReason/reason-access%2Fneeded")),
+        (420, "X-Crucible-Error: DefaultEmptyReason\r\n", r#"{invalid"#, Some("DefaultEmptyReason")),
+        (420, "X-Crucible-Error: DefaultEmptyReason\r\n", r#"42"#, Some("DefaultEmptyReason")),
+        (420, "X-Crucible-Error: DefaultEmptyReason\r\n", r#"[]"#, Some("DefaultEmptyReason")),
+        (420, "X-Crucible-Error: DefaultEmptyReason\r\n", r#"null"#, Some("DefaultEmptyReason")),
+        (420, "X-Crucible-Error: DefaultEmptyReason\r\n", r#"{}"#, Some("DefaultEmptyReason/reason-")),
+        (419, "X-Crucible-Error: DefaultReason\r\n", r#""#, Some("DefaultReason/reason-access%2Fneeded")),
+        (420, "X-Crucible-Error: DefaultEmptyReason\r\n", r#""#, Some("DefaultEmptyReason/reason-")),
         (419, "", r#"{"__type":"DefaultReason","message":"denied"}"#, Some("DefaultReason/reason-access%2Fneeded")),
         (420, "", r#"{"__type":"DefaultEmptyReason","message":"denied"}"#, Some("DefaultEmptyReason/reason-")),
         (419, "", r#"{"__type":"DefaultReason","message":"denied","detail":null}"#, Some("DefaultReason")),
@@ -661,9 +675,9 @@ async fn main() {
         }
     }
     server.join().unwrap();
-    let defaulted = DefaultReason::builder().message("denied").build().unwrap();
+    let defaulted = DefaultReason::builder().build();
     assert_eq!(defaulted.doc_url(), Some("https://docs.example.test/errors/DefaultReason/reason-access%2Fneeded"));
-    let empty = DefaultEmptyReason::builder().message("denied").build().unwrap();
+    let empty = DefaultEmptyReason::builder().build();
     assert_eq!(empty.doc_url(), Some("https://docs.example.test/errors/DefaultEmptyReason/reason-"));
     let modeled = Denied::builder().message("denied").detail(Reason::Dot).build().unwrap();
     assert_eq!(modeled.doc_url(), Some("https://docs.example.test/errors/Denied/reason-%2E%2E"));

@@ -349,7 +349,7 @@ fn operation_kdoc(
 ) -> String {
     let (service, package) = (links.service, links.package);
     // What the caller must hold, as the model states it (docs/permissions.md
-    // Â§6.3): Markdown holding model text, rendered like model documentation.
+    // §6.3): Markdown holding model text, rendered like model documentation.
     let mut notes: Vec<String> =
         crucible_codegen_common::permissions::requirement_sentences(service, op, false)
             .iter()

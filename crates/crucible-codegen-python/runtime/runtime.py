@@ -657,8 +657,14 @@ class _Base:
                                       if payload is not None else json.loads(body, parse_float=Decimal) if body else {})
             self._response_bindings(target, op["response"], response, values)
             return self._codec.convert(target, values, decode=True)
+# BEGIN ERROR DOCUMENTATION
+        documentation_body_valid = not body
+# END ERROR DOCUMENTATION
         try:
             fields = json.loads(body, parse_float=Decimal)
+# BEGIN ERROR DOCUMENTATION
+            documentation_body_valid = isinstance(fields, dict)
+# END ERROR DOCUMENTATION
         except (ValueError, UnicodeDecodeError):
             fields = {}
         if not isinstance(fields, dict):
@@ -687,6 +693,8 @@ class _Base:
                     fields = {payload[0]: self._payload(error, body)}
                 self._response_bindings(target, error, response, fields)
 # BEGIN ERROR DOCUMENTATION
+                if payload is None and not documentation_body_valid:
+                    raise ValueError("modeled error body requires an object")
                 converted = self._codec.members(shape, fields, decode=True, strict=True)
 # END ERROR DOCUMENTATION
 # BEGIN LEGACY ERROR MEMBERS

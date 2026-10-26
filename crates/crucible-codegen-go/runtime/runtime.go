@@ -1246,9 +1246,15 @@ func (c *clientRuntime) decode(op operationDescription, response *http.Response,
 		if err := c.responseBindings(op.Output, op.Response, response, values); err != nil { return nil, err }
 		return values, nil
 	}
+// BEGIN ERROR DOCUMENTATION
+    documentationBodyValid := len(data) == 0
+// END ERROR DOCUMENTATION
 	if value, err := parseJSON(data); err == nil {
 		if object, ok := value.(map[string]any); ok {
 			values = object
+// BEGIN ERROR DOCUMENTATION
+            documentationBodyValid = true
+// END ERROR DOCUMENTATION
 		}
 	}
 	name, _ := values["__type"].(string)
@@ -1290,6 +1296,7 @@ func (c *clientRuntime) decode(op operationDescription, response *http.Response,
 		metadata.Throttling = shape.Error.Throttling
 // BEGIN ERROR DOCUMENTATION
 		metadata.Metadata.DocURL = errorDocURL(shape.Error.Documentation, nil)
+        if len(shape.Error.Payload) != 2 && !documentationBodyValid { return nil, metadata }
 // END ERROR DOCUMENTATION
 		if len(shape.Error.Payload) == 2 {
 			value, err := payloadValue(shape.Error.PayloadKind, data)

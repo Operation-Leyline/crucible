@@ -76,7 +76,8 @@ pub fn write(service: &Service, compiler: &str) -> String {
 /// `service` as a package carries it (`crucible-model.json`): the release
 /// snapshot of the typed contract, as compact JSON. A package ships in
 /// every release, so it holds what a compatibility comparison reads and no
-/// more: no documentation strings (`docs`, example `docs`) and no raw trait maps, which repeat the typed IR (and
+/// more: no documentation strings (`docs`, example `docs`), error documentation
+/// metadata (`error_docs_base`, `reason_member`), or raw trait maps, which repeat the typed IR (and
 /// carry documentation, raw vectors and legacy enum definitions with it).
 /// [`read`] reads it like any snapshot.
 pub fn write_contract(service: &Service, compiler: &str) -> String {
@@ -89,7 +90,7 @@ pub fn write_contract(service: &Service, compiler: &str) -> String {
     text
 }
 
-/// Clears every documentation string and raw trait map from `service`.
+/// Clears documentation strings, error documentation metadata and raw traits.
 fn typed_contract(service: &mut Service) {
     use crate::ir::{Member, Shape, Traits};
     fn strip(traits: &mut Traits) {

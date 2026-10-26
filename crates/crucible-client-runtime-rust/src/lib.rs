@@ -65,6 +65,7 @@ macro_rules! include_client {
 /// For generated code only.
 #[doc(hidden)]
 pub mod __generated {
+    pub use crate::transport::decode_documented_modelled;
     pub use crate::{
         BuildError, CallOptions, Config, Error, Field, ModelledError, Operation, OperationErrors,
         OperationInfo, Paginator, Transport, UnknownUnion, by_status, decode_modelled,

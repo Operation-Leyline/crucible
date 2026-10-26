@@ -25,6 +25,12 @@ parent directory must exist. Omit `--endpoint` to use relative API paths.
 Include a deployment path prefix in the endpoint when needed. Use
 `--service example.weather#Weather` when the model defines several services.
 
+With service `errorDocs`, each modeled error component schema carries
+`x-crucible-error-documentation`: a static `url`, nullable `reasonMember`, a
+literal-value `reasonUrls` map, and optional known `reasonDefault`. This is the
+same audience-projected metadata used by SDKs. It changes no response fields.
+The extension is absent from services without a documentation base.
+
 ## Supported contract
 
 The emitter supports Crucible JSON. It exports:

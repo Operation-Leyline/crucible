@@ -273,7 +273,16 @@ internal class ClientRuntime(input: ClientConfig, endpoint: String,
         }
     }
     private fun decodeError(op: JsonObject, response: WireResponse): ServiceError {
-        val body = try { (codec.parse(response.body.decodeToString()) as? JsonObject)?.toMutableMap() ?: mutableMapOf() } catch (_: Exception) { mutableMapOf() }
+        // BEGIN ERROR DOCUMENTATION
+        var documentationBodyValid = response.body.isEmpty()
+        // END ERROR DOCUMENTATION
+        val body = try {
+            val parsed = codec.parse(response.body.decodeToString()) as? JsonObject
+            // BEGIN ERROR DOCUMENTATION
+            documentationBodyValid = response.body.isEmpty() || parsed != null
+            // END ERROR DOCUMENTATION
+            parsed?.toMutableMap() ?: mutableMapOf()
+        } catch (_: Exception) { mutableMapOf() }
         fun text(name: String): String? = (body[name] as? JsonPrimitive)?.takeIf { it.isString }?.content
         var name = text("__type") ?: response.header("x-crucible-error")
         val declared = op.array("errors").map { it.jsonPrimitive.content }
@@ -286,6 +295,9 @@ internal class ClientRuntime(input: ClientConfig, endpoint: String,
         var documentationUrl = documentation?.text("url")
         // END ERROR DOCUMENTATION
         val error = if (target == null) ServiceException() else try {
+            // BEGIN ERROR DOCUMENTATION
+            if (payloadMember(metadata!!) == null && !documentationBodyValid) error("modeled error body requires object")
+            // END ERROR DOCUMENTATION
             payloadMember(metadata!!)?.let { body[it] = payloadValue(metadata, response.body) }
             applyHeaders(target, body, metadata!!, response)
             val decoded = codec.decode(target, JsonObject(body)) as ServiceError

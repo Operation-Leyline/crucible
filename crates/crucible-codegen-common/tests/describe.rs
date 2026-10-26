@@ -280,3 +280,54 @@ fn a_doc_link_cannot_be_forged_or_break_out_of_its_attribute() {
         assert!(!html.contains("data-crucible-ref"), "{markdown}: {html}");
     }
 }
+
+#[test]
+fn frozen_error_documentation_roles_are_not_inferred_from_current_bundled_definitions() {
+    let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../e2e/weather-service/versioned");
+    let service = crucible_lang::load_versioned_service(&dir).unwrap();
+    let id = crucible_ir::ShapeId::new("crucible.errors", "ValidationException");
+    assert_eq!(
+        service
+            .error_documentation(&id)
+            .unwrap()
+            .reason_member
+            .as_deref(),
+        Some("reason")
+    );
+    let mut checked = 0;
+    for version in &service.versions {
+        let frozen = &version.release;
+        let Some(documentation) = frozen.error_documentation(&id) else {
+            continue;
+        };
+        checked += 1;
+        // Older releases froze this member before @errorReason existed.
+        assert_eq!(documentation.reason_member, None);
+        assert!(documentation.reasons.is_empty());
+        let before = describe::describe(frozen).unwrap();
+        assert_eq!(
+            before.shapes[&id.to_string()]["error"]["reasons"],
+            serde_json::json!([])
+        );
+        let mut annotated = frozen.clone();
+        let crucible_ir::ir::Shape::Structure(shape) = annotated.shapes.get_mut(&id).unwrap()
+        else {
+            panic!()
+        };
+        shape.error.as_mut().unwrap().reason_member = Some("reason".into());
+        let after = describe::describe(&annotated).unwrap();
+        assert_eq!(
+            after.shapes[&id.to_string()]["error"]["reasonMember"],
+            "reason"
+        );
+        assert_eq!(
+            after.shapes[&id.to_string()]["error"]["reasons"]
+                .as_array()
+                .unwrap()
+                .len(),
+            4
+        );
+    }
+    assert!(checked > 0);
+}

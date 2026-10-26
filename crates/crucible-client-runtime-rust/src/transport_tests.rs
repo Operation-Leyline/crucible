@@ -566,3 +566,43 @@ async fn total_deadline_covers_response_body_and_retry_after() {
         server.abort();
     }
 }
+
+#[test]
+fn documentation_body_guard_distinguishes_null_from_effective_omission() {
+    static MEMBERS: [MemberInfo; 1] = [crate::__generated::member_info(
+        "reason",
+        Location::Body,
+        Scalar::String,
+        &crucible_wire::operation::Redaction::Public,
+        &[],
+    )];
+    static INFO: ErrorInfo =
+        crate::__generated::error_info("Defaulted", 419, Fault::Client, false, false, &MEMBERS);
+    fn default_reason() -> String {
+        "access/needed".into()
+    }
+    #[derive(Debug, serde::Deserialize)]
+    struct Defaulted {
+        #[serde(default = "default_reason")]
+        reason: String,
+    }
+    let headers = HeaderMap::new();
+    // Preserve the ordinary runtime's existing null-as-empty behavior.
+    assert_eq!(
+        decode_modelled::<Defaulted>(&INFO, &headers, b"null")
+            .unwrap()
+            .reason,
+        "access/needed"
+    );
+    for body in [b"".as_slice(), b"{}"] {
+        assert_eq!(
+            decode_documented_modelled::<Defaulted>(&INFO, &headers, body)
+                .unwrap()
+                .reason,
+            "access/needed"
+        );
+    }
+    for body in [b"null".as_slice(), b"[]", b"42", b"{invalid"] {
+        assert!(decode_documented_modelled::<Defaulted>(&INFO, &headers, body).is_none());
+    }
+}

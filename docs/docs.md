@@ -470,11 +470,9 @@ with nullable `message` and `since` strings; `since` is a nullable string;
 
 ### Service and resources
 
-`service.errorDocsBase`, when present, is the normalized documentation base.
-
 | Object | Fields and types |
 |---|---|
-| `service` | `id`, `name`, `title`, `version`: strings; `internal`: boolean; `documentation`, `notes`: common objects |
+| `service` | `id`, `name`, `title`, `version`: strings; `internal`: boolean; `documentation`, `notes`: common objects; optional `errorDocsBase`: normalized documentation-base URL string |
 | Protocol metadata | `protocol`: protocol string |
 | Authentication | `auth`: effective default scheme-ID array; `authSchemes`: scheme ID to lowered authentication configuration |
 | Service references | `errors`: service-declared error-ID array; `resourceRoots`: direct resource-ID array |

@@ -515,7 +515,10 @@ select a static reason page for a known effective value. An absent reason applie
 its model default, including an empty-string default. Without a known default,
 absence uses the code page, as do explicit null and future values. Unknown error
 identities have no documentation URL. External
-outputs omit internal reason values. Documentation metadata changes no error wire
+outputs omit internal reason values. Whole definitions shown in frozen release
+history retain their frozen designation; a member named `reason` in an older
+release does not acquire a role from a newer bundled definition. Documentation
+metadata changes no error wire
 field and requires no wire migration. See [API references](../docs.md#error-documentation-urls)
 and the client guides for [Rust](../clients/rust.md#models-and-errors),
 [TypeScript](../clients/typescript.md#models-and-errors),
