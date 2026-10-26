@@ -161,10 +161,14 @@ fn a_vendored_emitter_does_not_capture_the_enclosing_consumers_revision() {
     assert!(!probe(&executable, &vendored).contains("CRUCIBLE_GENERATOR_REVISION"));
 }
 
-fn copy_checkout(root: &Path, repository: &Path) {
+fn copy_checkout(root: &Path, repository: &Path, build_target: Option<&Path>) {
+    let root = root.canonicalize().unwrap();
+    let build_target = build_target
+        .and_then(|target| target.canonicalize().ok())
+        .filter(|target| target != &root);
     let output = Command::new("git")
         .arg("-C")
-        .arg(root)
+        .arg(&root)
         .args([
             "ls-files",
             "-z",
@@ -182,6 +186,12 @@ fn copy_checkout(root: &Path, repository: &Path) {
     {
         let relative = std::str::from_utf8(relative).unwrap();
         let source = root.join(relative);
+        if build_target
+            .as_ref()
+            .is_some_and(|target| source.starts_with(target))
+        {
+            continue;
+        }
         if source.is_file() {
             let target = repository.join(relative);
             fs::create_dir_all(target.parent().unwrap()).unwrap();
@@ -199,7 +209,13 @@ fn automatic_runtime_revision_survives_an_actual_cargo_git_source_checkout() {
         .unwrap();
     let repository = directory.path().join("repository");
     fs::create_dir(&repository).unwrap();
-    copy_checkout(&root, &repository);
+    // Cargo identifies its active output directory even when target-dir is
+    // configured outside Git's ignore rules. Other nonignored paths are sources.
+    copy_checkout(
+        &root,
+        &repository,
+        Path::new(env!("CARGO_TARGET_TMPDIR")).parent(),
+    );
     git(&repository, &["init", "-q", "-b", "main"]);
     git(
         &repository,
@@ -343,7 +359,7 @@ fn scratch_checkout_includes_untracked_files_but_excludes_ignored_files() {
     .unwrap();
     let copy = directory.path().join("copy");
     fs::create_dir(&copy).unwrap();
-    copy_checkout(&root, &copy);
+    copy_checkout(&root, &copy, None);
     assert_eq!(
         fs::read_to_string(copy.join("crates/crucible-ir/src/lib.rs")).unwrap(),
         "mod projection;"
@@ -400,5 +416,25 @@ fn untracked_source_files_mark_revision_dirty_but_ignored_files_and_docs_do_not(
     assert!(
         !clean_again.contains("CRUCIBLE_GENERATOR_DIRTY"),
         "{clean_again}"
+    );
+}
+
+#[test]
+fn scratch_checkout_excludes_only_the_active_cargo_target() {
+    let directory = tempfile::tempdir().unwrap();
+    let root = directory.path().join("repository");
+    init(&root, "https://github.com/Operation-Leyline/crucible");
+    let target = root.join("custom build output");
+    fs::create_dir_all(target.join("debug")).unwrap();
+    fs::write(target.join("debug/artifact"), "build output").unwrap();
+    fs::create_dir_all(root.join(".codex-target")).unwrap();
+    fs::write(root.join(".codex-target/source.rs"), "// nonignored source").unwrap();
+    let copy = directory.path().join("copy");
+    fs::create_dir(&copy).unwrap();
+    copy_checkout(&root, &copy, Some(&target));
+    assert!(!copy.join("custom build output").exists());
+    assert_eq!(
+        fs::read_to_string(copy.join(".codex-target/source.rs")).unwrap(),
+        "// nonignored source"
     );
 }
