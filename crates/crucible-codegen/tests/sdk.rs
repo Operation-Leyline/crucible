@@ -310,6 +310,47 @@ fn channels_never_carry_credentials_or_reach_public_registries_by_mistake() {
 }
 
 #[test]
+fn git_install_urls_are_explicit_consumer_metadata() {
+    let config = |url: &str| {
+        format!(
+            "schema_version = 1\nmodel = \"model\"\n[sdk.rust]\nout = \"rust\"\nchannel = {{ git = \"git@publish.example:weather.git\", install_url = {url} }}\n"
+        )
+    };
+    for (value, message) in [
+        (
+            r#""https://user:SENTINEL@download.example/weather.git""#,
+            "never carries credentials",
+        ),
+        (
+            r#""ssh://git@download.example/weather.git""#,
+            "not an http or https URL",
+        ),
+        (r#""relative/weather.git""#, "not an http or https URL"),
+        (r#""""#, "is empty"),
+        ("42", "must be a string"),
+    ] {
+        let errors = errors(&config(value));
+        assert_error(&errors, "sdk.rust.channel.install_url", message);
+        assert!(!errors.join("\n").contains("SENTINEL"), "{errors:?}");
+    }
+    let (_directory, path) = repository(&config(r#""https://download.example/weather.git""#));
+    let file = sdk::load(&path).unwrap();
+    let rust = &file.sdks["rust"];
+    let before = rust.config_sha256(&file);
+    let mut without_override = rust.clone();
+    let Some(Channel::Git { install_url, .. }) = &mut without_override.channel else {
+        unreachable!();
+    };
+    *install_url = None;
+    assert_ne!(before, without_override.config_sha256(&file));
+    assert!(
+        without_override.effective(&file)["channel"]
+            .get("install_url")
+            .is_none()
+    );
+}
+
+#[test]
 fn language_keys_are_typed() {
     let base = "schema_version = 1\nmodel = \"m\"\n";
     assert_error(

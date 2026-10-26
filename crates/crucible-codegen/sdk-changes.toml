@@ -105,3 +105,9 @@ id = 15
 languages = ["rust", "ts", "python", "go", "java", "kotlin", "csharp", "swift", "dart", "php", "ruby", "cpp", "c", "r"]
 kind = "patch"
 summary = "Generated package guides qualify automatic token generation to operations that declare an idempotency token."
+
+[[change]]
+id = 16
+languages = ["rust", "ts", "python", "go", "java", "kotlin", "csharp", "swift", "dart", "php", "ruby", "cpp", "c", "r"]
+kind = "patch"
+summary = "Git channel install_url selects the consumer repository for generated installation guidance; Rust development exports no longer advertise the Crucible version as a released SDK tag."

@@ -142,6 +142,9 @@ into the release record.
   Swift, C#), `0.0.0.dev0` (Python), `0.0.0-SNAPSHOT` (Java, Kotlin),
   `0.0.0` (Ruby, PHP, C, C++, R), the generator's version (Rust), none
   (Go).
+  Rust development guides do not claim a published Git tag: the development
+  package version is not an SDK release version. Release guides expand the
+  channel's tag template with the selected SDK release version.
 - `crucible generate <language>` takes the common keys as flags, for ad
   hoc generation.
 - Neither reads a registry or picks a version, and a declared SDK takes
@@ -524,6 +527,20 @@ package's own paths are always written. A distribution tree with no
 paths the old publisher owned, which are removed; everything else
 (`NOTICE`, workflows) stays. GitHub Packages is an npm (or Maven) registry
 URL.
+
+A Git channel can set `install_url` to a credential-free HTTP(S) consumer
+URL, typically HTTPS with a Git credential manager, while publishing still
+uses `git`:
+
+```toml
+channel = { git = "git@github.com:example/weather-rs.git", install_url = "https://github.com/example/weather-rs.git", tag = "sdk-v{version}" }
+```
+
+Generated installation guidance uses `install_url` when set, otherwise the
+channel's Git URL. Crucible does not infer a URL from a custom README or
+convert an SSH publishing URL to HTTPS. A configured README replaces only
+the README; set `install_url` to keep the generated `AGENTS.md` consistent
+with its installation instructions.
 
 **Credentials stay in the environment,** where the native tools and
 Crucible's channel readers both find them: `NODE_AUTH_TOKEN` (through the

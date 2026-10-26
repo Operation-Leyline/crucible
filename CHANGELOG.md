@@ -17,6 +17,10 @@ version's section when it is prepared.
 
 ### Added
 
+- Git channels accept an optional `install_url` for consumer installation
+  guidance while retaining their publishing URL. Set `install_url` when
+  consumers need a different install transport from the publishing transport;
+  otherwise guidance uses the channel's Git URL.
 - Typed response streams: `output stream Event`, Rust `EventStream<T>` handlers,
   and generated TypeScript `ResponseStream<T>` clients using Fetch and SSE.
   Explicit terminal outcomes, cancellation, item validation, total deadlines,
@@ -53,6 +57,10 @@ version's section when it is prepared.
 
 ### Fixed
 
+- Rust SDK development guides no longer advertise the Crucible version as
+  a published SDK Git tag. They retain the public-registry package-substitution
+  warning and direct consumers to the SDK publisher for a published release.
+  Release guides use the selected SDK version and configured tag template.
 - Adding pagination to an existing unpaged operation now reports
   `compatibility.pagination`, including in baseline and older-release projection
   checks. Intentional changes can use the existing manifest exception.

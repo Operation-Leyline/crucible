@@ -181,7 +181,11 @@ out = "generated/rust-dev"
 
 #[test]
 fn plans_builds_verifies_and_publishes_a_git_channel_release() {
-    let service = Service::new(RUST);
+    // Consumer guidance may use HTTPS even when publishing uses another transport.
+    let service = Service::new(&RUST.replace(
+        r#"channel = { git = "{remote}" }"#,
+        r#"channel = { git = "{remote}", install_url = "https://download.example/weather.git" }"#,
+    ));
     let repo = service.repo();
     fs::write(repo.join("consumer/expected.lock"), lock("0.2.0")).unwrap();
 
@@ -241,6 +245,13 @@ fn plans_builds_verifies_and_publishes_a_git_channel_release() {
     // `out` now holds the release; the consumer's lock is as it was.
     let manifest = fs::read_to_string(repo.join("generated/rust/Cargo.toml")).unwrap();
     assert!(manifest.contains("version = \"0.2.0\""), "{manifest}");
+    let agents = fs::read_to_string(repo.join("generated/rust/AGENTS.md")).unwrap();
+    assert!(
+        agents.contains(
+            r#"weather-sdk = { git = "https://download.example/weather.git", tag = "v0.2.0" }"#
+        ),
+        "{agents}"
+    );
     assert_eq!(
         fs::read_to_string(repo.join("consumer/Cargo.lock")).unwrap(),
         lock("0.6.1")

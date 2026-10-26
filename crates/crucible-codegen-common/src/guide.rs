@@ -115,6 +115,12 @@ impl Guide {
                 "{package} is published to the npm registry {}, not to the public one.",
                 code_span(url)
             ),
+            (None, Some(Registry::Git)) => format!(
+                "{package} is a development export with no assigned Git release tag. \
+                 Use the generated package locally. For a published SDK release, \
+                 ask the SDK publisher for its distribution repository and release tag; \
+                 installing {package} from the public registry could fetch someone else's package."
+            ),
             _ => format!(
                 "{package} is private: it is not published to a public registry. Install it from \
                  where your organisation releases it; installing {package} from the public \
