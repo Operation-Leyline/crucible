@@ -195,6 +195,14 @@ fn without_docs(service: &Service) -> serde_json::Value {
                 map.remove("docs");
                 map.remove("doc_links");
                 map.remove("doc_link_operations");
+                map.remove("error_docs_base");
+                map.remove("reason_member");
+                if let Some(traits) = map
+                    .get_mut("traits")
+                    .and_then(serde_json::Value::as_object_mut)
+                {
+                    traits.remove("crucible.api#errorReason");
+                }
                 map.values_mut().for_each(strip);
             }
             serde_json::Value::Array(items) => items.iter_mut().for_each(strip),
