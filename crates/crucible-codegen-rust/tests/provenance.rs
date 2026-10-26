@@ -763,29 +763,62 @@ fn incremental_cargo_notices_a_packed_branch_gaining_a_loose_ref() {
     git(&root, &["commit", "-qm", "revision consumer"]);
     // An isolated target avoids another scratch checkout's Cargo fingerprints.
     let target = directory.path().join("target");
+    // Inherit RUSTC_WRAPPER so the same sequence can run through sccache.
     let build = || {
-        success(
-            Command::new(&cargo)
-                .args(["run", "--quiet", "--offline", "--manifest-path"])
-                .arg(root.join("Cargo.toml"))
-                .env("CARGO_TARGET_DIR", &target)
-                .env("CARGO_BUILD_JOBS", "1")
-                .output()
-                .unwrap(),
-        )
-        .trim()
-        .to_owned()
+        let output = Command::new(&cargo)
+            .args(["run", "--verbose", "--offline", "--manifest-path"])
+            .arg(root.join("Cargo.toml"))
+            .env("CARGO_TARGET_DIR", &target)
+            .env("CARGO_BUILD_JOBS", "1")
+            .output()
+            .unwrap();
+        let stderr = String::from_utf8_lossy(&output.stderr).into_owned();
+        (success(output).trim().to_owned(), stderr)
     };
     let initial = git(&root, &["rev-parse", "HEAD"]);
-    assert_eq!(build(), initial);
+    assert_eq!(build().0, initial);
     git(&root, &["pack-refs", "--all", "--prune"]);
-    assert_eq!(build(), initial);
+    assert_eq!(build().0, initial);
+    git(&root, &["update-ref", "refs/tags/unrelated", "HEAD"]);
+    git(
+        &root,
+        &["update-ref", "refs/remotes/origin/unrelated", "HEAD"],
+    );
+    let (revision, cargo_log) = build();
+    assert_eq!(revision, initial);
+    assert!(cargo_log.contains("Fresh crucible-revision"), "{cargo_log}");
     git(
         &root,
         &["commit", "--allow-empty", "-qm", "advance packed branch"],
     );
     let next = git(&root, &["rev-parse", "HEAD"]);
     assert_ne!(next, initial);
-    assert_eq!(build(), next);
-    assert_eq!(build(), next);
+    assert_eq!(build().0, next);
+    assert_eq!(build().0, next);
+}
+
+#[test]
+fn packed_nested_branch_watches_the_nearest_existing_ref_parent() {
+    let directory = tempfile::tempdir().unwrap();
+    let executable = probe_binary(directory.path());
+    let root = directory.path().join("repository");
+    init(&root, "https://github.com/Operation-Leyline/crucible");
+    git(&root, &["branch", "-m", "feature/nested/main"]);
+    git(&root, &["pack-refs", "--all", "--prune"]);
+    for relative in [".git/refs/heads/feature/nested", ".git/refs/heads/feature"] {
+        let path = root.join(relative);
+        if path.is_dir() {
+            fs::remove_dir(path).unwrap();
+        }
+    }
+    let heads = root.join(".git/refs/heads").canonicalize().unwrap();
+    let refs = root.join(".git/refs").canonicalize().unwrap();
+    let output = probe(&executable, &root);
+    let watched: Vec<&Path> = output
+        .lines()
+        .filter_map(|line| line.strip_prefix("cargo::rerun-if-changed="))
+        .map(Path::new)
+        .collect();
+    assert!(watched.contains(&heads.as_path()), "{output}");
+    assert!(!watched.contains(&refs.as_path()), "{output}");
 }
