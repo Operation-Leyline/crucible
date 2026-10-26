@@ -161,3 +161,37 @@ client parity and the remaining tooling and host qualification.
 
 `bash tools/test-ts.sh` covers parser behavior and generated TypeScript-to-Rust
 HTTP calls. `python tools/test-consumers.py` covers stable service consumers.
+
+## Browser qualification
+
+The optional browser harness generates and compiles the TypeScript SDK as ESM,
+then uses native browser Fetch against the Rust HTTP fixture. It checks actual
+cross-origin preflight and exposed request IDs, progressive GET/POST delivery,
+typed errors, cancellation, producer drop, total deadlines, and unary calls.
+A local raw HTTP fixture checks malformed framing, UTF-8 and JSON, terminal
+rules, unknown application variants, byte bounds, and absence of replay.
+Neither path substitutes `fetch` or disables browser web security.
+
+Install Node/npm, Rust, Python 3.11 or later, and the optional browser dependency:
+
+```sh
+python -m pip install -r tools/requirements-browser.txt
+python -m playwright install chromium
+python tools/test-streaming-browser.py --report target/browser-streaming.json
+```
+
+Use `--channel chrome` or `--channel msedge` to test an already installed
+browser in an ephemeral profile. Repeat the flag to test multiple builds;
+Chrome and Edge are both Chromium, so this does not establish cross-engine
+coverage. The report records each actual browser version and completed checks.
+CI runs bundled Chromium when the TypeScript qualification gate is selected.
+
+The harness builds its CLI and Rust fixture by default. `CRUCIBLE_BIN` and
+`CRUCIBLE_STREAMING_BIN` can select already built binaries; `TSC` can select a
+TypeScript compiler executable instead of the pinned npm invocation. Set a
+private `CARGO_TARGET_DIR` and a low `CARGO_BUILD_JOBS` on a shared machine.
+The Rust fixture enables its single-origin CORS middleware and observation
+endpoint only when `CRUCIBLE_BROWSER_ORIGIN` is set by this harness. The model's
+operations are public: the custom-header check proves request middleware
+delivery, not modeled authentication. These local checks do not establish
+deployed AWS flushing or support in the other generated client languages.

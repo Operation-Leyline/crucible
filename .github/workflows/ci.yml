@@ -694,6 +694,36 @@ jobs:
         with: { node-version: 22 }
       - run: bash tools/test-ts.sh
 
+  # Native browser Fetch/CORS and stream ownership; no substituted fetch transport.
+  browser-streaming:
+    needs: [plan, rust, qualification-tools]
+    if: always() && !cancelled() && needs.rust.result == 'success' && needs.plan.outputs.typescript == 'true' && (needs.qualification-tools.result == 'success' || needs.plan.outputs.tools != 'true')
+    runs-on: ${{ vars.LINUX_RUNNER || 'ubuntu-latest' }}
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+        with: { persist-credentials: false }
+      - uses: ./.github/actions/qualification-tools
+        if: runner.os == 'Linux' && needs.plan.outputs.tools == 'true'
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with: { shared-key: native, save-if: "${{ github.ref == 'refs/heads/main' }}" }
+      - uses: actions/setup-node@v7
+        with: { node-version: 22 }
+      - uses: actions/setup-python@v7
+        with: { python-version: '3.11' }
+      - run: python -m pip install -r tools/requirements-browser.txt
+      - run: python -m playwright install --with-deps chromium
+      - run: python tools/test-streaming-browser.py --report target/browser-streaming.json
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: always()
+        with:
+          name: browser-streaming-${{ github.sha }}
+          path: target/browser-streaming.json
+          if-no-files-found: ignore
+          overwrite: true
+          retention-days: 7
+
   # The static API reference renderer, run under Node's built-in test runner
   # against the generator's describe.json goldens.
   docs-site:
@@ -811,7 +841,7 @@ jobs:
   # A stable aggregate reports failures while allowing intentionally omitted jobs.
   ci:
     if: always() && (github.event_name != 'pull_request' || !github.event.pull_request.draft)
-    needs: [plan, qualification-tools, service-cli, cdk, terraform, c-linux, r, cpp-linux, c-windows, cpp-windows, ruby, php, dart, swift-linux, swift-apple, kotlin, kotlin-multiplatform, kotlin-android, csharp, java, go, python, rust, typescript, docs-site, e2e, consumers, onboarding, lsp-binaries]
+    needs: [plan, qualification-tools, service-cli, cdk, terraform, c-linux, r, cpp-linux, c-windows, cpp-windows, ruby, php, dart, swift-linux, swift-apple, kotlin, kotlin-multiplatform, kotlin-android, csharp, java, go, python, rust, typescript, browser-streaming, docs-site, e2e, consumers, onboarding, lsp-binaries]
     runs-on: ${{ vars.LINUX_RUNNER || 'ubuntu-latest' }}
     timeout-minutes: 5
     steps:
@@ -828,6 +858,8 @@ jobs:
           # Release qualification (full) never tags a commit the consumers cannot build.
           if results["plan"]["outputs"]["full"] == "true" and results["consumers"]["result"] != "success":
               failed.append("required consumers gate")
+          if results["plan"]["outputs"]["typescript"] == "true" and results["browser-streaming"]["result"] != "success":
+              failed.append("required browser streaming gate")
           if failed:
               raise SystemExit("CI failed: " + ", ".join(failed))
           PY

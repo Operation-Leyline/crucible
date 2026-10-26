@@ -56,6 +56,9 @@ TOOLS = {
     **{f"tools/test-{name}.py": groups for name, groups in GENERATORS.items()},
     "tools/test-ts.sh": {"typescript", "e2e"},
     "tools/test-streaming.py": {"typescript", "e2e"},
+    "tools/test-streaming-browser.py": {"typescript", "e2e"},
+    "tools/streaming-browser.mjs": {"typescript", "e2e"},
+    "tools/requirements-browser.txt": {"typescript", "e2e"},
     "tools/test-docs-site.sh": {"docs_site"},
     "tools/test-e2e.sh": {"e2e"},
     "tools/test-kotlin-android.py": {"kotlin"},
@@ -151,6 +154,8 @@ def affected_groups(paths):
             selected.update(TOOLS[path])
         elif path.startswith("tools/cpp-vcpkg/"):
             selected.update({"c", "cpp"})
+        elif path.startswith("tests/consumers/streaming/"):
+            selected.update({"consumers", "typescript", "e2e"})
         elif path.startswith("tests/consumers/"):
             selected.add("consumers")
         elif path.startswith("e2e/"):
