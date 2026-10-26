@@ -6,3 +6,8 @@ imports = ["crucible.errors"]
 
 [model.baseline]
 path = "releases/v1.json"
+
+[[exceptions]]
+rule = "compatibility.pagination"
+shape = "test.versioned_pages#ListTags"
+reason = "This fixture intentionally adds pagination to exercise sealed tokens at older versions; its callers explicitly handle paged results."

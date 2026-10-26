@@ -142,6 +142,109 @@ fn no_op_and_documentation_changes_pass_with_recursive_shapes() {
     assert!(diff(&old, &new, &Config::default()).findings.is_empty());
 }
 
+fn paginated_contract() -> Service {
+    contract(
+        &[("operations [GetItem]", "operations [GetItem, ListItems]")],
+        r#"list Items: string
+readonly operation ListItems {
+    http GET "/items"
+    paginated(inputToken: token, outputToken: token, pageSize: limit)
+    input {
+        @query
+        token?: string
+        @query
+        limit?: integer
+    }
+    output {
+        items: Items
+        token?: string
+    }
+}"#,
+    )
+}
+
+#[test]
+fn adding_pagination_to_an_existing_operation_is_a_wire_break() {
+    let new = paginated_contract();
+    let mut old = new.clone();
+    old.operations
+        .iter_mut()
+        .find(|op| op.name() == "ListItems")
+        .unwrap()
+        .paginated = None;
+    let report = diff(&old, &new, &wire());
+    assert!(report.has_errors());
+    assert_eq!(report.findings.len(), 1);
+    let finding = &report.findings[0];
+    assert_eq!(finding.rule, "compatibility.pagination");
+    assert_eq!(finding.shape, "example.api#ListItems");
+    assert_eq!(finding.severity, Severity::Error);
+    assert!(finding.exception.is_none());
+}
+
+#[test]
+fn unchanged_pagination_and_new_operations_pass_but_changes_and_removal_fail() {
+    let old = paginated_contract();
+    assert!(diff(&old, &old, &wire()).findings.is_empty());
+    let mut unpaged = old.clone();
+    let operation = unpaged
+        .operations
+        .iter_mut()
+        .find(|op| op.name() == "ListItems")
+        .unwrap();
+    operation.paginated = None;
+    assert!(diff(&unpaged, &unpaged, &wire()).findings.is_empty());
+    assert!(diff(&model(), &old, &wire()).findings.is_empty());
+    for field in ["removed", "items", "page_size"] {
+        let mut new = old.clone();
+        let operation = new
+            .operations
+            .iter_mut()
+            .find(|op| op.name() == "ListItems")
+            .unwrap();
+        match field {
+            "removed" => operation.paginated = None,
+            "items" => operation.paginated.as_mut().unwrap().items = Some("items".into()),
+            "page_size" => operation.paginated.as_mut().unwrap().page_size = None,
+            _ => unreachable!(),
+        }
+        let report = diff(&old, &new, &wire());
+        assert!(report.has_errors(), "{field}");
+        assert_eq!(report.findings.len(), 1, "{field}");
+        assert_eq!(
+            report.findings[0].rule, "compatibility.pagination",
+            "{field}"
+        );
+        assert_eq!(
+            report.findings[0].message,
+            "existing pagination contract changed"
+        );
+    }
+}
+
+#[test]
+fn added_pagination_respects_manifest_exceptions() {
+    let new = paginated_contract();
+    let mut old = new.clone();
+    old.operations
+        .iter_mut()
+        .find(|op| op.name() == "ListItems")
+        .unwrap()
+        .paginated = None;
+    let config = Config::parse(
+        "[compatibility]\nsdk_source = false\n[[exceptions]]\nrule = 'compatibility.pagination'\nshape = 'example.api#ListItems'\nreason = 'Callers explicitly accept paged results'\n",
+    )
+    .unwrap();
+    let report = diff(&old, &new, &config);
+    assert!(!report.has_errors());
+    assert_eq!(report.findings.len(), 1);
+    assert_eq!(report.findings[0].rule, "compatibility.pagination");
+    assert_eq!(
+        report.findings[0].exception.as_deref(),
+        Some("Callers explicitly accept paged results")
+    );
+}
+
 #[test]
 fn removing_readonly_is_a_breaking_retry_contract_change() {
     let old = with("operation GetItem {", "readonly operation GetItem {");
