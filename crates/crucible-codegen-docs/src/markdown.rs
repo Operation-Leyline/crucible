@@ -948,6 +948,20 @@ fn page(d: &Description, id: &str, operation: Option<&str>) -> Option<String> {
         .map(shape_path)
 }
 
+fn reason_item(reason: &Value, prefix: &str) -> String {
+    let value = string(&reason["value"]);
+    let label = if value.is_empty() { "\"\"" } else { value };
+    let page = reason["docUrl"]
+        .as_str()
+        .map_or_else(|| code(label), |url| external_link(label, url));
+    let description = cell_docs(reason, prefix);
+    if description.trim().is_empty() {
+        format!("- {page}\n")
+    } else {
+        format!("- {page}: {}\n", description.trim())
+    }
+}
+
 fn errors(d: &Description, ids: &Value, prefix: &str) -> String {
     if list(ids).is_empty() {
         return "No modeled errors.\n\n".into();
@@ -1003,12 +1017,7 @@ fn errors(d: &Description, ids: &Value, prefix: &str) -> String {
                 code(member)
             ));
             for reason in list(&error["reasons"]) {
-                let value = string(&reason["value"]);
-                let label = if value.is_empty() { "\"\"" } else { value };
-                let page = reason["docUrl"]
-                    .as_str()
-                    .map_or_else(|| code(label), |url| external_link(label, url));
-                out.push_str(&format!("- {page}: {}\n", cell_docs(reason, prefix)));
+                out.push_str(&reason_item(reason, prefix));
             }
             out.push('\n');
         }
@@ -1600,12 +1609,7 @@ fn shape_page(d: &Description, shape: &Value) -> String {
             code(member)
         ));
         for reason in list(&shape["error"]["reasons"]) {
-            let value = string(&reason["value"]);
-            let label = if value.is_empty() { "\"\"" } else { value };
-            let page = reason["docUrl"]
-                .as_str()
-                .map_or_else(|| code(label), |url| external_link(label, url));
-            out.push_str(&format!("- {page}: {}\n", cell_docs(reason, "../")));
+            out.push_str(&reason_item(reason, "../"));
         }
         out.push('\n');
     }

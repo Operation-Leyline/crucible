@@ -79,7 +79,8 @@ impl Service {
         let info = shape.error.as_ref()?;
         let url = self
             .error_docs_base
-            .as_ref()
+            .as_deref()
+            .and_then(|value| base(value).ok())
             .map(|base| format!("{base}/{}", segment(&info.wire_code)));
         let reason_member = info
             .reason_member

@@ -159,3 +159,29 @@ fn targets_must_explicitly_support_configured_error_documentation() {
     service.error_docs_base = None;
     service.require_capabilities(&capabilities).unwrap();
 }
+
+#[test]
+fn direct_ir_bases_derive_the_same_urls_as_compiler_normalized_bases() {
+    let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../tests/models/error-docs");
+    for base in [
+        "https://docs.example.test/errors/",
+        "https://docs.example.test",
+        "http://localhost:8000",
+        "https://docs.example.test/a/../errors/",
+    ] {
+        let mut package = crucible_lang::load_package(&dir).unwrap();
+        for file in &mut package.files {
+            file.text = file.text.replace("https://docs.example.test/errors/", base);
+        }
+        let compiled = crucible_lang::compile(&package, None);
+        let rendered = compiled.render();
+        let canonical = compiled.service.unwrap_or_else(|| panic!("{rendered}"));
+        let mut direct = canonical.clone();
+        direct.error_docs_base = Some(base.into());
+        assert_eq!(
+            direct.error_documentation(&id("Denied")),
+            canonical.error_documentation(&id("Denied")),
+            "{base}"
+        );
+    }
+}

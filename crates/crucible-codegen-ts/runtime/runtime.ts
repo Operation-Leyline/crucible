@@ -510,7 +510,8 @@ export interface ErrorDocumentation {
 }
 /** Select only declared reason pages; absent, null and future values use the code page. */
 export function errorDocUrl(documentation: ErrorDocumentation, fields: Record<string, unknown>): string {
-  const reason = documentation.reasonMember === null ? undefined : fields[documentation.reasonMember];
+  const reason = documentation.reasonMember === null || !Object.hasOwn(fields, documentation.reasonMember)
+    ? undefined : fields[documentation.reasonMember];
   return typeof reason === "string" && Object.hasOwn(documentation.reasonUrls, reason)
     ? documentation.reasonUrls[reason] : documentation.url;
 }
