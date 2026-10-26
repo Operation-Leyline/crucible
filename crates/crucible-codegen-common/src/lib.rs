@@ -195,6 +195,7 @@ pub fn schema(service: &Service, field: impl Fn(&str) -> String) -> Value {
                         v["error"]["payloadKind"] = json!(payload.kind);
                     }
                     if !e.header_encodings.is_empty() { v["error"]["headerEncodings"] = json!(e.header_encodings); }
+                    if let Some(documentation) = error_documentation(service, id) { v["error"]["documentation"] = documentation; }
                 }
                 v
             }
@@ -231,6 +232,19 @@ pub fn schema(service: &Service, field: impl Fn(&str) -> String) -> Value {
         value["recursiveGroups"] = json!(service.recursive_groups);
     }
     value
+}
+
+/// Compact static lookup consumed by every bundled client runtime. Keys are
+/// literal enum wire values, never target-language symbols or response text URLs.
+pub fn error_documentation(service: &Service, id: &crucible_ir::ShapeId) -> Option<Value> {
+    let documentation = service.error_documentation(id)?;
+    let url = documentation.url?;
+    let reasons: std::collections::BTreeMap<_, _> = documentation
+        .reasons
+        .iter()
+        .filter_map(|reason| reason.url.as_ref().map(|url| (&reason.value, url)))
+        .collect();
+    Some(json!({"url": url, "reasonMember": documentation.reason_member, "reasonUrls": reasons}))
 }
 
 #[cfg(test)]

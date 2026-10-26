@@ -195,6 +195,7 @@ pub fn capabilities() -> crucible_ir::Capabilities {
         Feature::ErrorPayload,
         Feature::MediaTypeHeaders,
         Feature::ServerStreaming,
+        Feature::ErrorDocumentation,
     ])
 }
 
@@ -290,11 +291,7 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
         contents,
     };
     Ok(vec![
-        file(
-            "src/runtime.ts",
-            crucible_codegen_common::service_exception_runtime(service, RUNTIME)
-                .replace("\r\n", "\n"),
-        ),
+        file("src/runtime.ts", runtime(service)),
         file("src/models.ts", models::emit(service, &links)),
         file("src/errors.ts", errors),
         file("src/schemas.ts", schemas::emit(service)),
@@ -317,6 +314,35 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
             .map(|text| file("LICENSE", text)),
     )
     .collect())
+}
+
+fn runtime(service: &Service) -> String {
+    let configured = service.error_docs_base.is_some();
+    let source = crucible_codegen_common::service_exception_runtime(service, RUNTIME);
+    let mut include = true;
+    let mut result = String::new();
+    for line in source.lines() {
+        if line.trim() == "// BEGIN ERROR DOCUMENTATION" {
+            include = configured;
+            continue;
+        }
+        if line.trim() == "// END ERROR DOCUMENTATION" {
+            include = true;
+            continue;
+        }
+        if include {
+            result.push_str(line);
+            result.push('\n');
+        }
+    }
+    if !configured {
+        result = result.replace("spec.retryable\n      );", "spec.retryable);");
+        result = result.replace(
+            "extends ServiceError {}\n\n\ntype DebugMember",
+            "extends ServiceError {}\n\ntype DebugMember",
+        );
+    }
+    result
 }
 
 /// The package's README (the configured one, else generated), its

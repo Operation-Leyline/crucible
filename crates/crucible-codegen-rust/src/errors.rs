@@ -78,6 +78,7 @@ pub(crate) fn emit(service: &Service, client: bool, diagnostics: &mut Diagnostic
                 "super::model::",
                 &builders[id],
             );
+            out.push_str(&documentation_method(service, id, structure));
         }
         let fault = match error.fault {
             Fault::Client => "Client",
@@ -257,6 +258,27 @@ pub(crate) fn unknown(service: &Service, validation: Option<&ShapeId>) -> Option
 /// the standard value `standard`, if it has one. Spelling is the model's:
 /// `cannotParse`, `cannot_parse` and `CANNOT_PARSE` all match, so a service
 /// keeps its own enum casing.
+fn documentation_method(service: &Service, id: &ShapeId, structure: &Structure) -> String {
+    let Some(documentation) = service.error_documentation(id) else {
+        return String::new();
+    };
+    let Some(url) = documentation.url else {
+        return String::new();
+    };
+    let code_page = format!("::std::option::Option::Some({})", literal(&url));
+    let body = documentation.reason_member.as_ref().and_then(|name| structure.member(name)).map_or_else(|| code_page.clone(), |member| {
+        let reason = if member.optional_on_client() {
+            format!("self.{}.value().map(|reason| reason.as_str())", field(&member.name))
+        } else { format!("::std::option::Option::Some(self.{}.as_str())", field(&member.name)) };
+        let arms = documentation.reasons.iter().filter_map(|reason| reason.url.as_ref().map(|url| format!("::std::option::Option::Some({}) => ::std::option::Option::Some({}),", literal(&reason.value), literal(url)))).collect::<Vec<_>>().join("\n");
+        format!("match {reason} {{ {arms} _ => {code_page} }}")
+    });
+    format!(
+        "impl {} {{\n    /// Static documentation for this error code and its known reason.\n    pub fn doc_url(&self) -> ::std::option::Option<&'static str> {{ {body} }}\n}}\n\n",
+        service.name_of(id)
+    )
+}
+
 fn enum_value(service: &Service, member: &Member, standard: &str) -> Option<String> {
     let Some(Shape::Enum(values)) = service.shape(&member.target) else {
         return None;

@@ -23,6 +23,7 @@ features! {
     NonBlobPayload => "non-blob-payload", ErrorPayload => "error-payload",
     MediaTypeHeaders => "media-type-headers",
     ServerStreaming => "server-streaming",
+    ErrorDocumentation => "error-documentation",
 }
 
 impl fmt::Display for Feature {

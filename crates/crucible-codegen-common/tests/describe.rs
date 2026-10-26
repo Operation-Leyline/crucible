@@ -16,6 +16,60 @@ fn load(name: &str) -> crucible_ir::ir::Service {
 }
 
 #[test]
+fn error_reasons_and_urls_use_the_projected_ir_in_descriptions_and_runtime_schemas() {
+    let service = project(&load("error-docs"), Audience::External).unwrap();
+    let description = describe::describe(&service).unwrap();
+    assert_eq!(
+        description.service["errorDocsBase"],
+        "https://docs.example.test/errors"
+    );
+    let error = &description.shapes["example.error_docs#Denied"]["error"];
+    assert_eq!(error["reasonMember"], "detail");
+    assert_eq!(error["docUrl"], "https://docs.example.test/errors/Denied");
+    let reasons = error["reasons"].as_array().unwrap();
+    assert_eq!(reasons.len(), 4);
+    assert_eq!(reasons[0]["value"], "");
+    assert_eq!(
+        reasons[0]["docUrl"],
+        "https://docs.example.test/errors/Denied/reason-"
+    );
+    assert!(!description.to_json().contains("secret"));
+    let runtime = crucible_codegen_common::schema(&service, str::to_owned);
+    let docs = &runtime["shapes"]["example.error_docs#HeaderError"]["error"]["documentation"];
+    assert_eq!(docs["reasonMember"], "reason");
+    assert_eq!(
+        docs["reasonUrls"]["access/needed"],
+        "https://docs.example.test/errors/HeaderError/reason-access%2Fneeded"
+    );
+    assert!(docs["reasonUrls"].get("secret").is_none());
+    assert_eq!(
+        description.shapes["example.error_docs#PlainError"]["error"]["reasons"],
+        serde_json::json!([])
+    );
+    let mut without_base = service.clone();
+    without_base.error_docs_base = None;
+    let description = describe::describe(&without_base).unwrap();
+    assert_eq!(
+        description.shapes["example.error_docs#Denied"]["error"]["reasons"]
+            .as_array()
+            .unwrap()
+            .len(),
+        4
+    );
+    assert!(
+        description.shapes["example.error_docs#Denied"]["error"]
+            .get("docUrl")
+            .is_none()
+    );
+    let runtime = crucible_codegen_common::schema(&without_base, str::to_owned);
+    assert!(
+        runtime["shapes"]["example.error_docs#Denied"]["error"]
+            .get("documentation")
+            .is_none()
+    );
+}
+
+#[test]
 fn error_examples_use_the_body_and_header_discriminators() {
     let service = load("weather");
     let description = describe::describe(&service).unwrap();

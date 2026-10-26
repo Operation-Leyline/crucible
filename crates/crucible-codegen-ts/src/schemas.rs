@@ -538,6 +538,12 @@ fn error_table(service: &Service, converting: &BTreeSet<ShapeId>) -> String {
         fields.push(format!(
             "create: (fields, metadata) => new e.{name}(fields, metadata)"
         ));
+        if let Some(documentation) = crucible_codegen_common::error_documentation(service, id) {
+            fields.push(format!(
+                "documentation: globalThis.JSON.parse({})",
+                literal(&documentation.to_string())
+            ));
+        }
         out.push_str(&format!(
             "  {}: {{ {} }},\n",
             property(&error.wire_code),

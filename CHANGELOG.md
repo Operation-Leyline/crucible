@@ -17,6 +17,12 @@ version's section when it is prepared.
 
 ### Added
 
+- Services can declare `errorDocs` and designate an error's enum member with
+  `@errorReason`. API descriptions and Markdown references list literal reasons
+  and static documentation URLs. Configured Rust and TypeScript SDK errors expose
+  `doc_url()` and `docUrl`; other SDK targets diagnose the unsupported capability
+  until their runtime supports it. Error wire responses are unchanged.
+
 - Git channels accept an optional `install_url` for consumer installation
   guidance while retaining their publishing URL. Set `install_url` when
   consumers need a different install transport from the publishing transport;

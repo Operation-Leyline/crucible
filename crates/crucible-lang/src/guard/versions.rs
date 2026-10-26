@@ -1237,7 +1237,7 @@ fn structure(shape: &Shape) -> serde_json::Value {
     fn strip(value: &mut serde_json::Value) {
         match value {
             serde_json::Value::Object(map) => {
-                for key in ["docs", "notes", "traits"] {
+                for key in ["docs", "notes", "traits", "reason_member"] {
                     map.remove(key);
                 }
                 map.values_mut().for_each(strip);

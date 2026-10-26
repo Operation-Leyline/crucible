@@ -56,11 +56,41 @@ pub fn service(service: &Service, diagnostics: &mut Diagnostics) {
     operations(service, diagnostics);
     names(service, diagnostics);
     error_codes(service, diagnostics);
+    error_documentation(service, diagnostics);
     for operation in &service.operations {
         self::operation(service, operation, diagnostics);
     }
     routes(&service.operations, diagnostics);
     sender_lifecycle(service, diagnostics);
+}
+
+fn error_documentation(service: &Service, diagnostics: &mut Diagnostics) {
+    if let Some(base) = &service.error_docs_base
+        && let Err(problem) = crate::error_docs::base(base)
+    {
+        diagnostics.push(&service.id, problem);
+    }
+    for (id, shape) in &service.shapes {
+        let Shape::Structure(shape) = shape else {
+            continue;
+        };
+        let Some(info) = &shape.error else { continue };
+        if service.error_docs_base.is_some() && matches!(info.wire_code.as_str(), "" | "." | "..") {
+            diagnostics.push(
+                id,
+                "errorDocs requires an error wire code that is neither empty nor a URL dot segment",
+            );
+        }
+        if let Some(name) = &info.reason_member {
+            let target = shape.member(name).and_then(|m| service.shape(&m.target));
+            if !matches!(target, Some(Shape::Enum(_))) {
+                diagnostics.push(
+                    &id.with_member(name),
+                    "error reason metadata must designate a string-enum member of this error",
+                );
+            }
+        }
+    }
 }
 
 /// A resource's lifecycle is what clients and infrastructure call to

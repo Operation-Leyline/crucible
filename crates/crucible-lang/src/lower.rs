@@ -1853,7 +1853,7 @@ impl<'a> Lowerer<'a> {
             }
             let member_only = matches!(
                 name,
-                "query" | "header" | "payload" | "token" | "mutability"
+                "query" | "header" | "payload" | "token" | "mutability" | "errorReason"
             );
             if member_only && position != Position::Member {
                 self.error(
@@ -1864,6 +1864,11 @@ impl<'a> Lowerer<'a> {
                 continue;
             }
             match name {
+                "errorReason" => {
+                    self.no_args(file, annotation);
+                    out.traits
+                        .insert(builtin("errorReason"), Json::Object(JsonMap::new()));
+                }
                 "deprecated" => {
                     let mut message = None;
                     let mut since = None;
@@ -2162,6 +2167,7 @@ impl<'a> Lowerer<'a> {
             "enum value",
         ];
         const BUILT_IN: &[&str] = &[
+            "errorReason",
             "deprecated",
             "since",
             "unstable",
@@ -2695,6 +2701,22 @@ impl<'a> Lowerer<'a> {
                 .find(|a| a.name.name == binding)
                 .map_or(name_span, |a| a.span)
         };
+        if annotations.traits.contains_key(&builtin("errorReason")) {
+            if context.site != Site::Error {
+                self.error(
+                    file,
+                    at("errorReason"),
+                    "`@errorReason` designates a member of an error only",
+                );
+            }
+            if !matches!(self.shapes.get(target), Some(Shape::Enum(_))) {
+                self.error(
+                    file,
+                    at("errorReason"),
+                    "`@errorReason` requires a string enum target",
+                );
+            }
+        }
         let bindings: Vec<&str> = [
             ("query", annotations.query.is_some()),
             ("header", annotations.header.is_some()),
@@ -4588,7 +4610,15 @@ impl<'a> Lowerer<'a> {
             }
         }
         let bindings = self.bindings(id, members, false);
+        let reasons: Vec<_> = members
+            .iter()
+            .filter(|member| member.traits.contains_key(&builtin("errorReason")))
+            .collect();
+        if reasons.len() > 1 {
+            self.error_at(id, "an error designates at most one `@errorReason` member");
+        }
         ErrorInfo {
+            reason_member: reasons.first().map(|member| member.name.clone()),
             protocol_headers: self.protocol.response_headers(&bindings, true),
             body_discriminator: Some(id.name().to_owned()),
             discriminator_header: self.protocol.error_header().map(str::to_owned),
@@ -5340,6 +5370,7 @@ impl<'a> Lowerer<'a> {
 
         let mut version = None;
         let mut title = None;
+        let mut error_docs_base = None;
         let mut protocol = None;
         let mut auth_scheme = None;
         let mut not_found = None;
@@ -5352,7 +5383,7 @@ impl<'a> Lowerer<'a> {
             let name = clause.name.name.as_str();
             if matches!(
                 name,
-                "version" | "title" | "protocol" | "auth" | "paginated" | "notFound"
+                "version" | "title" | "protocol" | "auth" | "paginated" | "notFound" | "errorDocs"
             ) && !clauses.insert(name)
             {
                 self.error(
@@ -5365,6 +5396,12 @@ impl<'a> Lowerer<'a> {
             match (clause.name.name.as_str(), &clause.value) {
                 ("version", ClauseValue::Value(Value::Str(s))) => version = Some(s.value.clone()),
                 ("title", ClauseValue::Value(Value::Str(s))) => title = Some(s.value.clone()),
+                ("errorDocs", ClauseValue::Value(Value::Str(s))) => {
+                    match crucible_ir::error_docs::base(&s.value) {
+                        Ok(base) => error_docs_base = Some(base),
+                        Err(message) => self.error(file, s.span, message),
+                    }
+                }
                 ("protocol", ClauseValue::Value(Value::Ident(p))) => protocol = Some(p),
                 ("auth", ClauseValue::Value(Value::Ident(a))) => auth_scheme = Some(a),
                 ("notFound", ClauseValue::Value(Value::Ident(e))) => not_found = Some(e),
@@ -5601,6 +5638,7 @@ impl<'a> Lowerer<'a> {
             id,
             version: version.unwrap_or_default(),
             title,
+            error_docs_base,
             docs,
             notes: annotations.notes,
             auth: auth.clone(),

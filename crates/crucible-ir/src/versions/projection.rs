@@ -249,6 +249,7 @@ fn without_versions(service: &Service) -> Service {
         id: service.id.clone(),
         version: service.version.clone(),
         title: service.title.clone(),
+        error_docs_base: service.error_docs_base.clone(),
         docs: service.docs.clone(),
         notes: service.notes.clone(),
         auth: service.auth.clone(),
@@ -1756,6 +1757,9 @@ fn rename_bindings(bindings: &mut Bindings, older: Option<&Bindings>, to: &str, 
 
 /// A member renamed back in an error's own bindings.
 fn rename_error(error: &mut ErrorInfo, older: Option<&ErrorInfo>, to: &str, from: &str) {
+    if error.reason_member.as_deref() == Some(to) {
+        error.reason_member = Some(from.to_owned());
+    }
     for binding in error.headers.iter_mut().filter(|b| b.member == to) {
         *binding = older
             .and_then(|e| e.headers.iter().find(|b| b.member == from))

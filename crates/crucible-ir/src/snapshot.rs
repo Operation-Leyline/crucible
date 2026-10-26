@@ -100,6 +100,7 @@ fn typed_contract(service: &mut Service) {
         strip(&mut member.traits);
     }
     service.docs = None;
+    service.error_docs_base = None;
     service.doc_links.clear();
     service.doc_link_operations.clear();
     service.internal_traits.clear();
@@ -162,6 +163,9 @@ fn typed_contract(service: &mut Service) {
                 member(&mut s.value);
             }
             Shape::Structure(s) | Shape::Union(s) => {
+                if let Some(error) = &mut s.error {
+                    error.reason_member = None;
+                }
                 s.docs = None;
                 strip(&mut s.traits);
                 s.members.iter_mut().for_each(member);

@@ -257,6 +257,10 @@ fn external(service: &Service, lenient: bool) -> Result<Service, Diagnostics> {
                 s.members.retain(|m| !m.internal);
                 if let Some(error) = &mut s.error {
                     let names: BTreeSet<_> = s.members.iter().map(|m| m.name.as_str()).collect();
+                    error.reason_member = error
+                        .reason_member
+                        .take()
+                        .filter(|name| names.contains(name.as_str()));
                     error.headers.retain(|b| names.contains(b.member.as_str()));
                     error
                         .timestamp_formats

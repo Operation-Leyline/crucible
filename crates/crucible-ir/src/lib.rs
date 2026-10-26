@@ -9,6 +9,7 @@ pub mod decimal;
 mod diagnostics;
 pub mod doc_links;
 mod doc_notes;
+pub mod error_docs;
 mod extensions;
 pub mod ir;
 mod lower_examples;

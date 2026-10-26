@@ -418,6 +418,7 @@ fn main() {
     let _: Option<renamed_weather_sdk::Field> = None;
     let _: Option<renamed_weather_sdk::runtime::Error<renamed_weather_sdk::GetCityError>> = None;
 }
+
 "#).unwrap();
     let target = cargo_target::target_dir();
     let cargo = std::env::var_os("CARGO").unwrap_or_else(|| "cargo".into());
@@ -594,4 +595,78 @@ fn a_git_channel_or_private_package_is_never_published_from_its_manifest() {
     assert_eq!(publish(true, git), Some(Some(false)));
     assert_eq!(publish(true, None), Some(Some(false)));
     assert_eq!(publish(false, None), None);
+}
+
+#[test]
+fn independent_error_documentation_consumer_decodes_body_header_payload_and_future_reasons() {
+    let directory = tempfile::tempdir().unwrap();
+    let sdk = directory.path().join("sdk");
+    let consumer = directory.path().join("consumer");
+    let service =
+        crucible_ir::project(&common::load("error-docs"), crucible_ir::Audience::External).unwrap();
+    let mut options = explicit();
+    options.package_name = Some("error-docs-sdk".into());
+    options.runtime = RuntimeDependency::Path(
+        Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../crucible-client-runtime-rust")
+            .canonicalize()
+            .unwrap(),
+    );
+    save(&sdk, &emit_client_package(&service, &options).unwrap());
+    fs::create_dir_all(consumer.join("src")).unwrap();
+    fs::write(consumer.join("Cargo.toml"), "[package]\nname = 'error-docs-consumer'\nversion = '0.1.0'\nedition = '2024'\n[dependencies]\nerror-docs-sdk = { path = '../sdk' }\ntokio = { version = '1', features = ['rt', 'macros'] }\n[workspace]\n").unwrap();
+    fs::write(consumer.join("src/main.rs"), r##"
+use std::io::{Read, Write};
+use error_docs_sdk::{Config, Denied, Error, InspectError, Reason, TroubleshootingClient, TroubleshootingException};
+#[tokio::main(flavor = "current_thread")]
+async fn main() {
+    let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+    let endpoint = format!("http://{}", listener.local_addr().unwrap());
+    let cases = [
+        (403, "", r#"{"__type":"Denied","message":"denied","detail":"access/needed"}"#, Some("Denied/reason-access%2Fneeded")),
+        (403, "", r#"{"__type":"Denied","message":"denied","detail":"future"}"#, Some("Denied")),
+        (403, "", r#"{"__type":"Denied","message":"denied","detail":null}"#, Some("Denied")),
+        (403, "", r#"{"__type":"Denied","message":"denied"}"#, Some("Denied")),
+        (403, "", r#"{"__type":"Denied","message":"denied","detail":"secret"}"#, Some("Denied")),
+        (409, "X-Error-Reason: access/needed\r\n", r#"{"__type":"HeaderError","message":"header","reason":"future"}"#, Some("HeaderError/reason-access%2Fneeded")),
+        (422, "X-Crucible-Error: PayloadError\r\n", "..", Some("PayloadError/reason-%2E%2E")),
+        (403, "", r#"{"__type":"Denied","message":"denied","detail":12}"#, Some("Denied")),
+        (403, "", r#"{"__type":"FutureError","message":"future","docUrl":"https://untrusted.test"}"#, None),
+    ];
+    let server = std::thread::spawn(move || {
+        for (status, headers, body, _) in cases {
+            let (mut stream, _) = listener.accept().unwrap();
+            let mut request = Vec::new();
+            while !request.ends_with(b"\r\n\r\n") {
+                let mut byte = [0u8];
+                stream.read_exact(&mut byte).unwrap();
+                request.push(byte[0]);
+            }
+            write!(stream, "HTTP/1.1 {status} Failure\r\nContent-Length: {}\r\nConnection: close\r\n{headers}\r\n{body}", body.len()).unwrap();
+        }
+    });
+    let client = TroubleshootingClient::new(Config::new(endpoint));
+    for (_, _, _, page) in cases {
+        let error = client.inspect().await.unwrap_err();
+        let expected = page.map(|p| format!("https://docs.example.test/errors/{p}"));
+        assert_eq!(error.doc_url(), expected.as_deref());
+        if let Error::Service(error) = error {
+            assert_eq!(error.doc_url(), expected.as_deref());
+            assert_eq!(TroubleshootingException::from(error.error).doc_url(), expected.as_deref());
+        }
+    }
+    server.join().unwrap();
+    let modeled = Denied::builder().message("denied").detail(Reason::Dot).build().unwrap();
+    assert_eq!(modeled.doc_url(), Some("https://docs.example.test/errors/Denied/reason-%2E%2E"));
+    assert_eq!(InspectError::Denied(modeled).doc_url(), Some("https://docs.example.test/errors/Denied/reason-%2E%2E"));
+}
+"##).unwrap();
+    let output = Command::new(std::env::var_os("CARGO").unwrap_or_else(|| "cargo".into()))
+        .args(["run", "--manifest-path"])
+        .arg(consumer.join("Cargo.toml"))
+        .env("CARGO_TARGET_DIR", cargo_target::target_dir())
+        .env("CARGO_BUILD_JOBS", "1")
+        .output()
+        .unwrap();
+    successful(output);
 }

@@ -2173,3 +2173,23 @@ fn a_retype_declares_the_rebinding_it_causes() {
     assert_eq!(problems(&checked), Vec::<String>::new());
     assert!(checked.declared > 0);
 }
+
+#[test]
+fn error_documentation_changes_require_no_wire_migration() {
+    let baseline = "service Errors { version \"v1\" protocol json errors [Problem] } error Problem { status 400 reason?: Reason } enum Reason { FIRST = \"first\" }";
+    let current = baseline
+        .replace(
+            "protocol json",
+            "protocol json errorDocs \"https://docs.example.test/errors\"",
+        )
+        .replace("reason?:", "@errorReason reason?:");
+    let dir = package_from("error-documentation", baseline, &current, "");
+    let package = load_package(&dir).unwrap();
+    let compiled = compile(&package, None);
+    assert!(compiled.service.is_some(), "{}", compiled.render());
+    let checked = guard(&package, &compiled, package.files.len(), &Config::default())
+        .unwrap()
+        .unwrap();
+    assert!(!checked.has_errors(), "{}", checked.render(&compiled));
+    assert_eq!(checked.declared, 0);
+}

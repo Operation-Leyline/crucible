@@ -471,6 +471,10 @@ export class ServiceError extends Error {
   readonly $fault: "client" | "server";
   /** Modeled retryability and throttling classification, when declared. */
   readonly $retryable?: { readonly throttling: boolean };
+  // BEGIN ERROR DOCUMENTATION
+  /** Static documentation page for the modeled error code and known reason. */
+  readonly docUrl?: string;
+  // END ERROR DOCUMENTATION
 
   /** Construct an error response with its identity, message, metadata and retry classification. */
   constructor(
@@ -479,17 +483,38 @@ export class ServiceError extends Error {
     metadata: ResponseMetadata,
     fault: "client" | "server",
     retryable?: { readonly throttling: boolean },
+    // BEGIN ERROR DOCUMENTATION
+    docUrl?: string,
+    // END ERROR DOCUMENTATION
   ) {
     super(message);
     this.name = name;
     this.$metadata = metadata;
     this.$fault = fault;
     this.$retryable = retryable;
+    // BEGIN ERROR DOCUMENTATION
+    this.docUrl = docUrl;
+    // END ERROR DOCUMENTATION
   }
 }
 
 /** Base for every error response from this service. */
 export class ServiceException extends ServiceError {}
+
+// BEGIN ERROR DOCUMENTATION
+/** Precomputed pages from the audience-projected model. */
+export interface ErrorDocumentation {
+  readonly url: string;
+  readonly reasonMember: string | null;
+  readonly reasonUrls: Readonly<Record<string, string>>;
+}
+/** Select only declared reason pages; absent, null and future values use the code page. */
+export function errorDocUrl(documentation: ErrorDocumentation, fields: Record<string, unknown>): string {
+  const reason = documentation.reasonMember === null ? undefined : fields[documentation.reasonMember];
+  return typeof reason === "string" && Object.hasOwn(documentation.reasonUrls, reason)
+    ? documentation.reasonUrls[reason] : documentation.url;
+}
+// END ERROR DOCUMENTATION
 
 type DebugMember = { readonly target: string; readonly attribute: string; readonly sensitive?: boolean };
 type DebugShape = { readonly name: string; readonly kind: string; readonly sensitive?: boolean; readonly members?: Readonly<Record<string, DebugMember>>; readonly member?: DebugMember; readonly key?: DebugMember; readonly value?: DebugMember };
@@ -537,6 +562,9 @@ export class TimeoutError extends Error {
 
 /** Static modeled error decoding metadata and its typed constructor. */
 export interface ErrorSpec {
+  // BEGIN ERROR DOCUMENTATION
+  readonly documentation?: ErrorDocumentation;
+  // END ERROR DOCUMENTATION
   readonly payload?: string;
   readonly payloadKind?: "blob" | "string" | "document";
   readonly headerEncodings?: Readonly<Record<string,"base64">>;
@@ -979,7 +1007,11 @@ export class Transport {
     } catch (error) {
       if (!(error instanceof TypeError || error instanceof RangeError || error instanceof DOMException)) throw error;
       return new ServiceException(name!, stringField(body, "message") ?? `${operation.name} failed with HTTP ${response.status}`,
-        metadata, spec.fault ?? (response.status >= 500 ? "server" : "client"), spec.retryable);
+        metadata, spec.fault ?? (response.status >= 500 ? "server" : "client"), spec.retryable
+        // BEGIN ERROR DOCUMENTATION
+        , spec.documentation?.url
+        // END ERROR DOCUMENTATION
+      );
     }
     return spec.create(fields, metadata);
   }

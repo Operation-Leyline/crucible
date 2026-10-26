@@ -32,6 +32,16 @@ pub trait OperationErrors: Sized + fmt::Debug {
 
     fn info(&self) -> &'static ErrorInfo;
 
+    /// Static documentation page for this modeled error and its known reason.
+    fn doc_url(&self) -> Option<&'static str> {
+        None
+    }
+
+    /// Code page retained when a known error's modeled fields cannot be decoded.
+    fn classified_doc_url(_status: u16, _type_name: Option<&str>) -> Option<&'static str> {
+        None
+    }
+
     /// Identifies modeled metadata independently of decoding the error's fields.
     fn classify(_status: u16, _type_name: Option<&str>) -> Option<&'static ErrorInfo> {
         None
@@ -70,6 +80,27 @@ pub struct ResponseMetadata {
 pub struct ServiceError<E> {
     pub error: E,
     pub metadata: Box<ResponseMetadata>,
+}
+
+impl<E: OperationErrors> ServiceError<E> {
+    /// Static documentation for the modeled error code and known reason.
+    pub fn doc_url(&self) -> Option<&'static str> {
+        self.error.doc_url()
+    }
+}
+
+impl<E: OperationErrors> Error<E> {
+    /// Documentation for modeled service failures; unavailable for unknown identities
+    /// and failures that did not produce a modeled service response.
+    pub fn doc_url(&self) -> Option<&'static str> {
+        match self {
+            Self::Service(error) => error.doc_url(),
+            Self::Unknown(error) => {
+                E::classified_doc_url(error.metadata.status, error.type_name.as_deref())
+            }
+            _ => None,
+        }
+    }
 }
 
 impl<E> Error<E> {

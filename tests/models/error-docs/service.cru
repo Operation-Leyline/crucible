@@ -1,0 +1,50 @@
+service Troubleshooting {
+    version "1"
+    protocol json
+    errorDocs "https://docs.example.test/errors/"
+    errors [Denied, HeaderError, PayloadError, PlainError]
+    operations [Inspect]
+}
+
+readonly operation Inspect {
+    http GET "/inspect"
+    output {}
+}
+
+error Denied {
+    status 403
+    message: string
+    @errorReason
+    detail?: Reason
+}
+
+error HeaderError {
+    status 409
+    message: string
+    @errorReason
+    @header("X-Error-Reason")
+    reason?: Reason
+}
+
+error PayloadError {
+    status 422
+    @errorReason
+    @payload
+    reason?: Reason
+}
+
+error PlainError {
+    status 400
+    message: string
+    reason?: Reason
+}
+
+enum Reason {
+    EMPTY = ""
+    /// The resource owner must grant access.
+    ACCESS = "access/needed"
+    /// A value that must remain a single path segment.
+    DOT = ".."
+    UNICODE = "café"
+    internal SECRET = "secret"
+}

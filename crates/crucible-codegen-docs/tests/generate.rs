@@ -10,6 +10,29 @@ const WEATHER: &str = "service-docs-weather";
 const CATALOG: &str = "service-docs";
 const LINKS: &str = "doc-links";
 
+#[test]
+fn error_reference_links_literal_reason_pages() {
+    let files = files("error-docs", Audience::External);
+    let reference = files
+        .iter()
+        .find(|f| f.path.starts_with("src/operations/") && f.path.ends_with("_Inspect.md"))
+        .unwrap();
+    for expected in [
+        "https://docs.example.test/errors/Denied",
+        "reason-access%2Fneeded",
+        "reason-%2E%2E",
+        "reason-caf%C3%A9",
+        "reasons (<code>detail</code>)",
+    ] {
+        assert!(
+            reference.contents.contains(expected),
+            "missing {expected}: {}",
+            reference.contents
+        );
+    }
+    assert!(!reference.contents.contains("secret"));
+}
+
 fn package_dir(name: &str) -> std::path::PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("../../tests/models")

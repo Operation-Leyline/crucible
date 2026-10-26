@@ -20,6 +20,7 @@ error NotFoundException {
 error ValidationException {
     status 400
     message: string
+    @errorReason
     reason: ValidationExceptionReason
     fieldList?: ValidationExceptionFieldList
 }

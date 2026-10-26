@@ -38,6 +38,9 @@ pub struct Service {
     pub id: ShapeId,
     pub version: String,
     pub title: Option<String>,
+    /// The validated base for static error-code and reason documentation pages.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub error_docs_base: Option<String>,
     pub docs: Option<String>,
     /// `@deprecated`, `@since`, `@unstable` and `@externalDocumentation`.
     pub notes: DocNotes,
@@ -432,7 +435,15 @@ impl Service {
         &self,
         capabilities: &crate::Capabilities,
     ) -> Result<(), crate::Diagnostics> {
-        capabilities.check(&self.requirements)
+        let mut requirements = self.requirements.clone();
+        if self.error_docs_base.is_some() {
+            requirements.push(crate::FeatureUse {
+                feature: crate::Feature::ErrorDocumentation,
+                shape: self.id.clone(),
+                source: ShapeId::prelude("errorDocs"),
+            });
+        }
+        capabilities.check(&requirements)
     }
     /// Keeps only project metadata in every raw `traits` map, dropping
     /// the standard vocabulary the lowering used while it worked (the
@@ -909,6 +920,9 @@ pub struct Bounds<T> {
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct ErrorInfo {
+    /// Explicitly designated string-enum member, independent of its wire binding.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub reason_member: Option<String>,
     pub protocol_headers: BTreeMap<String, String>,
     /// Selected protocol's body discriminator; REST JSON uses its header instead.
     pub body_discriminator: Option<String>,
