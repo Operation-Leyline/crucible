@@ -271,6 +271,17 @@ const TABLES: &[Table] = &[
         ],
     },
     Table {
+        name: "rules.intent",
+        array: false,
+        doc: "Require both operation intent sections (`## Use when` and `## Don't use when`); warnings by default.",
+        keys: &[Key {
+            name: "severity",
+            kind: Kind::Severity,
+            doc: "Missing operation intent is a `warning` by default; `error` fails the build and `off` disables the check.",
+            sample: "\"warning\"",
+        }],
+    },
+    Table {
         name: "rules.examples",
         array: false,
         doc: "What the API reference needs beyond the types: examples, and documented errors.",
@@ -618,6 +629,21 @@ mod tests {
                 .contains("member names")
         );
         assert!(hover(text, 3).unwrap().contains("Naming conventions"));
+    }
+
+    #[test]
+    fn intent_rule_completion_and_hover_explain_the_warning_default() {
+        assert!(labels("[|").contains(&"rules.intent".to_owned()));
+        assert_eq!(labels("[rules.intent]\n|"), ["severity"]);
+        assert!(labels("[rules.intent]\nseverity = |").contains(&"warning".to_owned()));
+        assert!(labels("[[exceptions]]\nrule = |").contains(&"intent.operations".to_owned()));
+        let text = "[rules.intent]\nseverity = \"warning\"";
+        assert!(hover(text, 4).unwrap().contains("warnings by default"));
+        assert!(
+            hover(text, text.find("severity").unwrap() + 2)
+                .unwrap()
+                .contains("`warning` by default")
+        );
     }
 
     /// Every key and sample value in the vocabulary is one the parsers accept.

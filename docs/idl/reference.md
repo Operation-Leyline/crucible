@@ -35,6 +35,42 @@ and their unreachable dependencies; public roots cannot reference internal types
 An export adds no route, operation, or resource. Packages still declare a real
 service, which may have no operations. See [JSON Schema export](../json-schema.md).
 
+## Operation intent
+
+An operation's `///` documentation can explain when to choose it with two
+ordinary Markdown sections. Put them after the summary so references and SDK
+method documentation open with the guidance:
+
+```cru
+/// Reads one item.
+///
+/// ## Use when
+///
+/// You know the item's identifier.
+///
+/// ## Don't use when
+///
+/// You need several items; use [ListItems].
+readonly operation GetItem { http GET "/item" }
+```
+
+Use the exact plain headings `## Use when` and `## Don't use when`, outside
+lists, block quotes, and code blocks. CommonMark's equivalent level-two setext
+heading also works. Each section continues to the next top-level level-one or
+level-two heading, including any level-three subheadings. Empty sections are
+absent; repeated sections concatenate in source order. Other headings and prose
+remain ordinary documentation. Inline formatting in the section title does not
+declare intent; formatting, lists, code and links in its body are preserved.
+Reference-link definitions elsewhere in the comment accompany extracted text
+when needed to keep its links working.
+
+The compiler records these sections in `Operation::intent`; it keeps the complete
+original Markdown in `Operation::docs`. This is a documentation convention, with
+no new language syntax or validity requirement. The reference's
+[`intent` metadata](../docs.md#operation-intent) lets consumers present the
+guidance separately. Projects can opt into the warning-default
+[`intent.operations` policy](../api-policy.md#operation-intent).
+
 ## Lexical structure
 
 - **Whitespace and newlines** separate tokens and carry no meaning.
