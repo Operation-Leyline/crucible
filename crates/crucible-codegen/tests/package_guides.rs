@@ -229,29 +229,45 @@ fn rust_git_guides_use_the_sdk_release_version_with_a_custom_readme() {
 
 #[test]
 fn rust_development_guides_do_not_invent_a_released_git_tag() {
-    let (_directory, file) =
+    let (_directory, mut file) =
         rust_sdk(r#"git = "https://github.com/example/weather-rs.git", tag = "sdk-v{version}""#);
-    let client = file.sdks["rust"].client(&file, None).unwrap();
-    let files = client.emit(&common::load("weather")).unwrap();
-    let manifest: toml::Value = files
-        .iter()
-        .find(|file| file.path == "Cargo.toml")
-        .unwrap()
-        .contents
-        .parse()
-        .unwrap();
-    assert_eq!(
-        manifest["package"]["version"].as_str(),
-        Some(env!("CARGO_PKG_VERSION"))
-    );
-    let (_, agents) = guides(&files);
-    assert!(
-        !agents.contains(&format!("sdk-v{}", env!("CARGO_PKG_VERSION"))),
-        "{agents}"
-    );
-    assert!(!agents.contains("sdk-v1.2.3"), "{agents}");
-    assert!(!agents.contains("cargo add weather-sdk"), "{agents}");
-    assert!(agents.contains("development export"), "{agents}");
+    for private in [false, true] {
+        let metadata = &mut file.sdks.get_mut("rust").unwrap().metadata;
+        metadata.private = private;
+        metadata.readme = None;
+        let client = file.sdks["rust"].client(&file, None).unwrap();
+        let files = client.emit(&common::load("weather")).unwrap();
+        let manifest: toml::Value = files
+            .iter()
+            .find(|file| file.path == "Cargo.toml")
+            .unwrap()
+            .contents
+            .parse()
+            .unwrap();
+        assert_eq!(
+            manifest["package"]["version"].as_str(),
+            Some(env!("CARGO_PKG_VERSION"))
+        );
+        let (readme, agents) = guides(&files);
+        for text in [readme, agents] {
+            assert!(!text.contains("sdk-v"), "{text}");
+            assert!(!text.contains("weather-sdk = {"), "{text}");
+            for install in PUBLIC_INSTALLS {
+                assert!(!text.contains(install), "{install}\n{text}");
+            }
+            assert!(text.contains("development export"), "{text}");
+            assert!(
+                text.contains("installing `weather-sdk` from the public registry could fetch someone else's package"),
+                "{text}"
+            );
+            assert!(
+                text.contains(
+                    "ask the SDK publisher for its distribution repository and release tag"
+                ),
+                "{text}"
+            );
+        }
+    }
 }
 
 #[test]

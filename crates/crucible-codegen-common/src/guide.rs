@@ -117,8 +117,9 @@ impl Guide {
             ),
             (None, Some(Registry::Git)) => format!(
                 "{package} is a development export with no assigned Git release tag. \
-                 Use the generated package locally, or install a published SDK release \
-                 from its distribution repository."
+                 Use the generated package locally. For a published SDK release, \
+                 ask the SDK publisher for its distribution repository and release tag; \
+                 installing {package} from the public registry could fetch someone else's package."
             ),
             _ => format!(
                 "{package} is private: it is not published to a public registry. Install it from \
