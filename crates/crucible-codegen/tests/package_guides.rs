@@ -8,6 +8,8 @@
 use clients::clients;
 use crucible_codegen::{Client, File, PackageMetadata};
 use crucible_codegen_common::{GitRelease, Registry};
+use std::path::Path;
+use std::process::Command;
 
 /// Exercise the declared SDK path, including its release-tag expansion.
 fn rust_sdk(channel: &str) -> (tempfile::TempDir, crucible_codegen::sdk::SdkFile) {
@@ -184,7 +186,7 @@ fn a_git_release_is_installed_from_its_tag() {
         }
         let expected = match language {
             "rust" => {
-                "hostile-sdk = { git = \"ssh://git@github.com/example/weather-sdks.git\", tag = \"v1.0.0\" }"
+                "hostile-sdk = { git = \"ssh://git@github.com/~/example/weather-sdks.git\", tag = \"v1.0.0\" }"
             }
             "go" => "go get example.test/hostile@v1.0.0",
             "swift" => ".package(url: \"git@github.com:example/weather-sdks.git\"",
@@ -304,6 +306,18 @@ fn rust_git_guides_use_the_explicit_install_url() {
 fn rust_git_guides_preserve_unconfigured_remote_transports() {
     for (publish, install) in [
         (
+            "git@internal.example:team/sdk.git",
+            "ssh://git@internal.example/~/team/sdk.git",
+        ),
+        (
+            "git@internal.example:~/team/sdk.git",
+            "ssh://git@internal.example/~/team/sdk.git",
+        ),
+        (
+            "git@internal.example:~other/team/sdk.git",
+            "ssh://git@internal.example/~other/team/sdk.git",
+        ),
+        (
             "ssh://git@internal.example:2222/team/sdk.git",
             "ssh://git@internal.example:2222/team/sdk.git",
         ),
@@ -332,6 +346,227 @@ fn rust_git_guides_preserve_unconfigured_remote_transports() {
                 )),
                 "{text}"
             );
+        }
+    }
+}
+
+#[test]
+fn cargo_fetches_the_repository_named_by_the_generated_ssh_install_line() {
+    let directory = tempfile::tempdir().unwrap();
+    let root = directory.path();
+    let config = root.join("empty-git-config");
+    std::fs::write(&config, "").unwrap();
+    let ssh = root.join(if cfg!(windows) { "ssh.exe" } else { "ssh" });
+    let mut compiler = Command::new(std::env::var_os("RUSTC").unwrap_or_else(|| "rustc".into()));
+    compiler
+        .arg("--edition=2024")
+        .arg(Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/git_ssh.rs"))
+        .arg("-o")
+        .arg(&ssh);
+    checked(&mut compiler);
+    for (category, version) in [("home", "1.2.3"), ("absolute", "9.8.7")] {
+        let repository = root.join(category).join("team/sdk.git");
+        std::fs::create_dir_all(repository.join("src")).unwrap();
+        std::fs::write(
+            repository.join("Cargo.toml"),
+            format!("[package]\nname = \"weather-sdk\"\nversion = \"{version}\"\nedition = \"2024\"\n[workspace]\n"),
+        ).unwrap();
+        std::fs::write(
+            repository.join("src/lib.rs"),
+            "pub fn from_repository() {}\n",
+        )
+        .unwrap();
+        for arguments in [
+            vec!["init", "--quiet"],
+            vec!["add", "."],
+            vec![
+                "-c",
+                "user.name=Fixture",
+                "-c",
+                "user.email=fixture@example.test",
+                "-c",
+                "commit.gpgsign=false",
+                "commit",
+                "--quiet",
+                "-m",
+                "fixture",
+            ],
+            vec!["-c", "tag.gpgsign=false", "tag", "sdk-v2.3.4"],
+        ] {
+            checked(
+                Command::new("git")
+                    .args(arguments)
+                    .current_dir(&repository)
+                    .env("GIT_CONFIG_GLOBAL", &config)
+                    .env("GIT_CONFIG_NOSYSTEM", "1")
+                    .env("GIT_CONFIG_COUNT", "0"),
+            );
+        }
+    }
+    for (index, (source, version)) in [
+        ("git@fixture.invalid:team/sdk.git", "1.2.3"),
+        ("git@fixture.invalid:/team/sdk.git", "9.8.7"),
+        ("ssh://git@fixture.invalid:2222/~/team/sdk.git", "1.2.3"),
+        ("ssh://git@fixture.invalid:2222/team/sdk.git", "9.8.7"),
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        let (_sdk_directory, mut file) =
+            rust_sdk(&format!(r#"git = "{source}", tag = "sdk-v{{version}}""#));
+        file.sdks.get_mut("rust").unwrap().metadata.readme = None;
+        let files = file.sdks["rust"]
+            .client(&file, Some("2.3.4"))
+            .unwrap()
+            .emit(&common::load("weather"))
+            .unwrap();
+        let (readme, _) = guides(&files);
+        let dependency = readme
+            .lines()
+            .find(|line| line.starts_with("weather-sdk = {"))
+            .unwrap();
+        let consumer = root.join(format!("consumer-{index}"));
+        std::fs::create_dir_all(consumer.join("src")).unwrap();
+        std::fs::write(consumer.join("src/lib.rs"), "").unwrap();
+        std::fs::write(consumer.join("Cargo.toml"), format!("[package]\nname = \"consumer\"\nversion = \"0.1.0\"\nedition = \"2024\"\n[workspace]\n[dependencies]\n{dependency}\n")).unwrap();
+        // The SSH executable serves the Git protocol from local fixtures,
+        // so Cargo performs a real fetch without contacting a network host.
+        // Default libgit2 SSH is qualified separately with a local SSH server.
+        let output = checked(
+            Command::new(env!("CARGO"))
+                .args(["metadata", "--format-version", "1", "--manifest-path"])
+                .arg(consumer.join("Cargo.toml"))
+                .current_dir(&consumer)
+                .env("CARGO_HOME", consumer.join("cargo-home"))
+                .env("CARGO_NET_GIT_FETCH_WITH_CLI", "true")
+                .env("CARGO_NET_RETRY", "0")
+                .env("GIT_CONFIG_GLOBAL", &config)
+                .env("GIT_CONFIG_NOSYSTEM", "1")
+                .env("GIT_CONFIG_COUNT", "0")
+                .env_remove("GIT_SSH_COMMAND")
+                .env("GIT_SSH", &ssh)
+                .env("GIT_SSH_VARIANT", "ssh")
+                .env("SDK_SSH_ROOT", root)
+                .env("SDK_SSH_LOG", consumer.join("ssh.log"))
+                .env("RUSTC_WRAPPER", ""),
+        );
+        let metadata: serde_json::Value = serde_json::from_slice(&output).unwrap();
+        let package = metadata["packages"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|package| package["name"] == "weather-sdk")
+            .unwrap();
+        assert_eq!(package["version"], version, "{source}");
+    }
+}
+
+fn checked(command: &mut Command) -> Vec<u8> {
+    let output = command.output().unwrap();
+    assert!(
+        output.status.success(),
+        "{command:?}\n{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    output.stdout
+}
+
+#[test]
+fn declared_git_development_guides_never_invent_published_tags() {
+    let service = common::load("weather");
+    let directory = tempfile::tempdir().unwrap();
+    let path = directory.path().join("crucible-sdk.toml");
+    let mut config = "schema_version = 1\nmodel = \"model\"\n".to_owned();
+    for (language, coordinates) in [
+        ("rust", "package = \"weather-sdk\""),
+        ("ts", "package = \"@example/weather\""),
+        (
+            "python",
+            "package = \"weather-sdk\"\nmodule_name = \"weather_sdk\"",
+        ),
+        (
+            "go",
+            "package = \"weather\"\nmodule_path = \"example.test/weather\"",
+        ),
+        (
+            "java",
+            "package = \"example.weather\"\ngroup_id = \"example.weather\"\nartifact_id = \"weather-sdk\"",
+        ),
+        (
+            "kotlin",
+            "package = \"example.weather\"\ngroup_id = \"example.weather\"\nartifact_id = \"weather-sdk\"",
+        ),
+        (
+            "csharp",
+            "package_id = \"Weather.Sdk\"\nnamespace = \"Weather\"",
+        ),
+        (
+            "swift",
+            "package = \"WeatherSdk\"\nmodule_name = \"WeatherSdk\"",
+        ),
+        ("dart", "package = \"weather_sdk\""),
+        (
+            "php",
+            "package = \"example/weather\"\nnamespace = \"Weather\"",
+        ),
+        (
+            "ruby",
+            "package = \"weather_sdk\"\nmodule_name = \"WeatherSdk\"",
+        ),
+        ("cpp", "package = \"weather\"\nnamespace = \"weather\""),
+        ("c", "package = \"weather\"\nprefix = \"weather\""),
+        ("r", "package = \"WeatherSdk\""),
+    ] {
+        config.push_str(&format!(
+            "\n[sdk.{language}]\n{coordinates}\nout = \"generated/{language}\"\nversion = \"1.2.3\"\nchannel = {{ git = \"https://example.test/{language}.git\", tag = \"sdk-v{{version}}\" }}\n"
+        ));
+    }
+    std::fs::write(&path, config).unwrap();
+    let mut file = crucible_codegen::sdk::load(&path).unwrap();
+    for private in [false, true] {
+        for sdk in file.sdks.values_mut() {
+            sdk.metadata.private = private;
+        }
+        for (language, sdk) in &file.sdks {
+            let client = sdk.client(&file, None).unwrap();
+            let files = client.emit(&service).unwrap();
+            let (readme, agents) = guides(&files);
+            for text in [readme, agents] {
+                assert!(text.contains("development export"), "{language}: {text}");
+                assert!(
+                    text.contains("no assigned Git release tag"),
+                    "{language}: {text}"
+                );
+                assert!(
+                    text.contains("public registry could fetch someone else's package"),
+                    "{language}: {text}"
+                );
+                assert!(text.contains("ask the SDK publisher"), "{language}: {text}");
+                assert!(!text.contains("sdk-v"), "{language}: {text}");
+                for install in PUBLIC_INSTALLS {
+                    assert!(!text.contains(install), "{language}: {install}\n{text}");
+                }
+            }
+            let released = sdk.client(&file, Some("2.3.4")).unwrap();
+            let metadata = match &released {
+                Client::Rust(o) => &o.metadata,
+                Client::Ts(o) => &o.metadata,
+                Client::Python(o) => &o.metadata,
+                Client::Go(o) => &o.metadata,
+                Client::Java(o) => &o.metadata,
+                Client::Kotlin(o) => &o.metadata,
+                Client::Csharp(o) => &o.metadata,
+                Client::Swift(o) => &o.metadata,
+                Client::Dart(o) => &o.metadata,
+                Client::Php(o) => &o.metadata,
+                Client::Ruby(o) => &o.metadata,
+                Client::Cpp(o) => &o.metadata,
+                Client::C(o) => &o.metadata,
+                Client::R(o) => &o.metadata,
+            };
+            let git = metadata.git.as_ref().unwrap();
+            assert_eq!(git.tag, "sdk-v2.3.4", "{language}");
+            assert_eq!(git.url, format!("https://example.test/{language}.git"));
         }
     }
 }

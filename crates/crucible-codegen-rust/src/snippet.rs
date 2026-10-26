@@ -419,12 +419,18 @@ pub(crate) fn guide(service: &Service, options: &ClientOptions) -> Guide {
     guide
 }
 
-/// `url` as Cargo's `git` key takes it: an scp-like `git@host:path`, as a
-/// Git channel may name it, is `ssh://git@host/path` to Cargo.
+/// Cargo requires an SSH URL, while an scp-like remote may use a path
+/// relative to the SSH user's home. `/~/` preserves that distinction.
 fn cargo_git_url(url: &str) -> String {
     match url.split_once(':') {
         Some((host, path)) if !url.contains("://") && host.contains('@') => {
-            format!("ssh://{host}/{}", path.trim_start_matches('/'))
+            if path.starts_with('/') {
+                format!("ssh://{host}{path}")
+            } else if path.starts_with('~') {
+                format!("ssh://{host}/{path}")
+            } else {
+                format!("ssh://{host}/~/{path}")
+            }
         }
         _ => url.to_owned(),
     }
