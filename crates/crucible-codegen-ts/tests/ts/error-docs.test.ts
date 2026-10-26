@@ -16,6 +16,7 @@ for (const [name, status, body, headers, expected] of [
   ["internal", 403, { __type: "Denied", message: "denied", detail: "secret" }, {}, `${base}/Denied`],
   ["unrelated reason name", 400, { __type: "PlainError", message: "plain", reason: ".." }, {}, `${base}/PlainError`],
   ["header", 409, { __type: "HeaderError", message: "denied", reason: "future" }, { "X-Error-Reason": "access/needed" }, `${base}/HeaderError/reason-access%2Fneeded`],
+  ["mapped member", 418, { __type: "MappedReasonError", message: "denied", failureReason: "access/needed" }, {}, `${base}/MappedReasonError/reason-access%2Fneeded`],
   ["payload", 422, "..", { "X-Crucible-Error": "PayloadError" }, `${base}/PayloadError/reason-%2E%2E`],
   ["malformed", 403, { __type: "Denied", message: "denied", detail: 12 }, {}, `${base}/Denied`],
   ["unknown", 403, { __type: "FutureError", message: "future", docUrl: "https://untrusted.test" }, {}, undefined],
@@ -36,4 +37,10 @@ test("unconfigured errors retain modeled fields and do not expose documentation"
   assert.ok(!Object.hasOwn(error, "docUrl"));
   // @ts-expect-error A package without errorDocs keeps the original error API.
   void error.docUrl;
+});
+
+test("constructing an error does not treat an inherited property as its reason", () => {
+  const error = new Denied(Object.create({ detail: "access/needed" }), { status: 403, headers: new Headers() });
+  assert.equal(error.docUrl, `${base}/Denied`);
+  assert.ok(!Object.hasOwn(error, "detail"));
 });

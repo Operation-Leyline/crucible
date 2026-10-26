@@ -629,6 +629,7 @@ async fn main() {
         (403, "", r#"{"__type":"Denied","message":"denied"}"#, Some("Denied")),
         (403, "", r#"{"__type":"Denied","message":"denied","detail":"secret"}"#, Some("Denied")),
         (409, "X-Error-Reason: access/needed\r\n", r#"{"__type":"HeaderError","message":"header","reason":"future"}"#, Some("HeaderError/reason-access%2Fneeded")),
+        (418, "", r#"{"__type":"MappedReasonError","message":"mapped","failureReason":"access/needed"}"#, Some("MappedReasonError/reason-access%2Fneeded")),
         (422, "X-Crucible-Error: PayloadError\r\n", "..", Some("PayloadError/reason-%2E%2E")),
         (403, "", r#"{"__type":"Denied","message":"denied","detail":12}"#, Some("Denied")),
         (403, "", r#"{"__type":"FutureError","message":"future","docUrl":"https://untrusted.test"}"#, None),
