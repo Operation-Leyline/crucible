@@ -131,6 +131,10 @@ type ResponseMetadata struct {
 	RequestID string
 	Headers   http.Header
 	Body      []byte
+// BEGIN ERROR DOCUMENTATION
+	// DocURL is the static modeled error/reason documentation page; empty for an unknown identity.
+	DocURL string
+// END ERROR DOCUMENTATION
 }
 // ServiceException is the common interface for modeled and unrecognized service responses; use errors.As to catch it.
 type ServiceException interface {
@@ -207,7 +211,28 @@ type memberDescription struct {
 	// Sensitive members are redacted from telemetry wherever they are bound.
 	Sensitive bool
 }
+// BEGIN ERROR DOCUMENTATION
+type errorDocumentation struct {
+    URL string
+    ReasonMember *string
+    ReasonURLs map[string]string
+}
+
+func errorDocURL(documentation *errorDocumentation, values map[string]any) string {
+    if documentation == nil { return "" }
+    if documentation.ReasonMember != nil {
+        if reason, ok := values[*documentation.ReasonMember].(string); ok {
+            if url, exists := documentation.ReasonURLs[reason]; exists { return url }
+        }
+    }
+    return documentation.URL
+}
+
+// END ERROR DOCUMENTATION
 type errorDescription struct {
+// BEGIN ERROR DOCUMENTATION
+	Documentation *errorDocumentation
+// END ERROR DOCUMENTATION
 	WireCode string
 	HeaderEncodings map[string]string
 	Payload []string
@@ -1259,6 +1284,9 @@ func (c *clientRuntime) decode(op operationDescription, response *http.Response,
 		shape := c.schema.Shapes[target]
 		metadata.Retryable = shape.Error.Retryable
 		metadata.Throttling = shape.Error.Throttling
+// BEGIN ERROR DOCUMENTATION
+		metadata.Metadata.DocURL = errorDocURL(shape.Error.Documentation, nil)
+// END ERROR DOCUMENTATION
 		if len(shape.Error.Payload) == 2 {
 			value, err := payloadValue(shape.Error.PayloadKind, data)
 			if err != nil { return nil, metadata }

@@ -18,6 +18,23 @@ def run(*args, **kwargs):
 
 
 def qualify(output):
+    error_docs = output / "error-docs"
+    run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "generate", "go",
+        "tests/models/error-docs", "--out", str(error_docs),
+        "--module-path", "example.com/error-docs", "--package-name", "error_docs")
+    run(GO, "fmt", "./...", cwd=error_docs)
+    run(GO, "vet", "./...", cwd=error_docs)
+    # A separate consumer module imports only the public API over real HTTP.
+    error_docs_consumer = output / "error-docs-consumer"
+    error_docs_consumer.mkdir()
+    (error_docs_consumer / "go.mod").write_text(
+        'module example.com/error-docs-consumer\n\ngo 1.24.0\n'
+        'require example.com/error-docs v0.0.0\n'
+        'replace example.com/error-docs => ../error-docs\n', encoding="utf-8")
+    shutil.copyfile(ROOT / "crates/crucible-codegen-go/tests/error_docs_test.go", error_docs_consumer / "error_docs_test.go")
+    run(GO, "fmt", "./...", cwd=error_docs_consumer)
+    run(GO, "vet", "./...", cwd=error_docs_consumer)
+    run(GO, "test", "-count=1", "-v", "./...", cwd=error_docs_consumer)
     for protocol, name in (("crucible.protocols#json", "payloadbindings"),):
         package = output / name
         run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "generate", "go",

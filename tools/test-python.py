@@ -46,7 +46,12 @@ def qualify(package):
     run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "generate", "python",
         "tests/fixtures/permissions", "--out", str(permissions),
         "--package-name", "leyline-client", "--module-name", "leyline_client")
-    protocols = []
+    error_docs = package.parent / "error-docs"
+    run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "generate", "python",
+        "tests/models/error-docs", "--out", str(error_docs),
+        "--package-name", "error-docs-client", "--module-name", "error_docs_client")
+    run(sys.executable, "-m", "mypy", str(error_docs / "src"))
+    protocols = [error_docs]
     docs = package.parent / "docs"
     run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "generate", "python",
         "tests/models/client-docs", "--out", str(docs),
@@ -84,6 +89,13 @@ def qualify(package):
     finally:
         server.terminate()
         server.wait(timeout=10)
+    # Exercise the public error API from its installed wheel as well as source.
+    run(sys.executable, "-m", "build", "--wheel", str(error_docs))
+    with tempfile.TemporaryDirectory() as installed:
+        wheel = next((error_docs / "dist").glob("*.whl"))
+        run(sys.executable, "-m", "pip", "install", "--no-deps", "--target", installed, str(wheel))
+        run(sys.executable, "crates/crucible-codegen-python/tests/test_error_docs.py",
+            env=dict(os.environ, PYTHONPATH=installed))
     run(sys.executable, "-m", "build", "--wheel", str(package))
     with tempfile.TemporaryDirectory() as installed:
         wheel = next((package / "dist").glob("*.whl"))

@@ -1,4 +1,5 @@
 //! A Python package with typed models and sync/async HTTPX clients.
+mod error_docs;
 mod links;
 mod names;
 mod permissions;
@@ -59,6 +60,7 @@ pub fn capabilities() -> Capabilities {
         Feature::NonBlobPayload,
         Feature::MediaTypeHeaders,
         Feature::ErrorPayload,
+        Feature::ErrorDocumentation,
     ])
 }
 
@@ -148,6 +150,15 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
                     diagnostics.push(
                         &id.with_member(&m.name),
                         "members collide after Python naming",
+                    );
+                }
+                if s.error.is_some()
+                    && service.error_docs_base.is_some()
+                    && field(&m.name) == "doc_url"
+                {
+                    diagnostics.push(
+                        &id.with_member(&m.name),
+                        "member collides with the configured Python error doc_url attribute",
                     );
                 }
                 if s.error.is_some()
@@ -553,7 +564,7 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
             format!("src/{module}/runtime.py"),
             crucible_codegen_common::service_exception_runtime(
                 service,
-                include_str!("../runtime/runtime.py"),
+                &error_docs::runtime(service),
             )
             .replace("\r\n", "\n"),
         ),

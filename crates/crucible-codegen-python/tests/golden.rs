@@ -362,3 +362,39 @@ fn hyphenated_permission_symbols_spell_words() {
         "no file spells `mail-send` as {expected}"
     );
 }
+
+#[test]
+fn error_documentation_is_opt_in_and_reserves_only_the_new_error_attribute() {
+    let service = load("error-docs");
+    let files = emit(&service, &options()).expect("error documentation is supported");
+    let runtime = &files
+        .iter()
+        .find(|file| file.path.ends_with("/runtime.py"))
+        .unwrap()
+        .contents;
+    assert!(runtime.contains("doc_url: str | None = None"));
+    assert!(runtime.contains("converted.get(attribute, UNSET)"));
+    assert!(!runtime.contains("BEGIN ERROR DOCUMENTATION"));
+    let files = emit(&weather(), &options()).unwrap();
+    let runtime = &files
+        .iter()
+        .find(|file| file.path.ends_with("/runtime.py"))
+        .unwrap()
+        .contents;
+    assert!(!runtime.contains("doc_url"));
+    assert!(!runtime.contains("BEGIN ERROR DOCUMENTATION"));
+    let service = compile_with("error-docs", |text| {
+        text.replace("detail?: Reason", "docUrl?: Reason")
+    })
+    .unwrap();
+    assert!(
+        emit(&service, &options())
+            .err()
+            .unwrap()
+            .to_string()
+            .contains("doc_url attribute")
+    );
+    let mut service = service;
+    service.error_docs_base = None;
+    emit(&service, &options()).expect("existing modeled doc_url is unchanged without errorDocs");
+}
