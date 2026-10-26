@@ -57,6 +57,9 @@ version's section when it is prepared.
 
 ### Fixed
 
+- Generator revision provenance follows Git reftable ref updates, including
+  shared branches and detached linked-worktree HEADs. Read-only Git queries no
+  longer refresh the watched index and trigger an unnecessary second build.
 - Rust SDK development guides no longer advertise the Crucible version as
   a published SDK Git tag. They retain the public-registry package-substitution
   warning and direct consumers to the SDK publisher for a published release.
