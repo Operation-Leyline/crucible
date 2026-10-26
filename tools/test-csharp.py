@@ -108,6 +108,8 @@ def check_snippets(output, weather_feed):
 
 
 def qualify(output):
+    consume(output, ROOT / "tests/models/error-docs", "error-docs", "Example.ErrorDocs", "ErrorDocumentation.cs",
+            (str(ROOT / "tests/conformance/error-docs.json"),))
     # Doc comments and ToString of the generated models; pack runs with -warnaserror, so a malformed comment fails.
     consume(output, ROOT / "tests/models/client-docs-jvm", "display", "Example.Docs", "Display.cs")
     permissions(output)

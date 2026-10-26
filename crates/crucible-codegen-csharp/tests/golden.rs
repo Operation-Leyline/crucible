@@ -155,7 +155,7 @@ fn sensitive_members_are_redacted_in_to_string() {
 }
 
 /// The typed permissions fixture (`tests/fixtures/permissions`) as a client
-/// sees it (docs/permissions.md §6.3), hostile documentation included: every
+/// sees it (docs/permissions.md Ã‚Â§6.3), hostile documentation included: every
 /// generated file that names a permission, checked in under
 /// `tests/golden/permissions/`. No file names an internal permission, and a
 /// checked-in file no generated one matches any more is reported as stale
@@ -358,4 +358,46 @@ fn doc_links_are_see_cref_elements() {
     );
     assert!(client.contains("<c>[NotALink]</c> in code"), "{client}");
     assert!(!all.contains("Models.Secret\"") && !all.contains("RevealAsync\""));
+}
+
+#[test]
+fn configured_error_documentation_preserves_unconfigured_runtime() {
+    let service = crucible_lang::load_service(&model_dir("error-docs")).unwrap();
+    let files = emit(&service, &options()).expect("configured error documentation is supported");
+    let runtime = files
+        .iter()
+        .find(|file| file.path == "ServiceError.cs")
+        .unwrap();
+    assert!(runtime.contents.contains("DocUrl"));
+    let ordinary = emit(&weather(), &options()).unwrap();
+    let runtime = ordinary
+        .iter()
+        .find(|file| file.path == "ServiceError.cs")
+        .unwrap();
+    assert!(!runtime.contents.contains("DocUrl"));
+}
+
+#[test]
+fn documentation_member_collision_is_configured_only() {
+    let mut service = crucible_lang::load_service(&model_dir("error-docs")).unwrap();
+    let id = service
+        .shapes
+        .keys()
+        .find(|id| id.name() == "Denied")
+        .unwrap()
+        .clone();
+    if let crucible_ir::ir::Shape::Structure(shape) = service.shapes.get_mut(&id).unwrap() {
+        shape
+            .members
+            .iter_mut()
+            .find(|m| m.name == "message")
+            .unwrap()
+            .name = "docUrl".into();
+    }
+    let diagnostics = emit(&service, &options())
+        .err()
+        .expect("configured documentation collision");
+    assert!(format!("{diagnostics:?}").contains("DocUrl"));
+    service.error_docs_base = None;
+    emit(&service, &options()).expect("no-base modeled DocUrl remains allowed");
 }

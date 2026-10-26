@@ -16,6 +16,10 @@ public class ServiceError : Exception
     public bool Retryable { get; private set; }
     /// <summary>Whether the client treats the error as throttling.</summary>
     public bool Throttling { get; private set; }
+    // BEGIN ERROR DOCUMENTATION
+    /// <summary>Static documentation for the modeled error code and its known reason, or null for an unknown identity.</summary>
+    public string? DocUrl { get; internal set; }
+    // END ERROR DOCUMENTATION
     internal void Initialize(string name, string text, int status, string? requestId,
         Dictionary<string, string> headers, bool retryable, bool throttling)
     {

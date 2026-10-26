@@ -510,6 +510,10 @@ internal sealed partial class ClientRuntime : IDisposable
         else { var matches = candidates.Where(id => Shape(id)["error"]!["status"]!.GetValue<int>() == status).ToList(); target = matches.Count == 1 ? matches[0] : null; }
         ServiceError error = new ServiceException();
         var metadata = target is null ? null : Shape(target)["error"];
+        // BEGIN ERROR DOCUMENTATION
+        var documentation = metadata?["documentation"] as JsonObject;
+        var documentationUrl = Text(documentation?["url"]);
+        // END ERROR DOCUMENTATION
         if (target is not null)
         {
             try
@@ -518,6 +522,12 @@ internal sealed partial class ClientRuntime : IDisposable
                     body = new JsonObject { [Text(payload[0])!] = PayloadValue(Text(metadata["payloadKind"]), bytes) };
                 ResponseBindings(target, metadata!, headers, body);
                 error = (ServiceError)Decode(target, body)!;
+                // BEGIN ERROR DOCUMENTATION
+                var member = Text(documentation?["reasonMember"]);
+                var reason = member is null ? null : StringValue(body[member]);
+                if (reason is not null && documentation?["reasonUrls"] is JsonObject pages
+                    && pages.TryGetPropertyValue(reason, out var page)) documentationUrl = Text(page);
+                // END ERROR DOCUMENTATION
             }
             catch (Exception e) when (e is JsonException or InvalidOperationException or FormatException or OverflowException or ArgumentException)
             {
@@ -527,6 +537,9 @@ internal sealed partial class ClientRuntime : IDisposable
         name ??= target is null ? "UnknownError" : ErrorCode(target);
         var requestId = headers.GetValueOrDefault("x-request-id") ?? StringValue(body["requestId"]);
         error.Initialize(name, StringValue(body["message"]) ?? $"HTTP {status}", status, requestId, headers, Flag(metadata?["retryable"]), Flag(metadata?["throttling"]));
+        // BEGIN ERROR DOCUMENTATION
+        error.DocUrl = documentationUrl;
+        // END ERROR DOCUMENTATION
         return error;
     }
     /// <summary>The delay after the given (1-based) failed attempt: a valid Retry-After, or full-jitter backoff.</summary>

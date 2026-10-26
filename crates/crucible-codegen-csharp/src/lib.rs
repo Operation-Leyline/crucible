@@ -406,6 +406,7 @@ pub fn capabilities() -> crucible_ir::Capabilities {
         Feature::NonBlobPayload,
         Feature::MediaTypeHeaders,
         Feature::ErrorPayload,
+        Feature::ErrorDocumentation,
     ])
 }
 
@@ -468,6 +469,15 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
         if let Shape::Structure(s) | Shape::Union(s) = shape {
             let mut members = BTreeSet::from([name.to_string()]);
             for m in &s.members {
+                if s.error.is_some()
+                    && service.error_docs_base.is_some()
+                    && field(&m.name) == "DocUrl"
+                {
+                    diagnostics.push(
+                        &id.with_member(&m.name),
+                        "C# error member collides with generated documentation property DocUrl",
+                    );
+                }
                 if !members.insert(field(&m.name))
                     || (presence(shape, m)
                         && !members.insert(format!("{}Presence", field(&m.name))))
@@ -910,16 +920,30 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
     ] {
         files.push(File {
             path: format!("{name}.cs"),
-            contents: format!(
-                "{header}{}",
-                crucible_codegen_common::service_exception_runtime(service, body)
-                    .replace("\r\n", "\n")
-            ),
+            contents: format!("{header}{}", runtime(service, body)),
         });
     }
     files.extend(permissions::files(service, ns));
     files.sort_by(|a, b| a.path.cmp(&b.path));
     Ok(files)
+}
+
+fn runtime(service: &Service, source: &str) -> String {
+    let source = crucible_codegen_common::service_exception_runtime(service, source);
+    let mut include = true;
+    let mut result = String::new();
+    for line in source.lines() {
+        match line.trim() {
+            "// BEGIN ERROR DOCUMENTATION" => include = service.error_docs_base.is_some(),
+            "// END ERROR DOCUMENTATION" => include = true,
+            _ if include => {
+                result.push_str(line);
+                result.push('\n');
+            }
+            _ => {}
+        }
+    }
+    result
 }
 
 #[cfg(test)]
