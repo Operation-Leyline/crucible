@@ -499,3 +499,112 @@ operation A {{ http POST "/a"
         }
     }
 }
+
+#[test]
+fn imported_body_doc_checks_use_the_declaring_operation_namespace() {
+    for (operations, selected) in [
+        (Some("AConsume, Consume"), None),
+        (Some("AConsume"), None),
+        (Some("Consume, AConsume"), None),
+        (None, None),
+        (Some("AConsume, Consume"), Some("MissingService")),
+    ] {
+        let links = "[AConsume.first] [Consume.second] [Consume.first]";
+        let dependency = Package::new(
+            "review.imported",
+            vec![SourceFile {
+                path: "imported.cru".into(),
+                text: format!(
+                    r#"/// {links}
+readonly operation Consume {{ http GET "/output"
+    /// {links}
+    output {{
+        /// {links}
+        second: string
+    }}
+}}
+"#
+                ),
+            }],
+        );
+        let service = operations.map(|operations| format!(
+            "/// {links}\nservice Probe {{ version \"1\" protocol json operations [{operations}] }}\n"
+        )).unwrap_or_default();
+        let mut package = Package::new(
+            "review.outer",
+            vec![SourceFile {
+                path: "outer.cru".into(),
+                text: format!(
+                    r#"{service}
+/// {links}
+operation AConsume {{ http POST "/input"
+    /// {links}
+    input {{ first: string }}
+}}
+"#
+                ),
+            }],
+        );
+        package.imports.push(dependency.namespace.clone());
+        package.dependencies.push(dependency);
+        package.naming.input = "{Operation}Body".into();
+        package.naming.output = "A{Operation}Body".into();
+        let mut control = package.clone();
+        control.naming.output = "{Operation}Reply".into();
+        let control = compile(&control, selected);
+        let compiled = compile(&package, selected);
+        assert!(
+            doc_diagnostics(&control)
+                .iter()
+                .all(|(_, _, message)| message.contains("[Consume.first]"))
+        );
+        assert_eq!(
+            doc_diagnostics(&compiled),
+            doc_diagnostics(&control),
+            "operations={operations:?}, selected={selected:?}: {}",
+            compiled.render()
+        );
+        assert_eq!(
+            compiled
+                .diagnostics
+                .iter()
+                .filter(|d| d
+                    .diagnostic
+                    .message
+                    .contains("generated name of more than one operation body"))
+                .count(),
+            2
+        );
+        assert_no_diagnostic_ids(&compiled);
+        let id = ShapeId::new("review.outer", "AConsumeBody");
+        let location = compiled.source_map[&id];
+        let first = if operations.is_some_and(|ops| ops.starts_with("Consume")) {
+            "second"
+        } else {
+            "first"
+        };
+        assert!(
+            location
+                .span
+                .text(&compiled.files[location.file].text)
+                .contains(first)
+        );
+        if let Some(service) = &compiled.best_effort {
+            if let Some(imported) = service
+                .operations
+                .iter()
+                .find(|operation| operation.id.name() == "Consume")
+            {
+                assert_eq!(imported.id, ShapeId::new("review.imported", "Consume"));
+                // Generated body names belong to the importing package, even
+                // though the operation's declaration belongs to its dependency.
+                assert_eq!(imported.output.as_ref(), Some(&id));
+            }
+            let Shape::Structure(body) = &service.shapes[&id] else {
+                panic!("retained body")
+            };
+            assert_eq!(body.members.len(), 1);
+            assert_eq!(body.members[0].name, first);
+        }
+    }
+}

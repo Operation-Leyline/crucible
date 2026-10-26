@@ -5882,7 +5882,7 @@ impl<'a> Lowerer<'a> {
             };
             view_shapes.insert(view_id.clone(), shape);
             synthetic.insert(view_id.clone());
-            let operation_id = self.id(&source.operation.name.name);
+            let operation_id = self.ref_id(&source.operation.name.name);
             for operation in view_operations
                 .iter_mut()
                 .filter(|op| op.id == operation_id)
