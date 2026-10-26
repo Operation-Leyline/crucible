@@ -20,7 +20,23 @@ def large_package(output):
         "readonly operation Read {\n    http GET \"/\"\n    output {\n" + members + "    }\n}\n\n" + records)})
 
 
+def error_documentation(output):
+    package = output / "error-docs-sdk"
+    run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "generate", "java",
+        str(ROOT / "tests/models/error-docs"), "--out", str(package),
+        "--group-id", "example", "--artifact-id", "error-docs", "--package-name", "example.error_docs")
+    run(MAVEN, "-q", "-Dmaven.repo.local=" + str(ROOT / "target/maven-repo"),
+        "package", "dependency:copy-dependencies", cwd=package)
+    jar = next((package / "target").glob("error-docs-*.jar"))
+    classpath = os.pathsep.join([str(jar), str(package / "target/dependency/*")])
+    classes = output / "error-docs-consumer"
+    run("javac", "--release", "17", "-d", str(classes), "-cp", classpath,
+        str(ROOT / "crates/crucible-codegen-java/tests/ErrorDocumentationTest.java"))
+    run("java", "-cp", os.pathsep.join([str(classes), classpath]), "example.error_docs.ErrorDocumentationTest")
+
+
 def qualify(output):
+    error_documentation(output)
     package = output / "sdk"
     run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "generate", "java",
         "tests/models/weather", "--out", str(package),

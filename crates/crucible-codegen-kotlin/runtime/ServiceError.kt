@@ -31,6 +31,12 @@ open class ServiceError : RuntimeException() {
     /** Whether the client treats the error as throttling. */
     var throttling: Boolean = false
         private set
+    // BEGIN ERROR DOCUMENTATION
+    /** Static documentation for the modeled error code and its known reason. */
+    var docUrl: String? = null
+        private set
+    internal fun initializeDocumentation(url: String?) { docUrl = url }
+    // END ERROR DOCUMENTATION
     internal fun initialize(name: String, message: String, status: Int, requestId: String?, headers: Map<String, List<String>>, retryable: Boolean, throttling: Boolean) {
         errorName = name; detail = message; this.status = status; this.requestId = requestId
         this.headers = headers.mapValues { it.value.toList() }.toMap()

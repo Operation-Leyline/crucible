@@ -253,7 +253,7 @@ fn enum_wire_values_cannot_break_out_of_kdoc() {
 }
 
 /// The typed permissions fixture (`tests/fixtures/permissions`) as a client
-/// sees it (docs/permissions.md §6.3), hostile documentation included: every
+/// sees it (docs/permissions.md Ã‚Â§6.3), hostile documentation included: every
 /// generated file that names a permission, checked in under
 /// `tests/golden/permissions/`. No file names an internal permission, and a
 /// checked-in file no generated one matches any more is reported as stale
@@ -468,4 +468,41 @@ fn doc_links_are_kdoc_links() {
     );
     assert!(client.contains("`[NotALink]` in code"), "{client}");
     assert!(!all.contains(".Secret]") && !all.contains(".Reveal]") && !all.contains(".reveal]"));
+}
+
+#[test]
+fn configured_error_documentation_keeps_unconfigured_runtime_unchanged() {
+    let files = emit(&load("error-docs"), &options()).expect("configured errors are supported");
+    let base = files
+        .iter()
+        .find(|file| file.path.ends_with("/ServiceError.kt"))
+        .unwrap();
+    assert!(base.contents.contains("docUrl"));
+    let schema = files
+        .iter()
+        .find(|file| file.path.ends_with("schema.json"))
+        .unwrap();
+    assert!(schema.contents.contains("reason-access%2Fneeded"));
+    let ordinary = emit(&weather(), &options()).unwrap();
+    let base = ordinary
+        .iter()
+        .find(|file| file.path.ends_with("/ServiceError.kt"))
+        .unwrap();
+    assert!(!base.contents.contains("docUrl"));
+}
+
+#[test]
+fn documentation_member_collision_is_diagnosed_only_when_configured() {
+    let service = load_with("error-docs", |text| {
+        text.replace("message: string", "docUrl: string")
+    });
+    let diagnostics = emit(&service, &options())
+        .err()
+        .expect("configured accessor collision");
+    assert!(format!("{diagnostics:?}").contains("docUrl"));
+    let service = load_with("error-docs", |text| {
+        text.replace("message: string", "docUrl: string")
+            .replace("    errorDocs \"https://docs.example.test/errors/\"\n", "")
+    });
+    emit(&service, &options()).expect("legacy modeled docUrl remains allowed");
 }

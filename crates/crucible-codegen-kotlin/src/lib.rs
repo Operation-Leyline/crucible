@@ -349,7 +349,7 @@ fn operation_kdoc(
 ) -> String {
     let (service, package) = (links.service, links.package);
     // What the caller must hold, as the model states it (docs/permissions.md
-    // §6.3): Markdown holding model text, rendered like model documentation.
+    // Â§6.3): Markdown holding model text, rendered like model documentation.
     let mut notes: Vec<String> =
         crucible_codegen_common::permissions::requirement_sentences(service, op, false)
             .iter()
@@ -421,6 +421,7 @@ pub fn capabilities() -> crucible_ir::Capabilities {
         Feature::NonBlobPayload,
         Feature::ErrorPayload,
         Feature::MediaTypeHeaders,
+        Feature::ErrorDocumentation,
     ])
 }
 
@@ -525,6 +526,12 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
                     );
                 }
                 let member = field(&m.name);
+                if s.error.is_some() && service.error_docs_base.is_some() && member == "docUrl" {
+                    diagnostics.push(
+                        &id.with_member(&m.name),
+                        "Kotlin error member collides with generated documentation property docUrl",
+                    );
+                }
                 if member.starts_with("__crucibleField") {
                     diagnostics.push(
                         &id.with_member(&m.name),
@@ -765,11 +772,7 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
     ] {
         files.push(File {
             path: format!("{source}/{name}.kt"),
-            contents: format!(
-                "{header}{}",
-                crucible_codegen_common::service_exception_runtime(service, body)
-                    .replace("\r\n", "\n")
-            ),
+            contents: format!("{header}{}", runtime(service, body)),
         });
     }
     files.push(File {
@@ -801,4 +804,28 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
         });
     }
     Ok(files)
+}
+
+fn runtime(service: &Service, source: &str) -> String {
+    let source = crucible_codegen_common::service_exception_runtime(service, source);
+    let mut include = true;
+    let mut result = String::new();
+    for line in source.lines() {
+        match line.trim() {
+            "// BEGIN ERROR DOCUMENTATION" => include = service.error_docs_base.is_some(),
+            "// END ERROR DOCUMENTATION" => include = true,
+            _ if include => {
+                result.push_str(line);
+                result.push('\n');
+            }
+            _ => {}
+        }
+    }
+    if service.error_docs_base.is_none() {
+        result = result.replace(
+            "            val decoded = codec.decode(target, JsonObject(body)) as ServiceError\n            decoded\n",
+            "            codec.decode(target, JsonObject(body)) as ServiceError\n",
+        );
+    }
+    result
 }

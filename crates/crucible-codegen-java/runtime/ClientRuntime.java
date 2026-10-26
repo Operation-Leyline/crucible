@@ -886,6 +886,10 @@ final class ClientRuntime {
       name = text(shape(target), "name");
     }
     JsonObject traits = target == null ? new JsonObject() : shape(target).getAsJsonObject("error");
+    // BEGIN ERROR DOCUMENTATION
+    JsonObject documentation = traits.getAsJsonObject("documentation");
+    String documentationUrl = documentation == null ? null : text(documentation, "url");
+    // END ERROR DOCUMENTATION
     ServiceError error = new ServiceException();
     if (target != null) {
       try {
@@ -894,6 +898,17 @@ final class ClientRuntime {
         if (payload != null) typedValues.add(payload, payloadValue(traits, bytes));
         applyHeaders(typedValues, target, traits, response);
         error = (ServiceError) decode(target, typedValues, null);
+        // BEGIN ERROR DOCUMENTATION
+        if (documentation != null) {
+          String member = text(documentation, "reasonMember");
+          JsonElement reason = member == null ? null : typedValues.get(member);
+          JsonObject pages = documentation.getAsJsonObject("reasonUrls");
+          if (reason != null && reason.isJsonPrimitive() && reason.getAsJsonPrimitive().isString()
+              && pages.has(reason.getAsString())) {
+            documentationUrl = pages.get(reason.getAsString()).getAsString();
+          }
+        }
+        // END ERROR DOCUMENTATION
       } catch (RuntimeException ignored) {
         // Malformed modeled members must not hide HTTP metadata or the retry policy.
       }
@@ -917,6 +932,9 @@ final class ClientRuntime {
         bytes,
         flag(traits, "retryable"),
         flag(traits, "throttling"));
+    // BEGIN ERROR DOCUMENTATION
+    error.initializeDocumentation(documentationUrl);
+    // END ERROR DOCUMENTATION
     throw error;
   }
 

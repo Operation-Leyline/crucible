@@ -24,6 +24,22 @@ public class ServiceError extends RuntimeException {
   private boolean retryable;
   /** Whether the service asked the client to slow down. */
   private boolean throttling;
+  // BEGIN ERROR DOCUMENTATION
+  private String documentationUrl;
+
+  /**
+   * Static documentation for the modeled error code and its known reason.
+   *
+   * @return the documentation URL, or {@code null} for an unknown identity
+   */
+  public String docUrl() {
+    return documentationUrl;
+  }
+
+  void initializeDocumentation(String url) {
+    documentationUrl = url;
+  }
+  // END ERROR DOCUMENTATION
 
   void initialize(
       String name,

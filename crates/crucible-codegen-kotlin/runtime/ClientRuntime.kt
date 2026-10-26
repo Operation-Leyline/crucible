@@ -281,13 +281,29 @@ internal class ClientRuntime(input: ClientConfig, endpoint: String,
             declared.filter { codec.shape(it).obj("error").text("status")?.toInt() == response.status }.singleOrNull()
         if (name == null && target != null) name = codec.shape(target).text("name")
         val metadata = target?.let { codec.shape(it).obj("error") }
+        // BEGIN ERROR DOCUMENTATION
+        val documentation = metadata?.get("documentation") as? JsonObject
+        var documentationUrl = documentation?.text("url")
+        // END ERROR DOCUMENTATION
         val error = if (target == null) ServiceException() else try {
             payloadMember(metadata!!)?.let { body[it] = payloadValue(metadata, response.body) }
             applyHeaders(target, body, metadata!!, response)
-            codec.decode(target, JsonObject(body)) as ServiceError
+            val decoded = codec.decode(target, JsonObject(body)) as ServiceError
+            // BEGIN ERROR DOCUMENTATION
+            val member = documentation?.text("reasonMember")
+            val reason = (member?.let { body[it] } as? JsonPrimitive)?.takeIf { it.isString }?.content
+            if (reason != null) {
+                val pages = documentation?.get("reasonUrls") as? JsonObject
+                if (pages?.containsKey(reason) == true) documentationUrl = pages.text(reason)
+            }
+            // END ERROR DOCUMENTATION
+            decoded
         } catch (_: Exception) { ServiceException() }
         error.initialize(name ?: "UnknownError", text("message") ?: "HTTP ${response.status}", response.status,
             response.header("x-request-id") ?: text("requestId"), response.headers, metadata?.flag("retryable") == true, metadata?.flag("throttling") == true)
+        // BEGIN ERROR DOCUMENTATION
+        error.initializeDocumentation(documentationUrl)
+        // END ERROR DOCUMENTATION
         return error
     }
     private fun payloadValue(binding: JsonObject, bytes: ByteArray): JsonElement = when (binding.text("payloadKind")) {

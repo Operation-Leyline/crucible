@@ -70,7 +70,38 @@ def large_package(output):
         "readonly operation Read {\n    http GET \"/\"\n    output {\n" + members + "    }\n}\n\n" + records)})
 
 
+def error_documentation(output):
+    package = output / "error-docs-sdk"
+    run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "generate", "kotlin",
+        str(ROOT / "tests/models/error-docs"), "--out", str(package),
+        "--group-id", "example", "--artifact-id", "error-docs", "--package-name", "example.error_docs",
+        "--package-version", "0.0.0-test")
+    run(MAVEN, "-q", REPO, "install", cwd=package)
+    consumer = output / "error-docs-consumer"
+    source = consumer / "src/main/kotlin/example/error_docs"
+    source.mkdir(parents=True)
+    shutil.copyfile(ROOT / "crates/crucible-codegen-kotlin/tests/ErrorDocumentation.kt", source / "ErrorDocumentation.kt")
+    ns = "{http://maven.apache.org/POM/4.0.0}"
+    ET.register_namespace("", ns[1:-1])
+    pom = ET.parse(package / "pom.xml")
+    pom.getroot().find(ns + "artifactId").text = "error-docs-consumer"
+    configuration = pom.getroot().find(".//" + ns + "configuration")
+    configuration.find(ns + "jvmTarget").text = "17"
+    args = configuration.find(ns + "args")
+    args.remove(args.find(ns + "arg"))
+    pom.getroot().find(ns + "build").find(ns + "sourceDirectory").text = "src/main/kotlin"
+    dependency = ET.SubElement(pom.getroot().find(ns + "dependencies"), ns + "dependency")
+    for name, value in [("groupId", "example"), ("artifactId", "error-docs"), ("version", "0.0.0-test")]:
+        ET.SubElement(dependency, ns + name).text = value
+    pom.write(consumer / "pom.xml", encoding="utf-8", xml_declaration=True)
+    run(MAVEN, "-q", REPO, "package", "dependency:copy-dependencies", cwd=consumer)
+    jar = next((consumer / "target").glob("error-docs-consumer-*.jar"))
+    classpath = os.pathsep.join([str(jar), str(consumer / "target/dependency/*")])
+    run("java", "-cp", classpath, "example.error_docs.ErrorDocumentationKt")
+
+
 def qualify(output):
+    error_documentation(output)
     package = output / "sdk"
     model_path = qualification_model(output)
     (model_path / "builder-defaults.cru").write_text(BUILDER_DEFAULTS, encoding="utf-8", newline="\n")
