@@ -2,7 +2,7 @@ service Troubleshooting {
     version "1"
     protocol json
     errorDocs "https://docs.example.test/errors/"
-    errors [Denied, HeaderError, PayloadError, PlainError]
+    errors [Denied, HeaderError, PayloadError, PlainError, RequiredReason]
     operations [Inspect]
 }
 
@@ -37,6 +37,12 @@ error PlainError {
     status 400
     message: string
     reason?: Reason
+}
+
+error RequiredReason {
+    status 402
+    @errorReason
+    reason: Reason
 }
 
 enum Reason {

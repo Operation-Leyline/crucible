@@ -33,6 +33,8 @@ pub(crate) fn error_shapes(service: &Service) -> Vec<(&ShapeId, &Structure)> {
 
 pub(crate) fn emit(service: &Service, links: &Links<'_>, diagnostics: &mut Diagnostics) -> String {
     let exception = crucible_codegen_common::service_exception_name(service);
+    let helper_name = documentation_name(service, "errorDocUrl");
+    let table_name = documentation_name(service, "errorDocumentation");
     let links = &links.naming("m.", crate::names::CLIENT_SCOPE, "");
     let mut out = String::new();
     for (id, structure) in error_shapes(service) {
@@ -90,7 +92,7 @@ pub(crate) fn emit(service: &Service, links: &Links<'_>, diagnostics: &mut Diagn
         let documentation = crucible_codegen_common::error_documentation(service, id)
             .map(|_| {
                 format!(
-                    ", errorDocUrl(errorDocumentation[{}], fields)",
+                    ", {helper_name}({table_name}[{}], fields)",
                     crate::names::literal(&error.wire_code)
                 )
             })
@@ -113,7 +115,9 @@ pub(crate) fn emit(service: &Service, links: &Links<'_>, diagnostics: &mut Diagn
     let mut header = String::from(crate::HEADER);
     header.push_str(&format!("import {{ {exception}, formatModel }} from \"./runtime.js\";\nexport {{ {exception} }} from \"./runtime.js\";\n"));
     if service.error_docs_base.is_some() {
-        header.push_str("import { errorDocUrl } from \"./runtime.js\";\n");
+        header.push_str(&format!(
+            "import {{ errorDocUrl as {helper_name} }} from \"./runtime.js\";\n"
+        ));
     }
     header.push_str(&crate::names::runtime_types(&out, &["ResponseMetadata"]));
     if out.contains("m.") {
@@ -129,7 +133,7 @@ pub(crate) fn emit(service: &Service, links: &Links<'_>, diagnostics: &mut Diagn
             })
             .collect();
         header.push_str(&format!(
-            "\nconst errorDocumentation = globalThis.JSON.parse({});\n",
+            "\nconst {table_name} = globalThis.JSON.parse({});\n",
             crate::names::literal(
                 &serde_json::to_string(&table).expect("documentation serializes")
             )
@@ -200,6 +204,20 @@ pub(crate) fn emit(service: &Service, links: &Links<'_>, diagnostics: &mut Diagn
             crate::names::literal(&shapes.to_string())
         )
         + &out
+}
+
+fn documentation_name(service: &Service, base: &str) -> String {
+    let names = error_shapes(service)
+        .iter()
+        .map(|(id, _)| service.name_of(id))
+        .collect::<std::collections::BTreeSet<_>>();
+    let mut name = base.to_owned();
+    let mut suffix = 2;
+    while names.contains(name.as_str()) {
+        name = format!("{base}{suffix}");
+        suffix += 1;
+    }
+    name
 }
 
 fn debug_member(member: &mut serde_json::Value) {

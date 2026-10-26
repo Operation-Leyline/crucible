@@ -1589,14 +1589,22 @@ fn shape_page(d: &Description, shape: &Value) -> String {
         out.push_str("**Sensitive:** avoid logging this value.\n\n");
     }
     if let Some(url) = shape["error"]["docUrl"].as_str() {
-        out.push_str(&format!("Error documentation: {}.\n\n", external_link(string(&shape["error"]["wireCode"]), url)));
+        out.push_str(&format!(
+            "Error documentation: {}.\n\n",
+            external_link(string(&shape["error"]["wireCode"]), url)
+        ));
     }
     if let Some(member) = shape["error"]["reasonMember"].as_str() {
-        out.push_str(&format!("## Reasons\n\nDesignated member: {}.\n\n", code(member)));
+        out.push_str(&format!(
+            "## Reasons\n\nDesignated member: {}.\n\n",
+            code(member)
+        ));
         for reason in list(&shape["error"]["reasons"]) {
             let value = string(&reason["value"]);
             let label = if value.is_empty() { "\"\"" } else { value };
-            let page = reason["docUrl"].as_str().map_or_else(|| code(label), |url| external_link(label, url));
+            let page = reason["docUrl"]
+                .as_str()
+                .map_or_else(|| code(label), |url| external_link(label, url));
             out.push_str(&format!("- {page}: {}\n", cell_docs(reason, "../")));
         }
         out.push('\n');
