@@ -52,7 +52,7 @@ fn main() {
         watch(&workspace, &reference);
     }
     println!("cargo::rustc-env=CRUCIBLE_GENERATOR_REVISION={revision}");
-    // A tracked file that differs from HEAD means HEAD does not reproduce
+    // A source edit or untracked source file means HEAD does not reproduce
     // this generator. Only the trees compiled into the binaries count (docs
     // or CI files do not), and exactly those are watched, so an edit that
     // flips the mark always reruns this script; the index catches staged
@@ -66,7 +66,7 @@ fn main() {
     for tree in &trees {
         println!("cargo::rerun-if-changed={}", workspace.join(tree).display());
     }
-    let mut arguments = vec!["status", "--porcelain", "--untracked-files=no", "--"];
+    let mut arguments = vec!["status", "--porcelain", "--untracked-files=normal", "--"];
     arguments.extend(trees.iter().copied());
     let dirty = git(&workspace, &arguments).is_none_or(|status| !status.is_empty());
     if dirty {
