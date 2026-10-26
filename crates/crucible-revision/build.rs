@@ -83,8 +83,19 @@ fn watch_ignores(workspace: &Path) {
         "GIT_CONFIG_GLOBAL",
         "GIT_CONFIG_SYSTEM",
         "GIT_CONFIG_NOSYSTEM",
+        "GIT_CONFIG_PARAMETERS",
+        "GIT_CONFIG_COUNT",
     ] {
         println!("cargo::rerun-if-env-changed={name}");
+    }
+    if let Some(count) = std::env::var("GIT_CONFIG_COUNT")
+        .ok()
+        .and_then(|count| count.parse::<usize>().ok())
+    {
+        for index in 0..count {
+            println!("cargo::rerun-if-env-changed=GIT_CONFIG_KEY_{index}");
+            println!("cargo::rerun-if-env-changed=GIT_CONFIG_VALUE_{index}");
+        }
     }
     // Ignore rules can reclassify an existing untracked source without changing
     // any source-tree mtime. Let Git resolve repository and configured paths;
@@ -109,6 +120,39 @@ fn watch_ignores(workspace: &Path) {
             .collect();
         for path in paths {
             watch_ignore_file(&workspace.join(path));
+        }
+    }
+    // Empty config files have no --list entries. Git supplies its global/system
+    // locations; include paths are resolved relative to their declaring file.
+    for variable in ["GIT_CONFIG_GLOBAL", "GIT_CONFIG_SYSTEM"] {
+        if let Some(paths) = git(workspace, &["var", variable]) {
+            for path in paths.lines() {
+                watch_ignore_file(&workspace.join(path));
+            }
+        }
+    }
+    watch(workspace, "config");
+    watch(workspace, "config.worktree");
+    if let Some(includes) = git(
+        workspace,
+        &[
+            "config",
+            "--null",
+            "--show-origin",
+            "--path",
+            "--get-regexp",
+            r"^include(if\..*)?\.path$",
+        ],
+    ) {
+        let entries: Vec<_> = includes.split('\0').collect();
+        for pair in entries.chunks_exact(2) {
+            if let Some((_, path)) = pair[1].split_once('\n') {
+                let base = pair[0]
+                    .strip_prefix("file:")
+                    .and_then(|origin| Path::new(origin).parent())
+                    .unwrap_or(workspace);
+                watch_ignore_file(&workspace.join(base).join(path));
+            }
         }
     }
     if let Some(path) = git(

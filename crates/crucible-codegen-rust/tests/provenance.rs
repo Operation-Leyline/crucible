@@ -21,6 +21,7 @@ fn git(root: &Path, args: &[&str]) -> String {
             .arg("-C")
             .arg(root)
             .args(args)
+            .env("GIT_CONFIG_COUNT", "0")
             .output()
             .unwrap(),
     )
@@ -500,6 +501,14 @@ fn incremental_repository(root: &Path) {
 }
 
 fn incremental_build(root: &Path, target: &Path) -> (String, String) {
+    incremental_build_with_env(root, target, &[])
+}
+
+fn incremental_build_with_env(
+    root: &Path,
+    target: &Path,
+    environment: &[(&str, &str)],
+) -> (String, String) {
     let output = Command::new(env!("CARGO"))
         .args([
             "run",
@@ -514,10 +523,114 @@ fn incremental_build(root: &Path, target: &Path) -> (String, String) {
         .env("CARGO_BUILD_JOBS", "1")
         // Git status must not rewrite a watched input after Cargo timestamps it.
         .env("GIT_OPTIONAL_LOCKS", "0")
+        .env("GIT_CONFIG_COUNT", "0")
+        .envs(environment.iter().copied())
         .output()
         .unwrap();
     let log = String::from_utf8_lossy(&output.stderr).into_owned();
     (success(output).trim().to_owned(), log)
+}
+
+fn configuration_input(input: &str) {
+    let directory = tempfile::tempdir().unwrap();
+    let root = directory.path().join("repository");
+    incremental_repository(&root);
+    let config = directory.path().join("global config");
+    let included = directory.path().join("included config");
+    fs::write(&included, "").unwrap();
+    fs::write(
+        &config,
+        if input == "empty include" {
+            "[include]\npath = \"included config\"\n".to_owned()
+        } else {
+            String::new()
+        },
+    )
+    .unwrap();
+    let rules = directory.path().join("global excludes");
+    fs::write(&rules, "/crates/new.rs\n").unwrap();
+    fs::write(root.join("crates/new.rs"), "// source\n").unwrap();
+    let target = directory.path().join("target");
+    let mut environment = vec![
+        ("GIT_CONFIG_GLOBAL", config.to_str().unwrap()),
+        ("GIT_CONFIG_NOSYSTEM", "1"),
+        ("GIT_CONFIG_COUNT", "0"),
+    ];
+    let build =
+        |environment: &[(&str, &str)]| incremental_build_with_env(&root, &target, environment);
+    let revision = git(&root, &["rev-parse", "HEAD"]);
+    assert_eq!(build(&environment).0, format!("{revision}+dirty"));
+    assert!(build(&environment).1.contains("Fresh crucible-revision"));
+    if input == "environment" {
+        environment[2].1 = "1";
+        environment.extend([
+            ("GIT_CONFIG_KEY_0", "core.excludesFile"),
+            ("GIT_CONFIG_VALUE_0", rules.to_str().unwrap()),
+        ]);
+        assert_eq!(build(&environment).0, revision, "config count activation");
+        let empty = directory.path().join("empty excludes");
+        fs::write(&empty, "").unwrap();
+        environment[4].1 = empty.to_str().unwrap();
+        assert_eq!(
+            build(&environment).0,
+            format!("{revision}+dirty"),
+            "config value change"
+        );
+        environment[4].1 = rules.to_str().unwrap();
+        assert_eq!(build(&environment).0, revision);
+        environment[3].1 = "provenance.unused";
+        assert_eq!(
+            build(&environment).0,
+            format!("{revision}+dirty"),
+            "config key change"
+        );
+        environment[3].1 = "core.excludesFile";
+        assert_eq!(build(&environment).0, revision);
+        environment[2].1 = "0";
+        assert_eq!(
+            build(&environment).0,
+            format!("{revision}+dirty"),
+            "config count removal"
+        );
+    } else {
+        let selected = if input == "empty include" {
+            &included
+        } else {
+            &config
+        };
+        fs::write(
+            selected,
+            format!(
+                "[core]\nexcludesFile = {:?}\n",
+                rules.to_str().unwrap().replace('\\', "/")
+            ),
+        )
+        .unwrap();
+        assert_eq!(
+            build(&environment).0,
+            revision,
+            "{input}: add excludes setting"
+        );
+        fs::write(selected, "").unwrap();
+        assert_eq!(
+            build(&environment).0,
+            format!("{revision}+dirty"),
+            "{input}: remove excludes setting"
+        );
+    }
+}
+
+#[test]
+fn incremental_cargo_rechecks_git_environment() {
+    configuration_input("environment");
+}
+#[test]
+fn incremental_cargo_rechecks_empty_global_config() {
+    configuration_input("empty global");
+}
+#[test]
+fn incremental_cargo_rechecks_empty_included_config() {
+    configuration_input("empty include");
 }
 
 #[test]
@@ -534,6 +647,14 @@ fn incremental_cargo_rechecks_ignore_decisions_without_source_edits() {
             );
             rules
         } else {
+            // A host global exclude must not hide the file after the repository
+            // rule is cleared. Select an existing controlled empty rules file.
+            let empty = directory.path().join("empty global excludes");
+            fs::write(&empty, "").unwrap();
+            git(
+                &root,
+                &["config", "core.excludesFile", empty.to_str().unwrap()],
+            );
             root.join(input)
         };
         fs::write(&rules, "/crates/new.rs\n").unwrap();
