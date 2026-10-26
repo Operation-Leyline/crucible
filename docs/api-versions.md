@@ -194,8 +194,14 @@ Host
   protocol decoded it and before it encodes, so it is the same for JSON
   and invoke.
 - **Cost.** A request at the current version selects the current table and
-  runs nothing else. Old versions pay one JSON round trip per step;
-  measured before it is optimized.
+  runs nothing else. An older operation with an empty conversion chain uses
+  the current codecs directly when its projected input, output and error
+  closure is identical, including effective strict decoding, and the Rust
+  representations have proven JSON round-trip identity. Floating point,
+  timestamps and arbitrary-precision numbers conservatively keep conversion.
+  The fast path keeps the older operation description and authentication
+  metadata. Other operations convert through JSON as described above.
+  Generation settles the choice, with no equality checks per request.
 
 | Step | Upgrade (request) | Downgrade (response) |
 |---|---|---|

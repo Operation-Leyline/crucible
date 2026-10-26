@@ -115,7 +115,19 @@ pub(crate) fn emit(
     let mut steps = String::new();
     let mut chains = String::new();
     let mut registrations = String::new();
-    let mut built = BTreeSet::new();
+    let mut built = BTreeMap::<String, bool>::new();
+    let strict: Vec<_> = models
+        .iter()
+        .enumerate()
+        .map(|(index, model)| {
+            let mut strict = crate::models::strict_shapes(model, options.strict_inputs);
+            if index < current {
+                let lenient = crate::models::output_reachable(&service.versions[index].release);
+                strict.retain(|id| !lenient.contains(id));
+            }
+            strict
+        })
+        .collect();
     // Operations gone without a handler, by the migration that dropped
     // them: every older version's chain reaches the same gap.
     let mut gone = BTreeSet::new();
@@ -215,10 +227,13 @@ pub(crate) fn emit(
                 continue;
             };
             let mut chain = Vec::new();
+            let mut identity_chain = true;
             for step in index..last {
                 let name = format!("{}_{step}", constant_name(old_op));
                 let name = format!("steps::{name}");
-                if built.insert(name.clone()) {
+                if let Some(empty) = built.get(&name) {
+                    identity_chain &= empty;
+                } else {
                     let conversion = conversion(
                         &models,
                         service,
@@ -228,9 +243,12 @@ pub(crate) fn emit(
                         &mut orphans,
                         diagnostics,
                     );
+                    identity_chain &= conversion.empty;
+                    built.insert(name.clone(), conversion.empty);
                     steps.push_str(&format!(
-                        "            pub(in super::super) static {}: Conversion = {conversion};\n",
-                        name.trim_start_matches("steps::")
+                        "            pub(in super::super) static {}: Conversion = {};\n",
+                        name.trim_start_matches("steps::"),
+                        conversion.code,
                     ));
                 }
                 chain.push(format!("&super::{name}"));
@@ -257,10 +275,34 @@ pub(crate) fn emit(
                     ),
                 ),
             };
-            registrations.push_str(&format!(
-                "\n            .add_versioned::<{module}::{old}, {serving}>({constant}, __conversions::{chain_name}, {served_by})",
-                old = old_op.name(),
-            ));
+            let identity = last == current
+                && identity_chain
+                && operation(service, &old_op.id)
+                    .and_then(|new| {
+                        crucible_ir::versions::identical_operation_closure(
+                            models[index],
+                            old_op,
+                            service,
+                            new,
+                        )
+                    })
+                    .is_some_and(|closure| {
+                        closure.iter().all(|id| {
+                            strict[index].contains(id) == strict[current].contains(id)
+                                && service.shape(id).is_some_and(identity_representation)
+                        })
+                    });
+            if identity {
+                registrations.push_str(&format!(
+                    "\n            .add_versioned_identity::<{module}::{old}, {serving}>({constant}, __conversions::{chain_name})",
+                    old = old_op.name(),
+                ));
+            } else {
+                registrations.push_str(&format!(
+                    "\n            .add_versioned::<{module}::{old}, {serving}>({constant}, __conversions::{chain_name}, {served_by})",
+                    old = old_op.name(),
+                ));
+            }
         }
     }
 
@@ -682,6 +724,12 @@ struct Item {
     fill: bool,
 }
 
+/// Generated code and whether the typed plan contains no conversion work.
+struct ConversionPlan {
+    code: String,
+    empty: bool,
+}
+
 /// How `operation` crosses from version `step` to the next. `orphans` holds
 /// the steps already reported for naming a shape neither release has, by
 /// version and position, so each is reported once.
@@ -693,7 +741,7 @@ fn conversion(
     methods: &mut Methods,
     orphans: &mut BTreeSet<(usize, usize)>,
     diagnostics: &mut Diagnostics,
-) -> String {
+) -> ConversionPlan {
     let (old, new) = (models[step], models[step + 1]);
     let steps: &[VersionStep] = &current.versions[step].steps;
     let (Some(old_op), Some(new_op)) = (
@@ -1517,12 +1565,15 @@ fn conversion(
     if let Some(reason) = refusal {
         return refused(reason);
     }
-    format!(
-        "Conversion {{ upgrade: &[{}], downgrade: &[{}], errors: &[{}], refused: None }}",
-        ordered(upgrade),
-        ordered(downgrade),
-        errors.join(", ")
-    )
+    ConversionPlan {
+        empty: upgrade.is_empty() && downgrade.is_empty() && errors.is_empty(),
+        code: format!(
+            "Conversion {{ upgrade: &[{}], downgrade: &[{}], errors: &[{}], refused: None }}",
+            ordered(upgrade),
+            ordered(downgrade),
+            errors.join(", ")
+        ),
+    }
 }
 
 /// The transforms in the order they run. A `reshape` or `retype` hook owns
@@ -1564,11 +1615,14 @@ fn member_of<'s>(
     }
 }
 
-fn refused(reason: &str) -> String {
-    format!(
-        "Conversion {{ upgrade: &[], downgrade: &[], errors: &[], refused: Some({}) }}",
-        literal(reason)
-    )
+fn refused(reason: &str) -> ConversionPlan {
+    ConversionPlan {
+        empty: false,
+        code: format!(
+            "Conversion {{ upgrade: &[], downgrade: &[], errors: &[], refused: Some({}) }}",
+            literal(reason)
+        ),
+    }
 }
 
 /// One step of a place in a value's JSON.
@@ -1762,6 +1816,29 @@ fn enum_value(service: &Service, shape: &ShapeId, name: &str) -> Option<String> 
             .find(|value| value.name == name)
             .map(|value| value.value.clone()),
         _ => None,
+    }
+}
+
+/// Model equality is necessary, but a native value must also survive the
+/// removed JSON round trip unchanged. Keep unproven scalar codecs on the old
+/// path (for example, a non-finite f64 serializes as null). A positive list
+/// also makes a future scalar representation conservatively keep conversion.
+fn identity_representation(shape: &Shape) -> bool {
+    use crucible_ir::ir::SimpleKind;
+
+    match shape {
+        Shape::Simple(value) => matches!(
+            value.kind,
+            SimpleKind::Boolean
+                | SimpleKind::String
+                | SimpleKind::Byte
+                | SimpleKind::Short
+                | SimpleKind::Integer
+                | SimpleKind::Long
+                | SimpleKind::Document
+                | SimpleKind::Blob
+        ),
+        _ => true,
     }
 }
 

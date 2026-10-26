@@ -583,9 +583,20 @@ fn an_operation_retired_under_an_exception_is_not_served_at_older_versions() {
             .unwrap()]
     );
     let code = generate(&service, &Options::default()).unwrap();
-    assert!(code.contains("add_versioned::<v1::GetItem"), "{code}");
-    assert!(!code.contains("add_versioned::<v1::CountItems"), "{code}");
-    assert!(!code.contains("add_versioned::<v2::CountItems"), "{code}");
+    assert!(
+        code.contains("add_versioned_identity::<v1::GetItem"),
+        "{code}"
+    );
+    for registration in ["add_versioned", "add_versioned_identity"] {
+        assert!(
+            !code.contains(&format!("{registration}::<v1::CountItems")),
+            "{code}"
+        );
+        assert!(
+            !code.contains(&format!("{registration}::<v2::CountItems")),
+            "{code}"
+        );
+    }
 
     // Without the record of the exception, which only an edited IR lacks,
     // nothing would serve it: reported once, though v1 and v2 both reach
@@ -1218,6 +1229,23 @@ strict structure Draft {
     assert!(strict("Note"), "{v1}");
     // GetDraft's output reached Draft in v1 already.
     assert!(!strict("Draft"), "{v1}");
+    // Frozen output reachability makes the old Draft lenient while the
+    // current Draft is strict, despite otherwise identical IR shapes.
+    assert!(code.contains(".add_versioned::<v1::PutDraft, super::PutDraft>(V1,"));
+    assert!(!code.contains(".add_versioned_identity::<v1::PutDraft, super::PutDraft>"));
+    // Note was never lenient in the frozen release, so its empty chain can
+    // safely decode straight into the current strict type.
+    assert!(code.contains(".add_versioned_identity::<v1::PutNote, super::PutNote>(V1,"));
+    let strict_inputs = generate(
+        &lower(&dir),
+        &Options {
+            strict_inputs: true,
+            ..Options::default()
+        },
+    )
+    .unwrap();
+    assert!(strict_inputs.contains(".add_versioned::<v1::PutDraft, super::PutDraft>(V1,"));
+    assert!(strict_inputs.contains(".add_versioned_identity::<v1::PutNote, super::PutNote>(V1,"));
 }
 
 /// An operation the current model has is in every projection; one a
@@ -1281,4 +1309,135 @@ fn the_versioned_fixtures_v1_client_matches_golden() {
         "generated code differs from {}; rerun with CRUCIBLE_BLESS=1 and read the diff",
         path.display()
     );
+}
+
+#[test]
+fn an_identical_empty_chain_registers_current_codecs_at_the_older_version() {
+    let fixture = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../e2e/weather-service/versioned");
+    let code = generate(&lower(&fixture), &Options::default()).unwrap();
+    for (module, version) in [("v1", "V1"), ("v2", "V2"), ("v3", "V3")] {
+        assert!(code.contains(&format!(
+            ".add_versioned_identity::<{module}::RecordPayment, super::RecordPayment>({version},"
+        )), "{module}: unchanged payment contract should use the identity path");
+    }
+    // A real conversion retains its typed migration path, even though
+    // another operation in the same release is an identity.
+    assert!(code.contains(".add_versioned::<v1::GetItem, super::GetItem>(V1,"));
+    assert!(code.contains(".add_versioned::<v1::CountItems, v2::CountItems>(V1,"));
+}
+
+#[test]
+fn changed_types_errors_and_bindings_keep_the_conversion_path() {
+    use crucible_ir::ShapeId;
+    use crucible_ir::ir::Shape;
+
+    let fixture = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../e2e/weather-service/versioned");
+    let current = lower(&fixture);
+    for changed in ["input", "output", "nested", "error", "binding"] {
+        let mut service = current.clone();
+        let older = &mut service.versions[0].service;
+        let operation = older
+            .operations
+            .iter_mut()
+            .find(|op| op.name() == "RecordPayment")
+            .unwrap();
+        match changed {
+            "binding" => operation.request.headers[0].name = "Old-Payment-Signature".into(),
+            "input" | "output" => {
+                let id = if changed == "input" {
+                    operation.input.clone()
+                } else {
+                    operation.output.clone()
+                }
+                .unwrap();
+                let Shape::Structure(shape) = older.shapes.get_mut(&id).unwrap() else {
+                    panic!("body");
+                };
+                shape.members[0].required = false;
+            }
+            "nested" => {
+                let input = operation.input.as_ref().unwrap();
+                let id = older.shapes[input].members()[0].target.clone();
+                let Shape::Simple(shape) = older.shapes.get_mut(&id).unwrap() else {
+                    panic!("nested string");
+                };
+                shape.sensitive = !shape.sensitive;
+            }
+            "error" => {
+                let id = ShapeId::new("crucible.errors", "ValidationException");
+                let Shape::Structure(shape) = older.shapes.get_mut(&id).unwrap() else {
+                    panic!("error");
+                };
+                shape.error.as_mut().unwrap().status = 422;
+            }
+            _ => unreachable!(),
+        }
+        let code = generate(&service, &Options::default()).unwrap();
+        assert!(
+            code.contains(".add_versioned::<v1::RecordPayment, super::RecordPayment>(V1,"),
+            "{changed}"
+        );
+        assert!(
+            !code.contains(".add_versioned_identity::<v1::RecordPayment, super::RecordPayment>"),
+            "{changed}"
+        );
+    }
+}
+
+/// Equal IR closures alone do not prove a Rust value survives the removed
+/// typed/JSON round trip. Keep unproven scalar representations conservative.
+#[test]
+fn unproven_scalar_round_trips_keep_the_existing_conversion_path() {
+    use crucible_ir::ShapeId;
+    use crucible_ir::ir::{Shape, SimpleKind};
+
+    fn scalar_output(model: &mut Service, kind: SimpleKind) {
+        let output = model
+            .operations
+            .iter()
+            .find(|op| op.name() == "RecordPayment")
+            .unwrap()
+            .output
+            .clone()
+            .unwrap();
+        let Shape::Structure(body) = &model.shapes[&output] else {
+            panic!("output");
+        };
+        let mut scalar = model.shapes[&body.members[0].target].clone();
+        let Shape::Simple(value) = &mut scalar else {
+            panic!("scalar");
+        };
+        value.kind = kind;
+        let target = ShapeId::new("example.shop", "Measured");
+        model.shapes.insert(target.clone(), scalar);
+        let Shape::Structure(body) = model.shapes.get_mut(&output).unwrap() else {
+            panic!("output");
+        };
+        body.members[0].target = target;
+    }
+
+    let fixture = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../e2e/weather-service/versioned");
+    let current = lower(&fixture);
+    for kind in [
+        SimpleKind::Float,
+        SimpleKind::Double,
+        SimpleKind::Timestamp,
+        SimpleKind::BigInteger,
+        SimpleKind::BigDecimal,
+    ] {
+        let mut service = current.clone();
+        scalar_output(&mut service, kind);
+        for version in &mut service.versions {
+            scalar_output(&mut version.service, kind);
+        }
+        let code = generate(&service, &Options::default()).unwrap();
+        assert!(
+            code.contains(".add_versioned::<v1::RecordPayment, super::RecordPayment>(V1,"),
+            "{kind:?}"
+        );
+        assert!(
+            !code.contains(".add_versioned_identity::<v1::RecordPayment, super::RecordPayment>"),
+            "{kind:?}"
+        );
+    }
 }

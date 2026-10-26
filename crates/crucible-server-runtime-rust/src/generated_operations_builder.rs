@@ -219,6 +219,39 @@ impl OperationsBuilder {
         self
     }
 
+    /// Registers an older operation whose complete type closure and effective
+    /// decoding policy the generator proved identical to the current one.
+    /// Keep its description and metadata, but use the current typed codecs.
+    #[doc(hidden)]
+    pub fn add_versioned_identity<Old: Operation, Current: Operation>(
+        mut self,
+        version: ApiVersion,
+        chain: &'static [&'static Conversion],
+    ) -> Self
+    where
+        Old::Output: serde::de::DeserializeOwned,
+    {
+        // Check only during construction. An edited generated registration must
+        // never skip real transformations, error downgrades, hooks or refusal.
+        if chain.iter().any(|conversion| {
+            !conversion.upgrade.is_empty()
+                || !conversion.downgrade.is_empty()
+                || !conversion.errors.is_empty()
+                || conversion.refused.is_some()
+        }) {
+            return self.add_versioned::<Old, Current>(version, chain, None);
+        }
+        self.versioned.push(Versioned {
+            version,
+            name: Current::INFO.name,
+            refused: false,
+            served_by: None,
+            hooks: Vec::new(),
+            entry: Box::new(|current, _, _| identity_entry::<Old>(current)),
+        });
+        self
+    }
+
     /// The table, or the operations, handlers and hooks the service has not
     /// implemented.
     pub fn build(mut self) -> std::result::Result<Operations, MissingOperations> {
@@ -297,6 +330,39 @@ fn index(operations: &mut Operations) {
             routes.resize_with(info.path.len() + 1, Vec::new);
         }
         routes[info.path.len()].push(info);
+    }
+}
+
+/// Historical authentication/presence with the current handler's typed facts.
+fn versioned_metadata<Old: Operation>(serving: &Entry) -> OperationMetadata {
+    OperationMetadata {
+        pagination: serving.metadata.pagination,
+        idempotency_token: serving.metadata.idempotency_token,
+        idempotency_token_sent: Old::IDEMPOTENCY_TOKEN.is_some()
+            && serving.metadata.idempotency_token.is_some(),
+        replays_output: serving.metadata.replays_output,
+        requirements: serving.metadata.requirements,
+        checks: serving.metadata.checks,
+        public: serving.metadata.public,
+        ..OperationMetadata::of::<Old>()
+    }
+}
+
+fn identity_entry<Old: Operation>(serving: &Entry) -> Entry {
+    Entry {
+        info: Old::INFO,
+        metadata: versioned_metadata::<Old>(serving),
+        decode: serving.decode,
+        decode_json: serving.decode_json,
+        decode_bound: serving.decode_bound,
+        invoke: serving.invoke.clone(),
+        invoke_stream: None,
+        output_from_json: serving.output_from_json,
+        body_limit: serving.body_limit,
+        upgrade: None,
+        downgrade: None,
+        downgrade_error: None,
+        errors: serving.errors,
     }
 }
 
@@ -390,17 +456,7 @@ where
         // the pagination members: an older request's token arrives under
         // the current member's name, and a version from before the
         // operation was paginated still reaches an operation that is.
-        metadata: OperationMetadata {
-            pagination: serving.metadata.pagination,
-            idempotency_token: serving.metadata.idempotency_token,
-            idempotency_token_sent: Old::IDEMPOTENCY_TOKEN.is_some()
-                && serving.metadata.idempotency_token.is_some(),
-            replays_output: serving.metadata.replays_output,
-            requirements: serving.metadata.requirements,
-            checks: serving.metadata.checks,
-            public: serving.metadata.public,
-            ..OperationMetadata::of::<Old>()
-        },
+        metadata: versioned_metadata::<Old>(serving),
         decode: decode::<Old>,
         decode_json: decode_json::<Old>,
         decode_bound: decode_bound::<Old>,
@@ -588,3 +644,6 @@ mod tests {
         assert!(std::ptr::eq(before.info, Untokened::INFO));
     }
 }
+
+#[cfg(test)]
+mod identity_tests;
