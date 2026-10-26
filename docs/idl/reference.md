@@ -518,7 +518,8 @@ field and requires no wire migration. See [API references](../docs.md#error-docu
 and the [Rust](../clients/rust.md#models-and-errors) and
 [TypeScript](../clients/typescript.md#models-and-errors),
 [Java](../clients/java.md#models-and-errors) and
-[Kotlin](../clients/kotlin.md#models-and-errors) client guides.
+[Kotlin](../clients/kotlin.md#models-and-errors), and the
+[C#](../clients/csharp.md#models-and-errors) client guide.
 
 ## Sender-signed operations
 

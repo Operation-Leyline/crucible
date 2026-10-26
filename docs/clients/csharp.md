@@ -73,6 +73,13 @@ members are not read.
 
 ## Models and errors
 
+With service [`errorDocs`](../idl/reference.md#error-documentation), service errors
+provide nullable `DocUrl`. Known designated reasons select their static pages;
+absent, null and future reasons use the error-code page. Unknown error identities
+have no URL. Recognized errors with malformed fields retain the code page. This
+property is added only for configured services; a configured error member cannot
+claim the same property name.
+
 Optional members expose ordinary nullable properties: assign `input.Name = "London"`
 and read `output.Caption` directly. A property left untouched is absent; assigning
 `null` makes it explicitly null. For advanced control, its companion
