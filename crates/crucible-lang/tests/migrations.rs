@@ -1118,6 +1118,109 @@ const LIST_ITEMS: &str = r#"readonly operation ListItems {
     output { names: Names }
 }"#;
 
+#[test]
+fn added_pagination_requires_an_exception_in_the_guard_and_projection() {
+    let current = V1.replace(LIST_ITEMS, PAGED);
+    assert_ne!(current, V1);
+    for (name, steps) in [
+        ("pagination-added", ""),
+        (
+            "pagination-added-behavior",
+            "behavior ListItems.pagesResults",
+        ),
+    ] {
+        let dir = package(
+            name,
+            &current,
+            &format!("migration \"v2\" from \"v1\" {{ {steps} }}\n"),
+        );
+        let loaded = load_package(&dir).unwrap();
+        let compiled = compile(&loaded, None);
+        assert!(compiled.service.is_some(), "{}", compiled.render());
+        let checked = guard(&loaded, &compiled, loaded.files.len(), &Config::default())
+            .unwrap()
+            .unwrap();
+        assert!(checked.has_errors(), "{name}");
+        assert!(checked.problems.is_empty(), "{:?}", problems(&checked));
+        assert_eq!(
+            rules(&checked),
+            vec!["compatibility.pagination example.shop#ListItems"],
+            "{name}",
+        );
+        let releases = crucible_lang::Releases::default();
+        let versions = crucible_lang::versions_in(
+            &loaded,
+            &compiled,
+            loaded.files.len(),
+            &Config::default(),
+            &releases,
+        );
+        assert!(versions.has_errors(), "{name}");
+        assert!(
+            versions
+                .render(&compiled)
+                .contains("compatibility.pagination")
+        );
+
+        // This is the package manifest's escape hatch, shared by both checks.
+        let manifest = dir.join("crucible.toml");
+        let text = std::fs::read_to_string(&manifest).unwrap();
+        std::fs::write(
+            &manifest,
+            format!("{text}\n[[exceptions]]\nrule = 'compatibility.pagination'\nshape = 'example.shop#ListItems'\nreason = 'Callers explicitly accept paged results'\n"),
+        )
+        .unwrap();
+        let config = Config::load(&manifest).unwrap();
+        let checked =
+            crucible_lang::check_in(&loaded, &compiled, loaded.files.len(), &config, &releases);
+        let guarded = checked.guard.unwrap().unwrap();
+        assert!(!guarded.has_errors(), "{}", guarded.render(&compiled));
+        assert!(
+            !checked.versions.has_errors(),
+            "{}",
+            checked.versions.render(&compiled)
+        );
+    }
+}
+
+#[test]
+fn freezing_a_pagination_addition_does_not_bypass_the_older_release_check() {
+    let v2 = V1
+        .replace(LIST_ITEMS, PAGED)
+        .replace("version \"v1\"", "version \"v2\"");
+    let dir = package("pagination-added-in-history", &v2, "");
+    freeze(&dir, &v2);
+    let manifest = dir.join("crucible.toml");
+    let text = std::fs::read_to_string(&manifest)
+        .unwrap()
+        .replace("v1.json", "v2.json");
+    std::fs::write(&manifest, text).unwrap();
+    std::fs::write(
+        dir.join("shop.cru"),
+        format!(
+            "{}\nmigration \"v2\" from \"v1\" {{}}\nmigration \"v3\" from \"v2\" {{}}\n",
+            v2.replace("version \"v2\"", "version \"v3\"")
+        ),
+    )
+    .unwrap();
+    let loaded = load_package(&dir).unwrap();
+    let compiled = compile(&loaded, None);
+    assert!(compiled.service.is_some(), "{}", compiled.render());
+    let checked = crucible_lang::check_in(
+        &loaded,
+        &compiled,
+        loaded.files.len(),
+        &Config::default(),
+        &crucible_lang::Releases::default(),
+    );
+    let guarded = checked.guard.unwrap().unwrap();
+    assert!(!guarded.has_errors(), "{}", guarded.render(&compiled));
+    assert!(checked.versions.has_errors());
+    let rendered = checked.versions.render(&compiled);
+    assert!(rendered.contains("compatibility.pagination"), "{rendered}");
+    assert!(rendered.contains("v1"), "{rendered}");
+}
+
 /// Renaming the page token changes the pagination contract, and the rename
 /// steps are what declare and convert it: no policy exception is needed.
 /// A change the renames do not explain is still reported.
