@@ -723,62 +723,51 @@ fn incremental_cargo_rechecks_ignore_decisions_without_source_edits() {
 fn incremental_cargo_notices_a_packed_branch_gaining_a_loose_ref() {
     let directory = tempfile::tempdir().unwrap();
     let root = directory.path().join("repository");
-    init(&root, "https://github.com/Operation-Leyline/crucible");
-    fs::write(
-        root.join("Cargo.toml"),
-        "[workspace]\nmembers = ['crates/crucible-revision', 'probe']\nresolver = '3'\n[workspace.package]\nrepository = \"https://github.com/Operation-Leyline/crucible\"\n",
-    )
-    .unwrap();
-    let revision_crate = root.join("crates/crucible-revision");
-    fs::create_dir_all(revision_crate.join("src")).unwrap();
-    fs::write(
-        revision_crate.join("Cargo.toml"),
-        "[package]\nname = 'crucible-revision'\nversion = '0.0.0'\nedition = '2024'\n",
-    )
-    .unwrap();
-    let source = Path::new(env!("CARGO_MANIFEST_DIR")).join("../crucible-revision");
-    for file in ["build.rs", "src/lib.rs"] {
-        fs::copy(source.join(file), revision_crate.join(file)).unwrap();
-    }
-    fs::create_dir_all(root.join("probe/src")).unwrap();
-    fs::write(
-        root.join("probe/Cargo.toml"),
-        "[package]\nname = 'incremental-revision-probe'\nversion = '0.0.0'\nedition = '2024'\n[dependencies]\ncrucible-revision = { path = '../crates/crucible-revision' }\n",
-    )
-    .unwrap();
-    fs::write(
-        root.join("probe/src/main.rs"),
-        "fn main() { println!(\"{}\", crucible_revision::recorded_revision().unwrap()); }\n",
-    )
-    .unwrap();
-    let cargo = std::env::var_os("CARGO").unwrap_or_else(|| "cargo".into());
-    success(
-        Command::new(&cargo)
-            .args(["generate-lockfile", "--offline", "--manifest-path"])
-            .arg(root.join("Cargo.toml"))
-            .output()
-            .unwrap(),
-    );
-    git(&root, &["add", "."]);
-    git(&root, &["commit", "-qm", "revision consumer"]);
+    incremental_repository(&root);
     // An isolated target avoids another scratch checkout's Cargo fingerprints.
     let target = directory.path().join("target");
     // Inherit RUSTC_WRAPPER so the same sequence can run through sccache.
-    let build = || {
-        let output = Command::new(&cargo)
-            .args(["run", "--verbose", "--offline", "--manifest-path"])
-            .arg(root.join("Cargo.toml"))
-            .env("CARGO_TARGET_DIR", &target)
-            .env("CARGO_BUILD_JOBS", "1")
-            .output()
-            .unwrap();
-        let stderr = String::from_utf8_lossy(&output.stderr).into_owned();
-        (success(output).trim().to_owned(), stderr)
-    };
+    let build = || incremental_build(&root, &target);
+    // Force Git's stat cache stale without changing any tracked bytes.
+    fs::File::options()
+        .write(true)
+        .open(root.join("crates/crucible-revision/src/lib.rs"))
+        .unwrap()
+        .set_modified(std::time::UNIX_EPOCH + std::time::Duration::from_secs(1))
+        .unwrap();
+    let index = root.join(".git/index");
+    let index_before = fs::read(&index).unwrap();
     let initial = git(&root, &["rev-parse", "HEAD"]);
     assert_eq!(build().0, initial);
+    assert_eq!(
+        fs::read(&index).unwrap(),
+        index_before,
+        "child git status rewrote the watched index"
+    );
+    // Positive control: the same status is allowed to refresh the stale cache
+    // when optional locks are enabled, so the unchanged-index check is meaningful.
+    let status = success(
+        Command::new("git")
+            .arg("-C")
+            .arg(&root)
+            .args(["status", "--porcelain"])
+            .env("GIT_OPTIONAL_LOCKS", "1")
+            .output()
+            .unwrap(),
+    );
+    assert!(status.is_empty(), "{status}");
+    assert_ne!(
+        fs::read(&index).unwrap(),
+        index_before,
+        "control did not refresh the stale index"
+    );
     git(&root, &["pack-refs", "--all", "--prune"]);
     assert_eq!(build().0, initial);
+    let (_, baseline_log) = build();
+    assert!(
+        baseline_log.contains("Fresh crucible-revision"),
+        "{baseline_log}"
+    );
     git(&root, &["update-ref", "refs/tags/unrelated", "HEAD"]);
     git(
         &root,
