@@ -57,6 +57,9 @@ version's section when it is prepared.
 
 ### Fixed
 
+- Generator revision provenance follows Git reftable ref updates, including
+  shared branches and detached linked-worktree HEADs. Read-only Git queries no
+  longer refresh the watched index and trigger an unnecessary second build.
 - Git-channel SDK development exports in every client language omit invented
   release tags and identify the package as a local development export. Rust
   installation guides preserve home-relative SCP repository paths when
