@@ -8,6 +8,7 @@ const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
 async function withEvents(open, check) {
   let events;
   try { events = await open(); return await check(events); }
+  // Lifetime checks must observe release inside check, before this fallback.
   finally { await events?.cancel().catch(() => {}); }
 }
 
@@ -83,15 +84,17 @@ export async function qualify(endpoint) {
       const active = await stats(endpoint);
       assert(active.polls > before.polls && active.drops === before.drops, "producer must remain open after first value");
       await events.cancel();
+      await until(async () => (await stats(endpoint)).drops === before.drops + 1, "cancelled producer drop");
     });
-    await until(async () => (await stats(endpoint)).drops === before.drops + 1, "cancelled producer drop");
   });
   await test("cancel before consuming opened body", async () => {
     const before = await stats(endpoint);
     await withEvents(() => client.publish({ topic: "hold" }, { timeoutMs: null }), async events => {
-      await events.cancel(); await events.cancel();
+      await events.cancel();
+      await until(async () => (await stats(endpoint)).drops === before.drops + 1, "unconsumed producer drop after first cancellation");
+      await events.cancel();
+      equal((await stats(endpoint)).drops, before.drops + 1, "repeated cancellation must not drop another producer");
     });
-    await until(async () => (await stats(endpoint)).drops === before.drops + 1, "unconsumed producer drop");
   });
   await test("abort before opening sends no operation", async () => {
     const before = await stats(endpoint);
@@ -114,24 +117,24 @@ export async function qualify(endpoint) {
         controller.abort(reason);
         const error = await pending;
         assert(error === reason || error.name === "AbortError", "pending read abort reason");
+        await until(async () => (await stats(endpoint)).drops === before.drops + 1, "aborted producer drop");
       });
     } finally { controller.abort(); }
-    await until(async () => (await stats(endpoint)).drops === before.drops + 1, "aborted producer drop");
   });
   await test("loop break releases Rust producer", async () => {
     const before = await stats(endpoint);
     await withEvents(() => client.publish({ topic: "hold" }, { timeoutMs: null }), async events => {
       for await (const value of events) { equal(value, { ready: "first" }, "loop first value"); break; }
+      await until(async () => (await stats(endpoint)).drops === before.drops + 1, "loop-break producer drop");
     });
-    await until(async () => (await stats(endpoint)).drops === before.drops + 1, "loop-break producer drop");
   });
   await test("total deadline remains active after first value", async () => {
     const before = await stats(endpoint);
     await withEvents(() => client.publish({ topic: "hold" }, { timeoutMs: 1000 }), async events => {
       equal((await events.next()).value, { ready: "first" }, "deadline first value");
       await rejects(() => events.next(), TimeoutError, "body deadline");
+      await until(async () => (await stats(endpoint)).drops === before.drops + 1, "deadline producer drop");
     });
-    await until(async () => (await stats(endpoint)).drops === before.drops + 1, "deadline producer drop");
   });
 
   const profile = (name, extra = {}) => new StreamsClient({ endpoint: `${location.origin}/profile/${name}`, timeoutMs: 3000, ...extra });
