@@ -1,3 +1,4 @@
+use std::collections::BTreeSet;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -58,6 +59,7 @@ fn main() {
     // flips the mark always reruns this script; the index catches staged
     // changes.
     watch(&workspace, "index");
+    watch_ignores(&workspace);
     let trees: Vec<&str> = SOURCE_TREES
         .iter()
         .copied()
@@ -71,6 +73,80 @@ fn main() {
     let dirty = git(&workspace, &arguments).is_none_or(|status| !status.is_empty());
     if dirty {
         println!("cargo::rustc-env=CRUCIBLE_GENERATOR_DIRTY=1");
+    }
+}
+
+fn watch_ignores(workspace: &Path) {
+    for name in [
+        "HOME",
+        "XDG_CONFIG_HOME",
+        "GIT_CONFIG_GLOBAL",
+        "GIT_CONFIG_SYSTEM",
+        "GIT_CONFIG_NOSYSTEM",
+    ] {
+        println!("cargo::rerun-if-env-changed={name}");
+    }
+    // Ignore rules can reclassify an existing untracked source without changing
+    // any source-tree mtime. Let Git resolve repository and configured paths;
+    // nested .gitignore files are already covered by the source-tree watches.
+    watch_ignore_file(&workspace.join(".gitignore"));
+    if let Some(path) = git(workspace, &["rev-parse", "--git-path", "info/exclude"]) {
+        let path = workspace.join(path);
+        if path.is_file() {
+            watch_ignore_file(&path);
+        } else if let Some(parent) = path.parent().filter(|parent| parent.is_dir()) {
+            // info/ is bounded Git metadata, unlike the checkout or home.
+            println!("cargo::rerun-if-changed={}", parent.display());
+        }
+    }
+    // Config includes and per-worktree overrides can select another excludes
+    // file. NUL delimiters preserve paths containing spaces without Git quoting.
+    if let Some(config) = git(workspace, &["config", "--null", "--show-origin", "--list"]) {
+        let paths: BTreeSet<_> = config
+            .split('\0')
+            .step_by(2)
+            .filter_map(|entry| entry.strip_prefix("file:"))
+            .collect();
+        for path in paths {
+            watch_ignore_file(&workspace.join(path));
+        }
+    }
+    if let Some(path) = git(
+        workspace,
+        &["config", "--path", "--get", "core.excludesFile"],
+    ) {
+        watch_ignore_file(&workspace.join(path));
+    } else {
+        let default = std::env::var_os("XDG_CONFIG_HOME")
+            .filter(|path| !path.is_empty())
+            .map(|path| PathBuf::from(path).join("git/ignore"))
+            .or_else(|| {
+                git(
+                    workspace,
+                    &[
+                        "-c",
+                        "core.excludesFile=~/.config/git/ignore",
+                        "config",
+                        "--path",
+                        "--get",
+                        "core.excludesFile",
+                    ],
+                )
+                .map(PathBuf::from)
+            });
+        if let Some(path) = default {
+            watch_ignore_file(&path);
+        }
+    }
+}
+
+fn watch_ignore_file(path: &Path) {
+    // Cargo recursively scans directory watches, and missing-file watches force
+    // every build to rerun. Activation of an absent root/global ignore file is
+    // therefore outside this bounded watch (issue #400); edits and
+    // deletion of existing rules are covered without scanning checkout/home.
+    if path.is_file() {
+        println!("cargo::rerun-if-changed={}", path.display());
     }
 }
 

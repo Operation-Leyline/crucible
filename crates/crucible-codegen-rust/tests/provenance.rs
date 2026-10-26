@@ -81,6 +81,7 @@ fn init(root: &Path, repository: &str) {
         "[package]\nname = 'crucible-client-runtime-rust'\n",
     )
     .unwrap();
+    fs::write(root.join(".gitignore"), "").unwrap();
     git(root, &["init", "-q", "-b", "main"]);
     git(root, &["config", "user.name", "Crucible provenance test"]);
     git(
@@ -462,5 +463,135 @@ fn scratch_checkout_preserves_sources_with_external_cargo_targets() {
             fs::read_to_string(copy.join("new module.rs")).unwrap(),
             "// untracked source"
         );
+    }
+}
+
+fn incremental_repository(root: &Path) {
+    init(root, "https://github.com/Operation-Leyline/crucible");
+    fs::write(root.join("Cargo.toml"), "[workspace]\nmembers = ['crates/crucible-revision', 'probe']\nresolver = '3'\n[workspace.package]\nrepository = \"https://github.com/Operation-Leyline/crucible\"\n").unwrap();
+    let revision = root.join("crates/crucible-revision");
+    fs::create_dir_all(revision.join("src")).unwrap();
+    fs::write(
+        revision.join("Cargo.toml"),
+        "[package]\nname = 'crucible-revision'\nversion = '0.0.0'\nedition = '2024'\n",
+    )
+    .unwrap();
+    let source = Path::new(env!("CARGO_MANIFEST_DIR")).join("../crucible-revision");
+    for file in ["build.rs", "src/lib.rs"] {
+        fs::copy(source.join(file), revision.join(file)).unwrap();
+    }
+    fs::create_dir_all(root.join("probe/src")).unwrap();
+    fs::write(root.join("probe/Cargo.toml"), "[package]\nname = 'incremental-revision-probe'\nversion = '0.0.0'\nedition = '2024'\n[dependencies]\ncrucible-revision = { path = '../crates/crucible-revision' }\n").unwrap();
+    fs::write(
+        root.join("probe/src/main.rs"),
+        "fn main() { println!(\"{}\", crucible_revision::recorded_revision().unwrap()); }\n",
+    )
+    .unwrap();
+    fs::write(root.join(".gitignore"), "").unwrap();
+    success(
+        Command::new(env!("CARGO"))
+            .args(["generate-lockfile", "--offline", "--manifest-path"])
+            .arg(root.join("Cargo.toml"))
+            .output()
+            .unwrap(),
+    );
+    git(root, &["add", "."]);
+    git(root, &["commit", "-qm", "revision consumer"]);
+}
+
+fn incremental_build(root: &Path, target: &Path) -> (String, String) {
+    let output = Command::new(env!("CARGO"))
+        .args([
+            "run",
+            "--verbose",
+            "--offline",
+            "--color",
+            "never",
+            "--manifest-path",
+        ])
+        .arg(root.join("Cargo.toml"))
+        .env("CARGO_TARGET_DIR", target)
+        .env("CARGO_BUILD_JOBS", "1")
+        // Git status must not rewrite a watched input after Cargo timestamps it.
+        .env("GIT_OPTIONAL_LOCKS", "0")
+        .output()
+        .unwrap();
+    let log = String::from_utf8_lossy(&output.stderr).into_owned();
+    (success(output).trim().to_owned(), log)
+}
+
+#[test]
+fn incremental_cargo_rechecks_ignore_decisions_without_source_edits() {
+    for input in [".gitignore", ".git/info/exclude", "global excludes"] {
+        let directory = tempfile::tempdir().unwrap();
+        let root = directory.path().join("repository");
+        incremental_repository(&root);
+        let rules = if input == "global excludes" {
+            let rules = directory.path().join(input);
+            git(
+                &root,
+                &["config", "core.excludesFile", rules.to_str().unwrap()],
+            );
+            rules
+        } else {
+            root.join(input)
+        };
+        fs::write(&rules, "/crates/new.rs\n").unwrap();
+        fs::write(root.join("crates/new.rs"), "// source\n").unwrap();
+        let target = directory.path().join("target");
+        let revision = git(&root, &["rev-parse", "HEAD"]);
+        assert_eq!(incremental_build(&root, &target).0, revision, "{input}");
+        let (_, log) = incremental_build(&root, &target);
+        assert!(log.contains("Fresh crucible-revision"), "{input}: {log}");
+        fs::write(&rules, "").unwrap();
+        assert_eq!(
+            incremental_build(&root, &target).0,
+            format!("{revision}+dirty"),
+            "{input}: unignore"
+        );
+        fs::write(&rules, "/crates/new.rs\n").unwrap();
+        assert_eq!(
+            incremental_build(&root, &target).0,
+            revision,
+            "{input}: ignore again"
+        );
+        if input == ".git/info/exclude" {
+            fs::remove_file(&rules).unwrap();
+            assert_eq!(
+                incremental_build(&root, &target).0,
+                format!("{revision}+dirty"),
+                "remove repository rules"
+            );
+            let (_, log) = incremental_build(&root, &target);
+            assert!(log.contains("Fresh crucible-revision"), "{log}");
+            fs::write(&rules, "/crates/new.rs\n").unwrap();
+            assert_eq!(
+                incremental_build(&root, &target).0,
+                revision,
+                "recreate repository rules"
+            );
+        }
+        if input == "global excludes" {
+            let other = directory.path().join("other excludes");
+            fs::write(&other, "").unwrap();
+            git(
+                &root,
+                &["config", "core.excludesFile", other.to_str().unwrap()],
+            );
+            assert_eq!(
+                incremental_build(&root, &target).0,
+                format!("{revision}+dirty"),
+                "new config selects empty rules"
+            );
+            git(
+                &root,
+                &["config", "core.excludesFile", rules.to_str().unwrap()],
+            );
+            assert_eq!(
+                incremental_build(&root, &target).0,
+                revision,
+                "config restores ignore rules"
+            );
+        }
     }
 }
