@@ -60,11 +60,16 @@ impl Sdk {
     /// Git tag a Git channel releases it as.
     fn release_metadata(&self, file: &SdkFile, version: &str) -> Result<PackageMetadata, String> {
         let mut metadata = self.package_metadata(file)?;
-        if let Some(Channel::Git { url, tag, .. }) = &self.channel
+        if let Some(Channel::Git {
+            url,
+            install_url,
+            tag,
+            ..
+        }) = &self.channel
             && !version.is_empty()
         {
             metadata.git = Some(crucible_codegen_common::GitRelease::new(
-                url,
+                install_url.as_deref().unwrap_or(url),
                 tag.replace("{version}", version),
             ));
         }
@@ -87,6 +92,8 @@ impl Sdk {
             })?),
             None => None,
         };
+        #[cfg(feature = "rust")]
+        let development = version.is_none();
         let version = version
             .map(str::to_owned)
             .or_else(|| self.development_version())
@@ -107,7 +114,13 @@ impl Sdk {
                 let mut rust = crucible_codegen_rust::ClientOptions {
                     package_name: options.package.clone(),
                     package_version: version.clone(),
-                    metadata: self.release_metadata(file, &version)?,
+                    // Development package versions are not SDK releases: in
+                    // Rust they equal Crucible's version, which may name no SDK tag.
+                    metadata: if development {
+                        self.package_metadata(file)?
+                    } else {
+                        self.release_metadata(file, &version)?
+                    },
                     content_sha256: options.middleware.iter().any(|m| m == "content-sha256"),
                     ..Default::default()
                 };

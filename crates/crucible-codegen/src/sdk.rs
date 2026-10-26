@@ -148,6 +148,8 @@ pub enum Channel {
     /// Git tags on a distribution repository.
     Git {
         url: String,
+        /// Consumer URL for generated installation guidance; publishing uses `url`.
+        install_url: Option<String>,
         branch: String,
         path: String,
         tag: String,
@@ -470,14 +472,18 @@ impl Sdk {
             }
             Some(Channel::Git {
                 url,
+                install_url,
                 branch,
                 path,
                 tag,
                 adopt,
-            }) => set(
-                "channel",
-                json!({ "git": url, "branch": branch, "path": path, "tag": tag, "adopt": adopt }),
-            ),
+            }) => {
+                let mut channel = json!({ "git": url, "branch": branch, "path": path, "tag": tag, "adopt": adopt });
+                if let Some(install_url) = install_url {
+                    channel["install_url"] = json!(install_url);
+                }
+                set("channel", channel);
+            }
             None => {}
         }
         canonical(&Value::Object(map))

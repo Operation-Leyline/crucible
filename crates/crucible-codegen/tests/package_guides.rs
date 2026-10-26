@@ -9,6 +9,35 @@ use clients::clients;
 use crucible_codegen::{Client, File, PackageMetadata};
 use crucible_codegen_common::{GitRelease, Registry};
 
+/// Exercise the declared SDK path, including its release-tag expansion.
+fn rust_sdk(channel: &str) -> (tempfile::TempDir, crucible_codegen::sdk::SdkFile) {
+    let directory = tempfile::tempdir().unwrap();
+    std::fs::write(
+        directory.path().join("README-rust.md"),
+        "# Custom SDK guide\nUse HTTPS with your credential manager.\n",
+    )
+    .unwrap();
+    let path = directory.path().join("crucible-sdk.toml");
+    std::fs::write(
+        &path,
+        format!(
+            r#"schema_version = 1
+model = "model"
+[sdk.rust]
+package = "weather-sdk"
+out = "generated/rust"
+version = "1.2.3"
+private = true
+readme = "README-rust.md"
+channel = {{ {channel} }}
+"#
+        ),
+    )
+    .unwrap();
+    let file = crucible_codegen::sdk::load(&path).unwrap();
+    (directory, file)
+}
+
 #[path = "common/clients.rs"]
 mod clients;
 mod common;
@@ -166,6 +195,128 @@ fn a_git_release_is_installed_from_its_tag() {
             readme.contains(expected),
             "{language}: {expected}\n{readme}"
         );
+    }
+}
+
+#[test]
+fn rust_git_guides_use_the_sdk_release_version_with_a_custom_readme() {
+    let (_directory, file) =
+        rust_sdk(r#"git = "https://github.com/example/weather-rs.git", tag = "sdk-v{version}""#);
+    let client = file.sdks["rust"].client(&file, Some("2.3.4")).unwrap();
+    let files = client.emit(&common::load("weather")).unwrap();
+    let manifest: toml::Value = files
+        .iter()
+        .find(|file| file.path == "Cargo.toml")
+        .unwrap()
+        .contents
+        .parse()
+        .unwrap();
+    assert_eq!(manifest["package"]["version"].as_str(), Some("2.3.4"));
+    let (readme, agents) = guides(&files);
+    assert_eq!(
+        readme,
+        "# Custom SDK guide\nUse HTTPS with your credential manager.\n"
+    );
+    assert!(agents.contains(
+        r#"weather-sdk = { git = "https://github.com/example/weather-rs.git", tag = "sdk-v2.3.4" }"#
+    ), "{agents}");
+    assert!(!agents.contains("sdk-v1.2.3"), "{agents}");
+    assert!(
+        !agents.contains(&format!("sdk-v{}", env!("CARGO_PKG_VERSION"))),
+        "{agents}"
+    );
+}
+
+#[test]
+fn rust_development_guides_do_not_invent_a_released_git_tag() {
+    let (_directory, file) =
+        rust_sdk(r#"git = "https://github.com/example/weather-rs.git", tag = "sdk-v{version}""#);
+    let client = file.sdks["rust"].client(&file, None).unwrap();
+    let files = client.emit(&common::load("weather")).unwrap();
+    let manifest: toml::Value = files
+        .iter()
+        .find(|file| file.path == "Cargo.toml")
+        .unwrap()
+        .contents
+        .parse()
+        .unwrap();
+    assert_eq!(
+        manifest["package"]["version"].as_str(),
+        Some(env!("CARGO_PKG_VERSION"))
+    );
+    let (_, agents) = guides(&files);
+    assert!(
+        !agents.contains(&format!("sdk-v{}", env!("CARGO_PKG_VERSION"))),
+        "{agents}"
+    );
+    assert!(!agents.contains("sdk-v1.2.3"), "{agents}");
+    assert!(!agents.contains("cargo add weather-sdk"), "{agents}");
+    assert!(agents.contains("development export"), "{agents}");
+}
+
+#[test]
+fn rust_git_guides_use_the_explicit_install_url() {
+    let (_directory, file) = rust_sdk(
+        r#"git = "ssh://git@publish.example/weather.git", install_url = "https://download.example/weather.git", tag = "sdk-v{version}""#,
+    );
+    let sdk = &file.sdks["rust"];
+    let effective = sdk.effective(&file);
+    assert_eq!(
+        effective["channel"]["git"],
+        "ssh://git@publish.example/weather.git"
+    );
+    assert_eq!(
+        effective["channel"]["install_url"],
+        "https://download.example/weather.git"
+    );
+    let files = sdk
+        .client(&file, Some("2.3.4"))
+        .unwrap()
+        .emit(&common::load("weather"))
+        .unwrap();
+    let (_, agents) = guides(&files);
+    assert!(
+        agents.contains(
+            r#"weather-sdk = { git = "https://download.example/weather.git", tag = "sdk-v2.3.4" }"#
+        ),
+        "{agents}"
+    );
+    assert!(!agents.contains("publish.example"), "{agents}");
+}
+
+#[test]
+fn rust_git_guides_preserve_unconfigured_remote_transports() {
+    for (publish, install) in [
+        (
+            "ssh://git@internal.example:2222/team/sdk.git",
+            "ssh://git@internal.example:2222/team/sdk.git",
+        ),
+        (
+            "git@internal.example:team/sdk.git",
+            "ssh://git@internal.example/team/sdk.git",
+        ),
+        (
+            "https://internal.example/team/sdk.git",
+            "https://internal.example/team/sdk.git",
+        ),
+    ] {
+        let (_directory, mut file) =
+            rust_sdk(&format!(r#"git = "{publish}", tag = "sdk-v{{version}}""#));
+        file.sdks.get_mut("rust").unwrap().metadata.readme = None;
+        let files = file.sdks["rust"]
+            .client(&file, Some("2.3.4"))
+            .unwrap()
+            .emit(&common::load("weather"))
+            .unwrap();
+        let (readme, agents) = guides(&files);
+        for text in [readme, agents] {
+            assert!(
+                text.contains(&format!(
+                    r#"weather-sdk = {{ git = "{install}", tag = "sdk-v2.3.4" }}"#
+                )),
+                "{text}"
+            );
+        }
     }
 }
 

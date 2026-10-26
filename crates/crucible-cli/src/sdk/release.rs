@@ -142,6 +142,7 @@ fn channel_config(sdk: &Sdk) -> Result<Option<ChannelConfig>, String> {
             path,
             tag,
             adopt,
+            ..
         }) => Some(ChannelConfig::Git(GitChannelConfig {
             url: url.clone(),
             branch: branch.clone(),

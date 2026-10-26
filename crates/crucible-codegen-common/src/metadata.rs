@@ -44,7 +44,8 @@ pub struct PackageMetadata {
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
 pub struct GitRelease {
-    /// The repository a consumer fetches, as the channel names it.
+    /// The repository a consumer fetches: the channel's explicit install
+    /// URL, or its Git URL when no consumer override is configured.
     pub url: String,
     /// This version's tag: the channel's template with the version in it.
     pub tag: String,

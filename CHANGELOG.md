@@ -53,6 +53,10 @@ version's section when it is prepared.
 
 ### Fixed
 
+- Rust SDK development guides no longer advertise the Crucible version as
+  a published SDK Git tag. Git channels accept an optional `install_url`
+  for consumer installation guidance while retaining their publishing URL;
+  release guides use the selected SDK version and configured tag template.
 - Standalone JSON Schemas preserve arbitrary `$ref` fields inside defaults and
   custom trait metadata when rewriting schema references to local `$defs`.
 

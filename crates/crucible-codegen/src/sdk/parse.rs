@@ -692,7 +692,7 @@ fn channel(
     };
     let allowed: &[&str] = match *kind {
         "npm" => &["npm", "access", "dist_tag"],
-        "git" => &["git", "branch", "path", "tag", "adopt"],
+        "git" => &["git", "install_url", "branch", "path", "tag", "adopt"],
         _ => {
             context.error(
                 &format!("{at}.{kind}"),
@@ -759,6 +759,14 @@ fn channel(
         context.error(&format!("{at}.git"), problem);
         valid = false;
     }
+    let install_url = optional(context, "install_url");
+    if let Some(problem) = install_url
+        .as_deref()
+        .and_then(crucible_codegen_common::metadata::url_problem)
+    {
+        context.error(&format!("{at}.install_url"), problem);
+        valid = false;
+    }
     // The distribution repository's root is `.`; anything else stays inside it.
     let path = match table.get("path") {
         Some(Value::String(path)) if path == "." => Some(".".into()),
@@ -783,6 +791,7 @@ fn channel(
     let (url, path) = (url?, path?);
     valid.then_some(Channel::Git {
         url,
+        install_url,
         branch,
         path,
         tag,
