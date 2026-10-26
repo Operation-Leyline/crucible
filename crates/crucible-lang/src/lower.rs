@@ -67,6 +67,7 @@ pub(crate) fn lower(
         naming: &package.naming,
         decls: BTreeMap::new(),
         bodies: BTreeMap::new(),
+        rejected_bodies: Vec::new(),
         diagnostics: template_problems,
         source_map: SourceMap::new(),
         protocol: Protocol::CrucibleJson,
@@ -474,6 +475,7 @@ fn doc_text(doc: Option<&Doc>) -> Option<String> {
     doc.map(|doc| doc.text.clone())
 }
 
+#[derive(Clone)]
 struct Lowerer<'a> {
     /// The members role templates add to operations, by operation and side.
     template_extras: crate::templates::Extras<'a>,
@@ -487,6 +489,9 @@ struct Lowerer<'a> {
     naming: &'a Naming,
     decls: BTreeMap<&'a str, DeclRef<'a>>,
     bodies: BTreeMap<ShapeId, BodySource<'a>>,
+    /// Colliding bodies still need checking, without replacing the first
+    /// body's shape, HTTP role, or source locations during editor recovery.
+    rejected_bodies: Vec<(ShapeId, BodySource<'a>)>,
     diagnostics: Vec<FileDiagnostic>,
     source_map: SourceMap,
     protocol: Protocol,
@@ -655,6 +660,9 @@ impl<'a> Lowerer<'a> {
         operations: &[&IrOperation],
         shapes: &BTreeMap<ShapeId, Shape>,
     ) -> (BTreeMap<String, ShapeId>, BTreeMap<String, ShapeId>) {
+        if !self.rejected_bodies.is_empty() {
+            return self.resolve_colliding_body_doc_links(service, operations, shapes);
+        }
         let mut links = BTreeMap::new();
         let mut owners = BTreeMap::new();
         for (label, file, start, end) in std::mem::take(&mut self.doc_link_sites) {
@@ -5768,6 +5776,34 @@ impl<'a> Lowerer<'a> {
                         BodyKind::Output => self.naming.output(&op.name.name),
                     };
                     let body_id = ShapeId::new(self.ns, &name);
+                    if let Some(previous) = self.bodies.get(&body_id) {
+                        if !std::ptr::eq(previous.body, body) {
+                            let (file, span) = (previous.file, previous.body.span);
+                            let message = format!(
+                                "`{name}` is the generated name of more than one operation body"
+                            );
+                            self.error(file, span, &message);
+                            self.error(decl.file, body.span, message);
+                            if !self
+                                .rejected_bodies
+                                .iter()
+                                .any(|(_, source)| std::ptr::eq(source.body, body))
+                            {
+                                self.rejected_bodies.push((
+                                    body_id.clone(),
+                                    BodySource {
+                                        file: decl.file,
+                                        operation: op,
+                                        body,
+                                        labels: labels.clone(),
+                                    },
+                                ));
+                            }
+                        }
+                        // Keep the first body and its HTTP role for editor recovery;
+                        // repeating the same operation's registration is harmless.
+                        continue;
+                    }
                     match body.kind {
                         BodyKind::Input => self.http_inputs.insert(body_id.clone()),
                         BodyKind::Output => self.http_outputs.insert(body_id.clone()),
@@ -5798,6 +5834,80 @@ impl<'a> Lowerer<'a> {
                 _ => {}
             }
         }
+    }
+
+    /// Check rejected bodies and every doc-link site in one isolated view.
+    /// Each rejected side has its own identity there, so two operations, or
+    /// both sides of one operation, cannot borrow each other's members.
+    fn resolve_colliding_body_doc_links(
+        &mut self,
+        service: Option<&ShapeId>,
+        operations: &[&IrOperation],
+        shapes: &BTreeMap<ShapeId, Shape>,
+    ) -> (BTreeMap<String, ShapeId>, BTreeMap<String, ShapeId>) {
+        let mut probe = self.clone();
+        probe.diagnostics.clear();
+        probe.rejected_bodies.clear();
+        let mut view_shapes = shapes.clone();
+        let mut view_operations: Vec<IrOperation> = operations
+            .iter()
+            .map(|operation| (**operation).clone())
+            .collect();
+        let mut synthetic = BTreeSet::new();
+        let mut next_id = 0;
+        for (id, source) in &self.rejected_bodies {
+            // Member lowering has source-map and semantic side effects. None
+            // may change the retained body or another rejected body's checks.
+            let mut body_probe = self.clone();
+            body_probe.diagnostics.clear();
+            body_probe.doc_link_sites.clear();
+            body_probe.shapes = shapes.clone();
+            body_probe.locate(id.clone(), source.file, source.body.span);
+            body_probe.shapes.remove(id);
+            body_probe.visiting.insert(id.clone());
+            body_probe.pending.insert(id.clone(), Pending::Structure);
+            body_probe.http_inputs.remove(id);
+            body_probe.http_outputs.remove(id);
+            match source.body.kind {
+                BodyKind::Input => body_probe.http_inputs.insert(id.clone()),
+                BodyKind::Output => body_probe.http_outputs.insert(id.clone()),
+            };
+            // Lower against the source id so diagnostics never name a
+            // synthetic identity. Only the doc resolver sees this new id.
+            let shape = body_probe.body_shape(id, source);
+            let view_id = loop {
+                let candidate =
+                    ShapeId::new(crucible_ir::PRELUDE, &format!("__RejectedBody{next_id}"));
+                next_id += 1;
+                if !view_shapes.contains_key(&candidate) {
+                    break candidate;
+                }
+            };
+            view_shapes.insert(view_id.clone(), shape);
+            synthetic.insert(view_id.clone());
+            let operation_id = self.ref_id(&source.operation.name.name);
+            for operation in view_operations
+                .iter_mut()
+                .filter(|op| op.id == operation_id)
+            {
+                match source.body.kind {
+                    BodyKind::Input => operation.input = Some(view_id.clone()),
+                    BodyKind::Output => operation.output = Some(view_id.clone()),
+                }
+            }
+            probe.diagnostics.extend(body_probe.diagnostics);
+            probe.doc_link_sites.extend(body_probe.doc_link_sites);
+        }
+        let operations: Vec<&IrOperation> = view_operations.iter().collect();
+        let (mut links, mut owners) = probe.resolve_doc_links(service, &operations, &view_shapes);
+        // A rejected member is valid to name in source, but has no published
+        // target. Diagnostic-only ids must not enter the editor's best-effort IR.
+        links.retain(|_, id| !synthetic.contains(&id.root()));
+        owners.retain(|label, _| links.contains_key(label));
+        self.doc_link_sites.clear();
+        self.migration_link_sites.clear();
+        self.diagnostics.extend(probe.diagnostics);
+        (links, owners)
     }
 }
 

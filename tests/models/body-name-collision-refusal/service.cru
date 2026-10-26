@@ -1,0 +1,5 @@
+service Collision {
+    version "1"
+    protocol json
+    operations [AConsume, Consume]
+}

@@ -73,6 +73,8 @@ version's section when it is prepared.
 
 ### Fixed
 
+- Operation-body naming collisions now report errors at both source bodies
+  instead of silently replacing another operation's input or output contract.
 - Generator revision provenance follows Git reftable ref updates, including
   shared branches and detached linked-worktree HEADs. Read-only Git queries no
   longer refresh the watched index and trigger an unnecessary second build.

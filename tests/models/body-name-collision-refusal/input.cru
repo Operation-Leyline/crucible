@@ -1,0 +1,4 @@
+operation AConsume {
+    http POST "/input"
+    input { inputOnly: string }
+}
