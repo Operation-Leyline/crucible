@@ -716,3 +716,76 @@ fn incremental_cargo_rechecks_ignore_decisions_without_source_edits() {
         }
     }
 }
+
+/// A packed branch gains a loose ref on its next commit. Cargo must notice
+/// that creation even though the loose ref did not exist on the previous run.
+#[test]
+fn incremental_cargo_notices_a_packed_branch_gaining_a_loose_ref() {
+    let directory = tempfile::tempdir().unwrap();
+    let root = directory.path().join("repository");
+    init(&root, "https://github.com/Operation-Leyline/crucible");
+    fs::write(
+        root.join("Cargo.toml"),
+        "[workspace]\nmembers = ['crates/crucible-revision', 'probe']\nresolver = '3'\n[workspace.package]\nrepository = \"https://github.com/Operation-Leyline/crucible\"\n",
+    )
+    .unwrap();
+    let revision_crate = root.join("crates/crucible-revision");
+    fs::create_dir_all(revision_crate.join("src")).unwrap();
+    fs::write(
+        revision_crate.join("Cargo.toml"),
+        "[package]\nname = 'crucible-revision'\nversion = '0.0.0'\nedition = '2024'\n",
+    )
+    .unwrap();
+    let source = Path::new(env!("CARGO_MANIFEST_DIR")).join("../crucible-revision");
+    for file in ["build.rs", "src/lib.rs"] {
+        fs::copy(source.join(file), revision_crate.join(file)).unwrap();
+    }
+    fs::create_dir_all(root.join("probe/src")).unwrap();
+    fs::write(
+        root.join("probe/Cargo.toml"),
+        "[package]\nname = 'incremental-revision-probe'\nversion = '0.0.0'\nedition = '2024'\n[dependencies]\ncrucible-revision = { path = '../crates/crucible-revision' }\n",
+    )
+    .unwrap();
+    fs::write(
+        root.join("probe/src/main.rs"),
+        "fn main() { println!(\"{}\", crucible_revision::recorded_revision().unwrap()); }\n",
+    )
+    .unwrap();
+    let cargo = std::env::var_os("CARGO").unwrap_or_else(|| "cargo".into());
+    success(
+        Command::new(&cargo)
+            .args(["generate-lockfile", "--offline", "--manifest-path"])
+            .arg(root.join("Cargo.toml"))
+            .output()
+            .unwrap(),
+    );
+    git(&root, &["add", "."]);
+    git(&root, &["commit", "-qm", "revision consumer"]);
+    // An isolated target avoids another scratch checkout's Cargo fingerprints.
+    let target = directory.path().join("target");
+    let build = || {
+        success(
+            Command::new(&cargo)
+                .args(["run", "--quiet", "--offline", "--manifest-path"])
+                .arg(root.join("Cargo.toml"))
+                .env("CARGO_TARGET_DIR", &target)
+                .env("CARGO_BUILD_JOBS", "1")
+                .output()
+                .unwrap(),
+        )
+        .trim()
+        .to_owned()
+    };
+    let initial = git(&root, &["rev-parse", "HEAD"]);
+    assert_eq!(build(), initial);
+    git(&root, &["pack-refs", "--all", "--prune"]);
+    assert_eq!(build(), initial);
+    git(
+        &root,
+        &["commit", "--allow-empty", "-qm", "advance packed branch"],
+    );
+    let next = git(&root, &["rev-parse", "HEAD"]);
+    assert_ne!(next, initial);
+    assert_eq!(build(), next);
+    assert_eq!(build(), next);
+}

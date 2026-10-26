@@ -51,6 +51,9 @@ fn main() {
     watch(&workspace, "packed-refs");
     if let Some(reference) = git(&workspace, &["symbolic-ref", "--quiet", "HEAD"]) {
         watch(&workspace, &reference);
+        // A packed branch has no loose ref to watch until its next commit.
+        // The shared refs directory catches that creation, including nested refs.
+        watch(&workspace, "refs");
     }
     println!("cargo::rustc-env=CRUCIBLE_GENERATOR_REVISION={revision}");
     // A source edit or untracked source file means HEAD does not reproduce
@@ -202,7 +205,7 @@ fn watch(workspace: &Path, name: &str) {
         } else {
             workspace.join(path)
         };
-        if absolute.is_file() {
+        if absolute.exists() {
             println!("cargo::rerun-if-changed={}", absolute.display());
         }
     }
