@@ -57,13 +57,13 @@ pub fn generate(service: &Service, options: &Options) -> Result<String, Diagnost
                 Segment::Label(_) => "/{}".to_owned(),
             })
             .collect::<String>();
-        if let Some(previous) = templates.insert(canonical, path.clone()) {
-            if previous != path {
-                diagnostics.push(
-                    &op.id,
-                    format!("OpenAPI cannot distinguish path templates {previous} and {path}"),
-                );
-            }
+        if let Some(previous) = templates.insert(canonical, path.clone())
+            && previous != path
+        {
+            diagnostics.push(
+                &op.id,
+                format!("OpenAPI cannot distinguish path templates {previous} and {path}"),
+            );
         }
         let method = op.method.to_ascii_lowercase();
         if !matches!(
@@ -105,10 +105,10 @@ pub fn generate(service: &Service, options: &Options) -> Result<String, Diagnost
         validate_headers(&mut diagnostics, &op.id, &op.response.headers, false);
     }
     for (id, shape) in &service.shapes {
-        if let Shape::Structure(structure) = shape {
-            if let Some(error) = &structure.error {
-                validate_headers(&mut diagnostics, id, &error.headers, false);
-            }
+        if let Shape::Structure(structure) = shape
+            && let Some(error) = &structure.error
+        {
+            validate_headers(&mut diagnostics, id, &error.headers, false);
         }
     }
     if !diagnostics.is_empty() {

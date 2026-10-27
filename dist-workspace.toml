@@ -21,4 +21,6 @@ install-path = "CARGO_HOME"
 install-updater = false
 checksum = "sha256"
 source-tarball = false
-include = ["NOTICE"]
+# Resolve inherited workspace assets from this config, not a package-relative path.
+auto-includes = false
+include = ["README.md", "LICENSE", "NOTICE"]

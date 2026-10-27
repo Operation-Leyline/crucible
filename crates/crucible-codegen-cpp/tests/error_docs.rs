@@ -82,12 +82,12 @@ fn no_base_runtime_matches_original_templates_byte_for_byte() {
 fn configured_accessor_collisions_are_diagnosed() {
     let mut service = service();
     for shape in service.shapes.values_mut() {
-        if let crucible_ir::ir::Shape::Structure(structure) = shape {
-            if structure.error.is_some() {
-                let mut member = structure.members[0].clone();
-                member.name = "docUrl".into();
-                structure.members.push(member);
-            }
+        if let crucible_ir::ir::Shape::Structure(structure) = shape
+            && structure.error.is_some()
+        {
+            let mut member = structure.members[0].clone();
+            member.name = "docUrl".into();
+            structure.members.push(member);
         }
     }
     assert!(emit(&service, &options()).is_err());

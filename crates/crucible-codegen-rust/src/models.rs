@@ -253,17 +253,17 @@ pub(crate) fn emit(
         if shape.sensitive() && matches!(shape, Shape::Enum(_) | Shape::IntEnum(_)) {
             out.push_str(&format!("impl ::std::fmt::Debug for {name} {{ fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {{ f.write_str(\"{name}(*** Sensitive Data Redacted ***)\") }} }}\n"));
         }
-        if validated.contains(id) {
-            if let Shape::Structure(structure) | Shape::Union(structure) = shape {
-                validations.push_str(&validate_impl(
-                    service,
-                    id,
-                    structure,
-                    shape,
-                    client,
-                    &mut patterns,
-                ));
-            }
+        if validated.contains(id)
+            && let Shape::Structure(structure) | Shape::Union(structure) = shape
+        {
+            validations.push_str(&validate_impl(
+                service,
+                id,
+                structure,
+                shape,
+                client,
+                &mut patterns,
+            ));
         }
     }
 
@@ -742,14 +742,14 @@ fn value_checks(
                 }
             }
             // A blob's length is its byte count.
-            if simple.kind == SimpleKind::Blob {
-                if let Some(length) = &c.length {
-                    out.push_str(&format!(
-                        "{pad}validator.length({value}.len(), {}, {});\n",
-                        opt(length.min),
-                        opt(length.max)
-                    ));
-                }
+            if simple.kind == SimpleKind::Blob
+                && let Some(length) = &c.length
+            {
+                out.push_str(&format!(
+                    "{pad}validator.length({value}.len(), {}, {});\n",
+                    opt(length.min),
+                    opt(length.max)
+                ));
             }
             if let Some(range) = &c.range {
                 out.push_str(&range_check(simple.kind, value, range, &pad));

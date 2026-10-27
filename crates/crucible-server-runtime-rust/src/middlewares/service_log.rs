@@ -241,13 +241,13 @@ impl ServiceLog {
             violations: None,
             cause: None,
         };
-        if policy.input != Fields::None {
-            if let Some(op) = job.operation() {
-                record.input = job
-                    .input_snapshot()
-                    .cloned()
-                    .and_then(|v| policy.input.pick(v, op.input));
-            }
+        if policy.input != Fields::None
+            && let Some(op) = job.operation()
+        {
+            record.input = job
+                .input_snapshot()
+                .cloned()
+                .and_then(|v| policy.input.pick(v, op.input));
         }
         if let Some(failure) = response
             .extensions()

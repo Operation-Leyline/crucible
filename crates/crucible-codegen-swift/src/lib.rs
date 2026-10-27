@@ -311,10 +311,10 @@ fn diagnose_recursion(service: &Service, diagnostics: &mut Diagnostics) {
                     diagnostics.push(id, message);
                     break;
                 }
-                if seen.insert(next) {
-                    if let Some(edges) = graph.get(next) {
-                        pending.extend(edges);
-                    }
+                if seen.insert(next)
+                    && let Some(edges) = graph.get(next)
+                {
+                    pending.extend(edges);
                 }
             }
         }

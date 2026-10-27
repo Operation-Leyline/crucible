@@ -70,17 +70,15 @@ fn declare(
             text.push_str(&format!("mod {module};\n"));
         }
     }
-    if is_new {
-        if let Some(placeholder) = placeholder {
-            if !text.ends_with("\n\n") {
-                if !text.ends_with('\n') {
-                    text.push('\n');
-                }
+    if is_new && let Some(placeholder) = placeholder {
+        if !text.ends_with("\n\n") {
+            if !text.ends_with('\n') {
                 text.push('\n');
             }
-            text.push_str(placeholder);
             text.push('\n');
         }
+        text.push_str(placeholder);
+        text.push('\n');
     }
     if existing.as_deref() != Some(text.as_str()) {
         write(path, &text)?;
