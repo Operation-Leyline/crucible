@@ -173,9 +173,10 @@ fn watch_ignores(workspace: &Path) {
         ],
     ) {
         let entries: Vec<_> = includes.split('\0').collect();
-        for pair in entries.chunks_exact(2) {
-            if let Some((_, path)) = pair[1].split_once('\n') {
-                let base = pair[0]
+        // `as_chunks` is stable since 1.88, the declared rust-version.
+        for [origin, value] in entries.as_chunks::<2>().0 {
+            if let Some((_, path)) = value.split_once('\n') {
+                let base = origin
                     .strip_prefix("file:")
                     .and_then(|origin| Path::new(origin).parent())
                     .unwrap_or(workspace);
