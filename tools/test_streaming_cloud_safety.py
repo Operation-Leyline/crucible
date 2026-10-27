@@ -22,6 +22,7 @@ BUILDER = Path(__file__).with_name("build-streaming-cloud.py")
 
 
 def source_functions(env, *, optimize=0):
+    env.setdefault("HTTPClientError", type("HTTPClientError", (Exception,), {}))
     tree = ast.parse(SOURCE.read_text(encoding="utf-8"))
     functions = [node for node in tree.body if isinstance(node, ast.FunctionDef)]
     exec(compile(ast.fix_missing_locations(ast.Module(body=functions, type_ignores=[])), str(SOURCE), "exec", optimize=optimize), env)
@@ -248,6 +249,87 @@ class CloudSafety(unittest.TestCase):
         if "finalize_report" in env:
             env["finalize_report"](env["report"], {"function"})
         self.assertEqual(env["report"]["result"], "failed")
+
+    def test_transient_delete_retries_with_fresh_ownership_and_bounded_failure(self):
+        class ClientError(Exception):
+            def __init__(self, code):
+                super().__init__(code)
+                self.response = {"Error": {"Code": code}}
+
+        for scenario in ("transient", "network", "lost-response", "permanent", "foreign", "denied"):
+            with self.subTest(scenario=scenario):
+                state = {"now": 0, "exists": True, "attempts": 0, "reads": 0}
+                env = {"report": {"cleanup": {}}, "save": lambda: None, "run": "owned",
+                       "ClientError": ClientError,
+                       "time": types.SimpleNamespace(monotonic=lambda: state["now"],
+                           sleep=lambda seconds: state.__setitem__("now", state["now"] + seconds))}
+                main = source_functions(env, optimize=2)
+                nested = [node for node in main.body if isinstance(node, ast.FunctionDef) and node.name in ("cleanup", "owned")]
+                exec(compile(ast.fix_missing_locations(ast.Module(body=nested, type_ignores=[])), str(SOURCE), "exec", optimize=2), env)
+
+                def find():
+                    state["reads"] += 1
+                    if not state["exists"]:
+                        return None
+                    return {"tags": {"crucible-smoke": "foreign" if scenario == "foreign" and state["attempts"] else "owned"}}
+
+                def delete(_):
+                    state["attempts"] += 1
+                    if scenario == "denied":
+                        raise ClientError("AccessDeniedException")
+                    if scenario == "lost-response":
+                        state["exists"] = False
+                        raise TimeoutError("delete response lost")
+                    if scenario == "network" and state["attempts"] == 1:
+                        raise env["HTTPClientError"]("connection closed")
+                    if state["attempts"] == 1 or scenario == "permanent":
+                        raise ClientError("ServiceUnavailableException")
+                    state["exists"] = False
+
+                env["cleanup"]("function", find, delete, settle_seconds=0)
+                outcome = env["report"]["cleanup"]["function"]
+                if scenario in ("transient", "network", "lost-response"):
+                    self.assertEqual(outcome, "deleted-and-verified")
+                    self.assertFalse(state["exists"])
+                    self.assertGreaterEqual(state["reads"], 2)
+                    self.assertEqual(state["attempts"], 1 if scenario == "lost-response" else 2)
+                else:
+                    self.assertIn("error", outcome)
+                    self.assertTrue(state["exists"])
+                    self.assertLessEqual(state["now"], 20)
+                    if scenario == "permanent":
+                        self.assertGreater(state["attempts"], 1)
+                    else:
+                        self.assertEqual(state["attempts"], 1)
+
+    def test_lifecycle_outcome_matches_application_mode_and_cancel_timing(self):
+        cases = [("normal", False, "Completed", 3000, True),
+                 ("normal", False, "Failed", 3000, False),
+                 ("zero", False, "Completed", 0, True),
+                 ("zero", False, "Cancelled", 0, False),
+                 ("late", False, "Failed", 1800, True),
+                 ("late", False, "Completed", 1800, False),
+                 ("hold", False, "Failed", 5000, True),
+                 ("hold", True, "Cancelled", 1000, True),
+                 ("hold", True, "Cancelled", 4500, True),
+                 ("hold", True, "Failed", 5000, True),
+                 ("hold", True, "Failed", 1000, False),
+                 ("hold", True, "Completed", 1000, False)]
+        for mode, cancel, outcome, elapsed, accepted in cases:
+            with self.subTest(mode=mode, cancel=cancel, outcome=outcome, elapsed=elapsed):
+                case = {"nonce": "offline", "mode": mode, "cancel": cancel}
+                logs = [{"message": f"nonce=offline event=producer-drop elapsed_ms={elapsed}"},
+                        {"message": f"nonce=offline event=stream-complete end={outcome}"}]
+                env = {"report": {"logs": logs}, "streams": [case], "re": re}
+                main = source_functions(env, optimize=2)
+                loop = next(node for node in ast.walk(main) if isinstance(node, ast.For)
+                            and isinstance(node.iter, ast.Name) and node.iter.id == "streams")
+                code = compile(ast.fix_missing_locations(ast.Module(body=[loop], type_ignores=[])), str(SOURCE), "exec", optimize=2)
+                if accepted:
+                    exec(code, env)
+                else:
+                    with self.assertRaises(AssertionError):
+                        exec(code, env)
 
     def test_lost_create_response_and_delayed_visibility_still_delete_owned_role(self):
         state, report = lost_role_response()

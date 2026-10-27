@@ -20,7 +20,7 @@ from urllib.parse import urlsplit
 import boto3
 from botocore.auth import SigV4Auth
 from botocore.awsrequest import AWSRequest
-from botocore.exceptions import ClientError
+from botocore.exceptions import ClientError, HTTPClientError
 
 
 def require(condition, message):
@@ -241,8 +241,36 @@ def main():
                 report["cleanup"][name] = "absent-and-verified"
                 save()
                 return
-            owned(found["tags"])
-            delete(found)
+            until = time.monotonic() + 20
+            attempts = 0
+            while found is not None:
+                # A name can resolve to a replacement during a retry. Check its
+                # ownership again before every destructive attempt.
+                owned(found["tags"])
+                attempts += 1
+                report["recovery"][name]["delete_attempts"] = attempts
+                try:
+                    delete(found)
+                    break
+                except Exception as exc:
+                    response = getattr(exc, "response", {})
+                    code = response.get("Error", {}).get("Code", "")
+                    status = response.get("ResponseMetadata", {}).get("HTTPStatusCode", 0)
+                    transient = isinstance(exc, (TimeoutError, ConnectionError, HTTPClientError)) or (
+                        isinstance(exc, ClientError) and (status >= 500 or code in {
+                            "ServiceUnavailableException", "ServiceUnavailable", "InternalFailure",
+                            "InternalError", "Throttling", "ThrottlingException",
+                            "TooManyRequestsException", "RequestLimitExceeded",
+                            "ResourceConflictException", "ConflictException", "DeleteConflict",
+                        })
+                    )
+                    remaining = until - time.monotonic()
+                    if not transient or remaining <= 0:
+                        raise
+                    time.sleep(min(2, remaining))
+                    found = find()
+                    reads += 1
+                    report["recovery"][name]["reads"] = reads
             until = time.monotonic() + 20
             while find() is not None:
                 if time.monotonic() >= until:
@@ -366,13 +394,18 @@ def main():
                     case["server_drop_ms"] = int(re.search(r"elapsed_ms=(\d+)", drops[0]).group(1))
                     case["server_terminal"] = re.search(r"end=(\w+)", completions[0]).group(1)
                     if case["cancel"]:
-                        # This conservative four-second early-drop classifier is
-                        # distinct from the five-second server request deadline.
+                        # The conservative timing classifier does not decide the
+                        # outcome: cancellation in the final second is valid too.
                         case["disconnect_propagated_before_budget"] = case["server_drop_ms"] < 4000
                         require(case["server_drop_ms"] < 7000, f"late producer drop: {case}")
-                    if case["mode"] == "hold" and not case.get("disconnect_propagated_before_budget"):
-                        require(4500 <= case["server_drop_ms"] < 7000, f"unexpected deadline drop: {case}")
-                        require(case["server_terminal"] == "Failed", f"unexpected deadline outcome: {case}")
+                        require(case["server_terminal"] in ("Cancelled", "Failed"), f"unexpected cancellation outcome: {case}")
+                        if case["server_terminal"] == "Failed":
+                            require(case["server_drop_ms"] >= 4500, f"failure before fixture deadline: {case}")
+                    else:
+                        expected = "Completed" if case["mode"] in ("normal", "zero") else "Failed"
+                        require(case["server_terminal"] == expected, f"unexpected stream outcome: {case}")
+                        if case["mode"] == "hold":
+                            require(4500 <= case["server_drop_ms"] < 7000, f"unexpected deadline drop: {case}")
                 if report.get("http_result") == "passed":
                     require(reports >= len(report["cases"]), "missing Lambda invocation completion reports")
                     require(not any("Task timed out" in event["message"] or "Status: timeout" in event["message"] for event in report["logs"]), "Lambda hit its hard timeout")
