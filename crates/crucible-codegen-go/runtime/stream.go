@@ -212,8 +212,8 @@ func (s *ResponseStream[T]) frame() (string, []byte, error) {
 		if s.skipLF {
 			s.skipLF = false
 			if b == '\n' {
-				// Charge the LF to the CR's physical frame, even when a
-				// blank CR has already reset frameBytes for the next frame.
+				// Charge the LF to its CR-terminated frame, retaining the
+				// completed count across the blank-line reset.
 				if s.crFrameBytes+1 > s.client.config.MaxStreamEventBytes {
 					return "", nil, streamProtocol("frame exceeds byte limit")
 				}
