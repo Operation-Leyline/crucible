@@ -23,6 +23,37 @@ from botocore.awsrequest import AWSRequest
 from botocore.exceptions import ClientError
 
 
+def parse_fixture_frame(text):
+    """Decode the fixture's deliberately narrow two-line SSE event format."""
+    lines = text.split("\n")
+    if len(lines) != 2 or not lines[0].startswith("event: ") or not lines[1].startswith("data: "):
+        raise ValueError(f"unexpected fixture frame: {text!r}")
+    kind = lines[0][7:]
+    if kind not in ("message", "crucible.complete", "crucible.error"):
+        raise ValueError(f"unexpected fixture event: {kind!r}")
+    return kind, json.loads(lines[1][6:])
+
+
+def validate_fixture_events(mode, events, cancel=False):
+    """Check the fixture contract, not arbitrary SSE or generated SDK semantics."""
+    first = ("message", {"ready": "item-1"})
+    expected = {
+        "normal": [first, ("message", {"ready": "item-2"}), ("crucible.complete", {})],
+        "zero": [("crucible.complete", {})],
+        "late": [first, ("crucible.error", {"type": "WorkFailed", "status": 503,
+                                          "error": {"message": "cloud late failure"}})],
+        # Unmatched DeadlineExceeded is intentionally sanitized by the framework.
+        "hold": [first, ("crucible.error", {"type": "InternalFailure", "status": 500,
+                                          "error": {"message": "Internal server error"}})],
+    }
+    if mode not in expected or (cancel and mode != "hold"):
+        raise ValueError(f"unknown fixture scenario: {mode}, cancel={cancel}")
+    wanted = [first] if cancel else expected[mode]
+    decoded = [parse_fixture_frame(event["text"]) for event in events]
+    if decoded != wanted:
+        raise ValueError(f"fixture {mode} events differ: expected {wanted!r}, received {decoded!r}")
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     for name in ("profile", "region", "account", "principal", "bootstrap-zip", "report-dir"):
@@ -125,39 +156,43 @@ def main():
                 if line.strip():
                     frame.append(line.decode().rstrip("\r\n"))
                     continue
-                if frame and not frame[0].startswith(":"):
+                if frame and not all(line.startswith(":") for line in frame):
                     text = "\n".join(frame)
+                    kind, _ = parse_fixture_frame(text)
                     event = {"text": text, "ms": round((time.monotonic() - start) * 1000, 2)}
                     item["events"].append(event)
-                    if cancel and text.startswith("event: message"):
+                    if cancel and kind == "message":
+                        validate_fixture_events(mode, item["events"], cancel=True)
                         item["client_close_ms"] = event["ms"]
                         # Close the actual TCP connection, not just an iterator.
                         if connection.sock is not None:
                             connection.sock.shutdown(socket.SHUT_RDWR)
                         response.close()
+                        frame = []
                         break
                 frame = []
+            if frame:
+                raise ValueError("unterminated fixture frame")
             item["close_ms"] = round((time.monotonic() - start) * 1000, 2)
             events = item["events"]
-            if cancel:
-                assert len(events) == 1
-            else:
-                terminal = events[-1]["text"]
-                if mode in ("normal", "zero"):
-                    assert terminal == "event: crucible.complete\ndata: {}", terminal
-                    assert len(events) == (3 if mode == "normal" else 1)
-                elif mode == "late":
-                    assert "event: crucible.error" in terminal and '"type":"WorkFailed"' in terminal, terminal
-                    assert len(events) == 2
-                elif mode == "hold":
-                    # Unmatched DeadlineExceeded is intentionally sanitized by
-                    # the framework; timing and lifecycle logs prove its cause.
-                    assert "event: crucible.error" in terminal and '"type":"InternalFailure"' in terminal, terminal
+            validate_fixture_events(mode, events, cancel)
+            if not cancel:
+                if mode == "hold":
                     assert 4500 <= item["close_ms"] < 10000, item
+                if mode in ("late", "hold"):
+                    gap = events[-1]["ms"] - events[0]["ms"]
+                    minimum = 1000 if mode == "late" else 4000
+                    if gap <= minimum:
+                        raise ValueError(f"first {mode} item was buffered until terminal: {gap}ms")
+                    item["first_item_before_terminal_ms"] = round(gap, 2)
                 if mode == "normal":
                     gap = events[-1]["ms"] - events[0]["ms"]
                     assert gap > 2200, f"response was buffered: {gap}ms"
                     item["first_item_before_terminal_ms"] = round(gap, 2)
+                    second_gap = events[-1]["ms"] - events[1]["ms"]
+                    if second_gap <= 1000:
+                        raise ValueError(f"second item was buffered until terminal: {second_gap}ms")
+                    item["second_item_before_terminal_ms"] = round(second_gap, 2)
         finally:
             connection.close()
             save()

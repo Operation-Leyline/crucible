@@ -173,8 +173,9 @@ operation traits and `host::lambda_streaming`; no service-specific behavior is
 added to the framework. Its execution role can write only its own log group.
 It has no business-data permissions.
 
-Both endpoints test GET and POST, two delayed items arriving before the terminal
-and EOF, zero items, a modeled late error, profile and request-id headers,
+Both endpoints test GET and POST, an immediate first item and delayed second
+item arriving before the terminal and EOF, zero items, a modeled late error,
+profile and request-id headers,
 deadline failure, and closing the actual client socket after the first item.
 A unary request verifies ordinary output through the same streaming host.
 Requests are signed with botocore SigV4. The receipt records timings and
@@ -183,6 +184,12 @@ headers. Unique tagged resources are recorded before and after creation,
 cleaned in `finally`, and checked for absence. If interrupted outside normal
 Python cleanup, use the receipt's names and ownership tags to recover resources.
 Never run this opt-in cloud test in ordinary credential-free CI.
+
+The fixture-specific frame and payload oracle has credential-free regression
+coverage in `python -m unittest discover -s tools -p test_streaming_cloud.py`.
+These tests execute the runner's actual request parser with a fake socket and
+clock; they do not import the AWS SDK or create an AWS session. The existing
+Rust CI gate's Python unittest discovery includes them.
 
 Client cancellation is a transport observation, not proof that remote work has
 stopped. AWS documents that
