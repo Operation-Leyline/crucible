@@ -142,6 +142,15 @@ def bump_fence(fence, packages, current, replacement):
         if stripped.startswith("["):
             header = re.fullmatch(r"\[(?:.*\.)?(?:build-|dev-)?dependencies\.([^\]\s]+)\]", stripped)
             table = header.group(1).strip('"') if header else None
+            if table is not None:
+                # `[dependencies.alias]` may name its crate with `package =`.
+                body = index + 1
+                while body < len(lines) and not lines[body].strip().startswith("["):
+                    body += 1
+                try:
+                    table = tomllib.loads("".join(lines[index + 1:body])).get("package", table)
+                except tomllib.TOMLDecodeError:
+                    pass
             out.append(lines[index])
             index += 1
             continue
@@ -159,7 +168,11 @@ def bump_fence(fence, packages, current, replacement):
         declares = (table in packages and re.match(r"version\s*=", stripped) is not None) or any(
             (dependency.get("package", alias) if isinstance(dependency, dict) else alias) in packages
             for alias, dependency in entry.items())
-        out.append(statement.replace(f'"={current}"', f'"={replacement}"') if declares else statement)
+        if declares:
+            # TOML allows either quote; keep the snippet's own.
+            statement = statement.replace(f'"={current}"', f'"={replacement}"').replace(
+                f"'={current}'", f"'={replacement}'")
+        out.append(statement)
         index = end
     return "".join(out)
 

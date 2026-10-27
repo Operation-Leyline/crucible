@@ -85,7 +85,8 @@ version = "0.1.0"
                 'pinned = { version = "=0.1.0" }\n'
                 'split = { package = "crucible-wire", version = "=0.1.0", features = [\n  "a",\n  "b",\n] }\n```\n\n'
                 '```toml\ncrucible-server-runtime-rust = { version = "=0.1.0", features = ["bare"] }\n```\n\n```toml\n'
-                '[build-dependencies.crucible-wire]\nversion = "=0.1.0"\n```\n')
+                '[build-dependencies.crucible-wire]\nversion = "=0.1.0"\n\n'
+                "[dev-dependencies.aliased]\npackage = 'crucible-wire'\nversion = '=0.1.0'\n```\n")
             check(root, "0.1.0")
             prepare(root, "0.2.0")
             check(root, "0.2.0")
@@ -95,6 +96,8 @@ version = "0.1.0"
             self.assertIn('[build-dependencies.crucible-wire]\nversion = "=0.2.0"', text)
             self.assertIn('split = { package = "crucible-wire", version = "=0.2.0", features = [\n  "a",', text)
             self.assertIn('crucible-server-runtime-rust = { version = "=0.2.0", features = ["bare"] }', text)
+            # An aliased table, single-quoted as TOML allows.
+            self.assertIn("[dev-dependencies.aliased]\npackage = 'crucible-wire'\nversion = '=0.2.0'", text)
             # Neither prose nor a registry crate that happens to share the pin moves.
             self.assertIn('Text that mentions "=0.1.0" stays.', text)
             self.assertIn('pinned = { version = "=0.1.0" }', text)

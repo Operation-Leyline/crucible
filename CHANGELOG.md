@@ -100,6 +100,10 @@ version's section when it is prepared.
 
 ### Changed
 
+- `tools/crucible_release.py prepare` prints each file it changed, one per line,
+  on standard output and its success message on standard error, so the list
+  can be staged as is (docs/releases.md).
+
 - `CliOptions::runtime_path` (the per-language `crucible_codegen_cli::Options`)
   is now `Option<PathBuf>`: wrap an explicit checkout in `Some`. `None` depends
   on the published runtimes. `CliOutput::runtime_path(...)` is unchanged.
@@ -119,8 +123,7 @@ version's section when it is prepared.
   keep published internal dependency requirements aligned with the workspace
   version, while preserving registry dependencies and example versions. The
   exact install snippets in the `crucible-api` README, `docs/explorer.md` and
-  `docs/framework.md` follow the release too, and `prepare` prints every file it
-  changed.
+  `docs/framework.md` follow the release too.
 - `crucible-build` built from crates.io no longer fails to generate a Rust SDK
   (`rust_client`) or service CLI (`cli`) for want of Git provenance or a source
   checkout. The generated manifests depend on the published runtime crates at
