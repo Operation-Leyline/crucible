@@ -18,7 +18,7 @@ TIMEOUT = 'event: crucible.error\ndata: {"type":"InternalFailure","status":500,"
 
 
 def replay_request(events, mode="normal", cancel=False, *, headers_ms=0, body=None, headers=None,
-                   service="lambda", method="GET"):
+                   service="lambda", method="GET", optimize=0):
     """Run the actual request function with a deterministic socket and clock.
 
     AST extraction avoids importing boto3 or ever creating an AWS session. It
@@ -91,7 +91,7 @@ def replay_request(events, mode="normal", cancel=False, *, headers_ms=0, body=No
                session=types.SimpleNamespace(get_credentials=lambda: types.SimpleNamespace(get_frozen_credentials=lambda: None)),
                AWSRequest=AWSRequest, SigV4Auth=Signer,
                http=types.SimpleNamespace(client=types.SimpleNamespace(HTTPSConnection=Connection)))
-    exec(compile(ast.fix_missing_locations(ast.Module(body=helpers + [request], type_ignores=[])), str(SOURCE), "exec"), env)
+    exec(compile(ast.fix_missing_locations(ast.Module(body=helpers + [request], type_ignores=[])), str(SOURCE), "exec", optimize=optimize), env)
     env["request"]("https://offline.invalid", service, method, mode, cancel, "read" if body is not None else "events")
     return report["cases"][0], effects
 

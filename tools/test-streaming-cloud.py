@@ -23,6 +23,31 @@ from botocore.awsrequest import AWSRequest
 from botocore.exceptions import ClientError
 
 
+def require(condition, message):
+    """Qualification gates must remain active under optimized Python."""
+    if not condition:
+        raise AssertionError(message)
+
+
+def validate_environment(partition, identity, account, principal):
+    if partition != "aws" or identity["Arn"].split(":")[1] != "aws":
+        raise SystemExit("this smoke supports only the commercial aws partition; no resources created")
+    if identity["Account"] != account or identity["Arn"] != principal:
+        raise SystemExit("STS identity mismatch; no resources created")
+    if not re.fullmatch(r"\d{12}", account):
+        raise SystemExit("expected a 12-digit AWS account")
+
+
+def finalize_report(report, expected_cleanup):
+    """A successful HTTP run is provisional until every resource is accounted for."""
+    accepted = ("deleted-and-verified", "absent-and-verified")
+    complete = all(report["cleanup"].get(name) in accepted for name in expected_cleanup)
+    clean = all(value in accepted for value in report["cleanup"].values())
+    report["result"] = "passed" if (
+        report.get("http_result") == "passed" and report.get("log_result") == "passed" and complete and clean
+    ) else "failed"
+
+
 def parse_fixture_frame(text):
     """Decode the fixture's deliberately narrow two-line SSE event format."""
     lines = text.split("\n")
@@ -60,11 +85,11 @@ def main():
         parser.add_argument("--" + name, required=True)
     args = parser.parse_args()
     session = boto3.Session(profile_name=args.profile, region_name=args.region)
+    partition = session.get_partition_for_region(args.region)
+    if partition != "aws":
+        raise SystemExit("this smoke supports only the commercial aws partition; no resources created")
     identity = session.client("sts").get_caller_identity()
-    if identity["Account"] != args.account or identity["Arn"] != args.principal:
-        raise SystemExit("STS identity mismatch; no resources created")
-    if not re.fullmatch(r"\d{12}", args.account):
-        raise SystemExit("expected a 12-digit AWS account")
+    validate_environment(partition, identity, args.account, args.principal)
     zipped = Path(args.bootstrap_zip).read_bytes()
     with zipfile.ZipFile(io.BytesIO(zipped)) as archive:
         entry = archive.getinfo("bootstrap")
@@ -80,12 +105,14 @@ def main():
               "tags": tags, "request_budget_seconds": 5, "lambda_timeout_seconds": 15,
               "started_utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
               "identity": {key: identity[key] for key in ("Account", "Arn", "UserId")},
-              "resources": {}, "journal": [], "cases": [], "cleanup": {}, "logs": []}
+              "resources": {}, "journal": [], "cases": [], "cleanup": {}, "logs": [],
+              "result": "running", "disconnect_classification_cutoff_ms": 4000}
     report["bootstrap_zip_sha256"] = hashlib.sha256(zipped).hexdigest()
     receipt = report_dir / (run + ".json")
     clients = {name: session.client(name) for name in ("iam", "lambda", "apigateway", "logs")}
     iam, lam, api, logs = (clients[name] for name in ("iam", "lambda", "apigateway", "logs"))
     resources = report["resources"]
+    expected_cleanup = {"role", "function", "log_group"}
 
     def save():
         temporary = receipt.with_suffix(".tmp")
@@ -138,16 +165,16 @@ def main():
                                if key.lower() in ("content-type", "cache-control", "crucible-stream", "x-request-id")}
             if path == "read":
                 item["body"] = response.read().decode()
-                assert response.status == 200 and json.loads(item["body"]) == {"value": "unary"}
+                require(response.status == 200 and json.loads(item["body"]) == {"value": "unary"}, "unexpected unary response")
                 return
             if response.status != 200:
                 item["body"] = response.read(8192).decode(errors="replace")
                 raise AssertionError(f"{service} {method} {mode}: HTTP {response.status} {item['body']}")
             media = item["headers"].get("content-type", "")
-            assert "text/event-stream" in media and "crucible-stream=1" in media, media
-            assert item["headers"].get("cache-control") == "no-store"
-            assert item["headers"].get("crucible-stream") == "1"
-            assert item["headers"].get("x-request-id")
+            require("text/event-stream" in media and "crucible-stream=1" in media, media)
+            require(item["headers"].get("cache-control") == "no-store", "missing no-store cache control")
+            require(item["headers"].get("crucible-stream") == "1", "missing stream profile header")
+            require(bool(item["headers"].get("x-request-id")), "missing request ID")
             frame = []
             while True:
                 line = response.readline()
@@ -178,7 +205,7 @@ def main():
             validate_fixture_events(mode, events, cancel)
             if not cancel:
                 if mode == "hold":
-                    assert 4500 <= item["close_ms"] < 10000, item
+                    require(4500 <= item["close_ms"] < 10000, f"unexpected deadline duration: {item['close_ms']}ms")
                 if mode in ("late", "hold"):
                     gap = events[-1]["ms"] - events[0]["ms"]
                     minimum = 1000 if mode == "late" else 4000
@@ -187,7 +214,7 @@ def main():
                     item["first_item_before_terminal_ms"] = round(gap, 2)
                 if mode == "normal":
                     gap = events[-1]["ms"] - events[0]["ms"]
-                    assert gap > 2200, f"response was buffered: {gap}ms"
+                    require(gap > 2200, f"response was buffered: {gap}ms")
                     item["first_item_before_terminal_ms"] = round(gap, 2)
                     second_gap = events[-1]["ms"] - events[1]["ms"]
                     if second_gap <= 1000:
@@ -197,12 +224,27 @@ def main():
             connection.close()
             save()
 
-    def cleanup(name, verify_owned, delete, absent):
+    def cleanup(name, find, delete, settle_seconds=35):
+        """Retry visibility after an ambiguous create; never silently skip intent."""
         try:
-            if verify_owned():
-                delete()
+            until = time.monotonic() + settle_seconds
+            reads = 0
+            while True:
+                found = find()
+                reads += 1
+                remaining = until - time.monotonic()
+                if found is not None or remaining <= 0:
+                    break
+                time.sleep(min(2, remaining))
+            report.setdefault("recovery", {})[name] = {"reads": reads, "settle_seconds": settle_seconds}
+            if found is None:
+                report["cleanup"][name] = "absent-and-verified"
+                save()
+                return
+            owned(found["tags"])
+            delete(found)
             until = time.monotonic() + 20
-            while not absent():
+            while find() is not None:
                 if time.monotonic() >= until:
                     raise RuntimeError(f"{name} still exists")
                 time.sleep(1)
@@ -260,6 +302,9 @@ def main():
         action("grant-owned-url-function-invocation", lam.add_permission, FunctionName=run,
                StatementId="verified-smoke-principal-function", Action="lambda:InvokeFunction",
                Principal=args.principal, InvokedViaFunctionUrl=True)
+        resources["rest_api_name"] = run
+        expected_cleanup.add("rest_api")
+        save()
         rest = action("create-rest-api", api.create_rest_api, name=run,
                       endpointConfiguration={"types": ["REGIONAL"]}, tags=tags)
         resources["rest_api"] = rest["id"]
@@ -293,26 +338,12 @@ def main():
                 request(base, service, method, "hold", cancel=True)
             # Give even a disconnected invocation time to hit its own deadline.
             time.sleep(6)
-        report["result"] = "passed"
+        report["http_result"] = "passed"
+        report["result"] = "pending-cleanup"
     except Exception as exc:
         report["result"] = "failed"
         report["error"] = str(exc)
     finally:
-        # Recover named resources even when a create response was interrupted.
-        for kind in ("function", "role", "rest_api"):
-            try:
-                if kind == "function" and "function_arn" not in resources and not missing(lambda: lam.get_function(FunctionName=run), ("ResourceNotFoundException",)):
-                    resources["function_arn"] = lam.get_function(FunctionName=run)["Configuration"]["FunctionArn"]
-                if kind == "role" and "role_arn" not in resources and not missing(lambda: iam.get_role(RoleName=run), ("NoSuchEntity",)):
-                    resources["role_arn"] = iam.get_role(RoleName=run)["Role"]["Arn"]
-                if kind == "rest_api" and "rest_api" not in resources:
-                    for page in api.get_paginator("get_rest_apis").paginate():
-                        for candidate in page["items"]:
-                            if candidate["name"] == run and candidate.get("tags", {}).get("crucible-smoke") == run:
-                                resources["rest_api"] = candidate["id"]
-            except Exception as exc:
-                report["cleanup"][kind + "_recovery"] = {"error": str(exc)}
-        save()
         # Collect logs before destroying the group; CloudWatch delivery is
         # eventually consistent. The fixture owns a finite five-second budget.
         try:
@@ -331,53 +362,92 @@ def main():
                     lines = [event["message"] for event in report["logs"] if f"nonce={case['nonce']} " in event["message"]]
                     drops = [line for line in lines if "event=producer-drop " in line]
                     completions = [line for line in lines if "event=stream-complete " in line]
-                    assert len(drops) == 1 and len(completions) == 1, f"missing or duplicate lifecycle logs for {case['nonce']}"
+                    require(len(drops) == 1 and len(completions) == 1, f"missing or duplicate lifecycle logs for {case['nonce']}")
                     case["server_drop_ms"] = int(re.search(r"elapsed_ms=(\d+)", drops[0]).group(1))
                     case["server_terminal"] = re.search(r"end=(\w+)", completions[0]).group(1)
                     if case["cancel"]:
-                        # AWS may continue producing after socket close. Record
-                        # that fact rather than asserting unsupported propagation.
+                        # This conservative four-second early-drop classifier is
+                        # distinct from the five-second server request deadline.
                         case["disconnect_propagated_before_budget"] = case["server_drop_ms"] < 4000
-                        assert case["server_drop_ms"] < 7000, case
+                        require(case["server_drop_ms"] < 7000, f"late producer drop: {case}")
                     if case["mode"] == "hold" and not case.get("disconnect_propagated_before_budget"):
-                        assert 4500 <= case["server_drop_ms"] < 7000, case
-                        assert case["server_terminal"] == "Failed", case
-                if report.get("result") == "passed":
-                    assert reports >= len(report["cases"]), "missing Lambda invocation completion reports"
-                    assert not any("Task timed out" in event["message"] or "Status: timeout" in event["message"] for event in report["logs"]), "Lambda hit its hard timeout"
+                        require(4500 <= case["server_drop_ms"] < 7000, f"unexpected deadline drop: {case}")
+                        require(case["server_terminal"] == "Failed", f"unexpected deadline outcome: {case}")
+                if report.get("http_result") == "passed":
+                    require(reports >= len(report["cases"]), "missing Lambda invocation completion reports")
+                    require(not any("Task timed out" in event["message"] or "Status: timeout" in event["message"] for event in report["logs"]), "Lambda hit its hard timeout")
+            report["log_result"] = "passed"
             save()
         except Exception as exc:
             report["result"] = "failed"
             report["log_validation_error"] = str(exc)
             save()
-        if "rest_api" in resources:
-            api_id = resources["rest_api"]
-            cleanup("rest_api", lambda: owned(api.get_rest_api(restApiId=api_id).get("tags", {})),
-                    lambda: api.delete_rest_api(restApiId=api_id),
-                    lambda: missing(lambda: api.get_rest_api(restApiId=api_id), ("NotFoundException",)))
-        if "function_arn" in resources:
-            def delete_function():
-                if not missing(lambda: lam.get_function_url_config(FunctionName=run), ("ResourceNotFoundException",)):
-                    lam.delete_function_url_config(FunctionName=run)
-                lam.delete_function(FunctionName=run)
-            cleanup("function", lambda: owned(lam.list_tags(Resource=resources["function_arn"])["Tags"]),
-                    delete_function,
-                    lambda: missing(lambda: lam.get_function(FunctionName=run), ("ResourceNotFoundException",)))
-        if "role_arn" in resources:
-            def delete_role():
-                if not missing(lambda: iam.get_role_policy(RoleName=run, PolicyName="owned-logs-only"), ("NoSuchEntity",)):
-                    iam.delete_role_policy(RoleName=run, PolicyName="owned-logs-only")
-                iam.delete_role(RoleName=run)
-            cleanup("role", lambda: owned({tag["Key"]: tag["Value"] for tag in iam.list_role_tags(RoleName=run)["Tags"]}),
-                    delete_role, lambda: missing(lambda: iam.get_role(RoleName=run), ("NoSuchEntity",)))
-        def group_exists():
-            return any(item["logGroupName"] == group for item in logs.describe_log_groups(logGroupNamePrefix=group)["logGroups"])
-        cleanup("log_group", lambda: group_exists() and owned(logs.list_tags_log_group(logGroupName=group)["tags"]),
-                lambda: logs.delete_log_group(logGroupName=group), lambda: not group_exists())
+        def read_or_none(call, codes):
+            try:
+                return call()
+            except ClientError as exc:
+                if exc.response["Error"]["Code"] in codes:
+                    return None
+                raise
+
+        def find_function():
+            found = read_or_none(lambda: lam.get_function(FunctionName=run), ("ResourceNotFoundException",))
+            if found is None:
+                return None
+            resources["function_arn"] = found["Configuration"]["FunctionArn"]
+            save()
+            return {"tags": lam.list_tags(Resource=resources["function_arn"])["Tags"]}
+
+        def find_role():
+            found = read_or_none(lambda: iam.get_role(RoleName=run), ("NoSuchEntity",))
+            if found is None:
+                return None
+            resources["role_arn"] = found["Role"]["Arn"]
+            save()
+            return {"tags": {tag["Key"]: tag["Value"] for tag in iam.list_role_tags(RoleName=run)["Tags"]}}
+
+        def find_api():
+            if "rest_api" not in resources:
+                for page in api.get_paginator("get_rest_apis").paginate():
+                    for candidate in page["items"]:
+                        if candidate["name"] == run:
+                            resources["rest_api"] = candidate["id"]
+                            save()
+            if "rest_api" not in resources:
+                return None
+            found = read_or_none(lambda: api.get_rest_api(restApiId=resources["rest_api"]), ("NotFoundException",))
+            return None if found is None else {"tags": found.get("tags", {}), "id": resources["rest_api"]}
+
+        def find_group():
+            for page in logs.get_paginator("describe_log_groups").paginate(logGroupNamePrefix=group):
+                if any(item["logGroupName"] == group for item in page["logGroups"]):
+                    return {"tags": logs.list_tags_log_group(logGroupName=group)["tags"]}
+            return None
+
+        def delete_function(_):
+            if not missing(lambda: lam.get_function_url_config(FunctionName=run), ("ResourceNotFoundException",)):
+                lam.delete_function_url_config(FunctionName=run)
+            lam.delete_function(FunctionName=run)
+
+        def delete_role(_):
+            if not missing(lambda: iam.get_role_policy(RoleName=run, PolicyName="owned-logs-only"), ("NoSuchEntity",)):
+                iam.delete_role_policy(RoleName=run, PolicyName="owned-logs-only")
+            iam.delete_role(RoleName=run)
+
+        def settle(label):
+            # No propagation window is needed if no create was ever attempted.
+            return 35 if any(entry["action"] == label for entry in report["journal"]) else 0
+
+        if "rest_api_name" in resources:
+            cleanup("rest_api", find_api, lambda found: api.delete_rest_api(restApiId=found["id"]), settle("create-rest-api"))
+        cleanup("function", find_function, delete_function, settle("create-function"))
+        cleanup("role", find_role, delete_role, settle("create-role"))
+        cleanup("log_group", find_group, lambda _: logs.delete_log_group(logGroupName=group), settle("create-log-group"))
+        finalize_report(report, expected_cleanup)
         save()
     print(json.dumps({"receipt": str(receipt), "result": report.get("result"), "cleanup": report["cleanup"]}))
-    assert report.get("result") == "passed", report.get("error", "smoke failed")
-    assert all(value == "deleted-and-verified" for value in report["cleanup"].values()), "cleanup incomplete; inspect receipt"
+    if report.get("result") != "passed":
+        raise SystemExit(report.get("error", report.get("log_validation_error", "smoke or cleanup failed; inspect receipt")))
 
 
 if __name__ == "__main__":
