@@ -227,3 +227,14 @@ Set `R` and `RSCRIPT` to select a toolchain.
 The adapted full Leyline model is generated and loaded separately. This proves
 model and method coverage, not authenticated access to a deployed Leyline
 service or readiness to publish the package to CRAN.
+
+## Error documentation
+
+When the service configures `errorDocs`, service conditions expose
+`error$metadata$doc_url`. The value remains available after closing and removing
+the client. Unknown error identities have a NULL URL.
+
+A designated known reason selects its static reason page, including empty
+reasons and effective model defaults. Explicit null, future values and malformed
+modeled errors use the code page. URLs supplied by the response are ignored.
+Packages without `errorDocs` retain their existing condition metadata.

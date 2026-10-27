@@ -215,3 +215,15 @@ GCC with sanitizers and MSVC.
 Native package tests and full-model compilation are separate from authenticated
 Leyline qualification and package publication. See [client coverage](../clients.md)
 for the remaining acceptance requirements.
+
+## Error documentation
+
+When the service configures `errorDocs`, `result.base.doc_url` contains a
+model-derived documentation URL. Its string belongs to the result arena and
+remains valid after `client_free`; `result_free` invalidates it. Unknown error
+identities have a NULL `data` pointer.
+
+A designated known reason selects its static reason page, including empty
+reasons and effective model defaults. Explicit null, future values and malformed
+modeled errors use the code page. URLs supplied by the response are ignored.
+Packages without `errorDocs` retain their existing result layout.

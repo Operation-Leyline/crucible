@@ -203,6 +203,7 @@ def qualify_snippets(output):
 
 
 def qualify(output):
+    qualify_error_documentation(output)
     package = output / "sdk"
     scratch = Path(os.environ.get("SWIFT_TEST_SCRATCH", output / "build")).resolve()
     generate(qualification_model(output), package)
@@ -315,12 +316,45 @@ struct Fake: VoidSDK.HTTPTransport {
     print("Swift native package, fresh consumer, conformance, snippets, and weather HTTP passed")
 
 
+@contextmanager
+def error_documentation_fixture():
+    """Use the shared oracle and strict GET /inspect server for native consumers."""
+    from sdk_error_docs_fixture import error_docs_fixture
+    with tempfile.TemporaryDirectory(prefix="crucible-error-docs-") as directory:
+        with error_docs_fixture(Path(directory), root=ROOT) as (endpoint, oracle):
+            cases = json.loads(oracle.read_text(encoding="utf-8"))["cases"]
+            yield cases, endpoint
+
+
+def qualify_error_documentation(output):
+    """Install the generated SDK into an independent native HTTP consumer."""
+    sdk = output / "error-docs-sdk"
+    consumer = output / "error-docs-consumer"
+    consumer.mkdir(parents=True, exist_ok=True)
+    generate(ROOT / "tests/models/error-docs", sdk, "Docs")
+    sources = consumer / "Sources/DocsConsumer"
+    sources.mkdir(parents=True, exist_ok=True)
+    (consumer / "Package.swift").write_text('''// swift-tools-version: 6.0
+import PackageDescription
+let package = Package(name: "DocsConsumer", platforms: [.macOS(.v12)],
+    dependencies: [.package(path: "../error-docs-sdk")],
+    targets: [.executableTarget(name: "DocsConsumer", dependencies: [
+        .product(name: "Docs", package: "error-docs-sdk")])])
+''', encoding="utf-8")
+    shutil.copyfile(ROOT / "crates/crucible-codegen-swift/tests/ErrorDocs.swift", sources / "Main.swift")
+    with error_documentation_fixture() as (cases, endpoint):
+        (consumer / "cases.json").write_text(json.dumps(cases), encoding="utf-8")
+        swift("run", consumer, output / "error-docs-scratch", "DocsConsumer", endpoint, str(consumer / "cases.json"))
+    print(f"Swift installed SDK error documentation: {len(cases)} native HTTP vectors passed")
+
+
 if __name__ == "__main__":
+    qualifier = qualify_error_documentation if os.environ.get("ERROR_DOCS_ONLY") else qualify
     explicit = os.environ.get("SWIFT_TEST_OUTPUT")
     if explicit:
         directory = Path(explicit).resolve()
         directory.mkdir(parents=True, exist_ok=True)
-        qualify(directory)
+        qualifier(directory)
     else:
         with tempfile.TemporaryDirectory(prefix="crucible-swift-") as directory:
-            qualify(Path(directory))
+            qualifier(Path(directory))

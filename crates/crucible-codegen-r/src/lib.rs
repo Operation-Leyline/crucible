@@ -1,4 +1,5 @@
 //! Native R package generation from the shared lowered IR.
+mod error_docs;
 mod links;
 mod markdown;
 mod permissions;
@@ -137,6 +138,7 @@ pub fn capabilities() -> crucible_ir::Capabilities {
     use crucible_ir::Feature;
     crucible_ir::Capabilities::new([
         Feature::NonBlobPayload,
+        Feature::ErrorDocumentation,
         Feature::MediaTypeHeaders,
         Feature::ErrorPayload,
         Feature::GreedyLabels,
@@ -569,7 +571,10 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
     ] {
         files.push(File {
             path: format!("R/{name}.R"),
-            contents: crucible_codegen_common::service_exception_runtime(service, source),
+            contents: crucible_codegen_common::service_exception_runtime(
+                service,
+                &error_docs::runtime(service, source),
+            ),
         });
     }
     files.push(File {

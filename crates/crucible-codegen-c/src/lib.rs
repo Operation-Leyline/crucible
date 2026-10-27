@@ -1,5 +1,6 @@
 //! Native C17 client generation from the shared lowered IR.
 mod client;
+mod error_docs;
 mod links;
 pub mod models;
 mod names;
@@ -161,6 +162,7 @@ fn diagnose(service: &Service, options: &Options) -> Diagnostics {
 pub fn capabilities() -> crucible_ir::Capabilities {
     crucible_ir::Capabilities::new([
         crucible_ir::Feature::NonBlobPayload,
+        crucible_ir::Feature::ErrorDocumentation,
         crucible_ir::Feature::MediaTypeHeaders,
         crucible_ir::Feature::ErrorPayload,
         crucible_ir::Feature::GreedyLabels,
@@ -209,7 +211,7 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
         ("encoding.c", include_str!("../runtime/encoding.c")),
         ("auth.c", include_str!("../runtime/auth.c")),
     ] {
-        let contents = source
+        let contents = error_docs::runtime(service, name, source)
             .replace("crucible_generated", &options.prefix)
             .replace("CRUCIBLE_GENERATED", &options.prefix.to_ascii_uppercase());
         let public =

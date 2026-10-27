@@ -6,6 +6,9 @@ import re
 import shutil
 import subprocess
 import tempfile
+from contextlib import contextmanager
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+import threading
 
 from sdk_test_support import ROOT, describe_sdk, run, snippets, weather
 from sdk_conformance_model import qualification_model
@@ -31,6 +34,7 @@ def dart(*args, **kwargs):
 
 
 def qualify(output):
+    qualify_error_documentation(output)
     package = output / "sdk"
     run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "generate", "dart",
         str(qualification_model(output)), "--out", str(package), "--package-name", "weather_client")
@@ -280,6 +284,36 @@ def qualify_payload_bindings(output):
         dart("analyze", cwd=generated)
         dart("test", cwd=generated)
         dart("test", "--platform", "chrome", cwd=generated)
+
+
+@contextmanager
+def error_documentation_fixture():
+    """Use the shared oracle and strict GET /inspect server for native consumers."""
+    from sdk_error_docs_fixture import error_docs_fixture
+    with tempfile.TemporaryDirectory(prefix="crucible-error-docs-") as directory:
+        with error_docs_fixture(Path(directory), root=ROOT) as (endpoint, oracle):
+            cases = json.loads(oracle.read_text(encoding="utf-8"))["cases"]
+            yield cases, endpoint
+
+
+def qualify_error_documentation(output):
+    """Install the generated SDK into an independent native HTTP consumer."""
+    sdk = output / "error-docs-sdk"
+    consumer = output / "error-docs-consumer"
+    consumer.mkdir(parents=True, exist_ok=True)
+    run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "generate", "dart",
+        str(ROOT / "tests/models/error-docs"), "--out", str(sdk), "--package-name", "docs_client")
+    (consumer / "pubspec.yaml").write_text(json.dumps({"name": "docs_consumer", "publish_to": "none",
+        "environment": {"sdk": ">=3.6.2 <4.0.0"}, "dependencies": {"docs_client": {"path": "../error-docs-sdk"}}}), encoding="utf-8")
+    shutil.copyfile(ROOT / "crates/crucible-codegen-dart/tests/error_docs.dart.template", consumer / "main.dart")
+    dart("pub", "get", cwd=sdk)
+    dart("analyze", cwd=sdk)
+    dart("pub", "get", cwd=consumer)
+    dart("analyze", cwd=consumer)
+    with error_documentation_fixture() as (cases, endpoint):
+        (consumer / "cases.json").write_text(json.dumps(cases), encoding="utf-8")
+        dart("run", "main.dart", endpoint, cwd=consumer)
+    print(f"Dart installed SDK error documentation: {len(cases)} native HTTP vectors passed")
 
 
 if __name__ == "__main__":

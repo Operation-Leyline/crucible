@@ -167,6 +167,7 @@ pub fn capabilities() -> crucible_ir::Capabilities {
         Feature::NonBlobPayload,
         Feature::MediaTypeHeaders,
         Feature::ErrorPayload,
+        Feature::ErrorDocumentation,
         Feature::GreedyLabels,
         Feature::IntEnum,
         Feature::BigInteger,
@@ -279,8 +280,7 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
     ] {
         files.push(File {
             path: format!("src/Runtime/{name}.php"),
-            contents: crucible_codegen_common::service_exception_runtime(service, source)
-                .replace("CrucibleGenerated", namespace),
+            contents: runtime(service, source).replace("CrucibleGenerated", namespace),
         });
     }
     // Their own namespace, so a model named `GraphPermission` cannot
@@ -331,4 +331,40 @@ fn package_docs(service: &Service, options: &Options) -> Vec<File> {
             contents: guide::agents(service, &surface, &facts),
         },
     ]
+}
+
+fn runtime(service: &Service, source: &str) -> String {
+    let mut source = crucible_codegen_common::service_exception_runtime(service, source);
+    if service.error_docs_base.is_some() {
+        source = source.replace(
+            "$validErrorObject = strspn($response->body, \" \\t\\r\\n\") === strlen($response->body);",
+            "$emptyErrorBody = strspn($response->body, \" \\t\\r\\n\") === strlen($response->body);\n        $validErrorObject = $emptyErrorBody;",
+        ).replace(
+            "$body = is_array($payload) ? new JsonObject([$payload[0]=>$this->payloadValue($target,$traits,$response->body)]) : $this->codec->document($target,$body,false);",
+            "$body = is_array($payload) ? ($traits->get('payloadKind') === 'document' && $emptyErrorBody ? new JsonObject() : new JsonObject([$payload[0]=>$this->payloadValue($target,$traits,$response->body)])) : $this->codec->document($target,$body,false);",
+        ).replace(
+            "try { $body = WireCodec::object(ExactJson::decode($response->body)); }",
+            "try { $body = WireCodec::object(ExactJson::decode($response->body)); $validErrorObject = true; }",
+        ).replace(
+            "throttling:$traits?->get('throttling') === true);",
+            "throttling:$traits?->get('throttling') === true,docUrl:$documentation?->get('url'));",
+        ).replace(
+            "($target,$body,$this->codec->context($target),$metadata)",
+            "($target,$body,$this->codec->context($target),$this->documentedMetadata($metadata,$documentation,$body))",
+        );
+    }
+    let mut include = true;
+    let mut result = String::new();
+    for line in source.lines() {
+        match line.trim() {
+            "// BEGIN ERROR DOCUMENTATION" => include = service.error_docs_base.is_some(),
+            "// END ERROR DOCUMENTATION" => include = true,
+            _ if include => {
+                result.push_str(line);
+                result.push('\n');
+            }
+            _ => {}
+        }
+    }
+    result
 }

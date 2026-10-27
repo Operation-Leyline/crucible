@@ -105,6 +105,14 @@ A modeled error also shows its transport metadata, without headers or message.
 
 Generated enums implement `==` and `hashCode`; structures and unions do not.
 
+With a service `errorDocs` base, `error.docUrl` exposes the static code page or
+the page for a known designated reason, including an effective model default.
+Explicit null or future reason values use the code page, as do recognized errors
+whose modeled decoding fails. Unknown error identities have no URL. The
+accessor is generated only for configured services and reads URLs from the
+projected model. Transport metadata retains the code URL; a decoded modeled error
+can expose the more specific page.
+
 ## Permissions
 
 A model that declares typed permissions ([permissions](../permissions.md))

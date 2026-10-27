@@ -129,3 +129,9 @@ id = 19
 languages = ["rust"]
 kind = "additive"
 summary = "Rust clients expose demand-driven typed response streams with lifetime cancellation, bounded SSE parsing, opening retries, terminal EOF validation and document-decoded late errors."
+
+[[change]]
+id = 20
+languages = ["swift", "dart", "php", "ruby", "cpp", "c", "r"]
+kind = "additive"
+summary = "Configured error documentation exposes static code and known-reason URLs in the remaining seven native SDKs; unknown reasons retain the code page."

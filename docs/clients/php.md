@@ -145,6 +145,12 @@ extend `ServiceError`, which retains status, name, request ID, headers, and
 retry traits even if modeled members are malformed. Retries follow the
 [shared contract](../clients.md).
 
+With a service `errorDocs` base, `$error->docUrl()` and
+`$error->metadata->docUrl` expose the static code page or the page for a known
+reason, including a modeled default. Explicit null and future reason values
+use the code page; an unknown error identity has no URL. These accessors are
+generated only for configured services, and never trust a response-supplied URL.
+
 Generation diagnoses reserved names, case-insensitive naming collisions,
 and recursive collection aliases. Nominal recursive structures are supported.
 

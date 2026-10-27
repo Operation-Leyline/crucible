@@ -148,7 +148,44 @@ def write_snippets(output, model, name, package, prefix):
     return lines, targets
 
 
+
+def qualify_error_docs(output):
+    from sdk_error_docs_fixture import error_docs_fixture
+    root = output / "error-docs"
+    package, sdk_build, install = root / "sdk", root / "sdk-build", root / "installed"
+    generate(ROOT / "tests/models/error-docs", package, "docs_client", "docs")
+    configure(package, sdk_build, "-DCMAKE_INSTALL_PREFIX=" + install.as_posix())
+    build(sdk_build)
+    run(CMAKE, "--install", str(sdk_build), "--config", "Debug")
+    consumer = root / "consumer"
+    consumer.mkdir(parents=True, exist_ok=True)
+    (consumer / "CMakeLists.txt").write_text(f'''cmake_minimum_required(VERSION 3.20)
+project(error_docs_consumer LANGUAGES C)
+find_package(docs_client CONFIG REQUIRED)
+add_executable(error_docs "{(ROOT / 'crates/crucible-codegen-c/tests/error_docs.c').as_posix()}")
+target_link_libraries(error_docs PRIVATE docs_client::docs_client yyjson::yyjson)
+target_compile_features(error_docs PRIVATE c_std_17)
+set_target_properties(error_docs PROPERTIES C_EXTENSIONS OFF)
+if(MSVC)
+  target_compile_options(error_docs PRIVATE /W4 /WX /D_CRT_SECURE_NO_WARNINGS)
+else()
+  target_compile_options(error_docs PRIVATE -Wall -Wextra -Werror)
+endif()
+''', encoding="utf-8")
+    consumer_build = root / "consumer-build"
+    configure(consumer, consumer_build, prefix=install)
+    build(consumer_build)
+    runtime_env = dict(os.environ)
+    if os.name == "nt" and os.environ.get("VCPKG_INSTALLED_DIR"):
+        dependencies = Path(os.environ["VCPKG_INSTALLED_DIR"]) / "x64-windows"
+        runtime_env["PATH"] = str(dependencies / "debug/bin") + os.pathsep + str(dependencies / "bin") + os.pathsep + runtime_env["PATH"]
+    with error_docs_fixture(root) as (endpoint, oracle):
+        run(str(executable(consumer_build, "error_docs")), env=dict(runtime_env,
+            ERROR_DOCS_URL=endpoint, ERROR_DOCS_CASES=str(oracle)))
+
+
 def qualify(output):
+    qualify_error_docs(output)
     source = models(output)
     check_docs(output / "sdk")
     sdk_build, install = output / "sdk-build", output / "installed"
@@ -255,7 +292,7 @@ if __name__ == "__main__":
     if os.environ.get("C_TEST_OUTPUT"):
         output = Path(os.environ["C_TEST_OUTPUT"]).resolve()
         output.mkdir(parents=True, exist_ok=True)
-        qualify(output)
+        (qualify_error_docs if os.environ.get("ERROR_DOCS_ONLY") else qualify)(output)
     else:
         with tempfile.TemporaryDirectory(prefix="crucible-c-") as temporary:
-            qualify(Path(temporary))
+            (qualify_error_docs if os.environ.get("ERROR_DOCS_ONLY") else qualify)(Path(temporary))

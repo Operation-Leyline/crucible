@@ -1,5 +1,6 @@
 //! Native Swift models and async clients emitted from the lowered IR.
 mod client;
+mod error_docs;
 mod links;
 mod models;
 mod permissions;
@@ -417,6 +418,7 @@ pub fn capabilities() -> crucible_ir::Capabilities {
         Feature::BigInteger,
         Feature::BigDecimal,
         Feature::Sparse,
+        Feature::ErrorDocumentation,
     ])
 }
 
@@ -433,6 +435,7 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
         }
     }
     diagnose_recursion(service, &mut diagnostics);
+    error_docs::check(service, &mut diagnostics);
     let mut names = BTreeSet::from_iter(
         [
             "Unit",
@@ -579,8 +582,12 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
     ] {
         files.push(File {
             path: format!("{source}/{name}.swift"),
-            contents: crucible_codegen_common::service_exception_runtime(service, contents)
-                .replace("\r\n", "\n"),
+            contents: error_docs::runtime(
+                service,
+                name,
+                &crucible_codegen_common::service_exception_runtime(service, contents)
+                    .replace("\r\n", "\n"),
+            ),
         });
     }
     files.extend(package_docs(service, options));

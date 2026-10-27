@@ -169,6 +169,15 @@ fn diagnose(service: &Service, options: &Options) -> Diagnostics {
                 let mut members = BTreeSet::new();
                 for member in &structure.members {
                     let name = field(&member.name);
+                    if structure.error.is_some()
+                        && service.error_docs_base.is_some()
+                        && name == "doc_url"
+                    {
+                        diagnostics.push(
+                            &id.with_member(&member.name),
+                            "Ruby error member collides with generated documentation accessor doc_url",
+                        );
+                    }
                     if !names::method(&name) || !members.insert(name) {
                         diagnostics
                             .push(&id.with_member(&member.name), "Ruby member name collision");
@@ -224,6 +233,7 @@ pub fn capabilities() -> crucible_ir::Capabilities {
         Feature::NonBlobPayload,
         Feature::MediaTypeHeaders,
         Feature::ErrorPayload,
+        Feature::ErrorDocumentation,
         Feature::GreedyLabels,
         Feature::IntEnum,
         Feature::BigInteger,
@@ -304,8 +314,7 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
         entry.push_str(&format!("require_relative '{package}/runtime/{name}'\n"));
         files.push(File {
             path: format!("lib/{package}/runtime/{name}.rb"),
-            contents: crucible_codegen_common::service_exception_runtime(service, source)
-                .replace("CrucibleGenerated", module),
+            contents: runtime(service, source).replace("CrucibleGenerated", module),
         });
     }
     // The registry's record types, only for a client that has a registry.
@@ -406,4 +415,41 @@ fn package_docs(service: &Service, options: &Options) -> [File; 2] {
             contents: guide::agents(service, &surface, &facts),
         },
     ]
+}
+
+fn runtime(service: &Service, source: &str) -> String {
+    let mut source = crucible_codegen_common::service_exception_runtime(service, source);
+    if service.error_docs_base.is_some() {
+        source = source.replace(
+            "valid_error_object = response.body.each_byte.all? { |byte| byte == 32 || byte == 9 || byte == 13 || byte == 10 }",
+            "empty_error_body = response.body.each_byte.all? { |byte| byte == 32 || byte == 9 || byte == 13 || byte == 10 }\n        valid_error_object = empty_error_body",
+        ).replace(
+            "body = if payload then {payload[0] => payload_value(target, traits, response.body)}",
+            "body = if payload then (traits['payloadKind'] == 'document' && empty_error_body ? {} : {payload[0] => payload_value(target, traits, response.body)})",
+        ).replace(
+            ":retryable, :throttling) do", ":retryable, :throttling, :doc_url) do",
+        ).replace(
+            "retryable: false, throttling: false)", "retryable: false, throttling: false, doc_url: nil)",
+        ).replace(
+            "throttling: traits&.fetch('throttling', false) == true)",
+            "throttling: traits&.fetch('throttling', false) == true, doc_url: documentation && documentation.fetch('url').freeze)",
+        ).replace(
+            "@codec.error(target, object, metadata)",
+            "@codec.error(target, object, documented_metadata(metadata, documentation, object))",
+        );
+    }
+    let mut include = true;
+    let mut result = String::new();
+    for line in source.lines() {
+        match line.trim() {
+            "# BEGIN ERROR DOCUMENTATION" => include = service.error_docs_base.is_some(),
+            "# END ERROR DOCUMENTATION" => include = true,
+            _ if include => {
+                result.push_str(line);
+                result.push('\n');
+            }
+            _ => {}
+        }
+    }
+    result
 }

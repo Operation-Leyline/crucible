@@ -2,6 +2,7 @@
 import json
 import os
 from pathlib import Path
+import shutil
 import subprocess
 import tempfile
 from sdk_test_support import ROOT, describe_sdk, run, snippets, weather
@@ -53,7 +54,28 @@ def check_snippets(output):
         raise RuntimeError("no PHP snippets described")
 
 
+def error_documentation(output):
+    package = output / "error-docs-sdk"
+    run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "generate", "php",
+        str(ROOT / "tests/models/error-docs"), "--out", str(package), "--package-name", "example/error-docs",
+        "--namespace", "Example\\ErrorDocs", "--package-version", "0.0.0")
+    consumer = output / "error-docs-consumer"
+    # Composer keeps an installed path package whose version and reference are unchanged, so a
+    # reused PHP_TEST_OUTPUT would otherwise test the previous generation: start from nothing.
+    shutil.rmtree(consumer, ignore_errors=True)
+    consumer.mkdir(parents=True)
+    (consumer / "composer.json").write_text(json.dumps({
+        "name": "example/error-docs-consumer", "license": "proprietary",
+        "repositories": [{"type": "path", "url": "../error-docs-sdk", "options": {"symlink": False}}],
+        "require": {"example/error-docs": "0.0.0"},
+    }), encoding="utf-8")
+    composer("update", cwd=consumer)
+    run(PHP, str(ROOT / "crates/crucible-codegen-php/tests/error_docs.php"),
+        str(ROOT / "tests/conformance/error-docs.json"), env=dict(os.environ, PHP_PACKAGE=str(consumer)))
+
+
 def qualify(output):
+    error_documentation(output)
     check_snippets(output)
     package = output / "sdk"
     run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "generate", "php",

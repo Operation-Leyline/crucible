@@ -457,3 +457,20 @@ fn hyphenated_permission_symbols_spell_words() {
         "no file spells `mail-send` as {expected}"
     );
 }
+
+#[test]
+fn configured_error_documentation_preserves_unconfigured_runtime() {
+    let files =
+        emit(&load("error-docs"), &options()).expect("configured error documentation is supported");
+    let metadata = files
+        .iter()
+        .find(|file| file.path.ends_with("ErrorMetadata.php"))
+        .unwrap();
+    assert!(metadata.contents.contains("docUrl"));
+    let ordinary = emit(&weather(), &options()).unwrap();
+    let metadata = ordinary
+        .iter()
+        .find(|file| file.path.ends_with("ErrorMetadata.php"))
+        .unwrap();
+    assert!(!metadata.contents.contains("docUrl"));
+}

@@ -1,0 +1,36 @@
+import 'dart:convert';
+import 'dart:io';
+import 'package:docs_client/docs_client.dart';
+
+Future<void> main(List<String> args) async {
+  final cases = jsonDecode(File('cases.json').readAsStringSync()) as List;
+  for (var i = 0; i < cases.length; i++) {
+    final vector = cases[i] as Map<String, dynamic>;
+    final client = TroubleshootingClient(ClientConfig(
+      endpoint: args.single, maxAttempts: 1, headers: {'x-case': '$i'}));
+    ServiceError? retained;
+    try {
+      await client.inspect();
+      throw StateError('Expected ${vector['name']} to fail');
+    } on ServiceError catch (error) {
+      retained = error;
+      if (error.docUrl != vector['docUrl']) {
+        throw StateError('${vector['name']}: ${error.docUrl} != ${vector['docUrl']}');
+      }
+      if (vector['typed'] != null && (error is! UnknownServiceError) != vector['typed']) {
+        throw StateError('${vector['name']}: wrong error type $error');
+      }
+      if (['document-empty', 'document-whitespace', 'document-null'].contains(vector['name'])) {
+        final payload = (error as DocumentPayloadError).dataPresence;
+        if (payload.isSet != (vector['name'] == 'document-null') || payload.value != null) {
+          throw StateError('${vector['name']}: document presence');
+        }
+      }
+    } finally { client.close(); }
+    if (retained.docUrl != vector['docUrl']) throw StateError('URL lifetime');
+  }
+  const direct = Denied(message: 'denied', detail: Reason.access);
+  if (direct.docUrl != 'https://docs.example.test/errors/Denied/reason-access%2Fneeded') {
+    throw StateError('Direct modeled error URL');
+  }
+}

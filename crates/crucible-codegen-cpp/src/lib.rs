@@ -1,5 +1,6 @@
 //! C++20 client generation from the shared lowered IR.
 mod client;
+mod error_docs;
 mod links;
 mod models;
 mod names;
@@ -91,7 +92,13 @@ fn diagnose(service: &Service, options: &Options) -> Diagnostics {
                 let mut fields = BTreeSet::new();
                 for member in &structure.members {
                     let field = names::field(&member.name);
-                    if !names::identifier(&field) || field == name || !fields.insert(field) {
+                    if !names::identifier(&field)
+                        || field == name
+                        || (service.error_docs_base.is_some()
+                            && structure.error.is_some()
+                            && field == "doc_url")
+                        || !fields.insert(field)
+                    {
                         result.push(
                             &id.with_member(&member.name),
                             "invalid or colliding C++ member name",
@@ -177,6 +184,7 @@ pub fn capabilities() -> crucible_ir::Capabilities {
     use crucible_ir::Feature;
     crucible_ir::Capabilities::new([
         Feature::NonBlobPayload,
+        Feature::ErrorDocumentation,
         Feature::MediaTypeHeaders,
         Feature::ErrorPayload,
         Feature::GreedyLabels,
@@ -220,7 +228,8 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
             include_str!("../runtime/client_runtime.cpp"),
         ),
     ] {
-        let mut contents = crucible_codegen_common::service_exception_runtime(service, source)
+        let source = error_docs::runtime(service, name, source);
+        let mut contents = crucible_codegen_common::service_exception_runtime(service, &source)
             .replace("crucible_generated", &options.namespace);
         let path = if name.ends_with(".hpp") {
             format!("include/{package}/runtime/{name}")

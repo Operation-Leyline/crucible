@@ -213,8 +213,14 @@ module CrucibleGenerated
         object
       end
       def failure(op, response)
+        # BEGIN ERROR DOCUMENTATION
+        valid_error_object = response.body.each_byte.all? { |byte| byte == 32 || byte == 9 || byte == 13 || byte == 10 }
+        # END ERROR DOCUMENTATION
         begin
           body = WireCodec.object(ExactJson.decode(response.body))
+          # BEGIN ERROR DOCUMENTATION
+          valid_error_object = true
+          # END ERROR DOCUMENTATION
         rescue ::ArgumentError
           body = {}
         end
@@ -229,6 +235,9 @@ module CrucibleGenerated
         target = matches.size == 1 ? matches.first : nil
         shape = target && @codec.shape(target)
         traits = shape && shape.fetch('error')
+        # BEGIN ERROR DOCUMENTATION
+        documentation = traits && traits['documentation']
+        # END ERROR DOCUMENTATION
         metadata = ErrorMetadata.new(name: name || shape&.fetch('name') || 'UnknownError',
           message: message || 'HTTP ' + response.status.to_s,
           status: response.status, request_id: request_id,
@@ -236,6 +245,9 @@ module CrucibleGenerated
         if target
           begin
             payload = traits['payload']
+            # BEGIN ERROR DOCUMENTATION
+            raise ::ArgumentError, 'Invalid error object' unless payload || valid_error_object
+            # END ERROR DOCUMENTATION
             body = if payload then {payload[0] => payload_value(target, traits, response.body)}
             else @codec.document(target, body, encode: false)
             end
@@ -248,6 +260,15 @@ module CrucibleGenerated
         ServiceException.new(metadata)
       end
       def payload_target(target, payload) = @codec.shape(target).fetch('members').fetch(payload[0]).fetch('target')
+      # BEGIN ERROR DOCUMENTATION
+      def documented_metadata(metadata, documentation, object)
+        member = documentation && documentation['reasonMember']
+        reason = member && (object.key?(member) ? object[member] : documentation['reasonDefault'])
+        pages = documentation && documentation.fetch('reasonUrls')
+        return metadata unless reason.is_a?(::String) && pages&.key?(reason)
+        metadata.with(doc_url: pages.fetch(reason).freeze)
+      end
+      # END ERROR DOCUMENTATION
       def payload_value(target, bindings, body)
         case bindings.fetch('payloadKind', 'blob')
         when 'string' then WireCodec.string(body.dup.force_encoding(::Encoding::UTF_8))

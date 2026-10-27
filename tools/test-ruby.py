@@ -29,7 +29,22 @@ def gem(*args, **kwargs):
     run(RUBY, "-rrubygems/gem_runner", "-e", "Gem::GemRunner.new.run(ARGV)", "--", *args, **kwargs)
 
 
+def error_documentation(output):
+    package = output / "error-docs-sdk"
+    run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "generate", "ruby",
+        str(ROOT / "tests/models/error-docs"), "--out", str(package), "--package-name", "error_docs_client",
+        "--module-name", "ErrorDocs", "--package-version", "0.0.0")
+    gem("build", "error_docs_client.gemspec", cwd=package)
+    installed = output / "error-docs-installed"
+    defaults = subprocess.check_output([RUBY, "-r", "rubygems", "-e", "puts Gem.default_dir"], text=True).strip()
+    env = dict(os.environ, GEM_HOME=str(installed), GEM_PATH=os.pathsep.join([str(installed), defaults]))
+    gem("install", "--no-document", str(package / "error_docs_client-0.0.0.gem"), env=env)
+    run(RUBY, str(ROOT / "crates/crucible-codegen-ruby/tests/error_docs.rb"),
+        str(ROOT / "tests/conformance/error-docs.json"), env=env)
+
+
 def qualify(output):
+    error_documentation(output)
     package = output / "sdk"
     run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "generate", "ruby",
         str(qualification_model(output)), "--out", str(package), "--package-name", "weather_client",
