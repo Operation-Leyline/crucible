@@ -71,12 +71,19 @@ class ErrorDocumentationFixtures(unittest.TestCase):
     def test_each_fixture_rejects_the_wrong_method(self):
         for language in ("dart", "swift"):
             with self.subTest(language=language):
-                # Every GET case completes, so only the rejected POST can fail the fixture.
-                with self.assertRaisesRegex(AssertionError, "unexpected request method: POST"):
-                    with self.fixture(language) as (cases, endpoint):
-                        self.assertEqual(self.request(endpoint, "POST", "/inspect")[0], 405)
-                        for index, case in enumerate(cases):
-                            self.assertEqual(self.request(endpoint, "GET", "/inspect", index)[0], case["status"])
+                # Every GET case completes, so only the rejected method can fail the fixture.
+                for method in ("POST", "HEAD", "TRACE", "BREW"):
+                    with self.subTest(method=method):
+                        with self.assertRaisesRegex(AssertionError, f"unexpected request method: {method}'"):
+                            with self.fixture(language) as (cases, endpoint):
+                                for index, case in enumerate(cases):
+                                    status = self.request(endpoint, "GET", "/inspect", index)[0]
+                                    self.assertEqual(status, case["status"])
+                                status, _headers, body = self.request(endpoint, method, "/inspect")
+                                self.assertEqual(status, 405)
+                                # A HEAD answer never carries a body.
+                                if method == "HEAD":
+                                    self.assertEqual(body, b"")
 
 
 if __name__ == "__main__":
