@@ -10,6 +10,14 @@ const SOURCE_TREES: &[&str] = &["crates", "Cargo.toml", "Cargo.lock"];
 fn main() {
     println!("cargo::rerun-if-changed=build.rs");
     let manifest = PathBuf::from(std::env::var_os("CARGO_MANIFEST_DIR").expect("Cargo manifest"));
+    // `cargo package` writes .cargo_vcs_info.json into every package it
+    // builds, so a registry download, a `cargo vendor` copy or a package
+    // verification has one wherever it sits, even inside some Git checkout.
+    // A source checkout never does.
+    if manifest.join(".cargo_vcs_info.json").is_file() {
+        packaged();
+        return;
+    }
     let candidate = manifest.join("../..");
     let Ok(workspace) = candidate.canonicalize() else {
         packaged();
@@ -24,16 +32,19 @@ fn main() {
                 line.trim() == "repository = \"https://github.com/Operation-Leyline/crucible\""
             })
         });
-    if !repository_matches
-        || !workspace
-            .join("crates/crucible-client-runtime-rust/Cargo.toml")
-            .is_file()
+    if !repository_matches {
+        packaged();
+        return;
+    }
+    // An incomplete source checkout (a sparse one, say) is still a checkout:
+    // it records no revision, and is not mistaken for a published package.
+    if !workspace
+        .join("crates/crucible-client-runtime-rust/Cargo.toml")
+        .is_file()
         || !workspace
             .join("crates/crucible-codegen-rust/Cargo.toml")
             .is_file()
-        || !workspace.join("Cargo.toml").is_file()
     {
-        packaged();
         return;
     }
     let Some(top) = git(&workspace, &["rev-parse", "--show-toplevel"]) else {
@@ -73,10 +84,11 @@ fn main() {
     }
 }
 
-/// Not inside the Crucible source workspace: a registry download, a vendored
-/// copy or `cargo package` verification. Such a build has no revision to pin,
-/// but its sources are exactly its published version. A checkout whose Git
-/// metadata is unreadable is not this case: it keeps no provenance at all.
+/// Not the Crucible source workspace: a registry download, a vendored copy or
+/// `cargo package` verification. Such a build has no revision to pin, but its
+/// sources are exactly its published version. A source checkout that is
+/// incomplete or whose Git metadata is unreadable is not this case: it keeps
+/// no provenance at all.
 fn packaged() {
     println!("cargo::rustc-env=CRUCIBLE_GENERATOR_PACKAGED=1");
 }

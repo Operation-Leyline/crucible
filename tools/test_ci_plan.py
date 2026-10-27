@@ -151,6 +151,8 @@ class PlanTests(unittest.TestCase):
             "crates/crucible-build/src/lib.rs", "crates/crucible-server-runtime-rust/src/host.rs",
             "crates/crucible-wire/src/error.rs", "crates/crucible-codegen-rust/src/lib.rs",
             "crates/crucible-auth/src/principal.rs",
+            # The packaged-registry consumer covers package detection and the CLI pin.
+            "crates/crucible-revision/build.rs", "crates/crucible-codegen-cli/src/package.rs",
             # The Leyline SDK consumer pins this runtime through `runtime_path`.
             "crates/crucible-client-runtime-rust/src/lib.rs",
             "tests/consumers/leyline/leyline-service/src/lib.rs", "tools/test-consumers.py",

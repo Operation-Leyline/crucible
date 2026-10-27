@@ -30,6 +30,8 @@ CONSUMER_CRATES = frozenset({
     "crucible-build", "crucible-server-runtime-rust", "crucible-wire",
     "crucible-codegen-rust", "crucible-auth", "crucible-client-runtime-rust",
     "crucible-api",
+    # The packaged-registry consumer: package detection and the CLI's registry pin.
+    "crucible-revision", "crucible-codegen-cli",
 })
 GENERATORS = {
     # The OpenAPI emitter is qualified by Rust unit/golden and CLI tests.

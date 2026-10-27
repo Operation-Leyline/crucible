@@ -138,10 +138,14 @@ def packaged(env, work):
     checkout beside it, so its generated SDK and CLI must depend on the
     published runtimes at exactly its version. A `[patch.crates-io]` config
     substitutes the packaged sources for the registry, and the workspace lock
-    pins every third-party version, so no registry access is needed."""
+    pins every third-party version, so only the up-front locked fetch touches
+    the registry."""
     manifest = (ROOT / "Cargo.toml").read_text(encoding="utf-8")
     section = manifest.split("[workspace.package]", 1)[1].split("\n[", 1)[0]
     version = re.search(r'(?m)^version = "([^"]+)"$', section).group(1)
+    # The offline builds below need every crate the workspace lock names, which
+    # no earlier stage is guaranteed to have downloaded on a cold cache.
+    run(["cargo", "fetch", "--locked"], env=env)
     run(["cargo", "package", "-q", "--workspace", "--exclude", "crucible-cli", "--exclude", "crucible-lsp",
          "--locked", "--no-verify", "--allow-dirty"], env=env)
     target = Path(env["CARGO_TARGET_DIR"])

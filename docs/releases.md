@@ -77,8 +77,11 @@ OS, one shared Cargo cache (`tools/test-consumers.py`):
 It exists to fail on a change that compiles inside this workspace but breaks
 what real services use. The CI planner selects it on PRs that touch
 `crates/crucible-build`, `crates/crucible-server-runtime-rust`,
-`crates/crucible-wire`, `crates/crucible-codegen-rust`, or `crates/crucible-auth`,
-and always when the manual release qualifies a commit. When a
+`crates/crucible-wire`, `crates/crucible-codegen-rust`, `crates/crucible-auth`,
+`crates/crucible-client-runtime-rust` or `crates/crucible-api`, or
+`crates/crucible-revision` and `crates/crucible-codegen-cli` (which decide how a
+`crucible-build` built from crates.io pins its runtimes; the job also builds a
+model producer against the packaged crates), and always when the manual release qualifies a commit. When a
 change breaks the fixture, fix the fixture only if the break is allowed by the
 policy above and has a Migration entry; otherwise fix the change.
 

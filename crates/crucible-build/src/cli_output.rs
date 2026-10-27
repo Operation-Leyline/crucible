@@ -21,14 +21,17 @@ impl<'a> CliOutput<'a> {
 
     pub(crate) fn new(model: &'a ModelPackage, name: &str) -> Self {
         // Use this helper's checkout, not the model producer's manifest directory.
-        // Cargo Git dependencies retain the matching runtime crates alongside it.
-        // A crates.io download has no checkout around it: its generated CLI
-        // depends on the published runtimes at exactly this version instead.
-        let runtime_path = Path::new(env!("CARGO_MANIFEST_DIR"))
-            .parent()
-            .and_then(Path::parent)
-            .filter(|root| validate_runtime(root).is_ok())
-            .map(Path::to_path_buf);
+        // Cargo Git dependencies retain the matching runtime crates alongside it,
+        // and `prepare` reports a checkout that lacks them. A published package
+        // has no checkout around it: its generated CLI depends on the published
+        // runtimes at exactly this version instead.
+        let runtime_path = (!crucible_revision::packaged()).then(|| {
+            Path::new(env!("CARGO_MANIFEST_DIR"))
+                .parent()
+                .and_then(Path::parent)
+                .expect("crucible-build is located under crates/")
+                .to_path_buf()
+        });
         Self {
             model,
             name: name.into(),
