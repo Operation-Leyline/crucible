@@ -98,6 +98,9 @@ version's section when it is prepared.
 
 ### Fixed
 
+- TypeScript response streams deliver complete CR-terminated events without
+  waiting for another byte. Split CRLF delimiters retain their event byte count,
+  and extra bytes after the terminal outcome are rejected, including whitespace.
 - Operation-body naming collisions now report errors at both source bodies
   instead of silently replacing another operation's input or output contract.
 - Generator revision provenance follows Git reftable ref updates, including

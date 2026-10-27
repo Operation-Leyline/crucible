@@ -141,3 +141,9 @@ id = 21
 languages = ["python", "go"]
 kind = "additive"
 summary = "Python sync/async and Go clients expose demand-driven typed response streams with lifetime cancellation, bounded SSE parsing, opening retries, terminal EOF validation and document-decoded late errors."
+
+[[change]]
+id = 22
+languages = ["ts"]
+kind = "patch"
+summary = "Response streams dispatch bare-CR frames immediately, enforce physical CRLF byte limits, and reject all trailing data after successful completion."

@@ -5,6 +5,21 @@ declare module "node:test" {
   export function test(name: string, options: { skip: boolean | string }, run: () => void | Promise<void>): void;
 }
 
+declare module "node:http" {
+  interface ServerResponse {
+    writeHead(status: number, headers: Record<string, string>): this;
+    write(chunk: string): boolean;
+    on(event: "close", listener: () => void): this;
+  }
+  interface Server {
+    listen(port: number, host: string, listener: () => void): this;
+    address(): { port: number } | string | null;
+    close(listener: (error?: Error) => void): this;
+    closeAllConnections(): void;
+  }
+  export function createServer(listener: (request: unknown, response: ServerResponse) => void): Server;
+}
+
 declare module "node:util" {
   export function inspect(value: unknown): string;
 }
