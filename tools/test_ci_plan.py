@@ -185,6 +185,27 @@ class PlanTests(unittest.TestCase):
         self.assertIn("needs: [preflight, qualify, cli-artifacts]", release)
         self.assertIn("uses: ./.github/workflows/ci.yml", release)
 
+    def test_declared_msrv_is_compiled_and_aggregate_rejects_missing_proof(self):
+        workflow = (ROOT / ".github/workflows/ci.yml").read_text()
+        jobs = dict(re.findall(r"^  ([\w-]+):\n(.*?)(?=^  [\w-]+:|\Z)",
+                              workflow.split("jobs:\n", 1)[1], re.MULTILINE | re.DOTALL))
+        self.assertIn("toolchain: '1.88.0'", jobs["msrv"])
+        self.assertIn("cargo check --workspace --all-features --all-targets --locked", jobs["msrv"])
+        self.assertIn('rust-version = "1.88"', (ROOT / "Cargo.toml").read_text())
+        script = jobs["ci"].split("python3 - <<'PY'\n", 1)[1].rsplit("\n          PY", 1)[0]
+        script = "\n".join(line[10:] for line in script.splitlines())
+        results = {
+            "plan": {"result": "success", "outputs": {"tools": "false", "full": "false", "typescript": "false"}},
+            "rust": {"result": "success"}, "msrv": {"result": "success"},
+        }
+        for status in ("success", "skipped", "failure", "cancelled"):
+            with self.subTest(msrv=status):
+                results["msrv"]["result"] = status
+                result = subprocess.run([sys.executable, "-c", script],
+                                        env={**os.environ, "RESULTS": json.dumps(results)},
+                                        capture_output=True, text=True)
+                self.assertEqual(result.returncode == 0, status == "success", result.stderr)
+
     def test_unknown_paths_keep_all_linux_consumers(self):
         for path in ("new-generator/runtime.js", "crates/crucible-new/src/lib.rs"):
             with self.subTest(path=path):
@@ -320,7 +341,7 @@ class PlanTests(unittest.TestCase):
                 continue
             group = re.search(r"needs\.plan\.outputs\.(\w+) == 'true'", body).group(1)
             self.assertIn(group, GROUPS)
-            if job in {"rust", "qualification-tools"}:
+            if job in {"rust", "msrv", "qualification-tools"}:
                 self.assertIn("needs: plan", body)
             else:
                 self.assertRegex(body, r"needs: \[plan, rust(?:, qualification-tools)?\]")
@@ -354,14 +375,14 @@ class PlanTests(unittest.TestCase):
                 selected.extend((name, variant) for variant in variants)
             return selected
 
-        self.assertEqual(len(selected_jobs(CORE_GROUPS, False)), 7)
+        self.assertEqual(len(selected_jobs(CORE_GROUPS, False)), 8)
         self.assertIn(("browser-streaming", None), selected_jobs(CORE_GROUPS, False))
         # Python and Go reuse one tools build instead of compiling twice.
-        self.assertEqual(len(selected_jobs(MODEL_GROUPS, False)), 10)
-        self.assertEqual(len(selected_jobs({"rust", "kotlin"}, False)), 6)
+        self.assertEqual(len(selected_jobs(MODEL_GROUPS, False)), 11)
+        self.assertEqual(len(selected_jobs({"rust", "kotlin"}, False)), 7)
         # Preserve the 37 test variants (including consumers and browser) plus planner/aggregate, one tools build
-        # and the release-only language server build.
-        self.assertEqual(len(selected_jobs(GROUPS, True)), 41)
+        # and the release-only language server build, plus the minimum Rust compiler.
+        self.assertEqual(len(selected_jobs(GROUPS, True)), 42)
         for name, variant in selected_jobs(GROUPS, False)[2:]:
             self.assertNotIn(name, {"c-windows", "cpp-windows", "swift-apple", "kotlin-android"})
             if isinstance(variant, dict):

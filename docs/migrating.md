@@ -23,6 +23,10 @@ tag.
 
 ## Unreleased
 
+Upgrade the Rust toolchain to 1.88 or newer. The previous 1.85 metadata did
+not describe a working runtime build: existing Rust 2024 let chains require
+1.88. Regenerated Rust SDK manifests now declare the same tested minimum.
+
 Typed response streams add `Outcome::Stream`, `Resolution::Streaming`, and
 `Host::LambdaStreaming`. Update exhaustive matches on these public enums and
 regenerate bindings. No deprecated shim can preserve an exhaustive enum match.

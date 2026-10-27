@@ -72,6 +72,11 @@ version's section when it is prepared.
 
 ### Migration
 
+- Upgrade Rust to 1.88 or newer before building Crucible or a generated Rust
+  SDK. The previous 1.85 requirement was inaccurate: runtime let chains require
+  [Rust 1.88](https://blog.rust-lang.org/2025/06/26/Rust-1.88.0/). Workspace and
+  generated package metadata now declare the tested minimum; CI checks it.
+
 - Direct IR `Service` and `ErrorInfo` struct literals initialize the new
   `error_docs_base` and `reason_member` fields to `None`. Struct field additions
   cannot be shimmed for literals. Existing model sources and frozen releases need

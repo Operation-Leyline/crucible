@@ -23,6 +23,11 @@ Generated bindings still use their declared runtime dependency, and build
 scripts use `crucible-build` separately. See the
 [crate README](../crates/crucible-api/README.md).
 
+Library and generated Rust SDK consumers need Rust 1.88 or newer. The Linux
+MSRV CI job checks the complete workspace with all features and targets on
+1.88.0. Workspace publication itself uses Cargo 1.90 or newer for
+`cargo publish --workspace`.
+
 Check the package metadata and publication order:
 
 ```sh

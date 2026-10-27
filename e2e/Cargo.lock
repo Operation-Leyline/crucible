@@ -623,6 +623,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "crucible-explorer-assets"
+version = "0.8.0"
+
+[[package]]
 name = "crucible-ir"
 version = "0.8.0"
 dependencies = [
@@ -674,6 +678,7 @@ dependencies = [
  "base64 0.22.1",
  "chacha20poly1305",
  "chrono",
+ "crucible-explorer-assets",
  "crucible-wire",
  "futures-util",
  "hkdf",

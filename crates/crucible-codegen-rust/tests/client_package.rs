@@ -78,6 +78,7 @@ fn native_package_manifest_and_public_api_match_explicit_source_goldens() {
         ]
     );
     golden("Cargo.toml", &files[0].contents);
+    assert!(files[0].contents.contains("rust-version = \"1.88\""));
     let source = generate_client(&service).unwrap();
     // The README is the crate's documentation, generated where none is
     // configured.
