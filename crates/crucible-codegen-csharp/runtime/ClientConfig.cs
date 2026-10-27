@@ -11,6 +11,8 @@ public sealed class ClientConfig
     public int MaxAttempts { get; init; } = 3;
     /// <summary>Deadline for a whole call including retries. Default 30 seconds.</summary>
     public TimeSpan Timeout { get; init; } = TimeSpan.FromSeconds(30);
+    /// <summary>Maximum physical bytes per stream event and buffered opening error. Default 1 MiB; at least 256.</summary>
+    public int MaxStreamEventBytes { get; init; } = 1024 * 1024;
     /// <summary>Base of the exponential, fully jittered retry backoff. Default 100 ms.</summary>
     public TimeSpan BaseDelay { get; init; } = TimeSpan.FromMilliseconds(100);
     /// <summary>Upper bound of a single retry delay. Default 20 seconds.</summary>

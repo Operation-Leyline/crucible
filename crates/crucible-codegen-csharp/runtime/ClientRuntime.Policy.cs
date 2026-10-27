@@ -76,7 +76,7 @@ internal sealed partial class ClientRuntime
         private readonly string id = "";
         private readonly long start;
         private long attemptStart;
-        private int attempts;
+        private int attempts, operationFinished;
         private int? status;
 
         internal CallTrace(ClientRuntime client, string operation)
@@ -127,7 +127,8 @@ internal sealed partial class ClientRuntime
 
         internal void Finished(Exception? error)
         {
-            if (hook is null) return;
+            // A stream canceled at its handoff reported its outcome already.
+            if (hook is null || Interlocked.Exchange(ref operationFinished, 1) != 0) return;
             var finished = new OperationFinished(id, client.service, operation, attempts, status, error is null ? null : ErrorName(error),
                 clock.GetElapsedTime(start), clock.GetUtcNow());
             Emit(hook => hook.OnOperationFinished(finished));

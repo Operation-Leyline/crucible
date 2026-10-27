@@ -2,6 +2,7 @@
 import os
 from pathlib import Path
 import shutil
+import sys
 import tempfile
 from sdk_cru_packages import copy_package, rename_shapes, replace_once
 from sdk_test_support import ROOT, describe_sdk, run, snippets, weather
@@ -196,3 +197,6 @@ if __name__ == "__main__":
             permissions(Path(directory))
         else:
             qualify(Path(directory))
+            # The normal gate also runs installed-package response streams,
+            # with and without errorDocs, against the native fixture.
+            run(sys.executable, "tools/test-csharp-streaming.py")

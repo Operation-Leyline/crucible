@@ -194,6 +194,33 @@ headers, and require exactly one terminal followed by body EOF. Each stream has
 one consumer. A loop `break` retains the stream until context-manager exit or
 explicit closure.
 
+## C# client
+
+Streaming operations have only an asynchronous opening method, which returns
+`ResponseStream<Progress>`. Dispose it even when abandoning it before
+enumeration:
+
+```csharp
+await using var events = await client.WatchAsync(cancellationToken);
+Console.WriteLine(events.Metadata.StatusCode);
+await foreach (var value in events) {
+    Console.WriteLine(value);
+}
+```
+
+`Metadata` retains opening HTTP metadata. A loop `break` disposes the
+enumerator; `Cancel()` also stops the response. The opening token, an
+enumeration token passed through `WithCancellation`, and `ClientConfig.Timeout`
+remain active before and between reads, and take precedence over buffered
+items. `ClientConfig.MaxStreamEventBytes` bounds frames and opening-error bodies
+(default 1 MiB, minimum 256). Malformed profiles and values throw
+`StreamProtocolError`; transport failures throw `NetworkError`. Modeled late
+errors keep their generated exception types, with header and payload members
+decoded as document fields. Like Python and Go, C# reuses authentication,
+middleware and eligible opening retries, never replays after successful
+headers, and requires one terminal followed by EOF. See the
+[C# client guide](clients/csharp.md#response-streams).
+
 ## Wire contract
 
 Successful responses use `Content-Type: text/event-stream; charset=utf-8;
@@ -335,7 +362,7 @@ clients cancel promptly.
 ## Current support
 
 Rust servers, Rust clients, TypeScript web/Node clients, Python sync/async clients,
-and Go clients implement profile 1. Other clients diagnose `server-streaming`
+Go clients and C# clients implement profile 1. Other clients diagnose `server-streaming`
 instead of emitting a unary API. OpenAPI includes
 SSE and `x-crucible-stream` item/control metadata. Static references, explorer,
 MCP, historical server adapters, and direct invocation do not yet serve
@@ -357,6 +384,12 @@ separate consumer modules. Both exercise native TCP profiles and the actual Rust
 HTTP fixture, including held LF/CRLF/CR delivery, GET/POST, opening retries,
 typed late errors, cancellation, deadlines, and producer release before fixture
 cleanup. These local checks do not establish deployed AWS or proxy behavior.
+
+`python tools/test-csharp-streaming.py` packs separate NuGet SDKs with and
+without error documentation and runs the same native TCP and Rust HTTP checks
+from independent .NET 8 consumers, then compiles the generated README snippets
+against the installed packages. `python tools/test-csharp.py` runs it as part of
+the normal C# gate.
 
 `bash tools/test-ts.sh` covers parser behavior and generated TypeScript-to-Rust
 HTTP calls. `python tools/test-consumers.py` covers stable service consumers.

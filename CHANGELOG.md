@@ -17,6 +17,14 @@ version's section when it is prepared.
 
 ### Added
 
+- C# clients expose typed `ResponseStream<T>` iteration with `await foreach`,
+  opening metadata, cancellation, total-call deadlines, bounded SSE parsing and
+  document-decoded late errors. `ClientConfig.MaxStreamEventBytes` controls the
+  frame limit. Eligible opening failures use the existing retry policy;
+  successful headers are never replayed. Streaming operations have only an
+  asynchronous opening method; buffered operations are unchanged. See
+  [response streams](docs/streaming.md).
+
 - Python sync/async and Go clients expose typed response-stream iteration,
   opening metadata, bounded SSE parsing, total-call deadlines and cancellation,
   and document-decoded late errors. Eligible opening failures use the existing

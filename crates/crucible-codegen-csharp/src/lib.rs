@@ -370,6 +370,12 @@ fn operation_xmldoc(
             &format!("global::{ns}.NetworkError"),
             "The transport failed.",
         ));
+        if op.response_mode == crucible_ir::ir::ResponseMode::ServerStream {
+            tags.push(exception_tag(
+                &format!("global::{ns}.StreamProtocolError"),
+                "The response is not a valid Crucible stream: its profile, framing or a modeled value is malformed.",
+            ));
+        }
     }
     xmldoc_with(
         Some(links),
@@ -407,6 +413,7 @@ pub fn capabilities() -> crucible_ir::Capabilities {
         Feature::MediaTypeHeaders,
         Feature::ErrorPayload,
         Feature::ErrorDocumentation,
+        Feature::ServerStreaming,
     ])
 }
 
@@ -535,8 +542,11 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
         .map(str::to_string),
     );
     for op in &service.operations {
-        for method in [method_name(op), async_method_name(op)]
-            .into_iter()
+        for method in std::iter::once(async_method_name(op))
+            .chain(
+                (op.response_mode != crucible_ir::ir::ResponseMode::ServerStream)
+                    .then(|| method_name(op)),
+            )
             .chain(pages_method_name(op))
         {
             if !methods.insert(method) {
@@ -783,15 +793,55 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
         .clone()
         .or_else(|| service.title.clone())
         .unwrap_or_else(|| format!("Client for the `{}` service.", service.id.name()));
+    let operation_forms = if service
+        .operations
+        .iter()
+        .any(|op| op.response_mode == crucible_ir::ir::ResponseMode::ServerStream)
+    {
+        "Buffered operations have asynchronous and blocking forms. Streaming operations open asynchronously and return a ResponseStream for native asynchronous iteration; dispose it even before enumeration. Failures surface as modeled errors, the service exception for any other error response, or a NetworkError when no response arrived."
+    } else {
+        "Every operation has an asynchronous form returning a Task and a blocking form that runs it on the thread pool. Failures surface as modeled errors, the service exception for any other error response, or a NetworkError when no response arrived."
+    };
     let mut client = format!(
         "{header}{}public sealed class {client_name} : global::System.IDisposable {{\n    private readonly ClientRuntime runtime;\n{}    public {client_name}(ClientConfig config) {{ runtime = new(config, {}); }}\n{}    public void Dispose() => runtime.Dispose();\n",
-        xmldoc_linked(&links, "", Some(&service_summary), &[
-            format!("Create one with new {client_name}(config), share it freely and dispose it when finished: the client is thread-safe, and Dispose releases only the HttpClient it created itself, never one supplied in the configuration."),
-            "Every operation has an asynchronous form returning a Task and a blocking form that runs it on the thread pool. Failures surface as modeled errors, the service exception for any other error response, or a NetworkError when no response arrived.".to_string(),
-        ], &[], &DocNotes::default()),
-        xmldoc("    ", None, &["Creates a client from the configuration, which is read once.".to_string()], &[param("config", "Endpoint, credentials, retry and timeout settings."), exception_tag("global::System.ArgumentException", "The endpoint or a retry setting is invalid.")]),
+        xmldoc_linked(
+            &links,
+            "",
+            Some(&service_summary),
+            &[
+                format!(
+                    "Create one with new {client_name}(config), share it freely and dispose it when finished: the client is thread-safe, and Dispose releases only the HttpClient it created itself, never one supplied in the configuration."
+                ),
+                operation_forms.to_string(),
+            ],
+            &[],
+            &DocNotes::default()
+        ),
+        xmldoc(
+            "    ",
+            None,
+            &["Creates a client from the configuration, which is read once.".to_string()],
+            &[
+                param(
+                    "config",
+                    "Endpoint, credentials, retry and timeout settings."
+                ),
+                exception_tag(
+                    "global::System.ArgumentException",
+                    "The endpoint or a retry setting is invalid."
+                )
+            ]
+        ),
         literal(options.endpoint.as_deref().unwrap_or("")),
-        xmldoc("    ", None, &["Releases the HttpClient this client created; a supplied one stays caller-owned.".to_string()], &[])
+        xmldoc(
+            "    ",
+            None,
+            &[
+                "Releases the HttpClient this client created; a supplied one stays caller-owned."
+                    .to_string()
+            ],
+            &[]
+        )
     );
     for op in &service.operations {
         let name = method_name(op);
@@ -815,9 +865,17 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
         let call_async_doc = operation_xmldoc(
             &links,
             op,
-            "Asynchronous form.",
+            if op.response_mode == crucible_ir::ir::ResponseMode::ServerStream {
+                "Opens an asynchronous response stream; dispose it even before enumeration."
+            } else {
+                "Asynchronous form."
+            },
             &call_params,
-            "The decoded response.",
+            if op.response_mode == crucible_ir::ir::ResponseMode::ServerStream {
+                "The owned event sequence with opening HTTP metadata."
+            } else {
+                "The decoded response."
+            },
             true,
         );
         let call_sync_doc = operation_xmldoc(
@@ -828,6 +886,10 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
             "The decoded response.",
             true,
         );
+        if op.response_mode == crucible_ir::ir::ResponseMode::ServerStream {
+            client.push_str(&format!("{call_async_doc}    public global::System.Threading.Tasks.Task<global::{ns}.ResponseStream<{output}>> @{async_name}({parameter}global::System.Threading.CancellationToken cancellationToken = default) => runtime.OpenStreamAsync<{output}>({}, {arg}, cancellationToken);\n", literal(op.name())));
+            continue;
+        }
         client.push_str(&format!("{call_async_doc}    public global::System.Threading.Tasks.Task<{output}> @{async_name}({parameter}global::System.Threading.CancellationToken cancellationToken = default) => runtime.CallAsync<{output}>({}, {arg}, cancellationToken);\n{call_sync_doc}    public {output} @{name}({parameter}global::System.Threading.CancellationToken cancellationToken = default) => global::System.Threading.Tasks.Task.Run(() => @{async_name}({}cancellationToken), cancellationToken).GetAwaiter().GetResult();\n",literal(op.name()),if input.is_some(){"input, "}else{""}));
         if let Some(pages_name) = pages_method_name(op) {
             client.push_str(&operation_xmldoc(&links, op, "Lazily fetches each page, following the continuation token until the service stops returning one; enumerating drives the requests.", &call_params, "An asynchronous sequence of pages.", true));
@@ -867,6 +929,22 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
     for (name, body) in [
         ("ClientRuntime", include_str!("../runtime/ClientRuntime.cs")),
         ("ClientConfig", include_str!("../runtime/ClientConfig.cs")),
+        (
+            "ClientRuntime.Stream",
+            include_str!("../runtime/ClientRuntime.Stream.cs"),
+        ),
+        (
+            "ResponseStream",
+            include_str!("../runtime/ResponseStream.cs"),
+        ),
+        (
+            "ResponseMetadata",
+            include_str!("../runtime/ResponseMetadata.cs"),
+        ),
+        (
+            "StreamProtocolError",
+            include_str!("../runtime/StreamProtocolError.cs"),
+        ),
         ("Optional", include_str!("../runtime/Optional.cs")),
         ("ModelFormat", include_str!("../runtime/ModelFormat.cs")),
         ("ServiceError", include_str!("../runtime/ServiceError.cs")),

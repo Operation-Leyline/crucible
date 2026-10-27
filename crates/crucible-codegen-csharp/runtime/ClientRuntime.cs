@@ -12,6 +12,8 @@ internal sealed partial class ClientRuntime : IDisposable
 {
     private readonly ClientConfig config;
     private readonly HttpClient http;
+    // Streams only: the SDK-owned one does not drain abandoned responses.
+    private readonly HttpClient streamHttp;
     private readonly bool ownsHttp;
     private readonly JsonObject schema;
     private readonly IReadOnlyDictionary<string, Type> types;
@@ -27,22 +29,29 @@ internal sealed partial class ClientRuntime : IDisposable
             (uri.Scheme != "http" && uri.Scheme != "https") || uri.Host.Length == 0 ||
             uri.UserInfo.Length != 0 || uri.Query.Length != 0 || uri.Fragment.Length != 0)
             throw new ArgumentException("Absolute HTTP(S) endpoint without credentials, query, or fragment required");
+        if (input.MaxStreamEventBytes < 256)
+            throw new ArgumentException("MaxStreamEventBytes must be at least 256");
         if (input.MaxAttempts < 1 || input.Timeout <= TimeSpan.Zero || input.Timeout.TotalMilliseconds > uint.MaxValue - 1 ||
             input.BaseDelay < TimeSpan.Zero || input.MaxDelay < TimeSpan.Zero || input.MaxDelay.TotalMilliseconds > int.MaxValue)
             throw new ArgumentException("Invalid attempt limit, timeout, or retry delay");
         config = new ClientConfig {
             Endpoint = endpoint.TrimEnd('/'), Token = input.Token, MaxAttempts = input.MaxAttempts,
-            Timeout = input.Timeout, BaseDelay = input.BaseDelay, MaxDelay = input.MaxDelay,
+            Timeout = input.Timeout, MaxStreamEventBytes = input.MaxStreamEventBytes, BaseDelay = input.BaseDelay, MaxDelay = input.MaxDelay,
             Headers = new(input.Headers, StringComparer.OrdinalIgnoreCase), Middleware = [.. input.Middleware],
             RetryMode = input.RetryMode, Telemetry = input.Telemetry,
             TimeProvider = input.TimeProvider ?? throw new ArgumentException("A TimeProvider is required")
         };
         ownsHttp = input.HttpClient is null;
         http = input.HttpClient ?? new HttpClient(new SocketsHttpHandler { AllowAutoRedirect = false }) { Timeout = System.Threading.Timeout.InfiniteTimeSpan };
+        // An abandoned stream must release its connection without waiting for an idle
+        // producer, but buffered calls that leave a small body unread must keep draining
+        // it back into the pool. So SDK-owned streams get their own non-draining pool;
+        // a supplied client keeps its caller-selected drain policy for both.
+        streamHttp = input.HttpClient ?? new HttpClient(new SocketsHttpHandler { AllowAutoRedirect = false, MaxResponseDrainSize = 0 }) { Timeout = System.Threading.Timeout.InfiniteTimeSpan };
         this.schema = schema; this.types = types;
         InitializePolicy();
     }
-    public void Dispose() { if (ownsHttp) http.Dispose(); }
+    public void Dispose() { if (ownsHttp) { http.Dispose(); streamHttp.Dispose(); } }
     private static JsonObject LoadSchema()
     {
         using var stream = typeof(ClientRuntime).Assembly.GetManifestResourceStream("crucible.schema.json")
@@ -457,6 +466,8 @@ internal sealed partial class ClientRuntime : IDisposable
                 bool hasBody = op["response"]!["body"]!.AsArray().Count != 0 || payload is not null;
                 var bytes = response.IsSuccessStatusCode && !hasBody ? [] : await response.Content.ReadAsByteArrayAsync(ct).ConfigureAwait(false);
                 size = bytes.Length;
+                // As in Go, cancellation and the deadline take precedence over a read body.
+                ct.ThrowIfCancellationRequested();
                 if (response.IsSuccessStatusCode)
                 {
                     var output = Output<T>(op, payload, bytes, headers);
