@@ -1,9 +1,13 @@
+from contextlib import redirect_stderr, redirect_stdout
+import io
 from pathlib import Path
 import subprocess
 import sys
 import tempfile
 import unittest
+from unittest.mock import patch
 
+import crucible_release
 from crucible_release import LOCKFILES, VERSIONED_DOCS, changelog_entry, check, prepare, version_tuple
 
 
@@ -74,6 +78,18 @@ version = "0.1.0"
     @staticmethod
     def subset(lock):
         return lock.replace('[[package]]\nname = "crucible-wire"\nversion = "0.1.0"\n\n', "")
+
+    def test_prepare_runs_with_an_in_memory_stdout(self):
+        # StringIO has no `reconfigure`; an embedding caller can still capture the list.
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            self.fixture(root)
+            out = io.StringIO()
+            with patch.object(crucible_release, "ROOT", root), \
+                    patch.object(sys, "argv", ["crucible_release.py", "prepare", "0.2.0"]), \
+                    redirect_stdout(out), redirect_stderr(io.StringIO()):
+                crucible_release.main()
+            self.assertEqual(out.getvalue().splitlines(), sorted(["Cargo.toml", *VERSIONED_DOCS, *LOCKFILES]))
 
     def test_prepare_lists_changed_files_with_lf_line_endings(self):
         # Through a real redirected stdout, where Windows would translate to CRLF.

@@ -288,8 +288,9 @@ def main():
     # `prepare` lists every file it changed, one per line, to stage as is.
     # LF when redirected, on every platform: Windows text mode would end each
     # line with CR, which `git add --pathspec-from-file` then reads as part of
-    # the path. A console keeps its own newline handling.
-    if not sys.stdout.isatty():
+    # the path. A console keeps its own newline handling, and an in-memory
+    # capture (no `reconfigure`) already writes "\n".
+    if not sys.stdout.isatty() and hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(newline="\n")
     for path in changed or ():
         print(path)
