@@ -693,6 +693,7 @@ function callLifetime(config: ClientConfig, options: RequestOptions): { signal: 
 async function* streamEvents<T>(reader: ReadableStreamDefaultReader<Uint8Array>, signal: AbortSignal, decode: (event: string, data: unknown) => T, close: () => Promise<void>, limit: number): AsyncGenerator<T> {
   const utf8 = new TextDecoder("utf-8", { fatal: true });
   let buffer = "", event = "", data = "", terminal = false, eof = false, frameBytes = 0, scan = 0, lineBytes = 0;
+  let crBytes: number | undefined;
   try {
     while (!eof) {
       let chunk: ReadableStreamReadResult<Uint8Array>;
@@ -705,19 +706,30 @@ async function* streamEvents<T>(reader: ReadableStreamDefaultReader<Uint8Array>,
       let index = scan;
       for (; index < buffer.length; index++) {
         const char = buffer[index];
+        if (crBytes !== undefined) {
+          const precedingBytes = crBytes;
+          crBytes = undefined;
+          if (char === "\n") {
+            // A CR already dispatched its line. Charge its optional LF to
+            // that frame, even if the blank line reset the current count.
+            if (precedingBytes === limit) throw new StreamProtocolError("stream event exceeds the byte limit");
+            if (frameBytes !== 0) frameBytes++;
+            start = index + 1;
+            continue;
+          }
+        }
+        if (terminal) throw new StreamProtocolError("data after terminal stream outcome");
         if (char !== "\r" && char !== "\n") {
           const code = buffer.charCodeAt(index);
           lineBytes += code < 0x80 ? 1 : code < 0x800 ? 2 : code >= 0xdc00 && code <= 0xdfff ? 0 : code >= 0xd800 && code <= 0xdbff ? 4 : 3;
           if (frameBytes + lineBytes > limit) throw new StreamProtocolError("stream event exceeds the byte limit");
           continue;
         }
-        if (char === "\r" && index + 1 === buffer.length && !eof) break;
         const line = buffer.slice(start, index);
-        if (terminal) throw new StreamProtocolError("data after terminal stream outcome");
-        frameBytes += lineBytes + (char === "\r" && buffer[index + 1] === "\n" ? 2 : 1);
+        frameBytes += lineBytes + 1;
         lineBytes = 0;
         if (frameBytes > limit) throw new StreamProtocolError("stream event exceeds the byte limit");
-        if (char === "\r" && buffer[index + 1] === "\n") index++;
+        if (char === "\r") crBytes = frameBytes;
         start = index + 1;
         if (line === "") {
           if (data !== "") {

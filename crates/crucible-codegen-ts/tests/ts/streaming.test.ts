@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
+import { createServer } from "node:http";
 import { StreamsClient, StreamProtocolError, TimeoutError, WorkFailed, NetworkError } from "./generated-streams/src/index.js";
 
 const encoder = new TextEncoder();
@@ -7,6 +8,50 @@ const headers = { "content-type": "text/event-stream; charset=utf-8; crucible-st
 const complete = "event: crucible.complete\ndata: {}\n\n";
 const message = (text: string) => `event: message\ndata: ${JSON.stringify({ ready: text })}\n\n`;
 const client = (fetch: (request: Request) => Promise<Response>) => new StreamsClient({ endpoint: "https://example.test", fetch });
+
+test("native Fetch delivers complete LF, CRLF and CR frames before producer close", async () => {
+  type OpenStream = Awaited<ReturnType<StreamsClient["watch"]>>;
+  async function bounded<T>(pending: Promise<T>, description: string): Promise<T> {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    try {
+      return await Promise.race([pending, new Promise<T>((_, reject) => {
+        timer = setTimeout(() => reject(new Error(description)), 1000);
+      })]);
+    } finally { clearTimeout(timer); }
+  }
+  for (const ending of ["\n", "\r\n", "\r"]) {
+    let responseClosed = false;
+    let observeClose!: () => void;
+    const closed = new Promise<void>(resolve => { observeClose = resolve; });
+    const server = createServer((_request, response) => {
+      response.on("close", () => { responseClosed = true; observeClose(); });
+      response.writeHead(200, headers);
+      response.write(message("first").replaceAll("\n", ending));
+    });
+    await new Promise<void>(resolve => { server.listen(0, "127.0.0.1", resolve); });
+    const address = server.address();
+    assert(address !== null && typeof address !== "string");
+    const api = new StreamsClient({ endpoint: `http://127.0.0.1:${address.port}`, retry: false });
+    let events: OpenStream | undefined;
+    let pending: ReturnType<OpenStream["next"]> | undefined;
+    try {
+      events = await api.watch();
+      pending = events.next();
+      const first = await bounded(pending, `complete ${JSON.stringify(ending)} frame waited for another byte`);
+      assert.deepEqual(first.value, { ready: "first" });
+      assert.equal(responseClosed, false, "item must arrive before connection close");
+    } finally {
+      try {
+        await events?.cancel();
+        await pending?.catch(() => undefined);
+        if (events) await bounded(closed, "cancel must disconnect before server cleanup");
+      } finally {
+        server.closeAllConnections();
+        await new Promise<void>((resolve, reject) => { server.close(error => error ? reject(error) : resolve()); });
+      }
+    }
+  }
+});
 
 function body(text: string, split = 1) {
   const bytes = encoder.encode(text);
@@ -25,6 +70,37 @@ test("generated stream methods parse UTF-8 and CRLF across arbitrary chunk bound
     const values = [];
     for await (const event of events) values.push(event);
     assert.deepEqual(values, [{ ready: "a🌊b" }]);
+  }
+});
+
+test("terminal CR may consume one LF, but no other trailing bytes", async () => {
+  for (const split of [1, 4096]) {
+    for (const ending of ["\n", "\r\n", "\r"]) {
+      const terminal = complete.replaceAll("\n", ending);
+      const valid = await client(async () => new Response(body(terminal, split), { headers })).watch();
+      assert.equal((await valid.next()).done, true);
+      for (const suffix of [" ", "\t", "\u00a0", "\n", ":heartbeat"]) {
+        if (ending === "\r" && suffix === "\n") continue;
+        const events = await client(async () => new Response(body(terminal + suffix, split), { headers })).watch();
+        await assert.rejects(events.next(), error => error instanceof StreamProtocolError);
+      }
+    }
+    const events = await client(async () => new Response(body(complete.replaceAll("\n", "\r") + "\n", split), { headers })).watch();
+    assert.equal((await events.next()).done, true);
+  }
+});
+
+test("a CR continuation charges its LF to the preceding event byte limit", async () => {
+  const frame = (value: string, ending: string) => `data: ${JSON.stringify({ ready: value })}${ending}${ending}`;
+  const exact = (ending: string) => frame("x".repeat(256 - encoder.encode(frame("", ending)).length), ending);
+  for (const split of [1, 4096]) {
+    const api = client(async () => new Response(body(exact("\r\n") + exact("\r") + complete, split), { headers }));
+    const events = await api.watch({ maxStreamEventBytes: 256 });
+    const values = [];
+    for await (const event of events) values.push(event);
+    assert.equal(values.length, 2);
+    const oversized = await client(async () => new Response(body(exact("\r") + "\n" + complete, split), { headers })).watch({ maxStreamEventBytes: 256 });
+    await assert.rejects((async () => { for await (const _event of oversized) { /* Consume through framing validation. */ } })(), /byte limit/);
   }
 });
 
