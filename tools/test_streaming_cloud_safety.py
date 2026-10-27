@@ -22,6 +22,7 @@ BUILDER = Path(__file__).with_name("build-streaming-cloud.py")
 
 
 def source_functions(env, *, optimize=0):
+    env.setdefault("ClientError", type("ClientError", (Exception,), {}))
     env.setdefault("HTTPClientError", type("HTTPClientError", (Exception,), {"response": None}))
     env.setdefault("BotocoreConnectionError", type("BotocoreConnectionError", (Exception,), {}))
     tree = ast.parse(SOURCE.read_text(encoding="utf-8"))
@@ -250,6 +251,7 @@ class CloudSafety(unittest.TestCase):
         if "finalize_report" in env:
             env["finalize_report"](env["report"], {"function"})
         self.assertEqual(env["report"]["result"], "failed")
+        self.assertEqual(env["report"]["cleanup"]["function"]["error"], "delete failed")
 
     def test_transient_delete_retries_with_fresh_ownership_and_bounded_failure(self):
         class ClientError(Exception):
