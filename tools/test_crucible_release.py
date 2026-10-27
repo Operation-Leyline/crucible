@@ -1,4 +1,6 @@
 from pathlib import Path
+import subprocess
+import sys
 import tempfile
 import unittest
 
@@ -72,6 +74,21 @@ version = "0.1.0"
     @staticmethod
     def subset(lock):
         return lock.replace('[[package]]\nname = "crucible-wire"\nversion = "0.1.0"\n\n', "")
+
+    def test_prepare_lists_changed_files_with_lf_line_endings(self):
+        # Through a real redirected stdout, where Windows would translate to CRLF.
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            self.fixture(root)
+            script = ("import sys, crucible_release as tool\n"
+                      f"tool.ROOT = tool.Path({str(root)!r})\n"
+                      "sys.argv = ['crucible_release.py', 'prepare', '0.2.0']\n"
+                      "tool.main()\n")
+            result = subprocess.run([sys.executable, "-c", script], capture_output=True,
+                                    cwd=Path(__file__).parent, check=True)
+            self.assertNotIn(b"\r", result.stdout)
+            self.assertEqual(result.stdout.decode().splitlines(),
+                             sorted(["Cargo.toml", *VERSIONED_DOCS, *LOCKFILES]))
 
     def test_published_readme_install_requirement_follows_the_release(self):
         with tempfile.TemporaryDirectory() as directory:

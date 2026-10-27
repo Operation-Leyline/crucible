@@ -110,7 +110,8 @@ without an entry, so a release cannot be tagged without notes.
 git switch -c claude/release-0.2.1
 python tools/crucible_release.py prepare 0.2.1 > prepared.txt
 cat prepared.txt
-git diff -- $(cat prepared.txt)
+git diff --stat --pathspec-from-file=prepared.txt
+git diff --pathspec-from-file=prepared.txt
 python tools/crucible_release.py check 0.2.1
 ```
 
@@ -147,7 +148,8 @@ git grep -n -F -e "=$PREVIOUS" -- docs crates/*/README.md README.md
 Commit the version bump and reviewed golden changes together, then open a PR:
 
 ```sh
-git add CHANGELOG.md crates/*/tests/golden $(cat prepared.txt)
+git add --pathspec-from-file=prepared.txt
+git add CHANGELOG.md crates/*/tests/golden
 rm prepared.txt
 git commit -m "chore: prepare Crucible 0.2.1"
 git push -u origin claude/release-0.2.1
