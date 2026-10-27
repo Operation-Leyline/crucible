@@ -134,10 +134,18 @@ Formatting does not change equality or hashing:
 
 ## Catching service errors
 
+All 14 client targets expose static documentation URLs on service errors when
+the service declares [`errorDocs`](idl/reference.md#error-documentation).
+Known designated reasons select their reason pages, including effective model
+defaults. Null or unknown reason values retain the code page, as do recognized
+errors whose modeled decoding fails. Unknown error identities have no URL.
+Each language guide names its native accessor. URLs come from the projected
+model, never from the response.
+
 Generated modeled exceptions share a service-named base, such as
 `WeatherException`. Class-based SDKs retain `ServiceError` above that base,
 so existing generic catches still work. Unknown errors from a newer server
-and malformed modeled error responses also use the service base and retain
+and responses that fail modeled decoding also use the service base and retain
 their HTTP metadata and retry classification. Transport failures remain
 separate from service responses.
 

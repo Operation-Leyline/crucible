@@ -18,6 +18,10 @@ final readonly class ErrorMetadata
         public string $name = 'UnknownError', public string $message = '',
         public int $status = 0, public ?string $requestId = null,
         public array $headers = [], public bool $retryable = false, public bool $throttling = false,
+        // BEGIN ERROR DOCUMENTATION
+        /** Static modeled code/reason page, or null for an unknown error identity. */
+        public ?string $docUrl = null,
+        // END ERROR DOCUMENTATION
     ) {}
 
     /** Keeps var_dump() and print_r() from listing $message and $headers, which may carry sensitive data. */

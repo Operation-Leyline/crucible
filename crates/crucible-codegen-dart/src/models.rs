@@ -145,6 +145,7 @@ pub fn emit(service: &Service) -> String {
                 let base = if error { format!(" extends errors.{exception}") } else { String::new() };
                 out.push_str(&doc(service, structure.docs.as_deref(), &structure.notes, ""));
                 out.push_str(&format!("final class {name}{base} implements wire.WireModel {{\n"));
+                out.push_str(&super::error_docs::accessor(service, id));
                 let mut params = Vec::new();
                 let mut initializers = Vec::new();
                 for member in &structure.members {

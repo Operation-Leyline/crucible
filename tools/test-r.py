@@ -88,7 +88,22 @@ def generate(model, output, package="weather.client", *extra):
         str(model), "--out", str(output), "--package-name", package, *extra)
 
 
+
+def qualify_error_docs(output):
+    from sdk_error_docs_fixture import error_docs_fixture
+    root = output / "error-docs"
+    library = root / "library"
+    library.mkdir(parents=True, exist_ok=True)
+    package = root / "sdk"
+    generate(ROOT / "tests/models/error-docs", package, "docs.client")
+    run(R, "CMD", "INSTALL", "--no-multiarch", "-l", str(library), str(package))
+    with error_docs_fixture(root) as (endpoint, oracle):
+        run(RSCRIPT, str(ROOT / "crates/crucible-codegen-r/tests/error_docs.R"), str(library),
+            env=dict(os.environ, ERROR_DOCS_URL=endpoint, ERROR_DOCS_CASES=str(oracle)))
+
+
 def qualify(output):
+    qualify_error_docs(output)
     package = output / "sdk"
     model_path = qualification_model(output)
     (model_path / "exact.cru").write_text(EXACT_VALUES, encoding="utf-8", newline="\n")
@@ -144,7 +159,7 @@ if __name__ == "__main__":
     if explicit:
         directory = Path(explicit).resolve()
         directory.mkdir(parents=True, exist_ok=True)
-        qualify(directory)
+        (qualify_error_docs if os.environ.get("ERROR_DOCS_ONLY") else qualify)(directory)
     else:
         with tempfile.TemporaryDirectory(prefix="crucible-r-") as directory:
-            qualify(Path(directory))
+            (qualify_error_docs if os.environ.get("ERROR_DOCS_ONLY") else qualify)(Path(directory))

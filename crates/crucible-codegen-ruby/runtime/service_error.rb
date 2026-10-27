@@ -9,6 +9,10 @@ module CrucibleGenerated
     class ServiceError < ::StandardError
       # @return [ErrorMetadata] status, request ID and retry classification of the failed response
       attr_reader :metadata
+      # BEGIN ERROR DOCUMENTATION
+      # @return [String, nil] static modeled error code/reason page; nil for an unknown identity
+      def doc_url = metadata.doc_url
+      # END ERROR DOCUMENTATION
       def initialize(metadata = ErrorMetadata.new)
         @metadata = metadata
         super(metadata.message)

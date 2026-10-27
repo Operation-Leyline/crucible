@@ -277,7 +277,7 @@ fn vault_package_matches_golden() {
 }
 
 /// The typed permissions fixture (`tests/fixtures/permissions`) as a client
-/// sees it (docs/permissions.md §6.3), hostile documentation included: every
+/// sees it (docs/permissions.md Â§6.3), hostile documentation included: every
 /// generated file that names a permission, checked in under
 /// `tests/golden/permissions/`. No file names an internal permission, and a
 /// checked-in file no generated one matches any more is reported as stale
@@ -456,4 +456,21 @@ fn hyphenated_permission_symbols_spell_words() {
         files.iter().any(|file| file.contents.contains(expected)),
         "no file spells `mail-send` as {expected}"
     );
+}
+
+#[test]
+fn configured_error_documentation_preserves_unconfigured_runtime() {
+    let files =
+        emit(&load("error-docs"), &options()).expect("configured error documentation is supported");
+    let metadata = files
+        .iter()
+        .find(|file| file.path.ends_with("ErrorMetadata.php"))
+        .unwrap();
+    assert!(metadata.contents.contains("docUrl"));
+    let ordinary = emit(&weather(), &options()).unwrap();
+    let metadata = ordinary
+        .iter()
+        .find(|file| file.path.ends_with("ErrorMetadata.php"))
+        .unwrap();
+    assert!(!metadata.contents.contains("docUrl"));
 }

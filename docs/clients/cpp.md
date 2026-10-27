@@ -207,3 +207,16 @@ uses `CMAKE_TOOLCHAIN_FILE` and `VCPKG_INSTALLED_DIR`.
 These checks establish local package and HTTP behavior. Full Leyline model
 compilation, package publication, and authenticated deployed Leyline workflows
 are separate qualification steps.
+
+## Error documentation
+
+When the service configures `errorDocs`, service exceptions expose
+`doc_url()` as an optional string, also available through
+`metadata().doc_url`. These values survive client closure, destruction and
+exception copies. Unknown error identities have no URL.
+
+A designated known reason selects its static reason page, including empty
+reasons and effective model defaults. Explicit null, future values and malformed
+modeled errors use the code page. URLs supplied by the response are ignored.
+Configured error members that would shadow `doc_url()` receive a generation
+diagnostic. Packages without `errorDocs` retain their existing exception API.

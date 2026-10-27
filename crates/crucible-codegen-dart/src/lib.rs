@@ -3,6 +3,7 @@
 //! Exact value codecs are shared by the native and JavaScript Dart backends.
 
 mod client;
+mod error_docs;
 mod links;
 mod models;
 mod permissions;
@@ -379,6 +380,7 @@ pub fn capabilities() -> crucible_ir::Capabilities {
         Feature::ErrorPayload,
         Feature::MediaTypeHeaders,
         Feature::Sparse,
+        Feature::ErrorDocumentation,
     ])
 }
 
@@ -386,6 +388,7 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
     service.require_capabilities(&capabilities())?;
     crucible_codegen_common::check_service_exception_name(service)?;
     let mut diagnostics = diagnose(service, options);
+    error_docs::check(service, &mut diagnostics);
     permissions::check(service, &options.package_name, &mut diagnostics);
     if !diagnostics.is_empty() {
         return Err(diagnostics);
@@ -430,7 +433,11 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
     ] {
         files.push(File {
             path: format!("lib/src/runtime/{name}.dart"),
-            contents: crucible_codegen_common::service_exception_runtime(service, contents),
+            contents: error_docs::runtime(
+                service,
+                name,
+                &crucible_codegen_common::service_exception_runtime(service, contents),
+            ),
         });
     }
     if let Some(contents) = permissions::emit(service) {

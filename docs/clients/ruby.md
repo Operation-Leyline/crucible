@@ -141,6 +141,12 @@ scope's deadline/cancellation and the body-read decision. Modeled errors
 inherit `ServiceError`; metadata retains wire status, error name, request ID,
 headers, and retry traits even when modeled members cannot be decoded.
 
+With a service `errorDocs` base, `error.doc_url` and `error.metadata.doc_url`
+expose the static code page or the page for a known reason, including a modeled
+default. Explicit nil and future reason values use the code page; an unknown
+error identity has no URL. These accessors are generated only for configured
+services, and their immutable URLs come from the projected model.
+
 ## Permissions
 
 A model that declares typed permissions ([permissions](../permissions.md))

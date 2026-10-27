@@ -11,6 +11,10 @@ namespace CrucibleGenerated\Runtime;
  */
 abstract class ServiceError extends \RuntimeException
 {
+    // BEGIN ERROR DOCUMENTATION
+    /** Static documentation for the modeled error code and its known reason. */
+    public function docUrl(): ?string { return $this->metadata->docUrl; }
+    // END ERROR DOCUMENTATION
     /** @param ErrorMetadata $metadata status, request ID and retry classification of the failed response */
     public function __construct(public readonly ErrorMetadata $metadata = new ErrorMetadata())
     {

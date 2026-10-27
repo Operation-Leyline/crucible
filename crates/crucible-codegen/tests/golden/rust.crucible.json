@@ -2,7 +2,7 @@
   "schemaVersion": 2,
   "generator": "crucible",
   "generatorVersion": "0.8.0",
-  "generatorChanges": 19,
+  "generatorChanges": 20,
   "language": "rust",
   "package": "weather-sdk",
   "packageVersion": "1.2.3",

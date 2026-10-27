@@ -24,9 +24,9 @@ version's section when it is prepared.
 
 - Services can declare `errorDocs` and designate an error's enum member with
   `@errorReason`. API descriptions and Markdown references list literal reasons
-  and static documentation URLs. Configured Rust, TypeScript, Python, Go, Java,
-  Kotlin and C# SDK errors expose native URL accessors; other SDK targets diagnose
-  the unsupported capability until their runtime supports it. URL selection uses
+  and static documentation URLs. Configured SDK errors in all 14 client languages
+  expose native URL accessors: Rust, TypeScript, Python, Go, Java, Kotlin, C#,
+  Swift, Dart, PHP, Ruby, C++, C and R. URL selection uses
   model defaults for omitted reasons. Served release projections retain valid
   reason roles across retypes and member renames. Error wire responses are unchanged.
 

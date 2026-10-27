@@ -529,8 +529,11 @@ field and requires no wire migration. See [API references](../docs.md#error-docu
 and the client guides for [Rust](../clients/rust.md#models-and-errors),
 [TypeScript](../clients/typescript.md#models-and-errors),
 [Python](../clients/python.md#models-and-precision), [Go](../clients/go.md#models-and-errors),
-[Java](../clients/java.md#models-and-errors), [Kotlin](../clients/kotlin.md#models-and-errors)
-and [C#](../clients/csharp.md#models-and-errors).
+[Java](../clients/java.md#models-and-errors), [Kotlin](../clients/kotlin.md#models-and-errors),
+[C#](../clients/csharp.md#models-and-errors), [Swift](../clients/swift.md),
+[Dart](../clients/dart.md), [PHP](../clients/php.md), [Ruby](../clients/ruby.md),
+[C++](../clients/cpp.md#error-documentation), [C](../clients/c.md#error-documentation)
+and [R](../clients/r.md#error-documentation).
 
 ## Sender-signed operations
 

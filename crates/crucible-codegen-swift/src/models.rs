@@ -141,6 +141,7 @@ pub fn emit(service: &Service, module: &str) -> String {
                 out.push_str(&format!(
                     "    public struct `{name}`: Swift.Sendable, WireCodable, ModelDescription{error} {{\n"
                 ));
+                out.push_str(&super::error_docs::accessor(service, id));
                 let mut parameters = Vec::new();
                 for member in &structure.members {
                     let field = field(&member.name);

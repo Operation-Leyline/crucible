@@ -208,6 +208,9 @@ final class ClientRuntime
     private function failure(JsonObject $op,HttpResponse $response): ServiceError
     {
         $body = new JsonObject();
+        // BEGIN ERROR DOCUMENTATION
+        $validErrorObject = strspn($response->body, " \t\r\n") === strlen($response->body);
+        // END ERROR DOCUMENTATION
         try { $body = WireCodec::object(ExactJson::decode($response->body)); }
         catch (\UnexpectedValueException) { /* Wire status and headers remain usable. */ }
         $name = $response->headers['x-crucible-error'] ?? (is_string($body->get('__type')) ? $body->get('__type') : null);
@@ -220,6 +223,9 @@ final class ClientRuntime
         $target = count($matches) === 1 ? $matches[0] : null;
         $shape = $target === null ? null : $this->codec->shape($target);
         $traits = $shape?->get('error');
+        // BEGIN ERROR DOCUMENTATION
+        $documentation = $traits?->get('documentation');
+        // END ERROR DOCUMENTATION
         $message = $body->get('message');
         $requestId = $response->headers['x-request-id'] ?? (is_string($body->get('requestId')) ? $body->get('requestId') : null);
         $metadata = new ErrorMetadata(name:$name ?? ($traits?->get('wireCode') ?? $shape?->get('name')) ?? 'UnknownError',
@@ -229,6 +235,9 @@ final class ClientRuntime
         if ($target !== null) {
             try {
                 $payload = $traits->get('payload');
+                // BEGIN ERROR DOCUMENTATION
+                if (!is_array($payload) && !$validErrorObject) throw new \UnexpectedValueException('Invalid error object');
+                // END ERROR DOCUMENTATION
                 $body = is_array($payload) ? new JsonObject([$payload[0]=>$this->payloadValue($target,$traits,$response->body)]) : $this->codec->document($target,$body,false);
                 $body = $this->applyHeaders($target,$traits,$response,$body);
                 return ($this->errors)($target,$body,$this->codec->context($target),$metadata);
@@ -240,6 +249,19 @@ final class ClientRuntime
     {
         return WireCodec::object(WireCodec::object($this->codec->shape($target)->get('members'))->get($payload[0]))->get('target');
     }
+    // BEGIN ERROR DOCUMENTATION
+    private function documentedMetadata(ErrorMetadata $metadata, ?JsonObject $documentation, JsonObject $body): ErrorMetadata
+    {
+        $member = $documentation?->get('reasonMember');
+        $reason = is_string($member)
+            ? ($body->has($member) ? $body->get($member) : $documentation->get('reasonDefault')) : null;
+        $pages = $documentation?->get('reasonUrls');
+        if (!is_string($reason) || !($pages instanceof JsonObject) || !$pages->has($reason)) return $metadata;
+        return new ErrorMetadata(name:$metadata->name,message:$metadata->message,status:$metadata->status,
+            requestId:$metadata->requestId,headers:$metadata->headers,retryable:$metadata->retryable,
+            throttling:$metadata->throttling,docUrl:$pages->get($reason));
+    }
+    // END ERROR DOCUMENTATION
     private function payloadValue(string $target,JsonObject $bindings,string $body): mixed
     {
         return match ($bindings->get('payloadKind') ?? 'blob') {
