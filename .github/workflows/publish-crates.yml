@@ -69,7 +69,7 @@ jobs:
         run: python3 tools/check_publish_metadata.py --order
       - name: Dry-run the whole workspace
         # crucible-cli is the `crucible` executable, released as binaries, not a crate.
-        run: cargo publish --workspace --exclude crucible-cli --dry-run --locked
+        run: cargo publish --workspace --exclude crucible-cli --exclude crucible-lsp --dry-run --locked
         env:
           CARGO_BUILD_JOBS: '2'
 
@@ -103,4 +103,4 @@ jobs:
             echo 'No crates.io credential: configure trusted publishing or the bootstrap token.' >&2
             exit 1
           fi
-          cargo publish --workspace --exclude crucible-cli --locked
+          cargo publish --workspace --exclude crucible-cli --exclude crucible-lsp --locked

@@ -7,6 +7,11 @@ license.workspace = true
 rust-version.workspace = true
 publish.workspace = true
 repository.workspace = true
+readme.workspace = true
+license-file.workspace = true
+keywords.workspace = true
+categories.workspace = true
+exclude.workspace = true
 
 [features]
 # Both hosts by default, so moving a service between a container and Lambda
@@ -18,7 +23,7 @@ http = ["dep:hyper", "dep:hyper-util", "tokio/net", "tokio/signal", "tokio/sync"
 lambda = ["dep:lambda_http", "dep:lambda_runtime", "dep:base64"]
 logging = ["dep:tracing-subscriber"]
 # Embedded local-development API explorer; never enabled by default.
-explorer = []
+explorer = ["dep:crucible-explorer-assets"]
 # Sealed pagination tokens (`page_tokens`): authenticated encryption, so a
 # service that does not page through it carries no cryptography.
 page-tokens = ["dep:chacha20poly1305", "dep:hkdf", "dep:sha2", "dep:base64"]
@@ -37,6 +42,7 @@ permissions = []
 test-support = []
 
 [dependencies]
+crucible-explorer-assets = { workspace = true, optional = true }
 crucible-wire = { workspace = true, features = ["mcp"] }
 async-trait = "0.1"
 axum = "0.8"

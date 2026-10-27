@@ -42,12 +42,19 @@ jobs:
   qualify:
     needs: preflight
     uses: ./.github/workflows/ci.yml
+  cli-artifacts:
+    needs: preflight
+    uses: ./.github/workflows/build-cli.yml
+    with:
+      version: ${{ inputs.version }}
   publish:
-    needs: [preflight, qualify]
+    needs: [preflight, qualify, cli-artifacts]
     runs-on: ${{ vars.LINUX_RUNNER || 'ubuntu-latest' }}
     timeout-minutes: 10
     permissions:
       contents: write
+      id-token: write
+      attestations: write
     steps:
       - uses: actions/checkout@v7
         with: { persist-credentials: false }
@@ -63,6 +70,13 @@ jobs:
           pattern: crucible-lsp-*
           path: dist
           merge-multiple: true
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
+        with:
+          name: crucible-cli-release
+          path: dist/cli
+      - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4
+        with:
+          subject-path: dist/cli/*
       - name: Publish the tested commit as a GitHub tag and release
         env:
           GH_TOKEN: ${{ github.token }}
@@ -76,4 +90,4 @@ jobs:
             --verify-tag --title "Crucible $RELEASE_VERSION" --generate-notes \
             "dist/hello-service-v$RELEASE_VERSION.zip" \
             "dist/hello-client-v$RELEASE_VERSION.zip" \
-            dist/crucible-lsp-*.zip
+            dist/crucible-lsp-*.zip dist/cli/*

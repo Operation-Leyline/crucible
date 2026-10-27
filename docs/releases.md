@@ -19,7 +19,7 @@ Crucible is `0.x`: the minor number plays the role of a major version.
 
 The **stable surface** is what a service or client author writes against:
 
-- the public API of `crucible-server-runtime-rust`, `crucible-wire`,
+- the public API of `crucible-api`, `crucible-server-runtime-rust`, `crucible-wire`,
   `crucible-client-runtime-rust`, `crucible-auth` and `crucible-build`;
 - the Rust API that generated server and client bindings expose (type, trait
   and method names and signatures; not the bodies);

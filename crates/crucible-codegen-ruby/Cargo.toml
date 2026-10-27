@@ -5,6 +5,13 @@ edition.workspace = true
 license.workspace = true
 rust-version.workspace = true
 publish.workspace = true
+description = "Ruby client package generation for Crucible API models"
+readme.workspace = true
+license-file.workspace = true
+keywords.workspace = true
+categories.workspace = true
+exclude.workspace = true
+repository.workspace = true
 
 [dependencies]
 crucible-ir.workspace = true
@@ -14,7 +21,7 @@ sha2 = "0.10"
 
 [dev-dependencies]
 # The typed permissions fixture is a `.cru` package (tests/fixtures/permissions).
-crucible-lang.workspace = true
+crucible-lang = { path = "../crucible-lang" }
 
 [lints]
 workspace = true

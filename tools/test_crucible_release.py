@@ -74,6 +74,76 @@ version = "0.1.0"
                 self.assertIn('name = "serde"\nversion = "1.0.0"', text)
                 self.assertIn('checksum = "keep-this"', text)
 
+    def test_prepare_keeps_published_internal_requirements_in_step_with_release(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            self.fixture(root)
+            root_manifest = root / "Cargo.toml"
+            root_manifest.write_text(root_manifest.read_text() +
+                'runtime = { package = "crucible-server-runtime-rust", path = "crates/crucible-server-runtime-rust", version = "=0.1.0" }\n')
+            member = root / "crates/crucible-server-runtime-rust/Cargo.toml"
+            member.write_text(member.read_text() + '\n[dependencies]\n' +
+                'external = { version = "=0.1.0" }\n' +
+                '\n[target.\'cfg(unix)\'.build-dependencies]\n' +
+                'same = { package = "crucible-server-runtime-rust", path = ".", version = "=0.1.0" }\n')
+            prepare(root, "0.2.0")
+            self.assertIn('version = "=0.2.0"', root_manifest.read_text())
+            self.assertIn('same = { package = "crucible-server-runtime-rust", path = ".", version = "=0.2.0" }', member.read_text())
+            self.assertIn('external = { version = "=0.1.0" }', member.read_text())
+            check(root, "0.2.0")
+
+    def test_stale_internal_requirement_refuses_before_any_write(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            self.fixture(root)
+            manifest = root / "Cargo.toml"
+            manifest.write_text(manifest.read_text() +
+                'runtime = { package = "crucible-server-runtime-rust", path = "crates/crucible-server-runtime-rust", version = "=0.0.9" }\n')
+            before = {path: path.read_bytes() for path in (manifest, *(root / lock for lock in LOCKFILES))}
+            with self.assertRaisesRegex(ValueError, "must require =0.1.0"):
+                prepare(root, "0.2.0")
+            self.assertEqual(before, {path: path.read_bytes() for path in before})
+
+    def test_standalone_streaming_consumer_lock_is_bumped_and_checked(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            self.fixture(root)
+            streaming = root / "tests/consumers/streaming/Cargo.lock"
+            streaming.parent.mkdir()
+            streaming.write_bytes((root / "Cargo.lock").read_bytes())
+            prepare(root, "0.2.0")
+            self.assertIn('name = "crucible-server-runtime-rust"\nversion = "0.2.0"', streaming.read_text())
+            streaming.write_text(streaming.read_text().replace(
+                'name = "crucible-server-runtime-rust"\nversion = "0.2.0"',
+                'name = "crucible-server-runtime-rust"\nversion = "0.1.0"'))
+            with self.assertRaisesRegex(ValueError, "expected 0.2.0"):
+                check(root, "0.2.0")
+
+    def test_stale_standalone_lock_is_validated_before_any_version_write(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            self.fixture(root)
+            consumer = root / "tests/consumers/future-native/Cargo.lock"
+            consumer.parent.mkdir()
+            consumer.write_text((root / "Cargo.lock").read_text().replace(
+                'name = "crucible-server-runtime-rust"\nversion = "0.1.0"',
+                'name = "crucible-server-runtime-rust"\nversion = "0.0.9"'))
+            before = {path: path.read_bytes() for path in (root / "Cargo.toml", *(root / lock for lock in LOCKFILES), consumer)}
+            with self.assertRaisesRegex(ValueError, "expected 0.1.0"):
+                prepare(root, "0.2.0")
+            self.assertEqual(before, {path: path.read_bytes() for path in before})
+
+    def test_consumer_without_path_dependencies_on_workspace_is_untouched(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            self.fixture(root)
+            consumer = root / "tests/consumers/independent/Cargo.lock"
+            consumer.parent.mkdir()
+            consumer.write_text('version = 4\n\n[[package]]\nname = "crucible-server-runtime-rust"\nversion = "0.1.0"\nsource = "registry+https://github.com/rust-lang/crates.io-index"\n')
+            original = consumer.read_bytes()
+            prepare(root, "0.2.0")
+            self.assertEqual(consumer.read_bytes(), original)
+
     def test_stale_lockfile_does_not_partially_bump_version(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

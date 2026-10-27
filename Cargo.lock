@@ -517,6 +517,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a31eee39dddec8330830986fcd7625edb5a24ec90ea038215273bbc3adb08ac6"
 
 [[package]]
+name = "crucible-api"
+version = "0.8.0"
+dependencies = [
+ "crucible-auth",
+ "crucible-client-runtime-rust",
+ "crucible-server-runtime-rust",
+]
+
+[[package]]
 name = "crucible-auth"
 version = "0.8.0"
 dependencies = [
@@ -749,6 +758,7 @@ name = "crucible-codegen-docs"
 version = "0.8.0"
 dependencies = [
  "crucible-codegen-common",
+ "crucible-explorer-assets",
  "crucible-ir",
  "crucible-lang",
  "pulldown-cmark",
@@ -916,6 +926,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "crucible-explorer-assets"
+version = "0.8.0"
+
+[[package]]
 name = "crucible-ir"
 version = "0.8.0"
 dependencies = [
@@ -1001,6 +1015,7 @@ dependencies = [
  "base64 0.22.1",
  "chacha20poly1305",
  "chrono",
+ "crucible-explorer-assets",
  "crucible-wire",
  "futures-util",
  "hkdf",

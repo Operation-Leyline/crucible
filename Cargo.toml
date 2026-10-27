@@ -9,43 +9,49 @@ version = "0.8.0"
 edition = "2024"
 rust-version = "1.85"
 license = "Apache-2.0"
-publish = false
+publish = true
+readme = "README.md"
+license-file = "LICENSE"
+keywords = ["api", "code-generation", "rpc", "web", "crucible"]
+categories = ["development-tools", "web-programming"]
+exclude = ["tests/**", "benches/**"]
 repository = "https://github.com/Operation-Leyline/crucible"
 
 [workspace.dependencies]
-crucible-codegen = { path = "crates/crucible-codegen", default-features = false }
-crucible-server-runtime-rust = { path = "crates/crucible-server-runtime-rust" }
-crucible-wire = { path = "crates/crucible-wire" }
-crucible-client-runtime-rust = { path = "crates/crucible-client-runtime-rust" }
-crucible-cli-runtime = { path = "crates/crucible-cli-runtime" }
-crucible-codegen-cli = { path = "crates/crucible-codegen-cli" }
-crucible-build = { path = "crates/crucible-build" }
-crucible-policy = { path = "crates/crucible-policy" }
-crucible-sdk-release = { path = "crates/crucible-sdk-release" }
-crucible-codegen-rust = { path = "crates/crucible-codegen-rust" }
-crucible-ir = { path = "crates/crucible-ir" }
-crucible-lang = { path = "crates/crucible-lang" }
-crucible-codegen-ts = { path = "crates/crucible-codegen-ts" }
-crucible-codegen-openapi = { path = "crates/crucible-codegen-openapi" }
-crucible-codegen-jsonschema = { path = "crates/crucible-codegen-jsonschema" }
-crucible-codegen-docs = { path = "crates/crucible-codegen-docs" }
-crucible-codegen-infra = { path = "crates/crucible-codegen-infra" }
-crucible-codegen-cdk = { path = "crates/crucible-codegen-cdk" }
-crucible-codegen-terraform = { path = "crates/crucible-codegen-terraform" }
-crucible-codegen-python = { path = "crates/crucible-codegen-python" }
-crucible-codegen-common = { path = "crates/crucible-codegen-common" }
-crucible-revision = { path = "crates/crucible-revision" }
-crucible-codegen-go = { path = "crates/crucible-codegen-go" }
-crucible-codegen-java = { path = "crates/crucible-codegen-java" }
-crucible-codegen-csharp = { path = "crates/crucible-codegen-csharp" }
-crucible-codegen-kotlin = { path = "crates/crucible-codegen-kotlin" }
-crucible-codegen-swift = { path = "crates/crucible-codegen-swift" }
-crucible-codegen-cpp = { path = "crates/crucible-codegen-cpp" }
-crucible-codegen-c = { path = "crates/crucible-codegen-c" }
-crucible-codegen-r = { path = "crates/crucible-codegen-r" }
-crucible-codegen-ruby = { path = "crates/crucible-codegen-ruby" }
-crucible-codegen-php = { path = "crates/crucible-codegen-php" }
-crucible-codegen-dart = { path = "crates/crucible-codegen-dart" }
+crucible-explorer-assets = { version = "=0.8.0", path = "crates/crucible-explorer-assets" }
+crucible-codegen = { version = "=0.8.0", path = "crates/crucible-codegen", default-features = false }
+crucible-server-runtime-rust = { version = "=0.8.0", path = "crates/crucible-server-runtime-rust" }
+crucible-wire = { version = "=0.8.0", path = "crates/crucible-wire" }
+crucible-client-runtime-rust = { version = "=0.8.0", path = "crates/crucible-client-runtime-rust" }
+crucible-cli-runtime = { version = "=0.8.0", path = "crates/crucible-cli-runtime" }
+crucible-codegen-cli = { version = "=0.8.0", path = "crates/crucible-codegen-cli" }
+crucible-build = { version = "=0.8.0", path = "crates/crucible-build" }
+crucible-policy = { version = "=0.8.0", path = "crates/crucible-policy" }
+crucible-sdk-release = { version = "=0.8.0", path = "crates/crucible-sdk-release" }
+crucible-codegen-rust = { version = "=0.8.0", path = "crates/crucible-codegen-rust" }
+crucible-ir = { version = "=0.8.0", path = "crates/crucible-ir" }
+crucible-lang = { version = "=0.8.0", path = "crates/crucible-lang" }
+crucible-codegen-ts = { version = "=0.8.0", path = "crates/crucible-codegen-ts" }
+crucible-codegen-openapi = { version = "=0.8.0", path = "crates/crucible-codegen-openapi" }
+crucible-codegen-jsonschema = { version = "=0.8.0", path = "crates/crucible-codegen-jsonschema" }
+crucible-codegen-docs = { version = "=0.8.0", path = "crates/crucible-codegen-docs" }
+crucible-codegen-infra = { version = "=0.8.0", path = "crates/crucible-codegen-infra" }
+crucible-codegen-cdk = { version = "=0.8.0", path = "crates/crucible-codegen-cdk" }
+crucible-codegen-terraform = { version = "=0.8.0", path = "crates/crucible-codegen-terraform" }
+crucible-codegen-python = { version = "=0.8.0", path = "crates/crucible-codegen-python" }
+crucible-codegen-common = { version = "=0.8.0", path = "crates/crucible-codegen-common" }
+crucible-revision = { version = "=0.8.0", path = "crates/crucible-revision" }
+crucible-codegen-go = { version = "=0.8.0", path = "crates/crucible-codegen-go" }
+crucible-codegen-java = { version = "=0.8.0", path = "crates/crucible-codegen-java" }
+crucible-codegen-csharp = { version = "=0.8.0", path = "crates/crucible-codegen-csharp" }
+crucible-codegen-kotlin = { version = "=0.8.0", path = "crates/crucible-codegen-kotlin" }
+crucible-codegen-swift = { version = "=0.8.0", path = "crates/crucible-codegen-swift" }
+crucible-codegen-cpp = { version = "=0.8.0", path = "crates/crucible-codegen-cpp" }
+crucible-codegen-c = { version = "=0.8.0", path = "crates/crucible-codegen-c" }
+crucible-codegen-r = { version = "=0.8.0", path = "crates/crucible-codegen-r" }
+crucible-codegen-ruby = { version = "=0.8.0", path = "crates/crucible-codegen-ruby" }
+crucible-codegen-php = { version = "=0.8.0", path = "crates/crucible-codegen-php" }
+crucible-codegen-dart = { version = "=0.8.0", path = "crates/crucible-codegen-dart" }
 # Exact model numbers: the server's `DecimalValue` (crucible-wire) and the
 # IR's checks against it (crucible-ir) must be the same type.
 bigdecimal = "0.4.10"
@@ -64,3 +70,8 @@ unsafe_code = "forbid"
 
 [workspace.lints.clippy]
 all = { level = "warn", priority = -1 }
+
+# The profile that 'dist' will build with
+[profile.dist]
+inherits = "release"
+lto = "thin"

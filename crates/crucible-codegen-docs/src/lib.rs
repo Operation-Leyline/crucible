@@ -307,9 +307,9 @@ fn site(description: &str) -> [File; 4] {
         contents: source.replace("\r\n", "\n"),
     };
     [
-        runtime("index.html", include_str!("../runtime/index.html")),
-        runtime("explorer.js", include_str!("../runtime/explorer.js")),
-        runtime("explorer.css", include_str!("../runtime/explorer.css")),
+        runtime("index.html", crucible_explorer_assets::INDEX_HTML),
+        runtime("explorer.js", crucible_explorer_assets::EXPLORER_JS),
+        runtime("explorer.css", crucible_explorer_assets::EXPLORER_CSS),
         File {
             path: "describe.js".into(),
             contents: format!(

@@ -42,10 +42,16 @@ Require green CI and one completed AI review before merging. Fix or explicitly
 dismiss every finding with evidence. Any AI reviewer is sufficient; no named
 provider or second AI review is required.
 
+Published library dependencies carry the exact workspace version with their path.
+Dev-only dependencies on other workspace crates use versionless paths so Cargo
+omits them from published manifests rather than creating registry dependency cycles.
+
 ## Boundaries
 
 | Crate | Owns |
 |---|---|
+| `crucible-api` | opt-in crate aliases for the server, Rust client and server authentication; no runtime behavior |
+| `crucible-explorer-assets` | canonical static renderer shell, JavaScript and CSS shared by generated API references and the optional local explorer |
 | `crucible-server-runtime-rust` | the Rust server framework: orchestrator and phased pipeline, context, protocols, validation, errors, built-in middleware, hosting (HTTP, Lambda) |
 | `crucible-wire` | what server and client share: operation descriptions, modelled errors, validation, timestamps, the one-pass body/bound-member readers and writers |
 | `crucible-client-runtime-rust` | the Rust client runtime: transport, retries, error decoding, pagination |

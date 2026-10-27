@@ -36,6 +36,7 @@ class PlanTests(unittest.TestCase):
     def test_server_runtime_rename_keeps_old_and_new_paths_qualified(self):
         self.assertEqual(affected_groups(["crates/crucible/src/lib.rs"]), set(CORE_GROUPS))
         self.assertEqual(affected_groups(["crates/crucible-server-runtime-rust/src/lib.rs"]), CORE_GROUPS | CONSUMERS)
+        self.assertEqual(affected_groups(["crates/crucible-api/src/lib.rs"]), CORE_GROUPS | CONSUMERS)
 
     def test_language_changes_keep_native_consumers_and_dependencies(self):
         for language, expected in {
@@ -75,6 +76,7 @@ class PlanTests(unittest.TestCase):
         self.assertEqual(affected_groups(["crates/crucible-codegen-openapi/src/lib.rs"]), {"rust"})
         self.assertEqual(affected_groups(["crates/crucible-codegen-docs/src/lib.rs"]), {"rust", "docs_site"})
         self.assertEqual(affected_groups(["crates/crucible-codegen-docs/runtime/explorer.js"]), {"rust", "docs_site", "e2e"})
+        self.assertEqual(affected_groups(["crates/crucible-explorer-assets/runtime/explorer.js"]), CORE_GROUPS | {"docs_site", "consumers"})
         self.assertEqual(affected_groups(["tools/test-docs-site.sh"]), {"rust", "docs_site"})
         self.assertEqual(affected_groups(["crates/crucible-codegen-docs/tests/golden/weather-external/describe.json"]), {"rust", "docs_site"})
         self.assertEqual(affected_groups(["crates/crucible-codegen-openapi/tests/golden/weather.openapi.json"]), {"rust"})
@@ -180,7 +182,7 @@ class PlanTests(unittest.TestCase):
         # The aggregate cannot pass a release (full) run when consumers was skipped or failed.
         self.assertIn('results["plan"]["outputs"]["full"] == "true" and results["consumers"]["result"] != "success"', jobs["ci"])
         release = (ROOT / ".github/workflows/release.yml").read_text()
-        self.assertIn("needs: [preflight, qualify]", release)
+        self.assertIn("needs: [preflight, qualify, cli-artifacts]", release)
         self.assertIn("uses: ./.github/workflows/ci.yml", release)
 
     def test_unknown_paths_keep_all_linux_consumers(self):
@@ -374,7 +376,7 @@ class PlanTests(unittest.TestCase):
         self.assertIn("workflow_dispatch:", workflow)
         self.assertIn("workflow_dispatch:", release)
         self.assertIn("uses: ./.github/workflows/ci.yml", release)
-        self.assertIn("needs: [preflight, qualify]", release)
+        self.assertIn("needs: [preflight, qualify, cli-artifacts]", release)
         self.assertIn('-f "sha=$GITHUB_SHA"', release)
         self.assertIn("--verify-tag", release)
 

@@ -11,8 +11,8 @@ use crate::protocol::{Answers, Protocol};
 use crate::{Hook, Job, Prepare, Result};
 
 const INDEX: &str = include_str!("runtime/index.html");
-const RENDERER: &[u8] = include_bytes!("../../../crucible-codegen-docs/runtime/explorer.js");
-const STYLE: &[u8] = include_bytes!("../../../crucible-codegen-docs/runtime/explorer.css");
+const RENDERER: &[u8] = crucible_explorer_assets::EXPLORER_JS.as_bytes();
+const STYLE: &[u8] = crucible_explorer_assets::EXPLORER_CSS.as_bytes();
 const TRY_IT: &[u8] = include_bytes!("runtime/try-it.js");
 const TRY_STYLE: &[u8] = include_bytes!("runtime/try-it.css");
 const CSP: &str = "default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'self'; img-src 'self' data:; frame-ancestors 'none'; base-uri 'none'";

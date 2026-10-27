@@ -7,6 +7,7 @@
    auth chain, custom middleware and interceptors, typed validation
    errors, Lambda events) and an independent consumer of its generated Rust SDK;
 4. the `crucible.sdks/1` snippets for generated Weather and Samples Rust SDKs.
+5. the opt-in `crucible-api` aliases, from an independent consumer feature matrix.
 
 Everything shares one Cargo target directory (CARGO_TARGET_DIR if set,
 otherwise e2e/target, which the e2e job's cache already holds), so the
@@ -21,6 +22,7 @@ import http.client
 import json
 import os
 from pathlib import Path
+import re
 import shutil
 import subprocess
 import sys
@@ -96,6 +98,31 @@ def weather(env):
     run(["cargo", "test", "-q", "--locked", "--manifest-path", "e2e/Cargo.toml",
          "-p", "weather-model", "-p", "weather-service", "-p", "weather-client"], env=env)
     print("e2e: weather model, service, client and conformance passed", flush=True)
+
+
+def api(env, work):
+    manifest = ROOT / "tests/consumers/api/Cargo.toml"
+    for features in (None, "server", "client", "auth", "server,client,auth"):
+        arguments = ["cargo", "test", "-q", "--locked", "--manifest-path", str(manifest), "--no-default-features"]
+        if features:
+            arguments.extend(["--features", features])
+        run(arguments, env=env)
+    application = work / "api-readme"
+    bins = application / "src/bin"
+    bins.mkdir(parents=True)
+    readme = (ROOT / "crates/crucible-api/README.md").read_text(encoding="utf-8")
+    programs = re.findall(r"```rust\n(.*?)```", readme, re.S)
+    if not programs:
+        raise SystemExit("crucible-api README has no Rust example")
+    for index, source in enumerate(programs):
+        (bins / f"example_{index}.rs").write_text("fn main() {\n" + source + "\n}\n", encoding="utf-8")
+    dependency = (ROOT / "crates/crucible-api").as_posix()
+    (application / "Cargo.toml").write_text(
+        '[package]\nname="api-readme"\nversion="0.0.0"\nedition="2024"\npublish=false\n[workspace]\n'
+        f'[dependencies]\ncrucible-api={{path={json.dumps(dependency)},features=["server","client","auth"]}}\n',
+        encoding="utf-8")
+    run(["cargo", "check", "-q", "--manifest-path", str(application / "Cargo.toml")], env=env)
+    print("api: empty/server/client/auth/combined independent consumers passed", flush=True)
 
 
 def leyline(env, work, target):
@@ -175,6 +202,7 @@ def main():
     env = {**plain, **deny_deprecated(plain)}
     with tempfile.TemporaryDirectory(prefix="crucible-consumers-") as directory:
         work = Path(directory)
+        api(env, work)
         starter(env, work, target)
         weather(env)
         leyline(env, work, target)

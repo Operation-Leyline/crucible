@@ -12,7 +12,8 @@ import { createWindow } from "./fake-dom.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const crate = join(here, "..", "..");
-const x = createRequire(import.meta.url)(join(crate, "runtime", "explorer.js"));
+const assets = join(crate, "..", "crucible-explorer-assets", "runtime");
+const x = createRequire(import.meta.url)(join(assets, "explorer.js"));
 const golden = (name) => JSON.parse(readFileSync(join(crate, "tests", "golden", name, "describe.json"), "utf8"));
 
 const WEATHER = golden("weather-internal");
@@ -403,14 +404,14 @@ test("XSS: the DOM boot path writes innerHTML only for documentation, and only i
 });
 
 test("source hygiene: one innerHTML write, no eval-like calls, no remote or inline resources", () => {
-  const js = readFileSync(join(crate, "runtime", "explorer.js"), "utf8");
+  const js = readFileSync(join(assets, "explorer.js"), "utf8");
   assert.equal(js.match(/\.innerHTML\b/g).length, 1);
   for (const banned of ["outerHTML", "insertAdjacentHTML", "document.write", "eval(", "new Function", "setAttribute(\"style\"", "javascript:", "XMLHttpRequest", "import("]) {
     assert.ok(!js.includes(banned), banned);
   }
-  const css = readFileSync(join(crate, "runtime", "explorer.css"), "utf8");
+  const css = readFileSync(join(assets, "explorer.css"), "utf8");
   assert.ok(!/@import|url\(|@font-face/.test(css), "no external or font resources");
-  const html = readFileSync(join(crate, "runtime", "index.html"), "utf8");
+  const html = readFileSync(join(assets, "index.html"), "utf8");
   assert.ok(!/<style|style=|\son\w+=|<script(?![^>]*\ssrc=)/i.test(html), "inline code");
   const size = [js, css, html].reduce((n, s) => n + Buffer.byteLength(s), 0);
   assert.ok(size < 100 * 1024, `renderer is ${size} bytes`);

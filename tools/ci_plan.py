@@ -29,6 +29,7 @@ SDK_GROUPS = MODEL_GROUPS | {"java", "cdk", "terraform", "service_cli"}
 CONSUMER_CRATES = frozenset({
     "crucible-build", "crucible-server-runtime-rust", "crucible-wire",
     "crucible-codegen-rust", "crucible-auth", "crucible-client-runtime-rust",
+    "crucible-api",
 })
 GENERATORS = {
     # The OpenAPI emitter is qualified by Rust unit/golden and CLI tests.
@@ -126,7 +127,9 @@ def affected_groups(paths):
                 selected.update({"e2e", "service_cli"})
             elif crate == "crucible-cli-runtime":
                 selected.add("service_cli")
-            elif crate in {"crucible", "crucible-server-runtime-rust", "crucible-wire", "crucible-policy", "crucible-cli", "crucible-codegen-rust", "crucible-auth"}:
+            elif crate == "crucible-explorer-assets":
+                selected.update(CORE_GROUPS | {"docs_site", "consumers"})
+            elif crate in {"crucible", "crucible-server-runtime-rust", "crucible-wire", "crucible-policy", "crucible-cli", "crucible-codegen-rust", "crucible-auth", "crucible-api"}:
                 selected.update(CORE_GROUPS)
                 if crate == "crucible-cli":
                     selected.add("service_cli")

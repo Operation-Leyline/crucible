@@ -37,6 +37,10 @@ version's section when it is prepared.
   model defaults for omitted reasons. Served release projections retain valid
   reason roles across retypes and member renames. Error wire responses are unchanged.
 
+- The optional `crucible-api` crate re-exports the existing server, Rust client
+  and server authentication crates through `server`, `client` and `auth` features.
+  No features or authentication policy are enabled by default.
+
 - Operation documentation can use conventional `Use when` and `Don't use when`
   Markdown sections. Lowering preserves the original prose and records optional
   `Operation::intent` metadata, also exposed by `crucible.describe/1` and reference
@@ -101,6 +105,13 @@ version's section when it is prepared.
 - TypeScript response streams deliver complete CR-terminated events without
   waiting for another byte. Split CRLF delimiters retain their event byte count,
   and extra bytes after the terminal outcome are rejected, including whitespace.
+
+- Release preparation and checking include standalone consumer lockfiles and
+  keep published internal dependency requirements aligned with the workspace
+  version, while preserving registry dependencies and example versions.
+- The packaged server runtime's optional explorer reads shared renderer assets
+  from a leaf package, so it compiles outside the Crucible source workspace.
+
 - Operation-body naming collisions now report errors at both source bodies
   instead of silently replacing another operation's input or output contract.
 - Generator revision provenance follows Git reftable ref updates, including

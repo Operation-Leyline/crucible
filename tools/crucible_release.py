@@ -7,8 +7,8 @@ import tomllib
 
 
 ROOT = Path(__file__).resolve().parents[1]
-# Every checked-in lockfile that pins the workspace crates by path. The root one
-# must list all of them; the others hold the subset their workspace uses.
+# Core/nested lockfiles. Standalone consumer workspaces are discovered below;
+# their locks hold only the subset of workspace crates that each consumer uses.
 LOCKFILES = (
     "Cargo.lock",
     "e2e/Cargo.lock",
@@ -16,6 +16,17 @@ LOCKFILES = (
     "tests/consumers/leyline/leyline-sdk-consumer/Cargo.lock",
 )
 VERSION = re.compile(r"(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\Z")
+
+
+def lockfiles(root, packages):
+    # This bounded glob includes each standalone consumer without descending
+    # into target directories or generated SDKs. The nested Leyline SDK is above.
+    consumers = []
+    for path in root.glob("tests/consumers/*/Cargo.lock"):
+        entries = tomllib.loads(path.read_text(encoding="utf-8")).get("package", [])
+        if any(entry["name"] in packages and "source" not in entry for entry in entries):
+            consumers.append(path.relative_to(root).as_posix())
+    return sorted(set(LOCKFILES).union(consumers))
 
 
 def version_tuple(version):
@@ -101,8 +112,41 @@ def check(root, version):
     if version != current:
         raise ValueError(f"Requested {version}, but the merged workspace version is {current}")
     changelog_entry(root, version)
-    for lock in LOCKFILES:
+    dependency_manifests(root, packages, current)
+    for lock in lockfiles(root, packages):
         lock_content(root / lock, packages, current, require_all=lock == "Cargo.lock")
+
+
+def dependency_manifests(root, packages, current, replacement=None):
+    """Check/update only versioned paths into this release's workspace crates."""
+    edits = {}
+    members = tomllib.loads((root / "Cargo.toml").read_text(encoding="utf-8"))["workspace"]["members"]
+    paths = [root / "Cargo.toml", *sorted({
+        path for member in members for path in root.glob(f"{member}/Cargo.toml")
+    })]
+    for path in paths:
+        content = path.read_text(encoding="utf-8")
+        document = tomllib.loads(content)
+        tables = [document.get("workspace", {}).get("dependencies", {})]
+        for section in (document, *document.get("target", {}).values()):
+            tables.extend(section.get(kind, {}) for kind in
+                          ("dependencies", "build-dependencies", "dev-dependencies"))
+        for table in tables:
+            for alias, dependency in table.items():
+                if not isinstance(dependency, dict) or "path" not in dependency:
+                    continue
+                name = dependency.get("package", alias)
+                if name not in packages or "version" not in dependency:
+                    continue
+                if dependency["version"] != "=" + current:
+                    raise ValueError(f"{path}: {alias} must require ={current}")
+                if replacement is not None:
+                    pattern = rf'(?m)^({re.escape(alias)}\s*=\s*\{{[^\n]*?\bversion\s*=\s*)"={re.escape(current)}"'
+                    content, count = re.subn(pattern, rf'\g<1>"={replacement}"', content)
+                    if count != 1:
+                        raise ValueError(f"Cannot update dependency {alias} in {path}")
+        edits[path] = content
+    return edits
 
 
 def prepare(root, version):
@@ -111,19 +155,20 @@ def prepare(root, version):
         raise ValueError(f"New version must be greater than {current}")
     changelog_entry(root, version)
     # Validate every file before writing, so a stale lockfile leaves the
-    # checkout intact. Dependency versions and example-service versions stay put.
-    edits = {}
-    for lock in LOCKFILES:
+    # checkout intact. Registry dependencies and example-service versions stay put.
+    edits = dependency_manifests(root, packages, current, version)
+    for lock in lockfiles(root, packages):
         edits[root / lock] = lock_content(root / lock, packages, current, version, require_all=lock == "Cargo.lock")
     start = content.index("[workspace.package]")
     end = content.find("\n[", start + 1)
     if end < 0:
         end = len(content)
+    updated = edits[manifest]
     section, count = re.subn(r'^version = "[^"]+"$', f'version = "{version}"',
-                             content[start:end], count=1, flags=re.MULTILINE)
+                             updated[start:end], count=1, flags=re.MULTILINE)
     if count != 1:
         raise ValueError("Cannot update [workspace.package].version")
-    edits[manifest] = content[:start] + section + content[end:]
+    edits[manifest] = updated[:start] + section + updated[end:]
     for path, text in edits.items():
         path.write_text(text, encoding="utf-8", newline="\n")
     check(root, version)
