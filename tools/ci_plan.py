@@ -78,11 +78,15 @@ TOOLS = {
     "tools/test-consumers.py": {"consumers"},
     "tools/test-rust-streaming.py": {"consumers"},
     "tools/test-csharp-streaming.py": {"csharp"},
+    # Every native gate imports it; keep the representative SDKs plus C#,
+    # whose stream qualification (tools/test-csharp-streaming.py) runs through it.
+    "tools/sdk_test_support.py": MODEL_GROUPS | {"csharp"},
     # The shared profile vectors; the C# stream consumer reads them too.
     "tests/conformance/response-stream.json": MODEL_GROUPS | {"consumers", "csharp"},
 }
 
-# The Rust HTTP fixture and the stream model are shared by the Rust consumer
+# The Rust HTTP fixture, the streaming fixture library it wraps (modes and the
+# producer drop counter) and the stream model are shared by the Rust consumer
 # (`tools/test-rust-streaming.py`) and every native stream client gate.
 NATIVE_STREAM_PATHS = ("tests/consumers/native-stream-http/", "tests/consumers/rust-stream-client/")
 NATIVE_STREAM_GROUPS = frozenset({"consumers", "python", "go", "csharp"})
@@ -167,14 +171,15 @@ def affected_groups(paths):
         elif path.startswith("tools/cpp-vcpkg/"):
             selected.update({"c", "cpp"})
         elif path.startswith("tests/consumers/streaming/"):
-            selected.update({"consumers", "typescript", "e2e"})
+            # Also the library behind tests/consumers/native-stream-http.
+            selected.update({"consumers", "typescript", "e2e"} | NATIVE_STREAM_GROUPS)
         elif path.startswith(NATIVE_STREAM_PATHS):
             selected.update(NATIVE_STREAM_GROUPS)
         elif path.startswith("tests/consumers/"):
             selected.add("consumers")
         elif path.startswith("e2e/"):
             selected.update(CORE_GROUPS)
-        elif path.startswith("tests/conformance/") or path in {"Cargo.toml", "Cargo.lock", "tools/sdk_test_support.py"}:
+        elif path.startswith("tests/conformance/") or path in {"Cargo.toml", "Cargo.lock"}:
             selected.update(MODEL_GROUPS)
         elif path.startswith("docs/") and path.endswith(".md"):
             continue

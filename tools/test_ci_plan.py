@@ -43,6 +43,14 @@ class PlanTests(unittest.TestCase):
         self.assertIn("python tools/test-csharp.py", job)
         self.assertNotIn("CSHARP_ONLY", job)
 
+    def test_streaming_fixture_library_selects_every_native_stream_gate(self):
+        # native-stream-http wraps it: fixture modes and the producer drop counter.
+        self.assertEqual(affected_groups(["tests/consumers/streaming/src/lib.rs"]),
+                         {"rust", "typescript", "e2e", "consumers", "python", "go", "csharp"})
+
+    def test_sdk_test_support_keeps_representative_sdks_and_csharp_streams(self):
+        self.assertEqual(affected_groups(["tools/sdk_test_support.py"]), MODEL_GROUPS | {"csharp"})
+
     def test_shared_native_stream_fixture_and_model_select_every_native_stream_gate(self):
         for path in ("tests/consumers/native-stream-http/src/main.rs", "tests/consumers/rust-stream-client/model/model.cru"):
             with self.subTest(path=path):
@@ -52,7 +60,8 @@ class PlanTests(unittest.TestCase):
         for path in ("tools/test-streaming-browser.py", "tools/streaming-browser.mjs", "tools/requirements-browser.txt"):
             with self.subTest(path=path):
                 self.assertEqual(affected_groups([path]), {"rust", "typescript", "e2e"})
-        self.assertEqual(affected_groups(["tests/consumers/streaming/src/browser_fixture.rs"]), {"rust", "typescript", "e2e", "consumers"})
+        self.assertEqual(affected_groups(["tests/consumers/streaming/src/browser_fixture.rs"]),
+                         {"rust", "typescript", "e2e", "consumers", "python", "go", "csharp"})
 
     def test_server_runtime_rename_keeps_old_and_new_paths_qualified(self):
         self.assertEqual(affected_groups(["crates/crucible/src/lib.rs"]), set(CORE_GROUPS))
@@ -119,7 +128,6 @@ class PlanTests(unittest.TestCase):
         for path in (
             "crates/crucible-ir/src/ir.rs", "crates/crucible-codegen-common/src/lib.rs",
             "tests/conformance/http.json", "Cargo.toml", "Cargo.lock",
-            "tools/sdk_test_support.py",
         ):
             with self.subTest(path=path):
                 self.assertEqual(affected_groups([path]), MODEL_GROUPS)
