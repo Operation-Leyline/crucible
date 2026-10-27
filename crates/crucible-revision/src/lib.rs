@@ -18,7 +18,10 @@ pub fn source_revision() -> Option<&'static str> {
     option_env!("CRUCIBLE_GENERATOR_REVISION")
 }
 
-/// Whether tracked or untracked source files made the checkout dirty when built.
+/// Whether the recorded generator-input paths were dirty when built.
+///
+/// This checks Git's tracked and nonignored untracked status for `crates/`,
+/// `Cargo.toml`, and `Cargo.lock`.
 pub fn dirty() -> bool {
     option_env!("CRUCIBLE_GENERATOR_DIRTY").is_some()
 }

@@ -455,7 +455,9 @@ compared for "unchanged", and no service script is hashed.
 
 Generator provenance is a build-time snapshot. To keep incremental builds
 fast and bounded, Cargo watches existing ignore files and relevant source
-trees. Creating a previously absent root `.gitignore` or global ignore file
+trees. Dirty state uses Git's tracked and nonignored untracked status for
+`crates/`, `Cargo.toml`, and `Cargo.lock`.
+Creating a previously absent root `.gitignore` or global ignore file
 can change Git's classification without changing a watched input. Cargo
 can then reuse the previous dirty or clean snapshot. Watching absent files
 would rerun the build script on every build; watching their checkout or home
