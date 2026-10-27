@@ -1,3 +1,5 @@
+from pathlib import Path
+import tempfile
 import unittest
 
 import check_publish_metadata as check
@@ -50,6 +52,18 @@ class ProblemsTest(unittest.TestCase):
         self.assertIn("path dependency b has no version requirement", found)
         self.assertIn("depends on unpublishable workspace crate c", found)
         self.assertIn("path dependency ext is outside the workspace", found)
+
+    def test_packaged_readme_links_must_be_absolute(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "README.md").write_text(
+                "[a](docs/a.md) [b](https://example.invalid/b) [c](#c) ![d](img/d.png) [a](docs/a.md)\n",
+                encoding="utf-8")
+            crate = package("a", readme="README.md", manifest_path=str(root / "Cargo.toml"))
+            self.assertEqual(check.problems(crate, {"a": True}), [
+                "readme has a relative link: docs/a.md",
+                "readme has a relative link: img/d.png",
+            ])
 
     def test_dev_dependencies_do_not_block_publishing(self):
         crate = package("a", deps=[path_dep("c", req="*", kind="dev")])

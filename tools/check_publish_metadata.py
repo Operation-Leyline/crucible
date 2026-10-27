@@ -11,6 +11,7 @@ published has a problem, so it can gate a release once the manifests are fixed.
 import argparse
 import json
 from pathlib import Path
+import re
 import subprocess
 import sys
 
@@ -19,6 +20,8 @@ ROOT = Path(__file__).resolve().parents[1]
 BINARY_ONLY = {"crucible-cli", "crucible-lsp"}
 MAX_KEYWORDS = 5
 MAX_CATEGORIES = 5
+# A Markdown link or image target that is neither absolute nor an anchor.
+RELATIVE_LINK = re.compile(r"\]\((?!https?://|mailto:|#)([^)\s]+)")
 
 
 def workspace_packages(root):
@@ -52,6 +55,12 @@ def problems(package, members):
         found.append("missing readme")
     elif not (Path(package["manifest_path"]).parent / readme).is_file():
         found.append(f"readme file not found: {readme}")
+    else:
+        # crates.io resolves relative links against the crate directory, where
+        # a workspace README's links do not exist.
+        text = (Path(package["manifest_path"]).parent / readme).read_text(encoding="utf-8")
+        for target in sorted(set(RELATIVE_LINK.findall(text))):
+            found.append(f"readme has a relative link: {target}")
     keywords = package.get("keywords") or []
     if not keywords:
         found.append("missing keywords")

@@ -8,6 +8,10 @@ references are retained. Track remaining release and repository setup in
 ## Library packages
 
 The library crates inherit repository, license, README, keywords and categories.
+Their shared README is [crates/README.md](../crates/README.md), not the root
+one: crates.io resolves relative links against the crate's own directory, so
+its links are absolute. `tools/check_publish_metadata.py` refuses a packaged
+README with relative links.
 Internal package dependencies carry the exact workspace version alongside their
 local path. `crucible-cli` and `crucible-lsp` are explicitly unpublished; the
 example and consumer workspaces also remain unpublished.
