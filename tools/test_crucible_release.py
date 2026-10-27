@@ -40,6 +40,9 @@ class ReleaseTests(unittest.TestCase):
         (root / "crates/crucible-server-runtime-rust/Cargo.toml").write_text('[package]\nname = "crucible-server-runtime-rust"\nversion.workspace = true\n')
         (root / "crates/crucible-wire").mkdir(parents=True)
         (root / "crates/crucible-wire/Cargo.toml").write_text('[package]\nname = "crucible-wire"\nversion.workspace = true\n')
+        (root / "crates/crucible-api").mkdir(parents=True)
+        (root / "crates/crucible-api/README.md").write_text(
+            '```toml\n[dependencies]\ncrucible-wire = { version = "=0.1.0" }\n```\n')
         (root / "Cargo.toml").write_text('[workspace]\nmembers = ["crates/*", "tools/extra"]\n\n[workspace.package]\nversion = "0.1.0"\n\n[workspace.dependencies]\nserde = "1"\n')
         (root / "e2e").mkdir()
         (root / "tests/consumers/leyline/leyline-sdk-consumer").mkdir(parents=True)
@@ -75,21 +78,41 @@ version = "0.1.0"
             root = Path(directory)
             self.fixture(root)
             readme = root / "crates/crucible-api/README.md"
-            readme.parent.mkdir()
-            readme.write_text('```toml\n[dependencies]\ncrucible-wire = { version = "=0.1.0", features = ["x"] }\n'
-                              'serde = { version = "=1.0.0" }\n```\n')
+            readme.write_text(
+                'Text that mentions "=0.1.0" stays.\n\n'
+                '```toml\n[dependencies]\ncrucible-wire = { version = "=0.1.0", features = ["x"] }\n'
+                'runtime = { package = "crucible-server-runtime-rust", version = "=0.1.0" }\n'
+                'pinned = { version = "=0.1.0" }\n\n'
+                '[build-dependencies.crucible-wire]\nversion = "=0.1.0"\n```\n')
             check(root, "0.1.0")
             prepare(root, "0.2.0")
             check(root, "0.2.0")
-            self.assertIn('crucible-wire = { version = "=0.2.0", features = ["x"] }', readme.read_text())
-            self.assertIn('serde = { version = "=1.0.0" }', readme.read_text())
-            readme.write_text(readme.read_text().replace("=0.2.0", "=0.1.0"))
-            with self.assertRaisesRegex(ValueError, "must require =0.2.0"):
+            text = readme.read_text()
+            self.assertIn('crucible-wire = { version = "=0.2.0", features = ["x"] }', text)
+            self.assertIn('runtime = { package = "crucible-server-runtime-rust", version = "=0.2.0" }', text)
+            self.assertIn('[build-dependencies.crucible-wire]\nversion = "=0.2.0"', text)
+            # Neither prose nor a registry crate that happens to share the pin moves.
+            self.assertIn('Text that mentions "=0.1.0" stays.', text)
+            self.assertIn('pinned = { version = "=0.1.0" }', text)
+            snapshot = (root / "Cargo.toml", *(root / lock for lock in LOCKFILES), readme)
+            # A stale aliased pin, and a table-form pin that is not exact.
+            for current, stale in (
+                ('package = "crucible-server-runtime-rust", version = "=0.2.0"',
+                 'package = "crucible-server-runtime-rust", version = "=0.1.0"'),
+                ('[build-dependencies.crucible-wire]\nversion = "=0.2.0"',
+                 '[build-dependencies.crucible-wire]\nversion = "0.2.0"'),
+            ):
+                with self.subTest(stale=stale):
+                    readme.write_text(text.replace(current, stale))
+                    with self.assertRaisesRegex(ValueError, "must require =0.2.0"):
+                        check(root, "0.2.0")
+                    before = {path: path.read_bytes() for path in snapshot}
+                    with self.assertRaisesRegex(ValueError, "must require =0.2.0"):
+                        prepare(root, "0.2.1")
+                    self.assertEqual(before, {path: path.read_bytes() for path in before})
+            readme.unlink()
+            with self.assertRaisesRegex(ValueError, "is missing"):
                 check(root, "0.2.0")
-            before = {path: path.read_bytes() for path in (root / "Cargo.toml", root / "Cargo.lock", readme)}
-            with self.assertRaisesRegex(ValueError, "must require =0.2.0"):
-                prepare(root, "0.2.1")
-            self.assertEqual(before, {path: path.read_bytes() for path in before})
 
     def test_prepare_updates_both_lockfiles_without_upgrading_dependencies_or_examples(self):
         with tempfile.TemporaryDirectory() as directory:

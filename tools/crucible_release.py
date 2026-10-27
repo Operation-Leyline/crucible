@@ -18,7 +18,7 @@ LOCKFILES = (
 VERSION = re.compile(r"(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\Z")
 # Published crate READMEs whose install snippets pin the exact workspace version.
 VERSIONED_DOCS = ("crates/crucible-api/README.md",)
-DOC_REQUIREMENT = re.compile(r'(?m)^(crucible-[a-z0-9-]+\s*=\s*\{[^\n]*?\bversion\s*=\s*)"=([^"]+)"')
+TOML_FENCE = re.compile(r"```toml\n(.*?)```", re.DOTALL)
 
 
 def lockfiles(root, packages):
@@ -109,28 +109,69 @@ def changelog_entry(root, version):
     raise ValueError(f"CHANGELOG.md has no '## [{version}]' entry (docs/releases.md)")
 
 
+def readme_requirements(path, text, packages):
+    """(crate, version) for each workspace crate a ```toml example depends on,
+    whatever its form: inline, aliased with `package`, or a dependency table."""
+    found = []
+    for fence in TOML_FENCE.findall(text):
+        try:
+            document = tomllib.loads(fence)
+        except tomllib.TOMLDecodeError as error:
+            raise ValueError(f"{path}: invalid TOML example: {error}") from error
+        tables = []
+        for section in (document, *document.get("target", {}).values()):
+            tables.extend(section.get(kind, {}) for kind in
+                          ("dependencies", "build-dependencies", "dev-dependencies"))
+        for table in tables:
+            for alias, dependency in table.items():
+                name = dependency.get("package", alias) if isinstance(dependency, dict) else alias
+                if name in packages:
+                    version = dependency.get("version") if isinstance(dependency, dict) else dependency
+                    found.append((name, version))
+    return found
+
+
+def bump_fence(fence, packages, current, replacement):
+    """Rewrite `"=current"` only on lines that declare a workspace crate."""
+    lines, table = [], None
+    for line in fence.splitlines(keepends=True):
+        stripped = line.strip()
+        if stripped.startswith("["):
+            header = re.fullmatch(r"\[(?:.*\.)?(?:build-|dev-)?dependencies\.([^\]\s]+)\]", stripped)
+            table = header.group(1).strip('"') if header else None
+        declares = table in packages and re.match(r"version\s*=", stripped) is not None
+        if not declares:
+            try:
+                entry = tomllib.loads(line)
+            except tomllib.TOMLDecodeError:
+                entry = {}
+            declares = any((dependency.get("package", alias) if isinstance(dependency, dict) else alias) in packages
+                           for alias, dependency in entry.items())
+        lines.append(line.replace(f'"={current}"', f'"={replacement}"') if declares else line)
+    return "".join(lines)
+
+
 def versioned_docs(root, packages, current, replacement=None):
     """Check/update the `=X.Y.Z` install requirements in published READMEs."""
     edits = {}
     for relative in VERSIONED_DOCS:
         path = root / relative
         if not path.is_file():
-            continue
+            raise ValueError(f"{path} is missing; it is a published README with a pinned install requirement")
         content = path.read_text(encoding="utf-8")
-        found = 0
-        for match in DOC_REQUIREMENT.finditer(content):
-            name = match.group(1).split("=", 1)[0].strip()
-            if name not in packages:
-                continue
-            found += 1
-            if match.group(2) != current:
-                raise ValueError(f"{path}: {name} must require ={current}")
-        if not found:
+        requirements = readme_requirements(path, content, packages)
+        if not requirements:
             raise ValueError(f"{path} has no workspace crate requirement")
+        for name, version in requirements:
+            if version != f"={current}":
+                raise ValueError(f"{path}: {name} must require ={current}")
         if replacement is not None:
-            content = DOC_REQUIREMENT.sub(
-                lambda m: f'{m.group(1)}"={replacement}"' if m.group(1).split("=", 1)[0].strip() in packages
-                else m.group(0), content)
+            content = TOML_FENCE.sub(
+                lambda match: match.group(0).replace(
+                    match.group(1), bump_fence(match.group(1), packages, current, replacement)),
+                content)
+            if any(version != f"={replacement}" for _, version in readme_requirements(path, content, packages)):
+                raise ValueError(f"Cannot update every install requirement in {path}")
         edits[path] = content
     return edits
 
