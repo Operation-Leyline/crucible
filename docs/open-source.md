@@ -58,8 +58,10 @@ successful upload.
 Prepare the next workspace version through the
 [release procedure](releases.md). `tools/crucible_release.py prepare` updates
 versioned internal path requirements and every standalone consumer lock that
-pins workspace crates, as well as the core and nested Leyline locks. It
-validates the complete edit set before writing. `check` refuses version drift.
+pins workspace crates, as well as the core and nested Leyline locks, and the
+exact install snippets in the published `crucible-api` README and the docs that
+pin a version. It validates the complete edit set before writing and prints
+each file it changed. `check` refuses version drift.
 Unrelated registry versions, checksums and example package versions stay put.
 
 ## CLI binaries

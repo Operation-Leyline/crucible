@@ -18,11 +18,13 @@ pub fn source_revision() -> Option<&'static str> {
     option_env!("CRUCIBLE_GENERATOR_REVISION")
 }
 
-/// Whether this was built from a published package (a registry download or
-/// vendored copy) rather than from the Crucible source workspace. Its sources
-/// are then exactly the crate version, so a generated package can depend on
-/// the runtimes at that version from crates.io instead of a Git revision.
-/// A source checkout without readable Git metadata returns `false`.
+/// Whether this was built from a published package: a registry download or a
+/// vendored copy of one, recognised by the `.cargo_vcs_info.json` that
+/// `cargo package` writes. Its sources are then exactly the crate version, so
+/// a generated package can depend on the runtimes at that version from
+/// crates.io instead of a Git revision. A source checkout, or a vendored or
+/// Nix-imported copy of a Git dependency, returns `false`: its revision is
+/// unknown, so automatic runtime selection must refuse it.
 pub fn packaged() -> bool {
     option_env!("CRUCIBLE_GENERATOR_PACKAGED").is_some()
 }

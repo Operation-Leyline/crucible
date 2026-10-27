@@ -108,12 +108,20 @@ without an entry, so a release cannot be tagged without notes.
 
 ```sh
 git switch -c claude/release-0.2.1
-python tools/crucible_release.py prepare 0.2.1
-git diff -- Cargo.toml Cargo.lock e2e/Cargo.lock tests/consumers/leyline/Cargo.lock tests/consumers/leyline/leyline-sdk-consumer/Cargo.lock
+python tools/crucible_release.py prepare 0.2.1 > prepared.txt
+cat prepared.txt
+git diff -- $(cat prepared.txt)
 python tools/crucible_release.py check 0.2.1
 ```
 
-The preparation helper updates the workspace version and every lockfile. It
+The preparation helper updates the workspace version, the exact internal
+requirements in member manifests, every lockfile that pins workspace crates
+(the core, e2e and Leyline locks and each standalone consumer under
+`tests/consumers/`), and the `=X.Y.Z` install snippets in the docs listed in
+`VERSIONED_DOCS` (the `crucible-api` README, `docs/explorer.md` and
+`docs/framework.md`). It prints each file it changed, one per line, and nothing
+else on standard output, so that list is the set to review and stage; do not
+keep a separate list by hand. It
 preserves registry dependency versions and example-service package versions.
 It does not update checked-in generator golden files. Generated package
 metadata and ABI checks for generated Rust code also record the Crucible
@@ -127,18 +135,20 @@ CRUCIBLE_BLESS=1 cargo test --locked
 git diff -- crates
 ```
 
-Docs that pin an exact Crucible version move with it: the dependency example
-in [explorer.md](explorer.md):
+`prepare` already moves the pinned install snippets in the `VERSIONED_DOCS`
+files, and `check` refuses a stale one. A new doc that pins an exact Crucible
+version belongs in that list; this search should find nothing outside it:
 
 ```sh
 PREVIOUS=0.2.0   # the version being replaced
-git grep -n -F -e "=$PREVIOUS" -- docs
+git grep -n -F -e "=$PREVIOUS" -- docs crates/*/README.md README.md
 ```
 
 Commit the version bump and reviewed golden changes together, then open a PR:
 
 ```sh
-git add CHANGELOG.md Cargo.toml Cargo.lock e2e/Cargo.lock tests/consumers/leyline/Cargo.lock tests/consumers/leyline/leyline-sdk-consumer/Cargo.lock crates/*/tests/golden
+git add CHANGELOG.md crates/*/tests/golden $(cat prepared.txt)
+rm prepared.txt
 git commit -m "chore: prepare Crucible 0.2.1"
 git push -u origin claude/release-0.2.1
 gh pr create --base main --title "Release Crucible 0.2.1" --body "Bump the shared workspace version, lock entries, and generator provenance metadata to 0.2.1."

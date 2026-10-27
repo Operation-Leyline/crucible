@@ -2,7 +2,7 @@ from pathlib import Path
 import tempfile
 import unittest
 
-from crucible_release import LOCKFILES, changelog_entry, check, prepare, version_tuple
+from crucible_release import LOCKFILES, VERSIONED_DOCS, changelog_entry, check, prepare, version_tuple
 
 
 CHANGELOG = """# Changelog
@@ -40,9 +40,9 @@ class ReleaseTests(unittest.TestCase):
         (root / "crates/crucible-server-runtime-rust/Cargo.toml").write_text('[package]\nname = "crucible-server-runtime-rust"\nversion.workspace = true\n')
         (root / "crates/crucible-wire").mkdir(parents=True)
         (root / "crates/crucible-wire/Cargo.toml").write_text('[package]\nname = "crucible-wire"\nversion.workspace = true\n')
-        (root / "crates/crucible-api").mkdir(parents=True)
-        (root / "crates/crucible-api/README.md").write_text(
-            '```toml\n[dependencies]\ncrucible-wire = { version = "=0.1.0" }\n```\n')
+        for doc in VERSIONED_DOCS:
+            (root / doc).parent.mkdir(parents=True, exist_ok=True)
+            (root / doc).write_text('```toml\n[dependencies]\ncrucible-wire = { version = "=0.1.0" }\n```\n')
         (root / "Cargo.toml").write_text('[workspace]\nmembers = ["crates/*", "tools/extra"]\n\n[workspace.package]\nversion = "0.1.0"\n\n[workspace.dependencies]\nserde = "1"\n')
         (root / "e2e").mkdir()
         (root / "tests/consumers/leyline/leyline-sdk-consumer").mkdir(parents=True)
@@ -82,7 +82,9 @@ version = "0.1.0"
                 'Text that mentions "=0.1.0" stays.\n\n'
                 '```toml\n[dependencies]\ncrucible-wire = { version = "=0.1.0", features = ["x"] }\n'
                 'runtime = { package = "crucible-server-runtime-rust", version = "=0.1.0" }\n'
-                'pinned = { version = "=0.1.0" }\n\n'
+                'pinned = { version = "=0.1.0" }\n'
+                'split = { package = "crucible-wire", version = "=0.1.0", features = [\n  "a",\n  "b",\n] }\n```\n\n'
+                '```toml\ncrucible-server-runtime-rust = { version = "=0.1.0", features = ["bare"] }\n```\n\n```toml\n'
                 '[build-dependencies.crucible-wire]\nversion = "=0.1.0"\n```\n')
             check(root, "0.1.0")
             prepare(root, "0.2.0")
@@ -91,6 +93,8 @@ version = "0.1.0"
             self.assertIn('crucible-wire = { version = "=0.2.0", features = ["x"] }', text)
             self.assertIn('runtime = { package = "crucible-server-runtime-rust", version = "=0.2.0" }', text)
             self.assertIn('[build-dependencies.crucible-wire]\nversion = "=0.2.0"', text)
+            self.assertIn('split = { package = "crucible-wire", version = "=0.2.0", features = [\n  "a",', text)
+            self.assertIn('crucible-server-runtime-rust = { version = "=0.2.0", features = ["bare"] }', text)
             # Neither prose nor a registry crate that happens to share the pin moves.
             self.assertIn('Text that mentions "=0.1.0" stays.', text)
             self.assertIn('pinned = { version = "=0.1.0" }', text)
@@ -119,8 +123,10 @@ version = "0.1.0"
             root = Path(directory)
             self.fixture(root)
             check(root, "0.1.0")
-            prepare(root, "0.2.0")
+            changed = prepare(root, "0.2.0")
             check(root, "0.2.0")
+            # Exactly the files whose content moved, to stage as listed.
+            self.assertEqual(changed, sorted(["Cargo.toml", *VERSIONED_DOCS, *LOCKFILES]))
             for path in (root / lock for lock in LOCKFILES):
                 text = path.read_text()
                 self.assertIn('name = "crucible-server-runtime-rust"\nversion = "0.2.0"', text)

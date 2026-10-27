@@ -3,6 +3,7 @@
 import argparse
 from pathlib import Path
 import re
+import sys
 import tomllib
 
 
@@ -16,8 +17,8 @@ LOCKFILES = (
     "tests/consumers/leyline/leyline-sdk-consumer/Cargo.lock",
 )
 VERSION = re.compile(r"(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\Z")
-# Published crate READMEs whose install snippets pin the exact workspace version.
-VERSIONED_DOCS = ("crates/crucible-api/README.md",)
+# Docs whose ```toml install snippets pin the exact workspace version.
+VERSIONED_DOCS = ("crates/crucible-api/README.md", "docs/explorer.md", "docs/framework.md")
 TOML_FENCE = re.compile(r"```toml\n(.*?)```", re.DOTALL)
 
 
@@ -118,7 +119,8 @@ def readme_requirements(path, text, packages):
             document = tomllib.loads(fence)
         except tomllib.TOMLDecodeError as error:
             raise ValueError(f"{path}: invalid TOML example: {error}") from error
-        tables = []
+        # A snippet may also be a bare dependency line, without a table header.
+        tables = [document]
         for section in (document, *document.get("target", {}).values()):
             tables.extend(section.get(kind, {}) for kind in
                           ("dependencies", "build-dependencies", "dev-dependencies"))
@@ -132,23 +134,34 @@ def readme_requirements(path, text, packages):
 
 
 def bump_fence(fence, packages, current, replacement):
-    """Rewrite `"=current"` only on lines that declare a workspace crate."""
-    lines, table = [], None
-    for line in fence.splitlines(keepends=True):
-        stripped = line.strip()
+    """Rewrite `"=current"` only in statements that declare a workspace crate."""
+    lines = fence.splitlines(keepends=True)
+    out, table, index = [], None, 0
+    while index < len(lines):
+        stripped = lines[index].strip()
         if stripped.startswith("["):
             header = re.fullmatch(r"\[(?:.*\.)?(?:build-|dev-)?dependencies\.([^\]\s]+)\]", stripped)
             table = header.group(1).strip('"') if header else None
-        declares = table in packages and re.match(r"version\s*=", stripped) is not None
-        if not declares:
+            out.append(lines[index])
+            index += 1
+            continue
+        # A statement may span lines, such as an inline table whose features
+        # array is split over several; take the shortest run that parses.
+        end, entry = index + 1, {}
+        for candidate in range(index + 1, len(lines) + 1):
             try:
-                entry = tomllib.loads(line)
+                entry = tomllib.loads("".join(lines[index:candidate]))
             except tomllib.TOMLDecodeError:
-                entry = {}
-            declares = any((dependency.get("package", alias) if isinstance(dependency, dict) else alias) in packages
-                           for alias, dependency in entry.items())
-        lines.append(line.replace(f'"={current}"', f'"={replacement}"') if declares else line)
-    return "".join(lines)
+                continue
+            end = candidate
+            break
+        statement = "".join(lines[index:end])
+        declares = (table in packages and re.match(r"version\s*=", stripped) is not None) or any(
+            (dependency.get("package", alias) if isinstance(dependency, dict) else alias) in packages
+            for alias, dependency in entry.items())
+        out.append(statement.replace(f'"={current}"', f'"={replacement}"') if declares else statement)
+        index = end
+    return "".join(out)
 
 
 def versioned_docs(root, packages, current, replacement=None):
@@ -241,9 +254,13 @@ def prepare(root, version):
     if count != 1:
         raise ValueError("Cannot update [workspace.package].version")
     edits[manifest] = updated[:start] + section + updated[end:]
+    changed = []
     for path, text in edits.items():
+        if path.read_text(encoding="utf-8") != text:
+            changed.append(path.relative_to(root).as_posix())
         path.write_text(text, encoding="utf-8", newline="\n")
     check(root, version)
+    return sorted(changed)
 
 
 def main():
@@ -252,10 +269,13 @@ def main():
     parser.add_argument("version")
     args = parser.parse_args()
     try:
-        globals()[args.action](ROOT, args.version)
+        changed = globals()[args.action](ROOT, args.version)
     except (ValueError, OSError, KeyError) as error:
         parser.exit(1, f"Release {args.action} failed: {error}\n")
-    print(f"Crucible {args.version}: {args.action} passed")
+    # `prepare` lists every file it changed, one per line, to stage as is.
+    for path in changed or ():
+        print(path)
+    print(f"Crucible {args.version}: {args.action} passed", file=sys.stderr if changed else sys.stdout)
 
 
 if __name__ == "__main__":

@@ -11,16 +11,17 @@ fn main() {
     println!("cargo::rerun-if-changed=build.rs");
     let manifest = PathBuf::from(std::env::var_os("CARGO_MANIFEST_DIR").expect("Cargo manifest"));
     // `cargo package` writes .cargo_vcs_info.json into every package it
-    // builds, so a registry download, a `cargo vendor` copy or a package
-    // verification has one wherever it sits, even inside some Git checkout.
-    // A source checkout never does.
+    // builds from Git, so a registry download (or a vendored copy of one) and
+    // a package verification have it wherever they sit. Nothing else counts
+    // as published: a vendored or Nix-imported copy of a Git dependency has
+    // no such file and may be any unreleased revision, so it records neither
+    // a revision nor `packaged`, and automatic runtime selection refuses it.
     if manifest.join(".cargo_vcs_info.json").is_file() {
         packaged();
         return;
     }
     let candidate = manifest.join("../..");
     let Ok(workspace) = candidate.canonicalize() else {
-        packaged();
         return;
     };
     // A packaged or vendored emitter must not inherit a consumer repository's
@@ -33,7 +34,6 @@ fn main() {
             })
         });
     if !repository_matches {
-        packaged();
         return;
     }
     // An incomplete source checkout (a sparse one, say) is still a checkout:
@@ -84,11 +84,10 @@ fn main() {
     }
 }
 
-/// Not the Crucible source workspace: a registry download, a vendored copy or
-/// `cargo package` verification. Such a build has no revision to pin, but its
-/// sources are exactly its published version. A source checkout that is
-/// incomplete or whose Git metadata is unreadable is not this case: it keeps
-/// no provenance at all.
+/// A published package: a registry download, a vendored copy of one, or
+/// `cargo package` verification. It has no revision to pin, but its sources
+/// are exactly its published version. Anything without Cargo's package
+/// record (a source checkout, or a vendored Git dependency) is not this case.
 fn packaged() {
     println!("cargo::rustc-env=CRUCIBLE_GENERATOR_PACKAGED=1");
 }
