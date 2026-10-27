@@ -241,6 +241,17 @@ foreach (var (wire, read, expected) in new[] {
     Check(telemetry.Operations.SequenceEqual(new[] { expected }), "stream outcome " + expected + ": " + string.Join(",", telemetry.Operations));
 }
 
+// Cancellation during the handoff, after the opening attempt is recorded, throws
+// instead of returning a released stream, and ends the operation once, after the attempt.
+{
+    await using var server = new RawServer((connection, _, _) => Reply(connection, Item + Complete));
+    using var cancel = new CancellationTokenSource();
+    var telemetry = new TelemetryLog { AfterAttempt = cancel.Cancel };
+    using var client = Client(server.Endpoint, telemetry: telemetry);
+    await Throws<OperationCanceledException>(async () => await client.WatchAsync(cancel.Token));
+    Check(telemetry.Sequence.SequenceEqual(new[] { "attempt 200", "operation OperationCanceledException" }), "handoff cancellation: " + string.Join(",", telemetry.Sequence));
+}
+
 // Like Go and Python, an opening error one byte past the limit is not decoded, and telemetry keeps the bytes read.
 foreach (var (size, decoded) in new[] { (256, true), (257, false) })
 {
@@ -346,13 +357,20 @@ static async Task Reply(NetworkStream connection, string body, string media = Me
 sealed class TelemetryLog : TelemetryHook
 {
     readonly object gate = new();
-    readonly List<string> attempts = [], operations = [];
+    readonly List<string> attempts = [], operations = [], sequence = [];
     readonly List<long?> bytes = [];
+    public Action? AfterAttempt { get; init; }
     public List<string> Attempts { get { lock (gate) return [.. attempts]; } }
+    public List<string> Sequence { get { lock (gate) return [.. sequence]; } }
     public List<string> Operations { get { lock (gate) return [.. operations]; } }
     public List<long?> Bytes { get { lock (gate) return [.. bytes]; } }
-    public override void OnAttemptFinished(AttemptFinished e) { lock (gate) { attempts.Add(e.Status + (e.Error is null ? "" : " " + e.Error)); bytes.Add(e.ResponseBytes); } }
-    public override void OnOperationFinished(OperationFinished e) { lock (gate) operations.Add(e.Error ?? "ok"); }
+    public override void OnAttemptFinished(AttemptFinished e)
+    {
+        var attempt = e.Status + (e.Error is null ? "" : " " + e.Error);
+        lock (gate) { attempts.Add(attempt); bytes.Add(e.ResponseBytes); sequence.Add("attempt " + attempt); }
+        AfterAttempt?.Invoke();
+    }
+    public override void OnOperationFinished(OperationFinished e) { lock (gate) { operations.Add(e.Error ?? "ok"); sequence.Add("operation " + (e.Error ?? "ok")); } }
 }
 
 sealed class StubHandler(Func<HttpResponseMessage> respond) : HttpMessageHandler

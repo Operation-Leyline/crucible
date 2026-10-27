@@ -10,7 +10,7 @@ public sealed class ResponseStream<T> : IAsyncEnumerable<T>, IAsyncEnumerator<T>
     private readonly Stream body;
     private readonly CancellationTokenSource lifetime;
     private readonly CancellationToken token;
-    private readonly CancellationTokenRegistration lifetimeRegistration;
+    private CancellationTokenRegistration lifetimeRegistration;
     private CancellationTokenRegistration enumerationRegistration;
     private readonly Func<JsonNode, T> decode;
     private readonly Func<JsonObject, Exception> decodeError;
@@ -34,6 +34,10 @@ public sealed class ResponseStream<T> : IAsyncEnumerable<T>, IAsyncEnumerator<T>
     {
         this.response = response; this.body = body; this.lifetime = lifetime; token = lifetime.Token;
         Metadata = metadata; this.limit = limit; this.decode = decode; this.decodeError = decodeError; this.finish = finish;
+    }
+    // Called once the opening attempt is recorded, so the operation never ends before it.
+    internal void Activate()
+    {
         // Disposing only the response releases the active lease while preserving a caller-owned pool.
         // Cancellation or the deadline also ends the operation, even while the stream is idle.
         lifetimeRegistration = token.Register(static value => {

@@ -42,6 +42,7 @@ internal sealed partial class ClientRuntime
                 Dictionary<string, string>? headers = null;
                 int? status = null; long? size = null;
                 Exception? failure = null; bool timedOut = false, successfulHeaders = false;
+                ResponseStream<T>? opened = null;
                 try
                 {
                     response = await streamHttp.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, ct).ConfigureAwait(false);
@@ -61,10 +62,13 @@ internal sealed partial class ClientRuntime
                         Succeeded(lastCost);
                         // The opening attempt ends here; the operation ends with the stream.
                         trace.AttemptFinished(status, null, null, RequestIdOf(null, headers));
-                        return stream;
+                        opened = stream;
                     }
-                    (var bytes, size) = await BoundedStreamErrorAsync(response.Content, ct).ConfigureAwait(false);
-                    failure = Error(op, status.Value, headers, bytes);
+                    else
+                    {
+                        (var bytes, size) = await BoundedStreamErrorAsync(response.Content, ct).ConfigureAwait(false);
+                        failure = Error(op, status.Value, headers, bytes);
+                    }
                 }
                 catch (Exception error) when (!successfulHeaders && (error is HttpRequestException or IOException || TimedOut(error, ct)))
                 { failure = new NetworkError(error.Message, error); timedOut = TimedOut(error, ct); }
@@ -77,6 +81,18 @@ internal sealed partial class ClientRuntime
                 }
                 catch (Exception error) { Interrupted(status, error, size, headers, trace); throw; }
                 finally { response?.Dispose(); }
+                if (opened is not null)
+                {
+                    // Cancellation now ends the operation, after its opening attempt.
+                    opened.Activate();
+                    if (ct.IsCancellationRequested)
+                    {
+                        // Canceled during the handoff: never return a released stream.
+                        await opened.DisposeAsync().ConfigureAwait(false);
+                        throw new OperationCanceledException(ct);
+                    }
+                    return opened;
+                }
                 var decision = AfterFailure(prepared, failure!, timedOut, attempt, config.MaxAttempts, headers);
                 trace.AttemptFinished(status, failure, size, RequestIdOf(failure, headers), decision);
                 if (decision is not (_, var delay, var cost)) throw failure!;
