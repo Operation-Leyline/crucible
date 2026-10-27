@@ -23,6 +23,7 @@ import os
 from pathlib import Path
 import shutil
 import subprocess
+import sys
 import tempfile
 import time
 import urllib.parse
@@ -178,6 +179,8 @@ def main():
         weather(env)
         leyline(env, work, target)
         run(["cargo", "test", "--locked", "--manifest-path", str(ROOT / "tests/consumers/streaming/Cargo.toml")], env=env)
+        run([sys.executable, str(ROOT / "tools/test-rust-streaming.py")],
+            env={**env, "CRUCIBLE_BIN": str(target / "debug" / f"crucible{EXE}")})
         snippets(plain, work, target)
     print("consumers: all passed")
 

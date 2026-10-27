@@ -12,16 +12,11 @@ fn weather() -> crucible_ir::ir::Service {
 }
 
 #[test]
-fn response_stream_server_bindings_match_golden_and_rust_clients_are_diagnosed() {
+fn response_stream_server_bindings_match_golden() {
     let service = common::load("server-stream");
     matches_golden(
         &generate(&service, &Options::default()).unwrap(),
         "server_stream.rs",
-    );
-    let errors = generate_client(&service).unwrap_err();
-    assert!(
-        format!("{errors:?}").contains("server-streaming"),
-        "{errors:?}"
     );
 }
 
@@ -941,4 +936,14 @@ fn only_tokened_operations_with_buffered_outputs_can_replay() {
             .unwrap()
             .contains("IDEMPOTENCY_TOKEN")
     );
+}
+
+#[test]
+fn rust_response_stream_client_exposes_native_typed_iteration() {
+    let service = common::load("server-stream");
+    let client = generate_client(&service).expect("Rust response streams are supported");
+    assert!(client.contains("ResponseStream<Progress, WatchError>"));
+    assert!(client.contains("send_stream_with_options::<Watch, WatchError>"));
+    assert!(client.contains("fn decode_document("));
+    matches_golden(&client, "server_stream_client.rs");
 }

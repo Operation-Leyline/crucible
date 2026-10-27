@@ -1,0 +1,158 @@
+{
+  "schema": "crucible.response-stream-profile/1",
+  "cases": [
+    {
+      "name": "zero",
+      "wire": "event: crucible.complete\ndata: {}\n\n",
+      "valid": true,
+      "items": 0
+    },
+    {
+      "name": "item",
+      "wire": "data: {\"ready\":\"first\"}\n\nevent: crucible.complete\ndata: {}\n\n",
+      "valid": true,
+      "items": 1
+    },
+    {
+      "name": "unknown-union",
+      "wire": "data: {\"future\":{\"x\":\"y\"}}\n\nevent: crucible.complete\ndata: {}\n\n",
+      "valid": true,
+      "items": 1
+    },
+    {
+      "name": "bom",
+      "wire": "﻿data: {\"ready\":\"first\"}\n\nevent: crucible.complete\ndata: {}\n\n",
+      "valid": true,
+      "items": 1
+    },
+    {
+      "name": "multiline-cr",
+      "wire": ": heartbeat\rid: cursor\rretry: 1\rdata: {\"ready\":\rdata: \"café\"}\r\revent: crucible.complete\ndata: {}\n\n",
+      "valid": true,
+      "items": 1
+    },
+    {
+      "name": "crlf",
+      "wire": "data: {\"ready\":\"first\"}\r\n\r\nevent: crucible.complete\r\ndata: {}\r\n\r\n",
+      "valid": true,
+      "items": 1
+    },
+    {
+      "name": "bare-cr",
+      "wire": "data: {\"ready\":\"first\"}\r\revent: crucible.complete\rdata: {}\r\r",
+      "valid": true,
+      "items": 1
+    },
+    {
+      "name": "truncated",
+      "wire": "data: {\"ready\":\"first\"}\n\n",
+      "valid": false,
+      "items": 1
+    },
+    {
+      "name": "no-delimiter",
+      "wire": "event: crucible.complete\ndata: {}",
+      "valid": false,
+      "items": 0
+    },
+    {
+      "name": "duplicate-terminal",
+      "wire": "event: crucible.complete\ndata: {}\n\nevent: crucible.complete\ndata: {}\n\n",
+      "valid": false,
+      "items": 0
+    },
+    {
+      "name": "late-item",
+      "wire": "event: crucible.complete\ndata: {}\n\ndata: {\"ready\":\"first\"}\n\n",
+      "valid": false,
+      "items": 0
+    },
+    {
+      "name": "late-heartbeat",
+      "wire": "event: crucible.complete\ndata: {}\n\n: heartbeat\n\n",
+      "valid": false,
+      "items": 0
+    },
+    {
+      "name": "unknown-control",
+      "wire": "event: crucible.future\ndata: {}\n\n",
+      "valid": false,
+      "items": 0
+    },
+    {
+      "name": "bad-json",
+      "wire": "data: private-invalid\n\nevent: crucible.complete\ndata: {}\n\n",
+      "valid": false,
+      "items": 0
+    },
+    {
+      "name": "null-item",
+      "wire": "data: null\n\nevent: crucible.complete\ndata: {}\n\n",
+      "valid": false,
+      "items": 0
+    },
+    {
+      "name": "bad-modeled-item",
+      "wire": "data: {\"update\":{\"text\":false}}\n\nevent: crucible.complete\ndata: {}\n\n",
+      "valid": false,
+      "items": 0
+    },
+    {
+      "name": "bad-complete",
+      "wire": "event: crucible.complete\ndata: []\n\n",
+      "valid": false,
+      "items": 0
+    },
+    {
+      "name": "bad-error-status",
+      "wire": "event: crucible.error\ndata: {\"type\":\"WorkFailed\",\"status\":\"private\",\"error\":{}}\n\n",
+      "valid": false,
+      "items": 0
+    },
+    {
+      "name": "bad-error-fields",
+      "wire": "event: crucible.error\ndata: {\"type\":\"WorkFailed\",\"status\":503,\"error\":null}\n\n",
+      "valid": false,
+      "items": 0
+    },
+    {
+      "name": "missing-error-status",
+      "wire": "event: crucible.error\ndata: {\"type\":\"WorkFailed\",\"error\":{\"message\":\"failed\"}}\n\n",
+      "valid": false,
+      "items": 0
+    },
+    {
+      "name": "oversize",
+      "wire": "data: {\"ready\":\"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\"}\n\nevent: crucible.complete\ndata: {}\n\n",
+      "valid": false,
+      "items": 0,
+      "limit": 256
+    },
+    {
+      "name": "utf8-byte-limit",
+      "wire": "data: {\"ready\":\"🌊🌊🌊🌊🌊🌊🌊🌊🌊🌊🌊🌊🌊🌊🌊🌊🌊🌊🌊🌊🌊🌊🌊🌊🌊🌊🌊🌊🌊🌊🌊🌊🌊🌊🌊🌊🌊🌊🌊🌊🌊🌊🌊🌊🌊🌊🌊🌊🌊🌊🌊🌊🌊🌊🌊🌊🌊🌊🌊🌊🌊🌊🌊🌊🌊🌊🌊🌊🌊🌊\"}\n\nevent: crucible.complete\ndata: {}\n\n",
+      "valid": false,
+      "items": 0,
+      "limit": 256
+    },
+    {
+      "name": "invalid-utf8",
+      "hex": "ff0a0a",
+      "valid": false,
+      "items": 0
+    },
+    {
+      "name": "incomplete-utf8",
+      "hex": "646174613a20e2",
+      "valid": false,
+      "items": 0
+    },
+    {
+      "name": "utf8-byte-override",
+      "wire": "data: {\"ready\":\"🌊🌊🌊🌊🌊🌊🌊🌊🌊🌊🌊🌊🌊🌊🌊🌊🌊🌊🌊🌊🌊🌊🌊🌊🌊🌊🌊🌊🌊🌊🌊🌊🌊🌊🌊🌊🌊🌊🌊🌊🌊🌊🌊🌊🌊🌊🌊🌊🌊🌊🌊🌊🌊🌊🌊🌊🌊🌊🌊🌊🌊🌊🌊🌊🌊🌊🌊🌊🌊🌊\"}\n\nevent: crucible.complete\ndata: {}\n\n",
+      "valid": true,
+      "items": 1,
+      "limit": 512
+    }
+  ]
+}

@@ -17,6 +17,11 @@ version's section when it is prepared.
 
 ### Added
 
+- Rust clients expose typed `ResponseStream` iteration, opening metadata,
+  cancellation and drop ownership, total-call deadlines, bounded SSE parsing
+  and document-decoded late errors. `Config::max_stream_event_bytes` controls
+  the frame limit; existing unary methods and `CallOptions` stay compatible.
+
 - Services can declare `errorDocs` and designate an error's enum member with
   `@errorReason`. API descriptions and Markdown references list literal reasons
   and static documentation URLs. Configured Rust, TypeScript, Python, Go, Java,

@@ -95,6 +95,7 @@ pub struct Config {
     pub(crate) http: reqwest::Client,
     pub(crate) timeout: Option<Duration>,
     pub(crate) content_sha256: bool,
+    pub(crate) max_stream_event_bytes: usize,
 }
 
 impl Config {
@@ -118,6 +119,7 @@ impl Config {
                 .expect("default HTTP client configuration is valid"),
             timeout: None,
             content_sha256: false,
+            max_stream_event_bytes: 1024 * 1024,
         }
     }
 
@@ -125,6 +127,13 @@ impl Config {
     /// No total-call deadline is imposed unless configured.
     pub fn timeout(mut self, timeout: Duration) -> Self {
         self.timeout = Some(timeout);
+        self
+    }
+
+    /// Maximum SSE frame bytes and buffered opening-error bytes. Defaults to 1 MiB.
+    /// Values below 256 are refused before opening a response stream.
+    pub fn max_stream_event_bytes(mut self, bytes: usize) -> Self {
+        self.max_stream_event_bytes = bytes;
         self
     }
 

@@ -124,11 +124,7 @@ pub fn capabilities() -> crucible_ir::Capabilities {
 
 /// Constructs supported by the generated client and its bundled runtime.
 pub fn client_capabilities() -> crucible_ir::Capabilities {
-    crucible_ir::Capabilities::new(
-        capabilities()
-            .iter()
-            .filter(|f| *f != crucible_ir::Feature::ServerStreaming),
-    )
+    capabilities()
 }
 
 pub fn generate(service: &Service, options: &Options) -> Result<String, Diagnostics> {

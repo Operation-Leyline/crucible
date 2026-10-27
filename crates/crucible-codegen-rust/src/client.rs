@@ -359,6 +359,22 @@ fn error_enum(service: &Service, op: &Operation) -> String {
             .join(" ");
         format!("let name = {fallback}; match name {{ {arms} _ => None }}")
     };
+    let document_decoder = if op.response_mode == crucible_ir::ir::ResponseMode::ServerStream {
+        let arms = errors.iter().map(|error| format!(
+            "{} => ::crucible_server_runtime_rust::__generated::serde_json::from_slice::<errors::{error}>(body).ok().map(Self::{error}),",
+            literal(&wire_error(service, op, error)),
+        )).collect::<String>();
+        let unused = if errors.is_empty() {
+            "let _ = body; "
+        } else {
+            ""
+        };
+        format!(
+            "    fn decode_document(_status: u16, type_name: &str, body: &[u8]) -> ::std::option::Option<Self> {{ {unused}match type_name {{ {arms} _ => None }} }}\n\n"
+        )
+    } else {
+        String::new()
+    };
     let documentation = if service.error_docs_base.is_some() {
         let pages = op
             .errors
@@ -381,7 +397,7 @@ fn error_enum(service: &Service, op: &Operation) -> String {
         String::new()
     };
     out.push_str(&format!(
-        "impl ::crucible_server_runtime_rust::__generated::OperationErrors for {name} {{\n    fn decode(status: u16, type_name: ::std::option::Option<&str>, headers: &::crucible_server_runtime_rust::__generated::http::HeaderMap, body: &[u8]) -> ::std::option::Option<Self> {{\n{decode_body}    }}\n\n    fn info(&self) -> &'static ::crucible_server_runtime_rust::__generated::operation::ErrorInfo {{\n        {info_body}\n    }}\n\n    fn classify(status: u16, type_name: ::std::option::Option<&str>) -> ::std::option::Option<&'static ::crucible_server_runtime_rust::__generated::operation::ErrorInfo> {{\n        {classify}\n    }}\n{documentation}}}\n\n"
+        "impl ::crucible_server_runtime_rust::__generated::OperationErrors for {name} {{\n{document_decoder}    fn decode(status: u16, type_name: ::std::option::Option<&str>, headers: &::crucible_server_runtime_rust::__generated::http::HeaderMap, body: &[u8]) -> ::std::option::Option<Self> {{\n{decode_body}    }}\n\n    fn info(&self) -> &'static ::crucible_server_runtime_rust::__generated::operation::ErrorInfo {{\n        {info_body}\n    }}\n\n    fn classify(status: u16, type_name: ::std::option::Option<&str>) -> ::std::option::Option<&'static ::crucible_server_runtime_rust::__generated::operation::ErrorInfo> {{\n        {classify}\n    }}\n{documentation}}}\n\n"
     ));
     out.push_str(&format!(
         "impl ::std::fmt::Display for {name} {{\n    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {{\n        {display_body}\n    }}\n}}\n\nimpl ::std::error::Error for {name} {{}}\n"
@@ -407,16 +423,23 @@ fn method(service: &Service, op: &Operation, options_name: Option<&str>) -> Stri
     } else {
         "()".to_owned()
     };
+    let streaming = op.response_mode == crucible_ir::ir::ResponseMode::ServerStream;
+    let output = if streaming {
+        format!("::crucible_server_runtime_rust::__generated::ResponseStream<{output}, {errors}>")
+    } else {
+        output
+    };
     let result = format!(
         "::std::result::Result<{output}, ::crucible_server_runtime_rust::__generated::Error<{errors}>>"
     );
     let method_name = options_name
         .map(str::to_owned)
         .unwrap_or_else(|| function(name));
-    let transport_method = if options_name.is_some() {
-        "send_with_options"
-    } else {
-        "send"
+    let transport_method = match (streaming, options_name.is_some()) {
+        (true, true) => "send_stream_with_options",
+        (true, false) => "send_stream",
+        (false, true) => "send_with_options",
+        (false, false) => "send",
     };
     let options_parameter = if options_name.is_some() {
         ", options: ::crucible_server_runtime_rust::__generated::CallOptions"

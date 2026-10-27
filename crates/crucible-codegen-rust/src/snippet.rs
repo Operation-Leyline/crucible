@@ -280,6 +280,13 @@ pub(crate) fn snippets(
         })
         .unwrap_or_default();
     let invoke = format!("client.{method}({argument}).await");
+    if call.operation.response_mode == crucible_ir::ir::ResponseMode::ServerStream {
+        body.push_str(&format!(
+            "{INDENT}// Opening and late modeled errors propagate with `?`.\n"
+        ));
+        body.push_str(&format!("{INDENT}let mut events = {invoke}?;\n{INDENT}while let Some(event) = events.next().await {{\n{INDENT}{INDENT}println!(\"{{:?}}\", event?);\n{INDENT}}}\n{INDENT}Ok(())\n}}\n"));
+        return (body, None);
+    }
     match call.error {
         Some(case) => {
             let error = service.name_of(case.id);
@@ -412,6 +419,14 @@ pub(crate) fn guide(service: &Service, options: &ClientOptions) -> Guide {
     guide.retries = "`runtime::Config::retry(runtime::Retry { .. })` changes the attempt limit \
         (3, the first included) and backoff; `runtime::Retry::none()` turns retries off."
         .to_owned();
+    if service
+        .operations
+        .iter()
+        .any(|op| op.response_mode == crucible_ir::ir::ResponseMode::ServerStream)
+    {
+        guide.errors.push_str(" Streaming calls return ResponseStream<Item, OperationError>; next().await returns each item or a late error with the same operation error enum. Drop or cancel the stream when abandoning it.");
+        guide.retries.push_str(" Streaming operations retry eligible opening failures only; they never reconnect after successful response headers.");
+    }
     guide.links.push((
         "The Rust client guide".to_owned(),
         "https://github.com/Operation-Leyline/crucible/blob/main/docs/clients/rust.md".to_owned(),

@@ -71,7 +71,7 @@ pub fn emit_client_package(
         dependency.expect("validated runtime")
     );
     let declared = crate::client_api::declared_names(service);
-    let exports: Vec<_> = [
+    let mut exports: Vec<_> = [
         "BigDecimal",
         "BigInteger",
         "Blob",
@@ -93,6 +93,14 @@ pub fn emit_client_package(
     .into_iter()
     .filter(|name| !declared.contains(*name))
     .collect();
+    if service
+        .operations
+        .iter()
+        .any(|op| op.response_mode == crucible_ir::ir::ResponseMode::ServerStream)
+        && !declared.contains("ResponseStream")
+    {
+        exports.push("ResponseStream");
+    }
     // Always expose the complete runtime under a namespace. Top-level shortcuts
     // omit names occupied by generated API types so valid model names still work.
     let api = format!(
