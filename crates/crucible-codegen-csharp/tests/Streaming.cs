@@ -15,8 +15,8 @@ static async Task<T> Throws<T>(Func<Task> action) where T : Exception
     try { await action(); } catch (T error) { return error; }
     throw new Exception("Expected " + typeof(T).Name);
 }
-static StreamsClient Client(string endpoint, int limit = 1048576, TimeSpan? timeout = null, HttpClient? http = null) =>
-    new(new ClientConfig { Endpoint = endpoint, MaxStreamEventBytes = limit, Timeout = timeout ?? TimeSpan.FromSeconds(5), HttpClient = http,
+static StreamsClient Client(string endpoint, int limit = 1048576, TimeSpan? timeout = null, HttpClient? http = null, TelemetryHook? telemetry = null) =>
+    new(new ClientConfig { Endpoint = endpoint, MaxStreamEventBytes = limit, Timeout = timeout ?? TimeSpan.FromSeconds(5), HttpClient = http, Telemetry = telemetry,
         BaseDelay = TimeSpan.Zero, Token = _ => ValueTask.FromResult<string?>("token"),
         Middleware = [(request, _) => { request.Headers.Add("X-Test", "middleware"); return ValueTask.CompletedTask; }] });
 static async Task<int> Drain(ResponseStream<Progress> stream)
@@ -60,7 +60,9 @@ foreach (var delimiter in new[] { "\n", "\r\n", "\r" })
     await using var server = new RawServer(async (connection, _, _) => {
         var frame = $"data: {{\"ready\":\"first\"}}{delimiter}{delimiter}";
         await connection.WriteAsync(Encoding.UTF8.GetBytes($"HTTP/1.1 200 OK\r\nContent-Type: {Media}\r\nTransfer-Encoding: chunked\r\n\r\n{Encoding.UTF8.GetByteCount(frame):x}\r\n{frame}\r\n"));
-        if (await connection.ReadAsync(new byte[1]) == 0) disconnected.TrySetResult();
+        // Closing the response can reset the socket: a failed read is a disconnect too.
+        try { if (await connection.ReadAsync(new byte[1]) == 0) disconnected.TrySetResult(); }
+        catch (IOException) { disconnected.TrySetResult(); }
     });
     using var client = Client(server.Endpoint);
     await using var events = await client.WatchAsync();
@@ -139,7 +141,8 @@ foreach (var (name, fields, reason) in cases)
 await using (var server = new RawServer((connection, _, _) => Reply(connection, Complete)))
 {
     using var precanceled = new CancellationTokenSource(); precanceled.Cancel();
-    await Throws<ArgumentException>(() => Task.Run(() => Client(server.Endpoint, 255)));
+    var limitError = await Throws<ArgumentException>(() => Task.Run(() => Client(server.Endpoint, 255)));
+    Check(limitError.Message.Contains("MaxStreamEventBytes", StringComparison.Ordinal), "the limit error names its setting");
     int tokens = 0;
     using var before = new StreamsClient(new ClientConfig { Endpoint = server.Endpoint, Token = _ => { tokens++; return ValueTask.FromResult<string?>("token"); } });
     await Throws<OperationCanceledException>(async () => await before.WatchAsync(precanceled.Token));
@@ -180,7 +183,9 @@ foreach (var deadline in new[] { false, true })
     await using var server = new RawServer(async (connection, _, _) => {
         var frame = Item + Item;
         await connection.WriteAsync(Encoding.UTF8.GetBytes($"HTTP/1.1 200 OK\r\nContent-Type: {Media}\r\nTransfer-Encoding: chunked\r\n\r\n{Encoding.UTF8.GetByteCount(frame):x}\r\n{frame}\r\n"));
-        if (await connection.ReadAsync(new byte[1]) == 0) disconnected.TrySetResult();
+        // Closing the response can reset the socket: a failed read is a disconnect too.
+        try { if (await connection.ReadAsync(new byte[1]) == 0) disconnected.TrySetResult(); }
+        catch (IOException) { disconnected.TrySetResult(); }
     });
     using var cancellation = new CancellationTokenSource();
     using var client = Client(server.Endpoint, timeout: deadline ? TimeSpan.FromMilliseconds(150) : null);
@@ -202,6 +207,94 @@ await using (var server = new RawServer(async (connection, _, _) => {
     var iterator = events.GetAsyncEnumerator(); Check(await iterator.MoveNextAsync(), "item before transport interruption");
     await Throws<NetworkError>(async () => await iterator.MoveNextAsync());
     Check(server.Requests == 1, "interrupted 2xx body must not replay");
+}
+
+// A transport failure acquiring a successful body is a NetworkError, and is never retried.
+{
+    int sends = 0;
+    using var http = new HttpClient(new StubHandler(() => {
+        Interlocked.Increment(ref sends);
+        var response = new HttpResponseMessage(HttpStatusCode.OK) { Content = new FailingContent() };
+        response.Content.Headers.TryAddWithoutValidation("Content-Type", Media);
+        return response;
+    }));
+    using var client = Client("http://127.0.0.1:1", http: http);
+    var failure = await Throws<NetworkError>(async () => await client.WatchAsync());
+    Check(failure.InnerException is IOException && sends == 1, "post-header transport failure");
+}
+
+// The operation ends with the stream, not at its headers, with the outcome the consumer saw.
+foreach (var (wire, read, expected) in new[] {
+    (Item + Complete, true, "ok"),
+    (Item + "event: crucible.error\ndata: {\"type\":\"WorkFailed\",\"status\":503,\"error\":{\"message\":\"late\"}}\n\n", true, "WorkFailed"),
+    (Complete + "x", true, nameof(StreamProtocolError)),
+    (Item + Complete, false, nameof(OperationCanceledException)),
+})
+{
+    await using var server = new RawServer((connection, _, _) => Reply(connection, wire));
+    var telemetry = new TelemetryLog();
+    using var client = Client(server.Endpoint, telemetry: telemetry);
+    var events = await client.WatchAsync();
+    Check(telemetry.Attempts.SequenceEqual(new[] { "200" }) && telemetry.Operations.Count == 0, "opening ends only the attempt");
+    if (read) { try { await Drain(events); } catch (Exception error) when (error is ServiceError or StreamProtocolError) { } }
+    await events.DisposeAsync();
+    Check(telemetry.Operations.SequenceEqual(new[] { expected }), "stream outcome " + expected + ": " + string.Join(",", telemetry.Operations));
+}
+
+// Like Go and Python, an opening error one byte past the limit is not decoded, and telemetry keeps the bytes read.
+foreach (var (size, decoded) in new[] { (256, true), (257, false) })
+{
+    const string document = "{\"__type\":\"WorkFailed\",\"message\":\"opening\"}";
+    var body = document + new string(' ', size - document.Length);
+    await using var server = new RawServer((connection, _, _) => Reply(connection, body, "application/json", 503));
+    var telemetry = new TelemetryLog();
+    using var client = Client(server.Endpoint, 256, telemetry: telemetry);
+    var error = await Throws<ServiceError>(async () => await client.PublishAsync(new PublishInput { Topic = "send" }));
+    Check((error is WorkFailed work && work.MessageValue == "opening") == decoded, "opening error at limit " + size);
+    Check(telemetry.Bytes.SequenceEqual(new long?[] { size }), "opening error bytes " + size);
+}
+
+// Buffered calls keep the default drain policy: an unread body arriving after
+// the headers returns the SDK-owned connection to the pool.
+{
+    var listener = new TcpListener(IPAddress.Loopback, 0); listener.Start();
+    int connections = 0;
+    using var stop = new CancellationTokenSource();
+    var accept = Task.Run(async () => {
+        var workers = new List<Task>();
+        try {
+            while (true) {
+                var socket = await listener.AcceptTcpClientAsync(stop.Token);
+                Interlocked.Increment(ref connections);
+                workers.Add(Task.Run(async () => {
+                    using (socket) {
+                        try {
+                            var stream = socket.GetStream(); var one = new byte[1]; var head = new List<byte>();
+                            while (true) {
+                                head.Clear();
+                                while (!(head.Count >= 4 && head[^4] == 13 && head[^3] == 10 && head[^2] == 13 && head[^1] == 10)) {
+                                    if (await stream.ReadAsync(one, stop.Token) == 0) return;
+                                    head.Add(one[0]);
+                                }
+                                await stream.WriteAsync(Encoding.ASCII.GetBytes("HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: 2\r\n\r\n"), stop.Token);
+                                await stream.FlushAsync(stop.Token);
+                                await Task.Delay(50, stop.Token);
+                                await stream.WriteAsync(Encoding.ASCII.GetBytes("{}"), stop.Token);
+                            }
+                        } catch (Exception error) when (error is IOException or OperationCanceledException or ObjectDisposedException) { }
+                    }
+                }));
+            }
+        } catch (Exception error) when (error is OperationCanceledException or SocketException or ObjectDisposedException) { }
+        await Task.WhenAll(workers);
+    });
+    try {
+        using var client = Client("http://" + listener.LocalEndpoint);
+        await client.PingAsync();
+        await Task.Delay(300);
+        await client.PingAsync();
+        Check(Volatile.Read(ref connections) == 1, "buffered calls reuse their connection: " + connections);
+    } finally { stop.Cancel(); listener.Stop(); await accept.WaitAsync(TimeSpan.FromSeconds(2)); }
 }
 
 foreach (var mode in new[] { "ok", "typed", "hold", "pending" })
@@ -248,6 +341,30 @@ static async Task Reply(NetworkStream connection, string body, string media = Me
     var bytes = Encoding.UTF8.GetBytes(body);
     await connection.WriteAsync(Encoding.ASCII.GetBytes($"HTTP/1.1 {status} Result\r\nContent-Type: {media}\r\nx-request-id: profile\r\nX-Reason: header-spoof\r\nConnection: close\r\nContent-Length: {bytes.Length}\r\n\r\n"));
     await connection.WriteAsync(bytes);
+}
+
+sealed class TelemetryLog : TelemetryHook
+{
+    readonly object gate = new();
+    readonly List<string> attempts = [], operations = [];
+    readonly List<long?> bytes = [];
+    public List<string> Attempts { get { lock (gate) return [.. attempts]; } }
+    public List<string> Operations { get { lock (gate) return [.. operations]; } }
+    public List<long?> Bytes { get { lock (gate) return [.. bytes]; } }
+    public override void OnAttemptFinished(AttemptFinished e) { lock (gate) { attempts.Add(e.Status + (e.Error is null ? "" : " " + e.Error)); bytes.Add(e.ResponseBytes); } }
+    public override void OnOperationFinished(OperationFinished e) { lock (gate) operations.Add(e.Error ?? "ok"); }
+}
+
+sealed class StubHandler(Func<HttpResponseMessage> respond) : HttpMessageHandler
+{
+    protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken) => Task.FromResult(respond());
+}
+
+sealed class FailingContent : HttpContent
+{
+    protected override Task SerializeToStreamAsync(Stream stream, TransportContext? context) => Task.FromException(new IOException("body unavailable"));
+    protected override bool TryComputeLength(out long length) { length = 0; return false; }
+    protected override Task<Stream> CreateContentReadStreamAsync() => Task.FromException<Stream>(new IOException("body unavailable"));
 }
 
 sealed class RawServer : IAsyncDisposable

@@ -12,6 +12,8 @@ internal sealed partial class ClientRuntime : IDisposable
 {
     private readonly ClientConfig config;
     private readonly HttpClient http;
+    // Streams only: the SDK-owned one does not drain abandoned responses.
+    private readonly HttpClient streamHttp;
     private readonly bool ownsHttp;
     private readonly JsonObject schema;
     private readonly IReadOnlyDictionary<string, Type> types;
@@ -27,7 +29,9 @@ internal sealed partial class ClientRuntime : IDisposable
             (uri.Scheme != "http" && uri.Scheme != "https") || uri.Host.Length == 0 ||
             uri.UserInfo.Length != 0 || uri.Query.Length != 0 || uri.Fragment.Length != 0)
             throw new ArgumentException("Absolute HTTP(S) endpoint without credentials, query, or fragment required");
-        if (input.MaxStreamEventBytes < 256 || input.MaxAttempts < 1 || input.Timeout <= TimeSpan.Zero || input.Timeout.TotalMilliseconds > uint.MaxValue - 1 ||
+        if (input.MaxStreamEventBytes < 256)
+            throw new ArgumentException("MaxStreamEventBytes must be at least 256");
+        if (input.MaxAttempts < 1 || input.Timeout <= TimeSpan.Zero || input.Timeout.TotalMilliseconds > uint.MaxValue - 1 ||
             input.BaseDelay < TimeSpan.Zero || input.MaxDelay < TimeSpan.Zero || input.MaxDelay.TotalMilliseconds > int.MaxValue)
             throw new ArgumentException("Invalid attempt limit, timeout, or retry delay");
         config = new ClientConfig {
@@ -38,13 +42,16 @@ internal sealed partial class ClientRuntime : IDisposable
             TimeProvider = input.TimeProvider ?? throw new ArgumentException("A TimeProvider is required")
         };
         ownsHttp = input.HttpClient is null;
-        // An abandoned stream must release its connection without waiting for an
-        // idle producer. Supplied handlers keep their caller-selected drain policy.
-        http = input.HttpClient ?? new HttpClient(new SocketsHttpHandler { AllowAutoRedirect = false, MaxResponseDrainSize = 0 }) { Timeout = System.Threading.Timeout.InfiniteTimeSpan };
+        http = input.HttpClient ?? new HttpClient(new SocketsHttpHandler { AllowAutoRedirect = false }) { Timeout = System.Threading.Timeout.InfiniteTimeSpan };
+        // An abandoned stream must release its connection without waiting for an idle
+        // producer, but buffered calls that leave a small body unread must keep draining
+        // it back into the pool. So SDK-owned streams get their own non-draining pool;
+        // a supplied client keeps its caller-selected drain policy for both.
+        streamHttp = input.HttpClient ?? new HttpClient(new SocketsHttpHandler { AllowAutoRedirect = false, MaxResponseDrainSize = 0 }) { Timeout = System.Threading.Timeout.InfiniteTimeSpan };
         this.schema = schema; this.types = types;
         InitializePolicy();
     }
-    public void Dispose() { if (ownsHttp) http.Dispose(); }
+    public void Dispose() { if (ownsHttp) { http.Dispose(); streamHttp.Dispose(); } }
     private static JsonObject LoadSchema()
     {
         using var stream = typeof(ClientRuntime).Assembly.GetManifestResourceStream("crucible.schema.json")

@@ -44,7 +44,7 @@ internal sealed partial class ClientRuntime
                 Exception? failure = null; bool timedOut = false, successfulHeaders = false;
                 try
                 {
-                    response = await http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, ct).ConfigureAwait(false);
+                    response = await streamHttp.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, ct).ConfigureAwait(false);
                     status = (int)response.StatusCode; successfulHeaders = response.IsSuccessStatusCode;
                     headers = response.Headers.Concat(response.Content.Headers).GroupBy(h => h.Key, StringComparer.OrdinalIgnoreCase)
                         .ToDictionary(g => g.Key, g => string.Join(", ", g.SelectMany(h => h.Value)), StringComparer.OrdinalIgnoreCase);
@@ -56,18 +56,25 @@ internal sealed partial class ClientRuntime
                         var stream = new ResponseStream<T>(response, body, deadline,
                             new ResponseMetadata(status.Value, headers), config.MaxStreamEventBytes,
                             value => (T)(Decode(Text(op["output"]), value) ?? throw new StreamProtocolError("Null stream item")),
-                            error => StreamError(op, headers, error));
+                            error => StreamError(op, headers, error), trace.Finished);
                         response = null;
                         Succeeded(lastCost);
+                        // The opening attempt ends here; the operation ends with the stream.
                         trace.AttemptFinished(status, null, null, RequestIdOf(null, headers));
-                        trace.Finished(null);
                         return stream;
                     }
-                    var bytes = await BoundedStreamErrorAsync(response.Content, ct).ConfigureAwait(false);
-                    size = bytes.Length; failure = Error(op, status.Value, headers, bytes);
+                    (var bytes, size) = await BoundedStreamErrorAsync(response.Content, ct).ConfigureAwait(false);
+                    failure = Error(op, status.Value, headers, bytes);
                 }
                 catch (Exception error) when (!successfulHeaders && (error is HttpRequestException or IOException || TimedOut(error, ct)))
                 { failure = new NetworkError(error.Message, error); timedOut = TimedOut(error, ct); }
+                catch (Exception error) when (successfulHeaders && error is HttpRequestException or IOException && !ct.IsCancellationRequested)
+                {
+                    // After successful headers a transport failure is never retried, but it
+                    // is still a NetworkError like every other transport failure.
+                    var network = new NetworkError(error.Message, error);
+                    Interrupted(status, network, size, headers, trace); throw network;
+                }
                 catch (Exception error) { Interrupted(status, error, size, headers, trace); throw; }
                 finally { response?.Dispose(); }
                 var decision = AfterFailure(prepared, failure!, timedOut, attempt, config.MaxAttempts, headers);
@@ -82,16 +89,20 @@ internal sealed partial class ClientRuntime
             deadline.Dispose(); trace.Finished(error); throw;
         }
     }
-    private async Task<byte[]> BoundedStreamErrorAsync(HttpContent content, CancellationToken ct)
+    // Returns the body to decode and the bytes read. One byte past the limit tells an
+    // oversized body from one of exactly the limit; like Go and Python, an oversized
+    // body is never decoded (status and headers still classify it), while telemetry
+    // keeps the bytes read.
+    private async Task<(byte[] Body, long Read)> BoundedStreamErrorAsync(HttpContent content, CancellationToken ct)
     {
         using var body = await content.ReadAsStreamAsync(ct).ConfigureAwait(false);
         using var bytes = new MemoryStream();
         var buffer = new byte[(int)Math.Min(4096L, (long)config.MaxStreamEventBytes + 1)];
         while (true)
         {
-            var count = await body.ReadAsync(buffer.AsMemory(0, (int)Math.Min(buffer.Length, config.MaxStreamEventBytes - bytes.Length + 1)), ct).ConfigureAwait(false);
-            if (count == 0) return bytes.ToArray();
-            if (bytes.Length + count > config.MaxStreamEventBytes) return [];
+            var count = await body.ReadAsync(buffer.AsMemory(0, (int)Math.Min(buffer.Length, (long)config.MaxStreamEventBytes - bytes.Length + 1)), ct).ConfigureAwait(false);
+            if (count == 0) return (bytes.ToArray(), bytes.Length);
+            if (bytes.Length + count > config.MaxStreamEventBytes) return ([], bytes.Length + count);
             bytes.Write(buffer, 0, count);
         }
     }

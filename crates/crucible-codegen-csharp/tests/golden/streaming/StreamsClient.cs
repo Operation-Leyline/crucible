@@ -39,6 +39,7 @@ public sealed class StreamsClient : global::System.IDisposable {
     /// <exception cref="global::Example.Weather.Models.DefaultEmptyReason">The service returned example.streams#DefaultEmptyReason.</exception>
     /// <exception cref="global::Example.Weather.StreamsException">Any other error response.</exception>
     /// <exception cref="global::Example.Weather.NetworkError">The transport failed.</exception>
+    /// <exception cref="global::Example.Weather.StreamProtocolError">The response is not a valid Crucible stream: its profile, framing or a modeled value is malformed.</exception>
     public global::System.Threading.Tasks.Task<global::Example.Weather.ResponseStream<global::Example.Weather.Models.@Progress>> @PublishAsync(global::Example.Weather.Models.@PublishInput input, global::System.Threading.CancellationToken cancellationToken = default) => runtime.OpenStreamAsync<global::Example.Weather.Models.@Progress>("Publish", input, cancellationToken);
     /// <summary>
     /// Calls the Read operation.
@@ -93,5 +94,6 @@ public sealed class StreamsClient : global::System.IDisposable {
     /// <exception cref="global::Example.Weather.Models.DefaultEmptyReason">The service returned example.streams#DefaultEmptyReason.</exception>
     /// <exception cref="global::Example.Weather.StreamsException">Any other error response.</exception>
     /// <exception cref="global::Example.Weather.NetworkError">The transport failed.</exception>
+    /// <exception cref="global::Example.Weather.StreamProtocolError">The response is not a valid Crucible stream: its profile, framing or a modeled value is malformed.</exception>
     public global::System.Threading.Tasks.Task<global::Example.Weather.ResponseStream<global::Example.Weather.Models.@Progress>> @WatchAsync(global::System.Threading.CancellationToken cancellationToken = default) => runtime.OpenStreamAsync<global::Example.Weather.Models.@Progress>("Watch", null, cancellationToken);
 }

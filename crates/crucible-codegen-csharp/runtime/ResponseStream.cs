@@ -14,12 +14,13 @@ public sealed class ResponseStream<T> : IAsyncEnumerable<T>, IAsyncEnumerator<T>
     private CancellationTokenRegistration enumerationRegistration;
     private readonly Func<JsonNode, T> decode;
     private readonly Func<JsonObject, Exception> decodeError;
+    private readonly Action<Exception?> finish;
     private readonly int limit;
     private readonly byte[] buffer = new byte[4096];
     private readonly List<byte> line = [];
     private readonly List<string> data = [];
     private static readonly UTF8Encoding Utf8 = new(false, true);
-    private int offset, available, physical, reading, enumerated, disposed;
+    private int offset, available, physical, reading, enumerated, disposed, reported;
     private bool firstLine = true, skipLf, terminal, finished, betweenFrames;
     private string eventName = "";
     private Exception? terminalError;
@@ -29,12 +30,22 @@ public sealed class ResponseStream<T> : IAsyncEnumerable<T>, IAsyncEnumerator<T>
     public T Current { get; private set; } = default!;
 
     internal ResponseStream(HttpResponseMessage response, Stream body, CancellationTokenSource lifetime,
-        ResponseMetadata metadata, int limit, Func<JsonNode, T> decode, Func<JsonObject, Exception> decodeError)
+        ResponseMetadata metadata, int limit, Func<JsonNode, T> decode, Func<JsonObject, Exception> decodeError, Action<Exception?> finish)
     {
         this.response = response; this.body = body; this.lifetime = lifetime; token = lifetime.Token;
-        Metadata = metadata; this.limit = limit; this.decode = decode; this.decodeError = decodeError;
+        Metadata = metadata; this.limit = limit; this.decode = decode; this.decodeError = decodeError; this.finish = finish;
         // Disposing only the response releases the active lease while preserving a caller-owned pool.
-        lifetimeRegistration = token.Register(static value => ((HttpResponseMessage)value!).Dispose(), response);
+        // Cancellation or the deadline also ends the operation, even while the stream is idle.
+        lifetimeRegistration = token.Register(static value => {
+            var stream = (ResponseStream<T>)value!;
+            stream.response.Dispose(); stream.Report(new OperationCanceledException(stream.token));
+        }, this);
+    }
+    // Reports the operation's outcome to telemetry exactly once: null after a complete
+    // terminal and EOF, otherwise the failure the consumer observes or cancellation.
+    private void Report(Exception? error)
+    {
+        if (Interlocked.Exchange(ref reported, 1) == 0) finish(error);
     }
     /// <summary>Claims this stream's only consumer; the token remains active while idle.</summary>
     /// <param name="cancellationToken">Additional cancellation for enumeration.</param>
@@ -56,6 +67,7 @@ public sealed class ResponseStream<T> : IAsyncEnumerable<T>, IAsyncEnumerator<T>
     public ValueTask DisposeAsync()
     {
         Cancel(); enumerationRegistration.Dispose(); lifetimeRegistration.Dispose(); lifetime.Dispose();
+        Report(new OperationCanceledException(token));
         return ValueTask.CompletedTask;
     }
     /// <summary>Reads one event on demand. Cancellation takes precedence over buffered events.</summary>
@@ -80,6 +92,7 @@ public sealed class ResponseStream<T> : IAsyncEnumerable<T>, IAsyncEnumerator<T>
                     finished = true;
                     response.Dispose();
                     if (terminalError is not null) throw terminalError;
+                    Report(null);
                     return false;
                 }
                 var b = (byte)next;
@@ -147,10 +160,16 @@ public sealed class ResponseStream<T> : IAsyncEnumerable<T>, IAsyncEnumerator<T>
         catch (Exception error)
         {
             response.Dispose();
-            token.ThrowIfCancellationRequested();
-            if (error is StreamProtocolError or ServiceError or OperationCanceledException) throw;
-            if (error is HttpRequestException or IOException) throw new NetworkError(error.Message, error);
-            throw new StreamProtocolError("Invalid stream encoding or modeled value");
+            // Cancellation takes precedence; other failures surface as the stream's error
+            // types. The caught exception is not chained into StreamProtocolError: decoder
+            // messages can quote response bytes, which protocol errors never disclose.
+            var thrown = token.IsCancellationRequested ? new OperationCanceledException(token)
+                : error is StreamProtocolError or ServiceError or OperationCanceledException ? error
+                : error is HttpRequestException or IOException ? new NetworkError(error.Message, error)
+                : new StreamProtocolError("Invalid stream encoding or modeled value");
+            Report(thrown);
+            if (ReferenceEquals(thrown, error)) throw;
+            throw thrown;
         }
         finally { Volatile.Write(ref reading, 0); }
     }

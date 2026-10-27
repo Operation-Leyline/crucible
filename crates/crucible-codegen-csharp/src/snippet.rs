@@ -501,12 +501,19 @@ pub(crate) fn guide(service: &Service, options: &Options) -> Guide {
     guide
         .auth
         .push_str(" The client is `IDisposable`; share one instance.");
-    guide.pagination = "A paginated operation also has a `<Operation>PagesAsync` method returning \
-        an `IAsyncEnumerable` of pages (`await foreach (var page in client.{paginator}(input))`): \
+    let streaming = service
+        .operations
+        .iter()
+        .any(|op| op.response_mode == crucible_ir::ir::ResponseMode::ServerStream);
+    // Streaming operations have no blocking form, so the sentence names only buffered ones.
+    guide.pagination = format!(
+        "A paginated operation also has a `<Operation>PagesAsync` method returning \
+        an `IAsyncEnumerable` of pages (`await foreach (var page in client.{{paginator}}(input))`): \
         each page is one response, and it stops when the response carries no next token. Every \
-        operation has an awaitable `<Operation>Async` method and a blocking `<Operation>` beside \
-        it, each taking an optional `CancellationToken`."
-        .to_owned();
+        {}operation has an awaitable `<Operation>Async` method and a blocking `<Operation>` beside \
+        it, each taking an optional `CancellationToken`.",
+        if streaming { "buffered " } else { "" }
+    );
     guide.errors = format!(
         "Each modelled error is an exception class in `{ns}.Models`, deriving from \
          `{ns}.{exception}` and `ServiceError`: catch it and read its properties, and \
@@ -520,12 +527,10 @@ pub(crate) fn guide(service: &Service, options: &Options) -> Guide {
         budget and backoff, and `RetryMode` to `RetryMode.Standard` or `RetryMode.Adaptive` for a \
         shared retry quota or client-side rate limiting."
         .to_owned();
-    if service
-        .operations
-        .iter()
-        .any(|op| op.response_mode == crucible_ir::ir::ResponseMode::ServerStream)
-    {
-        guide.pagination.push_str(" Streaming operations expose only `<Operation>Async`, returning `ResponseStream<T>`: use `await using` and `await foreach`. Opening HTTP `Metadata` is immediately available. The call token and total timeout remain active before and between reads; disposal or `Cancel()` releases the response while preserving a supplied HttpClient. Streams have one consumer and never replay after successful headers. `MaxStreamEventBytes` bounds physical events and opening errors (default 1 MiB, minimum 256). Malformed framing or values throw `StreamProtocolError`; late modeled failures retain their exception type and document fields.");
+    if streaming {
+        // The pagination section renders only for a paginated service; like the
+        // Python and Go guides, streaming guidance goes with the errors.
+        guide.errors.push_str(" Streaming operations expose only `<Operation>Async`, returning `ResponseStream<T>`: use `await using` and `await foreach`. Opening HTTP `Metadata` is immediately available. The call token and total timeout remain active before and between reads; disposal or `Cancel()` releases the response while preserving a supplied HttpClient. Streams have one consumer and never replay after successful headers. `MaxStreamEventBytes` bounds physical events and opening errors (default 1 MiB, minimum 256). Malformed framing or values throw `StreamProtocolError`; late modeled failures retain their exception type and document fields.");
     }
     guide.links.push((
         "The C# client guide".to_owned(),

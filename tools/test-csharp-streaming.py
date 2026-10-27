@@ -7,6 +7,13 @@ import tempfile
 from sdk_test_support import ROOT, run
 
 
+def rewrite(source, old, new):
+    """Replace exactly one occurrence, so model drift fails instead of passing silently."""
+    if source.count(old) != 1:
+        raise SystemExit(f"expected exactly one {old!r} in the stream model")
+    return source.replace(old, new)
+
+
 def qualify(output):
     fixture = os.environ.get("CRUCIBLE_STREAM_FIXTURE")
     if fixture:
@@ -24,8 +31,13 @@ def qualify(output):
         model = output / (name + "-model")
         shutil.copytree(ROOT / "tests/consumers/rust-stream-client/model", model)
         source = (model / "model.cru").read_text(encoding="utf-8")
-        source = source.replace("errors [ValidationError,", "errors [BlobFailure, TimeFailure, ValidationError,")
+        source = rewrite(source, "errors [ValidationError,", "errors [BlobFailure, TimeFailure, ValidationError,")
+        # Ping has no modelled output body, so a buffered call leaves its body unread.
+        source = rewrite(source, "operations [Watch, Publish, Read]", "operations [Watch, Publish, Read, Ping]")
         source += '''
+readonly operation Ping {
+    http GET "/ping"
+}
 error BlobFailure {
     status 451
     @payload
@@ -38,7 +50,10 @@ error TimeFailure {
 }
 '''
         if not docs:
-            source = re.sub(r'(?m)^    errorDocs [^\n]*\n', '', source)
+            source, count = re.subn(r'(?m)^    errorDocs [^\n]*\n', '', source)
+            # A drifted model must not leave both configurations documented.
+            if count != 1:
+                raise SystemExit(f"expected one errorDocs line in the stream model, found {count}")
         (model / "model.cru").write_text(source, encoding="utf-8")
         sdk = output / (name + "-sdk")
         run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "generate", "csharp",

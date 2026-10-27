@@ -370,6 +370,12 @@ fn operation_xmldoc(
             &format!("global::{ns}.NetworkError"),
             "The transport failed.",
         ));
+        if op.response_mode == crucible_ir::ir::ResponseMode::ServerStream {
+            tags.push(exception_tag(
+                &format!("global::{ns}.StreamProtocolError"),
+                "The response is not a valid Crucible stream: its profile, framing or a modeled value is malformed.",
+            ));
+        }
     }
     xmldoc_with(
         Some(links),

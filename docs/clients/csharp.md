@@ -105,8 +105,10 @@ Configured `DocUrl` values use the same error and reason pages as opening errors
 `ClientConfig.MaxStreamEventBytes` bounds physical events and buffered opening
 errors (default 1 MiB, minimum 256). Reads are demand driven with a fixed 4 KiB
 transport buffer. Streams dispose only their response; a supplied `HttpClient`
-and its other requests remain usable. The SDK-created handler disables response
-draining so abandoning an idle stream closes its connection immediately. A
+and its other requests remain usable. Without a supplied `HttpClient`, streams
+use their own SDK-created handler that disables response draining, so abandoning
+an idle stream closes its connection immediately; buffered calls keep a separate
+pool that drains unread bodies for connection reuse. A
 supplied handler retains its native response draining policy: the default .NET
 HTTP/1 handler can take up to its two-second `ResponseDrainTimeout` to close an
 idle canceled socket. An outstanding body read is interrupted by its cancellation

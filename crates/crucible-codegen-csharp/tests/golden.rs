@@ -62,7 +62,24 @@ fn response_stream_has_native_async_api_and_owned_runtime() {
         "stream opening has only an asynchronous API"
     );
     assert!(client.contains("runtime.OpenStreamAsync<"));
+    assert!(
+        client.contains("<exception cref=\"global::Example.Weather.StreamProtocolError\">"),
+        "stream openings document their protocol failure"
+    );
     assert!(files.iter().any(|file| file.path == "ResponseStream.cs"));
+    // This service has no paginated operation, so a Pagination section would
+    // be dropped; the streaming guidance belongs with the errors.
+    let readme = &files
+        .iter()
+        .find(|file| file.path == "README.md")
+        .expect("generated guide")
+        .contents;
+    assert!(!readme.contains("## Pagination"));
+    let errors = readme.split("## Errors").nth(1).expect("errors section");
+    assert!(
+        errors.contains("Streaming operations expose only `<Operation>Async`"),
+        "streaming guidance renders without pagination"
+    );
     let surface = crucible_codegen_csharp::surface(&service, &options());
     let watch = &surface.operations["example.streams#Watch"];
     assert_eq!(watch.method, "WatchAsync");
