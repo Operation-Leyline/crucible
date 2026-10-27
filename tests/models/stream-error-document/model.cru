@@ -3,7 +3,7 @@ service StreamErrors {
     protocol json
     errorDocs "https://docs.example.test/errors/"
     operations [Watch, Read]
-    errors [BlobProblem, NestedProblem]
+    errors [BlobProblem, NestedProblem, TextProblem, DocumentProblem]
 }
 
 readonly public operation Watch {
@@ -44,4 +44,20 @@ error NestedProblem {
     envelope?: Envelope
     entries?: Envelopes
     mapping?: EnvelopeMap
+}
+
+// Controls for the other bound member kinds a late error carries in its JSON
+// document: a header-bound string, a string payload and a document payload.
+error TextProblem {
+    status 409
+    @header("X-Note")
+    note?: string
+    @payload
+    details?: string
+}
+
+error DocumentProblem {
+    status 423
+    @payload
+    data?: document
 }
