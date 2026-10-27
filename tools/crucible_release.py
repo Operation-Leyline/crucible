@@ -16,6 +16,9 @@ LOCKFILES = (
     "tests/consumers/leyline/leyline-sdk-consumer/Cargo.lock",
 )
 VERSION = re.compile(r"(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\Z")
+# Published crate READMEs whose install snippets pin the exact workspace version.
+VERSIONED_DOCS = ("crates/crucible-api/README.md",)
+DOC_REQUIREMENT = re.compile(r'(?m)^(crucible-[a-z0-9-]+\s*=\s*\{[^\n]*?\bversion\s*=\s*)"=([^"]+)"')
 
 
 def lockfiles(root, packages):
@@ -106,6 +109,32 @@ def changelog_entry(root, version):
     raise ValueError(f"CHANGELOG.md has no '## [{version}]' entry (docs/releases.md)")
 
 
+def versioned_docs(root, packages, current, replacement=None):
+    """Check/update the `=X.Y.Z` install requirements in published READMEs."""
+    edits = {}
+    for relative in VERSIONED_DOCS:
+        path = root / relative
+        if not path.is_file():
+            continue
+        content = path.read_text(encoding="utf-8")
+        found = 0
+        for match in DOC_REQUIREMENT.finditer(content):
+            name = match.group(1).split("=", 1)[0].strip()
+            if name not in packages:
+                continue
+            found += 1
+            if match.group(2) != current:
+                raise ValueError(f"{path}: {name} must require ={current}")
+        if not found:
+            raise ValueError(f"{path} has no workspace crate requirement")
+        if replacement is not None:
+            content = DOC_REQUIREMENT.sub(
+                lambda m: f'{m.group(1)}"={replacement}"' if m.group(1).split("=", 1)[0].strip() in packages
+                else m.group(0), content)
+        edits[path] = content
+    return edits
+
+
 def check(root, version):
     version_tuple(version)
     _, _, current, packages = workspace(root)
@@ -113,6 +142,7 @@ def check(root, version):
         raise ValueError(f"Requested {version}, but the merged workspace version is {current}")
     changelog_entry(root, version)
     dependency_manifests(root, packages, current)
+    versioned_docs(root, packages, current)
     for lock in lockfiles(root, packages):
         lock_content(root / lock, packages, current, require_all=lock == "Cargo.lock")
 
@@ -157,6 +187,7 @@ def prepare(root, version):
     # Validate every file before writing, so a stale lockfile leaves the
     # checkout intact. Registry dependencies and example-service versions stay put.
     edits = dependency_manifests(root, packages, current, version)
+    edits.update(versioned_docs(root, packages, current, version))
     for lock in lockfiles(root, packages):
         edits[root / lock] = lock_content(root / lock, packages, current, version, require_all=lock == "Cargo.lock")
     start = content.index("[workspace.package]")
