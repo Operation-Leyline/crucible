@@ -286,9 +286,11 @@ def main():
     except (ValueError, OSError, KeyError) as error:
         parser.exit(1, f"Release {args.action} failed: {error}\n")
     # `prepare` lists every file it changed, one per line, to stage as is.
-    # LF on every platform: Windows text mode would end each redirected line
-    # with CR, which `git add --pathspec-from-file` then reads as part of the path.
-    sys.stdout.reconfigure(newline="\n")
+    # LF when redirected, on every platform: Windows text mode would end each
+    # line with CR, which `git add --pathspec-from-file` then reads as part of
+    # the path. A console keeps its own newline handling.
+    if not sys.stdout.isatty():
+        sys.stdout.reconfigure(newline="\n")
     for path in changed or ():
         print(path)
     print(f"Crucible {args.version}: {args.action} passed", file=sys.stderr if changed else sys.stdout)
