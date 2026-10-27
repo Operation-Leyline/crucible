@@ -59,11 +59,13 @@ class ProblemsTest(unittest.TestCase):
             (root / "README.md").write_text(
                 "[a](docs/a.md) [b](https://example.invalid/b) [c](#c) ![d](img/d.png) [a](docs/a.md)\n"
                 "[ref]: docs/ref.md\n[ok]: https://example.invalid/ok\n"
+                "[angled-ok]: <https://example.invalid/angled>\n[angled]: <docs/angled.md>\n"
                 '<img src="img/logo.svg"> <a href="https://example.invalid/x">x</a> <a href=\'#top\'>t</a>\n',
                 encoding="utf-8")
             crate = package("a", readme="README.md", manifest_path=str(root / "Cargo.toml"))
             self.assertEqual(check.problems(crate, {"a": True}), [
                 "readme has a relative link: docs/a.md",
+                "readme has a relative link: docs/angled.md",
                 "readme has a relative link: docs/ref.md",
                 "readme has a relative link: img/d.png",
                 "readme has a relative link: img/logo.svg",

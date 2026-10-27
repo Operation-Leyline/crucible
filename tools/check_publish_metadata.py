@@ -25,7 +25,8 @@ MAX_CATEGORIES = 5
 NOT_ABSOLUTE = r"(?!https?://|mailto:|#)"
 RELATIVE_LINK = re.compile(
     rf"\]\({NOT_ABSOLUTE}([^)\s]+)"
-    rf"|^ {{0,3}}\[[^\]]+\]:[ \t]*<?{NOT_ABSOLUTE}([^\s>]+)"
+    # `(?!<)` keeps `<?` from backtracking past an angle-bracketed absolute URL.
+    rf"|^ {{0,3}}\[[^\]]+\]:[ \t]*<?(?!<){NOT_ABSOLUTE}([^\s>]+)"
     rf"""|\b(?:href|src)\s*=\s*["']{NOT_ABSOLUTE}([^"']+)["']""",
     re.MULTILINE)
 
