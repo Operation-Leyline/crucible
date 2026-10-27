@@ -109,9 +109,9 @@ without an entry, so a release cannot be tagged without notes.
 ```sh
 git switch -c claude/release-0.2.1
 python tools/crucible_release.py prepare 0.2.1 > prepared.txt
-cat prepared.txt
-git diff --stat --pathspec-from-file=prepared.txt
-git diff --pathspec-from-file=prepared.txt
+git add --pathspec-from-file=prepared.txt
+git diff --cached --stat
+git diff --cached
 python tools/crucible_release.py check 0.2.1
 ```
 
@@ -121,8 +121,10 @@ requirements in member manifests, every lockfile that pins workspace crates
 `tests/consumers/`), and the `=X.Y.Z` install snippets in the docs listed in
 `VERSIONED_DOCS` (the `crucible-api` README, `docs/explorer.md` and
 `docs/framework.md`). It prints each file it changed, one per line, and nothing
-else on standard output, so that list is the set to review and stage; do not
-keep a separate list by hand. It
+else on standard output, so that list is the set to stage and review; do not
+keep a separate list by hand. Staging it first lets `git diff --cached` show
+exactly those files (`git diff` has no `--pathspec-from-file`), and reading the
+list as a pathspec file keeps any path with spaces whole. It
 preserves registry dependency versions and example-service package versions.
 It does not update checked-in generator golden files. Generated package
 metadata and ABI checks for generated Rust code also record the Crucible
@@ -148,8 +150,8 @@ git grep -n -F -e "=$PREVIOUS" -- docs crates/*/README.md README.md
 Commit the version bump and reviewed golden changes together, then open a PR:
 
 ```sh
-git add --pathspec-from-file=prepared.txt
 git add CHANGELOG.md crates/*/tests/golden
+git diff --cached --name-only   # prepared.txt's files, CHANGELOG.md and goldens
 rm prepared.txt
 git commit -m "chore: prepare Crucible 0.2.1"
 git push -u origin claude/release-0.2.1

@@ -287,7 +287,7 @@ def main():
         parser.exit(1, f"Release {args.action} failed: {error}\n")
     # `prepare` lists every file it changed, one per line, to stage as is.
     # LF on every platform: Windows text mode would end each redirected line
-    # with CR, which git then reads as part of the path.
+    # with CR, which `git add --pathspec-from-file` then reads as part of the path.
     sys.stdout.reconfigure(newline="\n")
     for path in changed or ():
         print(path)
