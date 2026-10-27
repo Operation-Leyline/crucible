@@ -617,6 +617,8 @@ fn documentation_body_guard_distinguishes_null_from_effective_omission() {
 
 #[test]
 fn documentation_json_payload_guard_preserves_values_and_absence() {
+    use crucible_wire::field::Field;
+
     static MEMBERS: [MemberInfo; 1] = [crate::__generated::member_info(
         "data",
         Location::DocumentPayload("application/json"),
@@ -629,29 +631,29 @@ fn documentation_json_payload_guard_preserves_values_and_absence() {
     #[derive(Debug, serde::Deserialize)]
     struct Document {
         #[serde(default)]
-        data: Option<Value>,
+        data: Field<Value>,
     }
     let headers = HeaderMap::new();
     for body in [b"".as_slice(), b" \t\r\n"] {
-        assert!(
+        assert_eq!(
             decode_documented_modelled::<Document>(&INFO, &headers, body)
                 .unwrap()
-                .data
-                .is_none()
+                .data,
+            Field::Absent,
+            "payload {body:?}"
         );
     }
-    for body in [
-        b"{}".as_slice(),
-        b"[]",
-        b"42",
-        b"true",
-        b"null",
-        br#""NaN""#,
-    ] {
-        let expected = serde_json::from_slice::<Option<Value>>(body).unwrap();
+    for body in [b"{}".as_slice(), b"[]", b"42", b"true", br#""NaN""#] {
+        let expected = Field::Value(serde_json::from_slice::<Value>(body).unwrap());
         let decoded = decode_documented_modelled::<Document>(&INFO, &headers, body).unwrap();
         assert_eq!(decoded.data, expected, "payload {body:?}");
     }
+    assert_eq!(
+        decode_documented_modelled::<Document>(&INFO, &headers, b"null")
+            .unwrap()
+            .data,
+        Field::Null
+    );
     // Preserve the legacy reader's existing form-feed-as-absence behavior;
     // configured documentation enforces the canonical JSON syntax boundary.
     assert!(decode_modelled::<Document>(&INFO, &headers, b"\x0c").is_some());
