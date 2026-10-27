@@ -77,8 +77,11 @@ OS, one shared Cargo cache (`tools/test-consumers.py`):
 It exists to fail on a change that compiles inside this workspace but breaks
 what real services use. The CI planner selects it on PRs that touch
 `crates/crucible-build`, `crates/crucible-server-runtime-rust`,
-`crates/crucible-wire`, `crates/crucible-codegen-rust`, or `crates/crucible-auth`,
-and always when the manual release qualifies a commit. When a
+`crates/crucible-wire`, `crates/crucible-codegen-rust`, `crates/crucible-auth`,
+`crates/crucible-client-runtime-rust` or `crates/crucible-api`, or
+`crates/crucible-revision` and `crates/crucible-codegen-cli` (which decide how a
+`crucible-build` built from crates.io pins its runtimes; the job also builds a
+model producer against the packaged crates), and always when the manual release qualifies a commit. When a
 change breaks the fixture, fix the fixture only if the break is allowed by the
 policy above and has a Migration entry; otherwise fix the change.
 
@@ -105,12 +108,23 @@ without an entry, so a release cannot be tagged without notes.
 
 ```sh
 git switch -c claude/release-0.2.1
-python tools/crucible_release.py prepare 0.2.1
-git diff -- Cargo.toml Cargo.lock e2e/Cargo.lock tests/consumers/leyline/Cargo.lock tests/consumers/leyline/leyline-sdk-consumer/Cargo.lock
+python tools/crucible_release.py prepare 0.2.1 > prepared.txt
+git add --pathspec-from-file=prepared.txt
+git diff --cached --stat
+git diff --cached
 python tools/crucible_release.py check 0.2.1
 ```
 
-The preparation helper updates the workspace version and every lockfile. It
+The preparation helper updates the workspace version, the exact internal
+requirements in member manifests, every lockfile that pins workspace crates
+(the core, e2e and Leyline locks and each standalone consumer under
+`tests/consumers/`), and the `=X.Y.Z` install snippets in the docs listed in
+`VERSIONED_DOCS` (the `crucible-api` README, `docs/explorer.md` and
+`docs/framework.md`). It prints each file it changed, one per line, and nothing
+else on standard output, so that list is the set to stage and review; do not
+keep a separate list by hand. Staging it first lets `git diff --cached` show
+exactly those files (`git diff` has no `--pathspec-from-file`), and reading the
+list as a pathspec file keeps any path with spaces whole. It
 preserves registry dependency versions and example-service package versions.
 It does not update checked-in generator golden files. Generated package
 metadata and ABI checks for generated Rust code also record the Crucible
@@ -124,18 +138,21 @@ CRUCIBLE_BLESS=1 cargo test --locked
 git diff -- crates
 ```
 
-Docs that pin an exact Crucible version move with it: the dependency example
-in [explorer.md](explorer.md):
+`prepare` already moves the pinned install snippets in the `VERSIONED_DOCS`
+files, and `check` refuses a stale one. A new doc that pins an exact Crucible
+version belongs in that list; this search should find nothing outside it:
 
 ```sh
 PREVIOUS=0.2.0   # the version being replaced
-git grep -n -F -e "=$PREVIOUS" -- docs
+git grep -n -F -e "=$PREVIOUS" -- docs crates/*/README.md README.md
 ```
 
 Commit the version bump and reviewed golden changes together, then open a PR:
 
 ```sh
-git add CHANGELOG.md Cargo.toml Cargo.lock e2e/Cargo.lock tests/consumers/leyline/Cargo.lock tests/consumers/leyline/leyline-sdk-consumer/Cargo.lock crates/*/tests/golden
+git add CHANGELOG.md crates/*/tests/golden
+git diff --cached --name-only   # prepared.txt's files, CHANGELOG.md and goldens
+rm prepared.txt
 git commit -m "chore: prepare Crucible 0.2.1"
 git push -u origin claude/release-0.2.1
 gh pr create --base main --title "Release Crucible 0.2.1" --body "Bump the shared workspace version, lock entries, and generator provenance metadata to 0.2.1."

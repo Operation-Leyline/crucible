@@ -665,7 +665,7 @@ fn llms(d: &Description, pages: &[File]) -> [File; 2] {
             "- [{}](src/{}): {}\n",
             string(&shape["name"]),
             shape_path(shape),
-            described(&format!("{}.", kind), shape)
+            described(&format!("{kind}."), shape)
         ));
     }
     if chained(d) {
@@ -1388,7 +1388,7 @@ fn operation(d: &Description, op: &Value) -> String {
         }
     } else if !op["sample"].is_null() {
         // Without an example, the sample the model implies, marked as such.
-        out.push_str(&format!("## Generated sample\n\n{}\n\n", GENERATED_NOTE));
+        out.push_str(&format!("## Generated sample\n\n{GENERATED_NOTE}\n\n"));
         // The same warning the static reference shows.
         let fallbacks: Vec<String> = list(&op["sample"]["fallbacks"])
             .iter()

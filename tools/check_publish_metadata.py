@@ -11,6 +11,7 @@ published has a problem, so it can gate a release once the manifests are fixed.
 import argparse
 import json
 from pathlib import Path
+import re
 import subprocess
 import sys
 
@@ -19,6 +20,16 @@ ROOT = Path(__file__).resolve().parents[1]
 BINARY_ONLY = {"crucible-cli", "crucible-lsp"}
 MAX_KEYWORDS = 5
 MAX_CATEGORIES = 5
+# A link or image target that is neither absolute nor an anchor, written as an
+# inline Markdown link, a reference definition, or an HTML href/src attribute.
+NOT_ABSOLUTE = r"(?!https?://|mailto:|#)"
+RELATIVE_LINK = re.compile(
+    # Markdown allows `<...>` around either destination; `(?!<)` keeps `<?`
+    # from backtracking past the bracket of an absolute URL.
+    rf"\]\(<?(?!<){NOT_ABSOLUTE}([^)\s>]+)"
+    rf"|^ {{0,3}}\[[^\]]+\]:[ \t]*<?(?!<){NOT_ABSOLUTE}([^\s>]+)"
+    rf"""|\b(?:href|src)\s*=\s*["']{NOT_ABSOLUTE}([^"']+)["']""",
+    re.MULTILINE)
 
 
 def workspace_packages(root):
@@ -52,6 +63,13 @@ def problems(package, members):
         found.append("missing readme")
     elif not (Path(package["manifest_path"]).parent / readme).is_file():
         found.append(f"readme file not found: {readme}")
+    else:
+        # crates.io resolves relative links against the crate directory, where
+        # a workspace README's links do not exist.
+        text = (Path(package["manifest_path"]).parent / readme).read_text(encoding="utf-8")
+        targets = {next(group for group in match if group) for match in RELATIVE_LINK.findall(text)}
+        for target in sorted(targets):
+            found.append(f"readme has a relative link: {target}")
     keywords = package.get("keywords") or []
     if not keywords:
         found.append("missing keywords")

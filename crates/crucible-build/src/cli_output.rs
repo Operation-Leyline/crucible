@@ -21,12 +21,17 @@ impl<'a> CliOutput<'a> {
 
     pub(crate) fn new(model: &'a ModelPackage, name: &str) -> Self {
         // Use this helper's checkout, not the model producer's manifest directory.
-        // Cargo Git dependencies retain the matching runtime crates alongside it.
-        let runtime_path = Path::new(env!("CARGO_MANIFEST_DIR"))
-            .parent()
-            .and_then(Path::parent)
-            .expect("crucible-build is located under crates/")
-            .to_path_buf();
+        // Cargo Git dependencies retain the matching runtime crates alongside it,
+        // and `prepare` reports a checkout that lacks them. A published package
+        // has no checkout around it: its generated CLI depends on the published
+        // runtimes at exactly this version instead.
+        let runtime_path = (!crucible_revision::packaged()).then(|| {
+            Path::new(env!("CARGO_MANIFEST_DIR"))
+                .parent()
+                .and_then(Path::parent)
+                .expect("crucible-build is located under crates/")
+                .to_path_buf()
+        });
         Self {
             model,
             name: name.into(),
@@ -73,16 +78,19 @@ impl<'a> CliOutput<'a> {
     /// Override the matching Crucible checkout containing both CLI runtimes.
     /// Relative paths resolve from the model producer's manifest directory.
     pub fn runtime_path(mut self, path: impl AsRef<Path>) -> Self {
-        self.options.runtime_path = crate::absolute(path.as_ref());
+        self.options.runtime_path = Some(crate::absolute(path.as_ref()));
         self
     }
 
     pub(crate) fn prepare(mut self) -> Result<(&'a ModelPackage, String, Generator), String> {
-        let path = crate::absolute(&self.options.runtime_path);
-        self.options.runtime_path = path
-            .canonicalize()
-            .map_err(|error| format!("cannot resolve runtime path {}: {error}", path.display()))?;
-        validate_runtime(&self.options.runtime_path)?;
+        if let Some(path) = &self.options.runtime_path {
+            let path = crate::absolute(path);
+            let path = path.canonicalize().map_err(|error| {
+                format!("cannot resolve runtime path {}: {error}", path.display())
+            })?;
+            validate_runtime(&path)?;
+            self.options.runtime_path = Some(path);
+        }
         Ok((self.model, self.name, Generator::Cli(self.options)))
     }
 

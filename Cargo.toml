@@ -10,7 +10,13 @@ edition = "2024"
 rust-version = "1.88"
 license = "Apache-2.0"
 publish = true
-readme = "README.md"
+# crates.io renders a README relative to the crate, not the repository root, so
+# published crates share one whose links are absolute.
+readme = "crates/README.md"
+# Both on purpose, despite Cargo's "only one is necessary" warning: `license`
+# is the SPDX id registries and cargo-deny read, and `license-file` is the only
+# way to ship the root LICENSE (Apache-2.0 plus its generated-code clarification,
+# which no SPDX id expresses) inside each package. `include` cannot reach it.
 license-file = "LICENSE"
 keywords = ["api", "code-generation", "rpc", "web", "crucible"]
 categories = ["development-tools", "web-programming"]

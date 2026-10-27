@@ -728,7 +728,7 @@ impl<'a> Sampler<'a> {
         let value = [base.add(&seed), base.sub(&seed)]
             .into_iter()
             .flatten()
-            .find(|d| within(d))
+            .find(within)
             .unwrap_or(base);
         // At a bound, the bound's own digits.
         if min.as_ref() == Some(&value) {

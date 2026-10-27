@@ -166,7 +166,6 @@ fn stub(service: &Service, operation: &Operation, options: &ScaffoldOptions) -> 
         .unwrap_or_else(|| format!("crate::{}", module_name(service.id.name())));
     format!(
         "//! {name}{summary}.\n\nuse {contract}::{imports};\nuse {service_import};\nuse crucible_server_runtime_rust::{runtime_import};\n\nimpl {name}Operation for {service_name} {{\n    async fn {method}(&self{parameter}) -> {result}<{output}> {{\n{unused}        todo!(\"{name}\")\n    }}\n}}\n",
-        contract = contract,
     )
 }
 

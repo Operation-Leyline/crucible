@@ -8,6 +8,9 @@
    errors, Lambda events) and an independent consumer of its generated Rust SDK;
 4. the `crucible.sdks/1` snippets for generated Weather and Samples Rust SDKs.
 5. the opt-in `crucible-api` aliases, from an independent consumer feature matrix.
+6. a model producer built against the packaged crates (what crates.io would
+   serve), whose `crucible-build` generates a Rust SDK and a service CLI that
+   depend on the published runtimes at exactly the workspace version.
 
 Everything shares one Cargo target directory (CARGO_TARGET_DIR if set,
 otherwise e2e/target, which the e2e job's cache already holds), so the
@@ -26,6 +29,7 @@ import re
 import shutil
 import subprocess
 import sys
+import tarfile
 import tempfile
 import time
 import urllib.parse
@@ -121,8 +125,74 @@ def api(env, work):
         '[package]\nname="api-readme"\nversion="0.0.0"\nedition="2024"\npublish=false\n[workspace]\n'
         f'[dependencies]\ncrucible-api={{path={json.dumps(dependency)},features=["server","client","auth"]}}\n',
         encoding="utf-8")
-    run(["cargo", "check", "-q", "--manifest-path", str(application / "Cargo.toml")], env=env)
+    # Build the README against the versions the locked matrix above already
+    # fetched: its lock is a superset of this graph, so resolution needs no
+    # registry access and an upstream release cannot change the check.
+    shutil.copy(ROOT / "tests/consumers/api/Cargo.lock", application / "Cargo.lock")
+    run(["cargo", "check", "-q", "--offline", "--manifest-path", str(application / "Cargo.toml")], env=env)
     print("api: empty/server/client/auth/combined independent consumers passed", flush=True)
+
+
+def packaged(env, work):
+    """`crucible-build` from its registry package has no Git provenance and no
+    checkout beside it, so its generated SDK and CLI must depend on the
+    published runtimes at exactly its version. A `[patch.crates-io]` config
+    substitutes the packaged sources for the registry, and the workspace lock
+    pins every third-party version, so only the up-front locked fetch touches
+    the registry."""
+    manifest = (ROOT / "Cargo.toml").read_text(encoding="utf-8")
+    section = manifest.split("[workspace.package]", 1)[1].split("\n[", 1)[0]
+    version = re.search(r'(?m)^version = "([^"]+)"$', section).group(1)
+    # The offline builds below need every crate the workspace lock names, which
+    # no earlier stage is guaranteed to have downloaded on a cold cache.
+    run(["cargo", "fetch", "--locked"], env=env)
+    run(["cargo", "package", "-q", "--workspace", "--exclude", "crucible-cli", "--exclude", "crucible-lsp",
+         "--locked", "--no-verify", "--allow-dirty"], env=env)
+    target = Path(env["CARGO_TARGET_DIR"])
+    root = work / "packaged"
+    crates = root / "crates"
+    crates.mkdir(parents=True)
+    patches = []
+    for archive in sorted((target / "package").glob(f"*-{version}.crate")):
+        with tarfile.open(archive, "r:gz") as source:
+            # Our own packages, but keep members inside `crates` where supported.
+            if hasattr(tarfile, "data_filter"):
+                source.extractall(crates, filter="data")
+            else:
+                source.extractall(crates)
+        name = archive.name.removesuffix(f"-{version}.crate")
+        patches.append(f"{name} = {{ path = {json.dumps((crates / archive.stem).as_posix())} }}")
+    assert any(line.startswith("crucible-build ") for line in patches), patches
+    config = root / "patch.toml"
+    config.write_text("[patch.crates-io]\n" + "\n".join(patches) + "\n", encoding="utf-8")
+    cargo = ["--offline", "--config", str(config)]
+
+    producer = root / "producer"
+    shutil.copytree(ROOT / "tests/models/weather", producer / "model")
+    (producer / "src").mkdir()
+    (producer / "src/lib.rs").write_text("", encoding="utf-8")
+    (producer / "build.rs").write_text(
+        'fn main() {\n    let model = crucible_build::model("model");\n'
+        '    model.rust_client("rust").package("weather-sdk").version("0.1.0").generate_into("../sdk");\n'
+        '    model.cli("weather").package("weather-cli").version("0.1.0").generate_into("../cli");\n}\n',
+        encoding="utf-8")
+    (producer / "Cargo.toml").write_text(
+        '[package]\nname = "weather-producer"\nversion = "0.0.0"\nedition = "2024"\npublish = false\n'
+        'links = "weather_model"\n\n[workspace]\n\n[build-dependencies]\n'
+        f'crucible-build = {{ version = "={version}", features = ["cli"] }}\n', encoding="utf-8")
+    shutil.copy(ROOT / "Cargo.lock", producer / "Cargo.lock")
+    run(["cargo", "build", "-q", *cargo, "--manifest-path", str(producer / "Cargo.toml")], env=env)
+
+    pin = f'{{ version = "={version}" }}'
+    for package, runtimes in [("sdk", ["crucible-client-runtime-rust"]),
+                              ("cli", ["crucible-client-runtime-rust", "crucible-cli-runtime"])]:
+        manifest = root / package / "Cargo.toml"
+        text = manifest.read_text(encoding="utf-8")
+        for runtime in runtimes:
+            assert f"\n{runtime} = {pin}\n" in text, text
+        shutil.copy(ROOT / "Cargo.lock", root / package / "Cargo.lock")
+        run(["cargo", "check", "-q", *cargo, "--manifest-path", str(manifest)], env=env)
+    print(f"packaged: crates.io-shaped crucible-build generated an SDK and CLI pinned to ={version}", flush=True)
 
 
 def leyline(env, work, target):
@@ -203,6 +273,7 @@ def main():
     with tempfile.TemporaryDirectory(prefix="crucible-consumers-") as directory:
         work = Path(directory)
         api(env, work)
+        packaged(env, work)
         starter(env, work, target)
         weather(env)
         leyline(env, work, target)

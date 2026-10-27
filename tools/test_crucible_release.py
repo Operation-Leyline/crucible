@@ -1,8 +1,14 @@
+from contextlib import redirect_stderr, redirect_stdout
+import io
 from pathlib import Path
+import subprocess
+import sys
 import tempfile
 import unittest
+from unittest.mock import patch
 
-from crucible_release import LOCKFILES, changelog_entry, check, prepare, version_tuple
+import crucible_release
+from crucible_release import LOCKFILES, VERSIONED_DOCS, changelog_entry, check, prepare, version_tuple
 
 
 CHANGELOG = """# Changelog
@@ -38,6 +44,11 @@ class ReleaseTests(unittest.TestCase):
         (root / "CHANGELOG.md").write_text(CHANGELOG)
         (root / "crates/crucible-server-runtime-rust").mkdir(parents=True)
         (root / "crates/crucible-server-runtime-rust/Cargo.toml").write_text('[package]\nname = "crucible-server-runtime-rust"\nversion.workspace = true\n')
+        (root / "crates/crucible-wire").mkdir(parents=True)
+        (root / "crates/crucible-wire/Cargo.toml").write_text('[package]\nname = "crucible-wire"\nversion.workspace = true\n')
+        for doc in VERSIONED_DOCS:
+            (root / doc).parent.mkdir(parents=True, exist_ok=True)
+            (root / doc).write_text('```toml\n[dependencies]\ncrucible-wire = { version = "=0.1.0" }\n```\n')
         (root / "Cargo.toml").write_text('[workspace]\nmembers = ["crates/*", "tools/extra"]\n\n[workspace.package]\nversion = "0.1.0"\n\n[workspace.dependencies]\nserde = "1"\n')
         (root / "e2e").mkdir()
         (root / "tests/consumers/leyline/leyline-sdk-consumer").mkdir(parents=True)
@@ -45,6 +56,10 @@ class ReleaseTests(unittest.TestCase):
 
 [[package]]
 name = "crucible-server-runtime-rust"
+version = "0.1.0"
+
+[[package]]
+name = "crucible-wire"
 version = "0.1.0"
 
 [[package]]
@@ -60,13 +75,94 @@ version = "0.1.0"
         for path in (root / lock for lock in LOCKFILES):
             path.write_text(lock)
 
+    @staticmethod
+    def subset(lock):
+        return lock.replace('[[package]]\nname = "crucible-wire"\nversion = "0.1.0"\n\n', "")
+
+    def test_prepare_runs_with_an_in_memory_stdout(self):
+        # StringIO has no `reconfigure`; an embedding caller can still capture the list.
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            self.fixture(root)
+            out = io.StringIO()
+            with patch.object(crucible_release, "ROOT", root), \
+                    patch.object(sys, "argv", ["crucible_release.py", "prepare", "0.2.0"]), \
+                    redirect_stdout(out), redirect_stderr(io.StringIO()):
+                crucible_release.main()
+            self.assertEqual(out.getvalue().splitlines(), sorted(["Cargo.toml", *VERSIONED_DOCS, *LOCKFILES]))
+
+    def test_prepare_lists_changed_files_with_lf_line_endings(self):
+        # Through a real redirected stdout, where Windows would translate to CRLF.
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            self.fixture(root)
+            script = ("import sys, crucible_release as tool\n"
+                      f"tool.ROOT = tool.Path({str(root)!r})\n"
+                      "sys.argv = ['crucible_release.py', 'prepare', '0.2.0']\n"
+                      "tool.main()\n")
+            result = subprocess.run([sys.executable, "-c", script], capture_output=True,
+                                    cwd=Path(__file__).parent, check=True)
+            self.assertNotIn(b"\r", result.stdout)
+            self.assertEqual(result.stdout.decode().splitlines(),
+                             sorted(["Cargo.toml", *VERSIONED_DOCS, *LOCKFILES]))
+
+    def test_published_readme_install_requirement_follows_the_release(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            self.fixture(root)
+            readme = root / "crates/crucible-api/README.md"
+            readme.write_text(
+                'Text that mentions "=0.1.0" stays.\n\n'
+                '```toml\n[dependencies]\ncrucible-wire = { version = "=0.1.0", features = ["x"] }\n'
+                'runtime = { package = "crucible-server-runtime-rust", version = "=0.1.0" }\n'
+                'pinned = { version = "=0.1.0" }\n'
+                'split = { package = "crucible-wire", version = "=0.1.0", features = [\n  "a",\n  "b",\n] }\n```\n\n'
+                '```toml\ncrucible-server-runtime-rust = { version = "=0.1.0", features = ["bare"] }\n```\n\n```toml\n'
+                '[build-dependencies.crucible-wire]\nversion = "=0.1.0"\n\n'
+                "[dev-dependencies.aliased]\npackage = 'crucible-wire'\nversion = '=0.1.0'\n```\n")
+            check(root, "0.1.0")
+            prepare(root, "0.2.0")
+            check(root, "0.2.0")
+            text = readme.read_text()
+            self.assertIn('crucible-wire = { version = "=0.2.0", features = ["x"] }', text)
+            self.assertIn('runtime = { package = "crucible-server-runtime-rust", version = "=0.2.0" }', text)
+            self.assertIn('[build-dependencies.crucible-wire]\nversion = "=0.2.0"', text)
+            self.assertIn('split = { package = "crucible-wire", version = "=0.2.0", features = [\n  "a",', text)
+            self.assertIn('crucible-server-runtime-rust = { version = "=0.2.0", features = ["bare"] }', text)
+            # An aliased table, single-quoted as TOML allows.
+            self.assertIn("[dev-dependencies.aliased]\npackage = 'crucible-wire'\nversion = '=0.2.0'", text)
+            # Neither prose nor a registry crate that happens to share the pin moves.
+            self.assertIn('Text that mentions "=0.1.0" stays.', text)
+            self.assertIn('pinned = { version = "=0.1.0" }', text)
+            snapshot = (root / "Cargo.toml", *(root / lock for lock in LOCKFILES), readme)
+            # A stale aliased pin, and a table-form pin that is not exact.
+            for current, stale in (
+                ('package = "crucible-server-runtime-rust", version = "=0.2.0"',
+                 'package = "crucible-server-runtime-rust", version = "=0.1.0"'),
+                ('[build-dependencies.crucible-wire]\nversion = "=0.2.0"',
+                 '[build-dependencies.crucible-wire]\nversion = "0.2.0"'),
+            ):
+                with self.subTest(stale=stale):
+                    readme.write_text(text.replace(current, stale))
+                    with self.assertRaisesRegex(ValueError, "must require =0.2.0"):
+                        check(root, "0.2.0")
+                    before = {path: path.read_bytes() for path in snapshot}
+                    with self.assertRaisesRegex(ValueError, "must require =0.2.0"):
+                        prepare(root, "0.2.1")
+                    self.assertEqual(before, {path: path.read_bytes() for path in before})
+            readme.unlink()
+            with self.assertRaisesRegex(ValueError, "is missing"):
+                check(root, "0.2.0")
+
     def test_prepare_updates_both_lockfiles_without_upgrading_dependencies_or_examples(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             self.fixture(root)
             check(root, "0.1.0")
-            prepare(root, "0.2.0")
+            changed = prepare(root, "0.2.0")
             check(root, "0.2.0")
+            # Exactly the files whose content moved, to stage as listed.
+            self.assertEqual(changed, sorted(["Cargo.toml", *VERSIONED_DOCS, *LOCKFILES]))
             for path in (root / lock for lock in LOCKFILES):
                 text = path.read_text()
                 self.assertIn('name = "crucible-server-runtime-rust"\nversion = "0.2.0"', text)
@@ -110,9 +206,13 @@ version = "0.1.0"
             self.fixture(root)
             streaming = root / "tests/consumers/streaming/Cargo.lock"
             streaming.parent.mkdir()
-            streaming.write_bytes((root / "Cargo.lock").read_bytes())
+            # A standalone consumer locks only the workspace crates it uses.
+            streaming.write_text(self.subset((root / "Cargo.lock").read_text()))
+            self.assertNotIn('"crucible-wire"', streaming.read_text())
             prepare(root, "0.2.0")
+            check(root, "0.2.0")
             self.assertIn('name = "crucible-server-runtime-rust"\nversion = "0.2.0"', streaming.read_text())
+            self.assertIn('name = "crucible-wire"\nversion = "0.2.0"', (root / "Cargo.lock").read_text())
             streaming.write_text(streaming.read_text().replace(
                 'name = "crucible-server-runtime-rust"\nversion = "0.2.0"',
                 'name = "crucible-server-runtime-rust"\nversion = "0.1.0"'))
@@ -125,7 +225,7 @@ version = "0.1.0"
             self.fixture(root)
             consumer = root / "tests/consumers/future-native/Cargo.lock"
             consumer.parent.mkdir()
-            consumer.write_text((root / "Cargo.lock").read_text().replace(
+            consumer.write_text(self.subset((root / "Cargo.lock").read_text()).replace(
                 'name = "crucible-server-runtime-rust"\nversion = "0.1.0"',
                 'name = "crucible-server-runtime-rust"\nversion = "0.0.9"'))
             before = {path: path.read_bytes() for path in (root / "Cargo.toml", *(root / lock for lock in LOCKFILES), consumer)}
