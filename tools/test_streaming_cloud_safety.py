@@ -22,7 +22,8 @@ BUILDER = Path(__file__).with_name("build-streaming-cloud.py")
 
 
 def source_functions(env, *, optimize=0):
-    env.setdefault("HTTPClientError", type("HTTPClientError", (Exception,), {}))
+    env.setdefault("HTTPClientError", type("HTTPClientError", (Exception,), {"response": None}))
+    env.setdefault("BotocoreConnectionError", type("BotocoreConnectionError", (Exception,), {}))
     tree = ast.parse(SOURCE.read_text(encoding="utf-8"))
     functions = [node for node in tree.body if isinstance(node, ast.FunctionDef)]
     exec(compile(ast.fix_missing_locations(ast.Module(body=functions, type_ignores=[])), str(SOURCE), "exec", optimize=optimize), env)
@@ -256,7 +257,7 @@ class CloudSafety(unittest.TestCase):
                 super().__init__(code)
                 self.response = {"Error": {"Code": code}}
 
-        for scenario in ("transient", "network", "lost-response", "permanent", "foreign", "denied"):
+        for scenario in ("transient", "network", "connection", "lost-response", "permanent", "foreign", "denied"):
             with self.subTest(scenario=scenario):
                 state = {"now": 0, "exists": True, "attempts": 0, "reads": 0}
                 env = {"report": {"cleanup": {}}, "save": lambda: None, "run": "owned",
@@ -280,15 +281,16 @@ class CloudSafety(unittest.TestCase):
                     if scenario == "lost-response":
                         state["exists"] = False
                         raise TimeoutError("delete response lost")
-                    if scenario == "network" and state["attempts"] == 1:
-                        raise env["HTTPClientError"]("connection closed")
+                    if scenario in ("network", "connection") and state["attempts"] == 1:
+                        error = "HTTPClientError" if scenario == "network" else "BotocoreConnectionError"
+                        raise env[error]("connection closed")
                     if state["attempts"] == 1 or scenario == "permanent":
                         raise ClientError("ServiceUnavailableException")
                     state["exists"] = False
 
                 env["cleanup"]("function", find, delete, settle_seconds=0)
                 outcome = env["report"]["cleanup"]["function"]
-                if scenario in ("transient", "network", "lost-response"):
+                if scenario in ("transient", "network", "connection", "lost-response"):
                     self.assertEqual(outcome, "deleted-and-verified")
                     self.assertFalse(state["exists"])
                     self.assertGreaterEqual(state["reads"], 2)

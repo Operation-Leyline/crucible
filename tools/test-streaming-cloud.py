@@ -20,7 +20,11 @@ from urllib.parse import urlsplit
 import boto3
 from botocore.auth import SigV4Auth
 from botocore.awsrequest import AWSRequest
-from botocore.exceptions import ClientError, HTTPClientError
+from botocore.exceptions import (
+    ClientError,
+    ConnectionError as BotocoreConnectionError,
+    HTTPClientError,
+)
 
 
 def require(condition, message):
@@ -253,10 +257,10 @@ def main():
                     delete(found)
                     break
                 except Exception as exc:
-                    response = getattr(exc, "response", {})
+                    response = exc.response if isinstance(exc, ClientError) else {}
                     code = response.get("Error", {}).get("Code", "")
                     status = response.get("ResponseMetadata", {}).get("HTTPStatusCode", 0)
-                    transient = isinstance(exc, (TimeoutError, ConnectionError, HTTPClientError)) or (
+                    transient = isinstance(exc, (TimeoutError, ConnectionError, BotocoreConnectionError, HTTPClientError)) or (
                         isinstance(exc, ClientError) and (status >= 500 or code in {
                             "ServiceUnavailableException", "ServiceUnavailable", "InternalFailure",
                             "InternalError", "Throttling", "ThrottlingException",
