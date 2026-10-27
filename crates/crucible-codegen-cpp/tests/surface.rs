@@ -88,7 +88,7 @@ fn assert_declared(service: &Service, options: &Options) -> Surface {
         .find(|line| !line.trim_start().starts_with("/**") && line.contains(';'))
         .unwrap();
     assert_eq!(first.trim(), "std::optional<std::string> endpoint;");
-    let constructor = format!("{0}::{0}(runtime::ClientConfig config)", class);
+    let constructor = format!("{class}::{class}(runtime::ClientConfig config)");
     let generated_endpoint = block(source, &constructor, "{}\n");
     match &options.endpoint {
         Some(endpoint) => {

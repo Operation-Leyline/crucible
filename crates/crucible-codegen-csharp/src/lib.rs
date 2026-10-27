@@ -356,7 +356,7 @@ fn operation_xmldoc(
         for error in &op.errors {
             tags.push(exception_tag(
                 &ty(service, error, ns),
-                &format!("The service returned {}.", error),
+                &format!("The service returned {error}."),
             ));
         }
         tags.push(exception_tag(
@@ -656,10 +656,7 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
                 } else if is_union {
                     "A union: exactly one variant is set. A variant this client does not know is kept in UnknownVariant.".to_string()
                 } else {
-                    format!(
-                        "Construct it with an object initializer. Model shape {}.",
-                        id
-                    )
+                    format!("Construct it with an object initializer. Model shape {id}.")
                 };
                 model.push_str(&xmldoc_linked(
                     &links,
