@@ -451,6 +451,41 @@ patch. A last release without a schema-2 `contentDigest` (every release
 before this design) counts as changed once. Built archives are never
 compared for "unchanged", and no service script is hashed.
 
+### Refreshing generator provenance after ignore-file creation
+
+Generator provenance is a build-time snapshot. To keep incremental builds
+fast and bounded, Cargo watches existing ignore files and relevant source
+trees. Dirty state uses Git's tracked and nonignored untracked status for
+`crates/`, `Cargo.toml`, and `Cargo.lock`.
+Creating a previously absent root `.gitignore` or global ignore file
+can change Git's classification without changing a watched input. Cargo
+can then reuse the previous dirty or clean snapshot. Watching absent files
+would rerun the build script on every build; watching their checkout or home
+parents would recursively scan unrelated files.
+
+After creating such a file, refresh provenance in the Crucible workspace
+that builds the generator:
+
+1. Keep the same `CARGO_TARGET_DIR`, profile, and target settings used for
+   that generator. For a default development build, run:
+
+   ```bash
+   cargo clean -p crucible-revision
+   cargo build -p crucible-cli
+   ```
+
+   For a release build, pass `--release` to both commands. For a custom
+   profile or cross-compilation target, pass the matching `--profile` and
+   `--target` options to both. Rebuild the package that embeds the generator
+   if it is not `crucible-cli`.
+2. Run the rebuilt binary from that target directory. Replace any installed
+   or copied generator you intend to use with the rebuilt binary.
+
+A copied or preinstalled binary retains its compiled provenance snapshot.
+Cleaning a workspace does not update it. Never treat an old dirty binary
+as verified merely because the current checkout is clean: its compiled
+source may differ from that checkout.
+
 ## 5. Releasing: `crucible sdk` *(built for npm and git channels)*
 
 `config` and `generate` are built; the rest is phase 1b.
