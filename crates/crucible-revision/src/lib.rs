@@ -1,6 +1,15 @@
 //! The Crucible Git revision the generators were built from, embedded by
 //! this crate's build script. It is its own leaf crate so a new commit
 //! rebuilds only what records the revision, not every generator.
+//!
+//! Provenance is a build-time snapshot, not a check of the current checkout.
+//! Creating a previously absent root or global ignore file can leave Cargo's
+//! bounded watches unchanged. To refresh, run `cargo clean -p crucible-revision`
+//! in the generator's workspace, then rebuild the generator with the same
+//! target directory, profile, and target settings and use the rebuilt binary.
+//! Match any `--release`, `--profile`, and `--target` options when cleaning.
+//! Copied or preinstalled binaries retain their original snapshot; a clean
+//! checkout alone cannot verify an old dirty binary.
 
 /// The Git revision (`HEAD`) of the Crucible checkout this was built from.
 /// Packaged or vendored builds without source provenance return `None`.
@@ -9,7 +18,7 @@ pub fn source_revision() -> Option<&'static str> {
     option_env!("CRUCIBLE_GENERATOR_REVISION")
 }
 
-/// Whether tracked files differed from [`source_revision`] when this was built.
+/// Whether tracked or untracked source files made the checkout dirty when built.
 pub fn dirty() -> bool {
     option_env!("CRUCIBLE_GENERATOR_DIRTY").is_some()
 }
