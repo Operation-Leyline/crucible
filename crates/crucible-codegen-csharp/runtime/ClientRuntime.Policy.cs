@@ -127,7 +127,7 @@ internal sealed partial class ClientRuntime
 
         internal void Finished(Exception? error)
         {
-            // A stream canceled during its handoff has already reported its outcome.
+            // A stream canceled at its handoff reported its outcome already.
             if (hook is null || Interlocked.Exchange(ref operationFinished, 1) != 0) return;
             var finished = new OperationFinished(id, client.service, operation, attempts, status, error is null ? null : ErrorName(error),
                 clock.GetElapsedTime(start), clock.GetUtcNow());
