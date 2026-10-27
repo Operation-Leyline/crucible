@@ -466,6 +466,8 @@ internal sealed partial class ClientRuntime : IDisposable
                 bool hasBody = op["response"]!["body"]!.AsArray().Count != 0 || payload is not null;
                 var bytes = response.IsSuccessStatusCode && !hasBody ? [] : await response.Content.ReadAsByteArrayAsync(ct).ConfigureAwait(false);
                 size = bytes.Length;
+                // As in Go, cancellation and the deadline take precedence over a read body.
+                ct.ThrowIfCancellationRequested();
                 if (response.IsSuccessStatusCode)
                 {
                     var output = Output<T>(op, payload, bytes, headers);

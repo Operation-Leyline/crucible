@@ -67,6 +67,8 @@ internal sealed partial class ClientRuntime
                     else
                     {
                         (var bytes, size) = await BoundedStreamErrorAsync(response.Content, ct).ConfigureAwait(false);
+                        // Cancellation and the deadline take precedence over a modeled opening error.
+                        ct.ThrowIfCancellationRequested();
                         failure = Error(op, status.Value, headers, bytes);
                     }
                 }

@@ -252,6 +252,48 @@ foreach (var (wire, read, expected) in new[] {
     Check(telemetry.Sequence.SequenceEqual(new[] { "attempt 200", "operation OperationCanceledException" }), "handoff cancellation: " + string.Join(",", telemetry.Sequence));
 }
 
+// The first failure ends the stream: a consumer that catches and reads again gets the
+// same failure, never items parsed from the released response's buffer or a clean end.
+foreach (var (wire, failure) in new[] {
+    ("data: {\"ready\":5}\n\n" + Item + Complete, nameof(StreamProtocolError)),
+    ("event: crucible.complete\n\n" + Complete, nameof(StreamProtocolError)),
+    (Item + "event: crucible.error\ndata: {\"type\":\"WorkFailed\",\"status\":503,\"error\":{\"message\":\"late\"}}\n\n", nameof(WorkFailed)),
+})
+{
+    await using var server = new RawServer((connection, _, _) => Reply(connection, wire));
+    using var client = Client(server.Endpoint);
+    await using var events = await client.WatchAsync();
+    var iterator = events.GetAsyncEnumerator();
+    var outcomes = new List<string>();
+    for (int read = 0; read < 4; read++)
+    {
+        try { outcomes.Add(await iterator.MoveNextAsync() ? "item" : "end"); }
+        catch (Exception error) when (error is StreamProtocolError or ServiceError) { outcomes.Add(error.GetType().Name); }
+    }
+    var expected = new List<string>();
+    if (wire.StartsWith(Item, StringComparison.Ordinal)) expected.Add("item");
+    while (expected.Count < 4) expected.Add(failure);
+    Check(outcomes.SequenceEqual(expected), "sticky stream failure: " + string.Join(",", outcomes));
+}
+
+// Cancellation takes precedence over a modeled opening error whose body was read in
+// full, for streams and for buffered calls, as Go checks ctx.Err() before decoding.
+foreach (var unary in new[] { false, true })
+{
+    using var cancel = new CancellationTokenSource();
+    using var http = new HttpClient(new StubHandler(() => {
+        var response = new HttpResponseMessage((HttpStatusCode)503) { Content = new CancelAtEndContent("{\"__type\":\"WorkFailed\",\"message\":\"opening\"}"u8.ToArray(), cancel) };
+        response.Content.Headers.TryAddWithoutValidation("Content-Type", "application/json");
+        return response;
+    }));
+    using var client = new StreamsClient(new ClientConfig { Endpoint = "http://127.0.0.1:1", HttpClient = http, MaxAttempts = 1, Timeout = TimeSpan.FromSeconds(5) });
+    var error = await Throws<Exception>(async () => {
+        if (unary) await client.ReadAsync(cancel.Token);
+        else await using (await client.PublishAsync(new PublishInput { Topic = "send" }, cancel.Token)) { }
+    });
+    Check(cancel.IsCancellationRequested && error is OperationCanceledException, (unary ? "unary" : "stream") + " cancellation over opening error: " + error.GetType().Name);
+}
+
 // Like Go and Python, an opening error one byte past the limit is not decoded, and telemetry keeps the bytes read.
 foreach (var (size, decoded) in new[] { (256, true), (257, false) })
 {
@@ -376,6 +418,25 @@ sealed class TelemetryLog : TelemetryHook
 sealed class StubHandler(Func<HttpResponseMessage> respond) : HttpMessageHandler
 {
     protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken) => Task.FromResult(respond());
+}
+
+// A body whose last read cancels the caller and still completes, as when the token
+// fires while the final chunk is being read.
+sealed class CancelAtEndContent(byte[] body, CancellationTokenSource cancel) : HttpContent
+{
+    protected override async Task SerializeToStreamAsync(Stream stream, TransportContext? context) { await stream.WriteAsync(body); cancel.Cancel(); }
+    protected override bool TryComputeLength(out long length) { length = body.Length; return true; }
+    protected override Task<Stream> CreateContentReadStreamAsync() => Task.FromResult<Stream>(new CancelAtEndStream(body, cancel));
+}
+
+sealed class CancelAtEndStream(byte[] body, CancellationTokenSource cancel) : MemoryStream(body)
+{
+    public override ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default)
+    {
+        var count = Read(buffer.Span);
+        if (Position == Length) cancel.Cancel();
+        return ValueTask.FromResult(count);
+    }
 }
 
 sealed class FailingContent : HttpContent

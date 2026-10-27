@@ -24,6 +24,8 @@ public sealed class ResponseStream<T> : IAsyncEnumerable<T>, IAsyncEnumerator<T>
     private bool firstLine = true, skipLf, terminal, finished, betweenFrames;
     private string eventName = "";
     private Exception? terminalError;
+    // The first failure ends the stream: every later read rethrows it, as Go keeps Err.
+    private Exception? failure;
     /// <summary>The opening HTTP metadata, available before the first read.</summary>
     public ResponseMetadata Metadata { get; }
     /// <summary>The last event returned by MoveNextAsync.</summary>
@@ -79,6 +81,12 @@ public sealed class ResponseStream<T> : IAsyncEnumerable<T>, IAsyncEnumerator<T>
     public async ValueTask<bool> MoveNextAsync()
     {
         if (Interlocked.Exchange(ref reading, 1) != 0) throw new InvalidOperationException("Concurrent stream reads are forbidden");
+        if (failure is { } failed)
+        {
+            // Never resume parsing the buffer of a released response, whose reads look like EOF.
+            Volatile.Write(ref reading, 0);
+            System.Runtime.ExceptionServices.ExceptionDispatchInfo.Throw(failed);
+        }
         try
         {
             if (finished) return false;
@@ -171,6 +179,7 @@ public sealed class ResponseStream<T> : IAsyncEnumerable<T>, IAsyncEnumerator<T>
                 : error is StreamProtocolError or ServiceError or OperationCanceledException ? error
                 : error is HttpRequestException or IOException ? new NetworkError(error.Message, error)
                 : new StreamProtocolError("Invalid stream encoding or modeled value");
+            failure = thrown;
             Report(thrown);
             if (ReferenceEquals(thrown, error)) throw;
             throw thrown;
