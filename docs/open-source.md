@@ -32,10 +32,13 @@ Check the package metadata and publication order:
 
 ```sh
 python tools/check_publish_metadata.py --order
+cargo package --workspace --exclude crucible-cli --exclude crucible-lsp --locked --offline
 cargo publish --workspace --exclude crucible-cli --exclude crucible-lsp --dry-run --locked
 ```
 
-The dry run builds the packaged sources in dependency order without uploading.
+The offline package check needs a populated dependency cache. The registry
+dry run may need network access; it builds the packaged sources in dependency
+order without uploading.
 The package manifest excludes repository-only tests and benchmarks while
 retaining generator templates, bundled models, runtimes, README and LICENSE.
 A successful local check does not reserve a registry name or establish a
