@@ -42,8 +42,9 @@ impl Fingerprint {
         }
         let digit = |byte: u8| (byte as char).to_digit(16);
         let mut bytes = [0u8; 32];
-        for (index, pair) in text.chunks_exact(2).enumerate() {
-            bytes[index] = u8::try_from(digit(pair[0])? * 16 + digit(pair[1])?).ok()?;
+        let (pairs, _) = text.as_chunks::<2>();
+        for (index, [high, low]) in pairs.iter().enumerate() {
+            bytes[index] = u8::try_from(digit(*high)? * 16 + digit(*low)?).ok()?;
         }
         Some(Self(bytes))
     }
