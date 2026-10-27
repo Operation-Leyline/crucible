@@ -53,8 +53,9 @@ async def read_opening_error(response: httpx.Response, limit: int) -> tuple[byte
     explicit output ceiling instead; malformed/oversized bodies still retain
     HTTP status classification through the existing error decoder.
     Returns the body to decode and the bytes read for telemetry: the decoded
-    length, or the bytes consumed when an oversized or malformed body is
-    discarded.
+    length; limit + 1 when the body or its decoded output is oversized (as in
+    Go, whose transport decodes and stops one byte past the limit); or the
+    bytes consumed when a malformed body is discarded.
     """
     data = bytearray()
     async for chunk in response.aiter_raw():
@@ -66,9 +67,17 @@ async def read_opening_error(response: httpx.Response, limit: int) -> tuple[byte
     encoding = response.headers.get("content-encoding", "identity").lower()
     if encoding not in ("gzip", "deflate"):
         return bytes(data), len(data)
-    body = _gunzip_members(memoryview(data), limit) if encoding == "gzip" else _inflate(data, limit)
-    # None marks a discarded body; a valid empty one decodes to b"" (0 bytes).
+    try:
+        body = _gunzip_members(memoryview(data), limit) if encoding == "gzip" else _inflate(data, limit)
+    except _Oversized:
+        # Decoding stopped one byte past the ceiling, the bytes read so far.
+        return b"", limit + 1
+    # None marks a malformed body; a valid empty one decodes to b"" (0 bytes).
     return (b"", len(data)) if body is None else (body, len(body))
+
+
+class _Oversized(Exception):
+    """Decoded output passed the opening-error ceiling."""
 
 
 def _inflate(data: bytearray, limit: int) -> bytes | None:
@@ -76,9 +85,11 @@ def _inflate(data: bytearray, limit: int) -> bytes | None:
         try:
             decoder = zlib.decompressobj(format)
             expanded_deflate = decoder.decompress(data, limit + 1)
-            return expanded_deflate if decoder.eof and len(expanded_deflate) <= limit else None
         except zlib.error:
             continue
+        if len(expanded_deflate) > limit:
+            raise _Oversized
+        return expanded_deflate if decoder.eof else None
     return None
 
 
@@ -115,7 +126,7 @@ def _gunzip_members(data: memoryview, limit: int) -> bytes | None:
                 # as unbounded, so it is never passed).
                 expanded += decoder.decompress(piece, limit + 1 - len(expanded))
                 if len(expanded) > limit or decoder.unconsumed_tail:
-                    return None
+                    raise _Oversized
                 offset += len(piece) - len(decoder.unused_data)
                 step = min(step * 2, 65536)
     except zlib.error:

@@ -482,7 +482,7 @@ class SyncStreams(unittest.TestCase):
         encodings=(("identity","",lambda b:b),("gzip","gzip",gzip.compress),
                    ("gzip-empty-member","gzip",lambda b:gzip.compress(b)+gzip.compress(b"")),("deflate","deflate",zlib.compress))
         for name,encoding,compress in encodings:
-            for size,decoded in ((256,True),(257,False)):
+            for size,decoded in ((256,True),(257,False),(1000,False)):
                 body=document+b" "*(size-len(document));wire=compress(body)
                 attempts=[]
                 class Hook(TelemetryHook):
@@ -491,10 +491,10 @@ class SyncStreams(unittest.TestCase):
                     with self.assertRaises(Exception) as caught: client.publish(PublishInput(topic="send"))
                     self.assertEqual(getattr(caught.exception,"message",None)==message,decoded)
                     self.assertEqual(len(requests),1)
-                    # Telemetry reports the bytes read, as Go does: the decoded
-                    # body, or what was consumed before a body was discarded
-                    # (one byte past the limit for an oversized identity body).
-                    self.assertEqual(attempts,[size if decoded else 257 if not encoding else len(wire)])
+                    # Telemetry reports the decoded bytes read, as Go does: the
+                    # body, or one byte past the limit once raw or decoded
+                    # output is oversized.
+                    self.assertEqual(attempts,[size if decoded else 257])
         # A valid empty compressed body decodes to 0 bytes; a malformed one
         # reports the bytes consumed before it was discarded.
         for encoding,wire,expected in (("gzip",gzip.compress(b""),0),("deflate",zlib.compress(b""),0),("gzip",b"not gzip",8)):
@@ -649,18 +649,23 @@ class AsyncStreams(unittest.IsolatedAsyncioTestCase):
             async with AsyncStreamsClient(f"http://127.0.0.1:{listener.getsockname()[1]}",timeout=.15) as client:
                 with self.assertRaises(TimeoutError): await client.watch()
             self.assertEqual(task.cancelling(),0)
-        # A caller cancel in the same tick as the watchdog's still wins, as
-        # with asyncio.timeout(): the reader ends cancelled, not timed out.
+        # A caller cancel in the same tick as the lifetime's interrupt still
+        # wins, as with asyncio.timeout(): the reader ends with the caller's
+        # cancellation, not the lifetime's error. The interrupt comes from a
+        # cancellation event: an idle-read deadline also races HTTPX's own
+        # read timeout (#438), which would rename the caller's cancel.
         interrupt=stream_module._Lifetime.interrupt
         def with_caller_cancel(lifetime,reader):
             reader.cancel("caller");interrupt(lifetime,reader)
         stream_module._Lifetime.interrupt=with_caller_cancel
         try:
             with raw(b"",hold=True) as (url,_,_):
-                async with AsyncStreamsClient(url,timeout=1) as client:
-                    stream=await client.watch()
+                async with AsyncStreamsClient(url,timeout=10) as client:
+                    event=asyncio.Event();stream=await client.watch(cancellation=event)
                     reader=asyncio.create_task(anext(stream))
-                    with self.assertRaises(asyncio.CancelledError): await reader
+                    asyncio.get_running_loop().call_later(.05,event.set)
+                    with self.assertRaises(asyncio.CancelledError) as caught: await reader
+                    self.assertEqual(caught.exception.args,("caller",))
                     self.assertTrue(reader.cancelled())
                     await stream.aclose()
         finally:
