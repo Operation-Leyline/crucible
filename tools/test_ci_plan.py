@@ -182,8 +182,16 @@ class PlanTests(unittest.TestCase):
         # The aggregate cannot pass a release (full) run when consumers was skipped or failed.
         self.assertIn('results["plan"]["outputs"]["full"] == "true" and results["consumers"]["result"] != "success"', jobs["ci"])
         release = (ROOT / ".github/workflows/release.yml").read_text()
-        self.assertIn("needs: [preflight, qualify, cli-artifacts]", release)
+        self.assertIn("needs: [preflight, qualify, cli-artifacts, attest-cli]", release)
         self.assertIn("uses: ./.github/workflows/ci.yml", release)
+        jobs = dict(re.findall(r"^  ([\w-]+):\n(.*?)(?=^  [\w-]+:|\Z)",
+                              release.split("jobs:\n", 1)[1], re.MULTILINE | re.DOTALL))
+        # Only the attestation job, which runs no repository code, may mint OIDC tokens.
+        self.assertIn("id-token: write", jobs["attest-cli"])
+        self.assertNotIn("actions/checkout", jobs["attest-cli"])
+        self.assertNotIn("id-token", jobs["publish"])
+        for name in ("attest-cli", "publish"):
+            self.assertIn("rm -f dist/cli/*-dist-manifest.json", jobs[name])
 
     def test_declared_msrv_is_compiled_and_aggregate_rejects_missing_proof(self):
         workflow = (ROOT / ".github/workflows/ci.yml").read_text()
@@ -397,7 +405,7 @@ class PlanTests(unittest.TestCase):
         self.assertIn("workflow_dispatch:", workflow)
         self.assertIn("workflow_dispatch:", release)
         self.assertIn("uses: ./.github/workflows/ci.yml", release)
-        self.assertIn("needs: [preflight, qualify, cli-artifacts]", release)
+        self.assertIn("needs: [preflight, qualify, cli-artifacts, attest-cli]", release)
         self.assertIn('-f "sha=$GITHUB_SHA"', release)
         self.assertIn("--verify-tag", release)
 

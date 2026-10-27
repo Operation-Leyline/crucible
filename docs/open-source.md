@@ -66,9 +66,12 @@ installers select the matching archive; SHA-256 files accompany the assets.
 The existing [Release workflow](../.github/workflows/release.yml) remains the
 only creator of the release tag and GitHub Release. Its full CI qualification
 and the build-only [CLI artifact workflow](../.github/workflows/build-cli.yml)
-must both pass before publication. It attaches the CLI archives, installers,
-checksums and build manifests beside the existing starter and LSP assets, and
-attests the CLI artifacts. CLI artifact jobs have read-only repository access.
+must both pass before publication. A separate job, which runs no repository
+code, holds the only OIDC token and attests the CLI archives, installers and
+checksums; publication then attaches exactly those beside the existing starter
+and LSP assets. cargo-dist's build manifests stay in the workflow artifact.
+CLI artifact jobs have read-only repository access and set up Python 3.12
+themselves rather than relying on the runner image.
 They neither create a tag nor upload to a package registry.
 
 Run **Build CLI release artifacts** manually with the current workspace version
