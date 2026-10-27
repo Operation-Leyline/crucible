@@ -3,7 +3,7 @@
 `output stream Event` returns a typed sequence through the usual authentication,
 input validation, permissions, exception rules, and middleware. The model
 records a sequence independently of its transport. The first transport is JSON
-over SSE, consumed through Fetch.
+over SSE, consumed through native SDK iterators or Fetch.
 
 ## Model and server
 
@@ -110,6 +110,89 @@ The client reads on consumer demand through bounded channels. It never
 reconnects after successful headers, including malformed profiles or a later
 connection failure. Success requires `crucible.complete` and body EOF; extra
 bytes after a terminal are a decoding failure.
+
+## Python clients
+
+The synchronous method opens a `ResponseStream[Progress]`; the asynchronous
+method opens an `AsyncResponseStream[Progress]`. Close either stream even when
+abandoning it before iteration:
+
+```python
+with client.watch() as events:
+    print(events.metadata.status)
+    for event in events:
+        print(event)
+```
+
+```python
+async with await async_client.watch() as events:
+    async for event in events:
+        print(event)
+```
+
+Use `close()` or `await aclose()` for explicit cleanup. Pass
+`cancellation=threading.Event()` to a synchronous call or
+`cancellation=asyncio.Event()` to an asynchronous call. Task cancellation also
+interrupts an asynchronous read. The total `timeout` starts at call entry and
+covers transport setup, credentials, retries, decoding, and idle time before or
+between reads. Expiry and cancellation take precedence over buffered items.
+
+Synchronous streams own a demand-driven async HTTPX transport and worker thread.
+When supplying a caller-owned synchronous `http=`, also supply a
+`stream_http_factory` that returns a fresh owned `httpx.AsyncClient`. Cleanup
+joins the worker and closes that transport; it does not close the caller's
+unary pool. A synchronous factory cannot be forcibly interrupted: if its budget
+expires, the returned transport is closed before credentials or HTTP begin.
+Asynchronous streams close only their response, retaining the caller's pool.
+
+`max_stream_event_bytes` bounds frames and opening-error bodies (default 1 MiB,
+minimum 256). Python requests identity encoding and explicitly refuses encoded
+success responses; bounded gzip/deflate decoding remains available for opening
+errors. Malformed profiles, invalid values, and JSON depth rejection raise
+`StreamProtocolError`. Modeled late errors keep their generated exception types
+and document-valued fields. Unknown union variants keep the normal `_unknown`
+representation. See the [Python client guide](clients/python.md#response-streams).
+
+## Go client
+
+Generated methods return `(*ResponseStream[*Progress], error)`. Keep the caller
+context alive through iteration and always defer `Close`, including before the
+first `Next`. Within a function returning `error`:
+
+```go
+events, err := client.Watch(ctx, sdk.Unit{})
+if err != nil {
+    return err
+}
+defer events.Close()
+for events.Next() {
+    fmt.Println(events.Value())
+}
+return events.Err()
+```
+
+`Metadata` retains opening HTTP metadata. Only `Next` consumes: it reads one
+item on demand. `Value` returns the item the last successful `Next` read, and
+`Err` the terminal error (nil after a complete stream); neither advances the
+stream. `Close` is idempotent and can interrupt a read from another
+goroutine. It releases the response without closing the caller's HTTP client.
+Context cancellation and `Config.Timeout` remain active during credentials,
+opening, decoding, and idle time between reads, and take precedence over
+buffered items. `Config.MaxStreamEventBytes` bounds frames and opening-error
+bodies (default 1 MiB, minimum 256).
+
+An unsupported opening media type or stream profile is the call's returned
+error, a `*StreamProtocolError`, and no stream is opened. After opening,
+malformed framing, invalid values, and incomplete termination end the stream
+with a `*StreamProtocolError` reported by `Err`. Modeled late errors retain their generated types and `errors.As` support;
+header and payload members decode as document fields. Unknown application union
+variants keep `UnknownVariant`. See the [Go client guide](clients/go.md#response-streams).
+
+Both Python and Go reuse normal authentication, middleware, version headers, and
+eligible opening retries. They never reconnect or replay after successful
+headers, and require exactly one terminal followed by body EOF. Each stream has
+one consumer. A loop `break` retains the stream until context-manager exit or
+explicit closure.
 
 ## Wire contract
 
@@ -251,8 +334,9 @@ clients cancel promptly.
 
 ## Current support
 
-Rust servers, Rust clients and TypeScript web/Node clients implement profile 1. Other clients
-diagnose `server-streaming` instead of emitting a unary API. OpenAPI includes
+Rust servers, Rust clients, TypeScript web/Node clients, Python sync/async clients,
+and Go clients implement profile 1. Other clients diagnose `server-streaming`
+instead of emitting a unary API. OpenAPI includes
 SSE and `x-crucible-stream` item/control metadata. Static references, explorer,
 MCP, historical server adapters, and direct invocation do not yet serve
 streams; unsupported generators or protocols refuse them. Changing response
@@ -266,6 +350,13 @@ release predates that operation; this initial implementation diagnoses it.
 client parity and the remaining tooling and host qualification.
 
 `python tools/test-rust-streaming.py` builds an independent generated Cargo SDK consumer over native HTTP and shared profile vectors.
+
+`python tools/test-native-streaming.py python` qualifies separately installed
+Python wheels with and without error documentation. The `go` variant qualifies
+separate consumer modules. Both exercise native TCP profiles and the actual Rust
+HTTP fixture, including held LF/CRLF/CR delivery, GET/POST, opening retries,
+typed late errors, cancellation, deadlines, and producer release before fixture
+cleanup. These local checks do not establish deployed AWS or proxy behavior.
 
 `bash tools/test-ts.sh` covers parser behavior and generated TypeScript-to-Rust
 HTTP calls. `python tools/test-consumers.py` covers stable service consumers.

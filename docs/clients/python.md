@@ -222,6 +222,73 @@ Internal permissions never appear: not as members, not in `PERMISSIONS`, not
 in any documentation. Two permissions of one resource that Python names alike
 (`read` and `READ`), or a model named `permissions`, are diagnosed.
 
+## Response streams
+
+An `output stream Event` method opens a `ResponseStream[Event]` on the synchronous
+client or an `AsyncResponseStream[Event]` on its asynchronous counterpart.
+Always close the stream, including when abandoning it before iteration:
+
+```python
+with client.watch() as events:
+    print(events.metadata.status)
+    for event in events:
+        print(event)
+```
+
+```python
+async with await async_client.watch() as events:
+    async for event in events:
+        print(event)
+```
+
+Use `close()` or `await aclose()` for explicit cleanup. An asynchronous task's
+cancellation interrupts its pending read. Pass `cancellation=threading.Event()`
+to synchronous calls or `cancellation=asyncio.Event()` to asynchronous calls
+to cancel an opened stream even before its first read. A set event prevents
+credential callbacks and network requests. A stream has one consumer and refuses
+concurrent reads. A loop `break` retains the stream until its context exits or
+it is explicitly closed.
+
+`timeout` starts at the call and covers per-call transport setup, credentials,
+opening retries, every read, and decoding, including
+time spent idle between reads. Cancellation and expiry take precedence over
+already received items. `max_stream_event_bytes` configures the client frame
+and opening error-body limit (default 1 MiB, minimum 256 bytes).
+Malformed framing, invalid values, and incomplete termination raise
+`StreamProtocolError`. Modeled opening and late errors share their generated
+exception types and metadata. Late fields are document values, including
+members normally bound to HTTP headers or a payload.
+
+Opening reuses bearer providers, middleware, version headers, and the existing
+retry policy. A successful opening is never replayed or reconnected. Iteration
+succeeds only after one terminal completion and HTTP body EOF. Unknown union
+variants use the model's usual `_unknown` tuple.
+
+Synchronous streams own a demand-driven asynchronous HTTPX transport on a
+dedicated thread. They perform no background item reads. This allows cancellation
+to interrupt idle IO on both Windows and Linux; cross-thread closure of a
+synchronous HTTPX response does not reliably interrupt Linux reads. Closing the
+stream joins its thread and closes only its own response and transport.
+
+When configuring a synchronous client with caller-owned `http=`, also provide
+`stream_http_factory=lambda: httpx.AsyncClient(...)` for streams. The factory runs
+on the stream's thread and must return a fresh transport owned by that stream.
+Configure custom TLS, proxy, or transport settings in that factory. A supplied
+synchronous pool alone is refused for streaming before credentials or network
+activity. Unary calls continue using that pool. Asynchronous streams use the
+supplied `httpx.AsyncClient` and close only the response, leaving the caller's
+pool and other calls available.
+
+A synchronous factory cannot be forcibly interrupted: the call waits for it to
+return, and the deadline is checked only then. If it returns after the
+deadline, the stream closes the returned transport and joins its worker before
+reporting the timeout, without invoking credentials or sending HTTP.
+
+Streaming requests ask for `Accept-Encoding: identity`. Content-encoded success
+responses are explicitly refused: the Python runtime reads raw transport chunks
+to bound buffers without coalescing small progressive frames. Ordinary unary
+content decoding is unchanged.
+
 ## Qualification
 
 Run `python tools/test-python.py` after installing `httpx`,

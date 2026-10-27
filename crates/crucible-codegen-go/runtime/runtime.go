@@ -182,6 +182,8 @@ type Config struct {
 	MaxAttempts int
 	// Timeout Total call budget; zero defaults to 30 seconds. Context cancellation can shorten it.
 	Timeout     time.Duration
+	// MaxStreamEventBytes bounds every response-stream frame and opening error body. Zero defaults to 1 MiB; minimum 256.
+	MaxStreamEventBytes int
 	// BaseDelay Initial full-jitter backoff ceiling; zero defaults to 100 milliseconds.
 	BaseDelay   time.Duration
 	// MaxDelay Maximum backoff ceiling; zero defaults to 20 seconds.
@@ -331,6 +333,7 @@ type bindings struct {
 	Payload []string
 }
 type operationDescription struct {
+	ResponseMode string
 	GreedyLabels []string
 	Bearer   bool
 	Method   string
@@ -377,6 +380,8 @@ func newClient(config Config, schema *schemaDescription) (*clientRuntime, error)
 	if config.Timeout == 0 {
 		config.Timeout = 30 * time.Second
 	}
+	if config.MaxStreamEventBytes == 0 { config.MaxStreamEventBytes = 1024 * 1024 }
+	if config.MaxStreamEventBytes < 256 { return nil, errors.New("MaxStreamEventBytes must be at least 256") }
 	if config.BaseDelay == 0 {
 		config.BaseDelay = 100 * time.Millisecond
 	}
@@ -956,9 +961,15 @@ func throttled(err error) bool {
 }
 
 func (c *clientRuntime) send(ctx context.Context, name string, values map[string]any, trace *callTrace) (map[string]any, error) {
-	ctx, cancel := context.WithTimeout(ctx, c.config.Timeout)
-	defer cancel()
+	return c.sendMode(ctx, name, values, trace, nil)
+}
+
+func (c *clientRuntime) sendMode(ctx context.Context, name string, values map[string]any, trace *callTrace, opening *streamOpening) (map[string]any, error) {
 	op := c.schema.Operations[name]
+	if (op.ResponseMode == "server-stream") != (opening != nil) { return nil, errors.New("operation response mode does not match transport entry point") }
+	ctx, cancel := context.WithTimeout(ctx, c.config.Timeout)
+	transferred := false
+	defer func() { if !transferred { cancel() } }()
 	inputShape := c.schema.Shapes[op.Input]
 	// Defaults and generated tokens belong to this call, including its retries.
 	values = maps.Clone(values)
@@ -1132,14 +1143,36 @@ func (c *clientRuntime) send(ctx context.Context, name string, values map[string
 			trace.attemptFinished(response, err, size, "", 0)
 			return nil, err
 		}
+		if response != nil && response.StatusCode >= 200 && response.StatusCode < 300 && opening != nil {
+			if err := ctx.Err(); err != nil { response.Body.Close(); return interrupted(0, err) }
+			if transportErr != nil { response.Body.Close(); return interrupted(0, &NetworkError{Cause:transportErr}) }
+			if err := validateStreamProfile(response.Header.Get("Content-Type")); err != nil { response.Body.Close(); return interrupted(0, err) }
+			c.retry.afterAttempt(false)
+			c.retry.succeeded(lastCost)
+			trace.attemptFinished(response, nil, 0, "", 0)
+			opening.response, opening.ctx, opening.cancel = response, ctx, cancel
+			transferred = true
+			return nil, nil
+		}
 		var data []byte
 		size := int64(-1)
 		if response != nil {
 			if transportErr == nil && (response.StatusCode < 200 || response.StatusCode >= 300 || len(op.Response.Body) > 0 || len(op.Response.Payload) > 0) {
-				data, transportErr = io.ReadAll(response.Body)
+				reader := io.Reader(response.Body)
+				// One byte past the limit tells an oversized opening error from one of
+				// exactly the limit; an oversized prefix is never decoded.
+				if opening != nil {
+					// Saturate: limit+1 overflows to a negative count at math.MaxInt64.
+					limit := int64(c.config.MaxStreamEventBytes)
+					if limit < math.MaxInt64 { limit++ }
+					reader = io.LimitReader(reader, limit)
+				}
+				data, transportErr = io.ReadAll(reader)
 			}
 			response.Body.Close()
 			size = int64(len(data))
+			// Telemetry keeps the bytes read; only the decoder loses the body.
+			if opening != nil && len(data) > c.config.MaxStreamEventBytes { data = nil }
 		}
 		if err := ctx.Err(); err != nil {
 			return interrupted(size, err)

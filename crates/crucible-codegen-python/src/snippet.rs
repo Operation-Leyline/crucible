@@ -342,6 +342,10 @@ pub(crate) fn snippets(
         }
         _ => body.push_str(&format!("{invoke}\n")),
     }
+    if call.operation.response_mode == crucible_ir::ir::ResponseMode::ServerStream {
+        body =
+            format!("with {invoke} as events:\n    for event in events:\n        print(event)\n");
+    }
     match call.error {
         Some(case) => {
             let name = service.name_of(case.id);
@@ -425,6 +429,13 @@ pub(crate) fn guide(service: &Service, options: &Options) -> Guide {
          Transport failures raise `NetworkError`; an exhausted `timeout` raises `TimeoutError`.",
         crucible_codegen_common::service_exception_name(service)
     );
+    if service
+        .operations
+        .iter()
+        .any(|op| op.response_mode == crucible_ir::ir::ResponseMode::ServerStream)
+    {
+        guide.errors.push_str(" Streaming calls return ResponseStream[Item] or AsyncResponseStream[Item]. Use with/async with, or close/aclose, even before the first read. Cancellation events and the total timeout stay active between reads; streams never replay after successful headers. Sync streams own an async HTTPX transport and a demand-driven worker thread; when supplying http=, also supply stream_http_factory for a fresh owned AsyncClient. Streams request identity encoding and refuse encoded success responses; opening errors support bounded gzip/deflate decoding. max_stream_event_bytes bounds each frame and opening error body (default 1 MiB, minimum 256). Malformed profiles raise StreamProtocolError.");
+    }
     guide.retries = "Pass `max_attempts=` to the client to change the attempt limit (3, the \
         first included; 1 turns retries off), and `retry_mode=\"standard\"` or `\"adaptive\"` \
         for a retry quota."

@@ -135,3 +135,9 @@ id = 20
 languages = ["swift", "dart", "php", "ruby", "cpp", "c", "r"]
 kind = "additive"
 summary = "Configured error documentation exposes static code and known-reason URLs in the remaining seven native SDKs; unknown reasons retain the code page."
+
+[[change]]
+id = 21
+languages = ["python", "go"]
+kind = "additive"
+summary = "Python sync/async and Go clients expose demand-driven typed response streams with lifetime cancellation, bounded SSE parsing, opening retries, terminal EOF validation and document-decoded late errors."

@@ -205,6 +205,7 @@ pub fn capabilities() -> crucible_ir::Capabilities {
         Feature::MediaTypeHeaders,
         Feature::ErrorPayload,
         Feature::ErrorDocumentation,
+        Feature::ServerStreaming,
     ])
 }
 
@@ -293,6 +294,8 @@ fn emit_package(
         "Unit",
         "ServiceError",
         "ResponseMetadata",
+        "ResponseStream",
+        "StreamProtocolError",
         "UnknownUnion",
         "NetworkError",
         "Decimal",
@@ -548,6 +551,11 @@ fn emit_package(
         client.push_str("import \"context\"\n\n");
     }
     let mut schema = crucible_codegen_common::schema(service, exported);
+    for op in &service.operations {
+        if op.response_mode == crucible_ir::ir::ResponseMode::ServerStream {
+            schema["operations"][op.name()]["responseMode"] = serde_json::json!("server-stream");
+        }
+    }
     for (id, shape) in &service.shapes {
         if shape.sensitive() {
             schema["shapes"][id.to_string()]["sensitive"] = serde_json::Value::Bool(true);
@@ -606,7 +614,11 @@ fn emit_package(
             Some(&operation_docs(service, op)),
             &op.notes,
         );
-        client.push_str(&format!("func (c *{client_name}) {name}(ctx context.Context, input {input}) ({output}, error) {{\n var output {output}\n values, err := c.call(ctx, {}, input)\n if err != nil {{ return output, err }}\n err = decodeModel(c.schema, {}, values, &output)\n return output, err\n}}\n\n",literal(op.name()),literal(&target)));
+        if op.response_mode == crucible_ir::ir::ResponseMode::ServerStream {
+            client.push_str(&format!("func (c *{client_name}) {name}(ctx context.Context, input {input}) (*ResponseStream[{output}], error) {{\n return openResponseStream[{output}](c.clientRuntime, ctx, {}, input)\n}}\n\n",literal(op.name())));
+        } else {
+            client.push_str(&format!("func (c *{client_name}) {name}(ctx context.Context, input {input}) ({output}, error) {{\n var output {output}\n values, err := c.call(ctx, {}, input)\n if err != nil {{ return output, err }}\n err = decodeModel(c.schema, {}, values, &output)\n return output, err\n}}\n\n",literal(op.name()),literal(&target)));
+        }
         if let Some(p) = &op.paginated {
             let input_token = wire_path(
                 service,
@@ -645,6 +657,15 @@ fn emit_package(
                 )
                 .replace("\r\n", "\n")
                 .replacen("package sdk\n", "", 1)
+            ),
+        },
+        File {
+            path: "stream.go".into(),
+            contents: format!(
+                "{header}{}",
+                include_str!("../runtime/stream.go")
+                    .replace("\r\n", "\n")
+                    .replacen("package sdk\n", "", 1)
             ),
         },
         File {

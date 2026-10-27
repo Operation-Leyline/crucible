@@ -555,9 +555,67 @@ pub(crate) fn snippets(
         _ => Vec::new(),
     };
     let invoke = format!("client.{method}(ctx, {argument})");
+    // A modelled error's local, its declaration, and the statement reporting
+    // it once `errors.As` matched: shared by unary and streaming snippets.
+    let matched = call.error.map(|case| {
+        let name = type_name(service, case.id);
+        let local = error_variable(&name, &alias);
+        let read = case.read.map(|member| {
+            let error_shape = service.shape(case.id);
+            let optional = error_shape.is_some_and(|shape| absent(shape, member));
+            if optional {
+                let index = case
+                    .shape
+                    .members
+                    .iter()
+                    .position(|m| m.name == member.name)
+                    .unwrap_or(0);
+                let methods = error_shape
+                    .map(|shape| accessors(shape, case.shape))
+                    .unwrap_or_default();
+                format!(
+                    "{local}.{}()",
+                    methods
+                        .get(index)
+                        .and_then(|m| m[1].clone())
+                        .unwrap_or_default()
+                )
+            } else {
+                format!("{local}.{}", exported(&member.name))
+            }
+        });
+        let report = match read {
+            Some(read) => format!(
+                "fmt.Printf(\"{name} (HTTP %d): %v\\n\", {local}.Metadata.Metadata.Status, {read})"
+            ),
+            None => {
+                format!("fmt.Printf(\"{name} (HTTP %d)\\n\", {local}.Metadata.Metadata.Status)")
+            }
+        };
+        (format!("\tvar {local} *{q}{name}\n"), local, report)
+    });
+    if operation.response_mode == crucible_ir::ir::ResponseMode::ServerStream {
+        standard.insert("fmt");
+        body.push_str(&format!("\tevents, err := {invoke}\n"));
+        // The same modelled error can fail the opening or end the stream late.
+        if let Some((declare, local, report)) = &matched {
+            standard.insert("errors");
+            body.push_str(&format!(
+                "{declare}\tif errors.As(err, &{local}) {{\n\t\t{report}\n\t\treturn\n\t}}\n"
+            ));
+        }
+        body.push_str("\tif err != nil {\n\t\tlog.Fatal(err)\n\t}\n\tdefer events.Close()\n\tfor events.Next() {\n\t\tfmt.Println(events.Value())\n\t}\n");
+        match &matched {
+            Some((_, local, report)) => body.push_str(&format!(
+                "\tif err := events.Err(); errors.As(err, &{local}) {{\n\t\t{report}\n\t}} else if err != nil {{\n\t\tlog.Print(err)\n\t}}\n"
+            )),
+            None => body.push_str("\tif err := events.Err(); err != nil {\n\t\tlog.Print(err)\n\t}\n"),
+        }
+        return (program(options, &alias, standard, &values, &body), None);
+    }
     let mut printed = !reads.is_empty();
-    match call.error {
-        Some(case) => {
+    match matched {
+        Some((declare, local, report)) => {
             standard.insert("errors");
             printed = true;
             if reads.is_empty() {
@@ -565,44 +623,9 @@ pub(crate) fn snippets(
             } else {
                 body.push_str(&format!("\toutput, err := {invoke}\n"));
             }
-            let name = type_name(service, case.id);
-            let local = error_variable(&name, &alias);
-            let read = case.read.map(|member| {
-                let error_shape = service.shape(case.id);
-                let optional = error_shape.is_some_and(|shape| absent(shape, member));
-                if optional {
-                    let index = case
-                        .shape
-                        .members
-                        .iter()
-                        .position(|m| m.name == member.name)
-                        .unwrap_or(0);
-                    let methods = error_shape
-                        .map(|shape| accessors(shape, case.shape))
-                        .unwrap_or_default();
-                    format!(
-                        "{local}.{}()",
-                        methods
-                            .get(index)
-                            .and_then(|m| m[1].clone())
-                            .unwrap_or_default()
-                    )
-                } else {
-                    format!("{local}.{}", exported(&member.name))
-                }
-            });
             body.push_str(&format!(
-                "\tvar {local} *{q}{name}\n\tif errors.As(err, &{local}) {{\n"
+                "{declare}\tif errors.As(err, &{local}) {{\n\t\t{report}\n\t\treturn\n\t}}\n\tif err != nil {{\n\t\tlog.Fatal(err)\n\t}}\n"
             ));
-            match read {
-                Some(read) => body.push_str(&format!(
-                    "\t\tfmt.Printf(\"{name} (HTTP %d): %v\\n\", {local}.Metadata.Metadata.Status, {read})\n"
-                )),
-                None => body.push_str(&format!(
-                    "\t\tfmt.Printf(\"{name} (HTTP %d)\\n\", {local}.Metadata.Metadata.Status)\n"
-                )),
-            }
-            body.push_str("\t\treturn\n\t}\n\tif err != nil {\n\t\tlog.Fatal(err)\n\t}\n");
         }
         None if reads.is_empty() => {
             body.push_str(&format!(
@@ -725,6 +748,13 @@ pub(crate) fn guide(service: &Service, options: &Options) -> Guide {
          `*{alias}.NetworkError`, and cancellation and deadlines keep their context errors.",
         exception = exported(&crucible_codegen_common::service_exception_name(service)),
     );
+    if service
+        .operations
+        .iter()
+        .any(|op| op.response_mode == crucible_ir::ir::ResponseMode::ServerStream)
+    {
+        guide.errors.push_str(" Streaming calls return *ResponseStream[Item]. Always defer Close; Next, Value and Err consume it on demand. The caller context and total timeout remain active through body consumption, including idle time before the first read. Closing releases only that response. Successful headers are never replayed. Config.MaxStreamEventBytes bounds frames and opening error bodies (default 1 MiB, minimum 256). Invalid profiles report *StreamProtocolError.");
+    }
     guide.retries = format!(
         "Set `Config.MaxAttempts` to change the attempt limit (3, the first included; 1 turns \
          retries off) and `Config.RetryMode` to `{alias}.RetryModeStandard` or \

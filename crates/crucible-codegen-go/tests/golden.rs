@@ -9,6 +9,52 @@ fn model_dir(name: &str) -> std::path::PathBuf {
 fn weather() -> Service {
     crucible_lang::load_service(&model_dir("weather")).unwrap()
 }
+
+#[test]
+fn response_stream_api_and_guide_match_goldens() {
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    let service =
+        crucible_lang::load_service(&root.join("../../tests/consumers/rust-stream-client/model"))
+            .unwrap();
+    let config = Options {
+        module_path: "example.com/streams".into(),
+        package_name: "streams".into(),
+        endpoint: None,
+        metadata: Default::default(),
+    };
+    let expected = ["README.md", "client.go"];
+    let mut seen = Vec::new();
+    for file in emit(&service, &config).unwrap() {
+        if !expected.contains(&file.path.as_str()) {
+            continue;
+        }
+        seen.push(file.path.clone());
+        let path = root.join("tests/golden/streaming").join(&file.path);
+        let contents = format!("{}\n", file.contents.trim_end());
+        if std::env::var_os("CRUCIBLE_BLESS").is_some() {
+            std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+            std::fs::write(&path, &contents).unwrap();
+        }
+        assert_eq!(
+            std::fs::read_to_string(&path)
+                .unwrap_or_default()
+                .replace("\r\n", "\n"),
+            contents,
+            "{}",
+            file.path
+        );
+    }
+    // A renamed or dropped output must fail rather than skip its comparison,
+    // and a golden no output matches any more is stale.
+    seen.sort();
+    assert_eq!(seen, expected, "streaming outputs");
+    let mut checked_in: Vec<String> = std::fs::read_dir(root.join("tests/golden/streaming"))
+        .unwrap()
+        .map(|entry| entry.unwrap().file_name().to_string_lossy().into_owned())
+        .collect();
+    checked_in.sort();
+    assert_eq!(checked_in, expected, "stale streaming goldens");
+}
 /// The weather package with `edit` applied to every source file and `extra`
 /// source appended to it.
 fn weather_with(edit: impl Fn(&str) -> String, extra: &str) -> Service {
@@ -166,7 +212,7 @@ fn weather_matches_goldens() {
     for file in files {
         if matches!(
             file.path.as_str(),
-            "runtime.go" | "auth.go" | "policy.go" | "telemetry.go"
+            "runtime.go" | "stream.go" | "auth.go" | "policy.go" | "telemetry.go"
         ) {
             continue;
         }
