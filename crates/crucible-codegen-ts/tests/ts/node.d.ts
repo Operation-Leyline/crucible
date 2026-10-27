@@ -9,6 +9,7 @@ declare module "node:http" {
   interface ServerResponse {
     writeHead(status: number, headers: Record<string, string>): this;
     write(chunk: string): boolean;
+    end(chunk?: string | Uint8Array): this;
     on(event: "close", listener: () => void): this;
   }
   interface Server {

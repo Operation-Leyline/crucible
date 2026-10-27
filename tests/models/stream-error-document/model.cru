@@ -1,0 +1,63 @@
+service StreamErrors {
+    version "1"
+    protocol json
+    errorDocs "https://docs.example.test/errors/"
+    operations [Watch, Read]
+    errors [BlobProblem, NestedProblem, TextProblem, DocumentProblem]
+}
+
+readonly public operation Watch {
+    http GET "/events"
+    output stream Progress
+}
+
+union Progress { ready: string }
+
+readonly public operation Read {
+    http GET "/read"
+    output {}
+}
+
+structure Envelope {
+    data?: blob
+    next?: Envelope
+}
+
+list Envelopes: Envelope
+map EnvelopeMap: string -> Envelope
+
+error BlobProblem {
+    status 421
+    @errorReason
+    @header("X-Reason")
+    reason: Reason = "needed"
+    @header("X-Time")
+    when?: timestamp
+    @payload
+    data?: blob
+}
+
+enum Reason { Needed = "needed" }
+
+error NestedProblem {
+    status 422
+    envelope?: Envelope
+    entries?: Envelopes
+    mapping?: EnvelopeMap
+}
+
+// Controls for the other bound member kinds a late error carries in its JSON
+// document: a header-bound string, a string payload and a document payload.
+error TextProblem {
+    status 409
+    @header("X-Note")
+    note?: string
+    @payload
+    details?: string
+}
+
+error DocumentProblem {
+    status 423
+    @payload
+    data?: document
+}

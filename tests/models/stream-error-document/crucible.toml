@@ -1,0 +1,5 @@
+schema_version = 1
+[model]
+namespace = "example.streamerrors"
+language = 1
+sources = ["."]

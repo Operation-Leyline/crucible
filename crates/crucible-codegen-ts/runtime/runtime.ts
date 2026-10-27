@@ -577,6 +577,7 @@ export interface ErrorSpec {
   readonly schema?: Schema;
   readonly headers?: readonly (readonly [member: string, header: string, schema?: Schema])[];
   readonly create: (fields: Record<string, unknown>, metadata: ResponseMetadata) => ServiceError;
+  readonly documentSchema?: Schema;
 }
 
 /** HTTP transport receiving a Request and returning a Response. Defaults to global fetch. */
@@ -830,7 +831,7 @@ export class Transport {
           const fields = object(envelope.error);
           const errorMetadata = { ...metadata, status };
           const spec = operation.errors.includes(envelope.type) && Object.hasOwn(this.#errors, envelope.type) ? this.#errors[envelope.type] : undefined;
-          error = spec ? spec.create(fromWire(spec.schema, fields) as Record<string, unknown>, errorMetadata)
+          error = spec ? spec.create(fromWire(spec.documentSchema ?? spec.schema, fields) as Record<string, unknown>, errorMetadata)
             : new ServiceException(envelope.type, stringField(fields, "message") ?? "Stream failed", errorMetadata, status >= 500 ? "server" : "client");
         } catch { throw new StreamProtocolError("invalid terminal stream error"); }
         throw error;

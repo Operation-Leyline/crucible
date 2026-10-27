@@ -1,7 +1,7 @@
 //! `schemas.ts`: what the runtime needs to put each operation on the wire.
 //! Internal to the package; `index.ts` does not export it.
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 
 use crucible_ir::ShapeId;
 use crucible_ir::ir::{Binding, Member, Operation, Service, Shape, SimpleKind, Structure};
@@ -34,15 +34,29 @@ pub(crate) const IMPORTS: &[&str] = &[
 
 pub(crate) fn emit(service: &Service) -> String {
     let converting = converting(service);
+    let document_names = document_schema_names(service, &converting);
     let mut out = String::new();
     let mut structures: Vec<&ShapeId> = converting.iter().collect();
     structures.sort_by_key(|id| service.name_of(id));
-    for id in structures {
+    let schemas = structures.iter().map(|id| (*id, false)).chain(
+        structures
+            .iter()
+            .filter(|id| document_names.contains_key(*id))
+            .map(|id| (*id, true)),
+    );
+    for (id, document) in schemas {
+        let member_schema = |member: &Member| {
+            if document && let Some(name) = document_names.get(&member.target) {
+                name.clone()
+            } else {
+                body_schema(service, &converting, member).unwrap()
+            }
+        };
         let shape = service.shape(id).expect("reachable shape");
         let schema = match shape {
             Shape::List(list) => format!(
                 "list(() => {}{})",
-                body_schema(service, &converting, &list.member).unwrap(),
+                member_schema(&list.member),
                 if list.sparse || list.constraints.unique_items {
                     format!(
                         ", {{ sparse: {}, unique: {} }}",
@@ -54,21 +68,15 @@ pub(crate) fn emit(service: &Service) -> String {
             ),
             Shape::Map(map) => format!(
                 "map(() => {}{})",
-                body_schema(service, &converting, &map.value).unwrap(),
+                member_schema(&map.value),
                 if map.sparse { ", { sparse: true }" } else { "" }
             ),
             Shape::Structure(structure) | Shape::Union(structure) => {
                 let members: Vec<String> = structure
                     .members
                     .iter()
-                    .filter(|member| !is_payload(service, id, &member.name))
-                    .map(|member| {
-                        format!(
-                            "{}: {}",
-                            property(&member.name),
-                            body_schema(service, &converting, member).unwrap()
-                        )
-                    })
+                    .filter(|member| document || !is_payload(service, id, &member.name))
+                    .map(|member| format!("{}: {}", property(&member.name), member_schema(member)))
                     .collect();
                 let defaults: Vec<String> = structure
                     .members
@@ -103,7 +111,11 @@ pub(crate) fn emit(service: &Service) -> String {
         };
         out.push_str(&format!(
             "\nexport const {}: Schema = {schema};\n",
-            schema_name(service, id)
+            if document {
+                document_names[id].clone()
+            } else {
+                schema_name(service, id)
+            }
         ));
     }
 
@@ -111,7 +123,7 @@ pub(crate) fn emit(service: &Service) -> String {
         out.push('\n');
         out.push_str(&operation_spec(service, &converting, operation));
     }
-    out.push_str(&error_table(service, &converting));
+    out.push_str(&error_table(service, &converting, &document_names));
 
     // Derive dependencies from reachable shapes, including scalars occurring
     // only inside collection thunks; emitted text is not a dependency graph.
@@ -170,6 +182,73 @@ pub(crate) fn emit(service: &Service) -> String {
 
 pub(crate) fn schema_name(service: &Service, id: &ShapeId) -> String {
     format!("S_{}", service.name_of(id))
+}
+
+/// HTTP blob payloads already contain bytes. A late error instead carries a
+/// complete JSON document, including payloads nested through recursive shapes.
+/// Emit a second schema only where the HTTP exclusion changes conversion.
+fn document_schema_names(
+    service: &Service,
+    converting: &BTreeSet<ShapeId>,
+) -> BTreeMap<ShapeId, String> {
+    if !service
+        .operations
+        .iter()
+        .any(|op| op.response_mode == crucible_ir::ir::ResponseMode::ServerStream)
+    {
+        return BTreeMap::new();
+    }
+    let mut affected = BTreeSet::new();
+    loop {
+        let before = affected.len();
+        for id in converting {
+            if service
+                .shape(id)
+                .expect("reachable shape")
+                .members()
+                .iter()
+                .any(|member| {
+                    is_payload(service, id, &member.name) || affected.contains(&member.target)
+                })
+            {
+                affected.insert(id.clone());
+            }
+        }
+        if affected.len() == before {
+            break;
+        }
+    }
+    let mut reachable = BTreeSet::new();
+    let mut pending: BTreeSet<ShapeId> = error_shapes(service)
+        .into_iter()
+        .map(|(id, _)| id.clone())
+        .collect();
+    while let Some(id) = pending.pop_first() {
+        if !reachable.insert(id.clone()) {
+            continue;
+        }
+        for member in service.shape(&id).expect("reachable shape").members() {
+            if converting.contains(&member.target) && !reachable.contains(&member.target) {
+                pending.insert(member.target.clone());
+            }
+        }
+    }
+    affected.retain(|id| reachable.contains(id));
+    let mut reserved: BTreeSet<String> = converting
+        .iter()
+        .map(|id| schema_name(service, id))
+        .chain(service.operations.iter().map(|op| op.name().to_owned()))
+        .collect();
+    affected
+        .into_iter()
+        .map(|id| {
+            let mut name = format!("{}_document", schema_name(service, &id));
+            while !reserved.insert(name.clone()) {
+                name.push('_');
+            }
+            (id, name)
+        })
+        .collect()
 }
 
 /// Whether `member` of `structure` is an operation's blob payload: its bytes
@@ -497,7 +576,11 @@ fn operation_spec(service: &Service, converting: &BTreeSet<ShapeId>, op: &Operat
 }
 
 /// The errors the transport can decode, by shape name.
-fn error_table(service: &Service, converting: &BTreeSet<ShapeId>) -> String {
+fn error_table(
+    service: &Service,
+    converting: &BTreeSet<ShapeId>,
+    document_names: &BTreeMap<ShapeId, String>,
+) -> String {
     let mut out = String::from("\nexport const errors: Readonly<Record<string, ErrorSpec>> = {\n");
     for (id, structure) in error_shapes(service) {
         let error = structure.error.as_ref().expect("filtered to errors");
@@ -528,6 +611,9 @@ fn error_table(service: &Service, converting: &BTreeSet<ShapeId>) -> String {
         }
         if converting.contains(id) {
             fields.push(format!("schema: {}", schema_name(service, id)));
+        }
+        if let Some(name) = document_names.get(id) {
+            fields.push(format!("documentSchema: {name}"));
         }
         if !error.headers.is_empty() {
             fields.push(format!(

@@ -153,3 +153,9 @@ id = 23
 languages = ["rust"]
 kind = "patch"
 summary = "Generated Cargo packages declare Rust 1.88, matching the runtime compiler requirement already imposed by Rust 2024 let chains."
+
+[[change]]
+id = 24
+languages = ["ts"]
+kind = "patch"
+summary = "Late response-stream errors decode complete document fields, including base64 blob payloads, without changing ordinary HTTP payload decoding."
