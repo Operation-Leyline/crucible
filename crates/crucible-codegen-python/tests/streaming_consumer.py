@@ -1,5 +1,6 @@
 """Independent installed-wheel consumers over native TCP and Rust HTTP."""
 import asyncio
+import base64
 import gc
 import gzip
 from contextlib import contextmanager
@@ -7,6 +8,7 @@ import json
 import os
 from pathlib import Path
 import queue
+import random
 import socket
 import socketserver
 import subprocess
@@ -432,15 +434,30 @@ class SyncStreams(unittest.TestCase):
             with client.watch() as stream: self.assertEqual(len(list(stream)),1)
             self.assertEqual(len(requests),2)
 
-    def test_many_gzip_members_decode_linearly_and_are_bounded(self):
+    def test_large_gzip_members_decode_linearly(self):
         # Decoding is synchronous, so neither the watchdog nor the deadline can
-        # interrupt it: it must stay linear in the bounded body size.
+        # interrupt it: 64 members carrying ~1.5 MiB must stay linear.
+        limit=2*1024*1024
+        message=base64.b64encode(random.Random(7).randbytes(1100000)).decode()
+        body=json.dumps({"__type":"WorkFailed","message":message}).encode()
+        size=-(-len(body)//64)
+        wire=b"".join(gzip.compress(body[i:i+size],mtime=0) for i in range(0,len(body),size))
+        self.assertLessEqual(len(wire),limit)
+        with raw(status=503,encoding="gzip",error_body=wire) as (url,requests,_), StreamsClient(url,max_stream_event_bytes=limit,timeout=60) as client:
+            start=time.monotonic()
+            with self.assertRaises(WorkFailed) as caught: client.publish(PublishInput(topic="send"))
+            self.assertLess(time.monotonic()-start,2.0,"gzip members must decode in linear time")
+            self.assertEqual(caught.exception.message,message)
+            self.assertEqual(len(requests),1)
+
+    def test_excess_gzip_members_are_rejected_quickly(self):
+        # 104857 empty members (2 MiB): quadratic before the member bound.
         limit=2*1024*1024
         members=gzip.compress(b"",mtime=0)*(limit//20)
         with raw(statuses=[503,200],encoding="gzip",error_body=members) as (url,requests,_), StreamsClient(url,max_stream_event_bytes=limit,base_delay=0,timeout=60) as client:
             start=time.monotonic()
             with client.watch() as stream: self.assertEqual(len(list(stream)),1)
-            self.assertLess(time.monotonic()-start,2.0,"many tiny gzip members must not be quadratic")
+            self.assertLess(time.monotonic()-start,2.0,"excess gzip members must be rejected without quadratic work")
             self.assertEqual(len(requests),2)
         # Beyond 64 members the body is malformed: only its status classifies it.
         body=b'{"__type":"WorkFailed","message":"opening","reason":"broken"}'
@@ -452,6 +469,24 @@ class SyncStreams(unittest.TestCase):
                 # WorkFailed by status, so the decoded message is what differs.
                 self.assertEqual(getattr(caught.exception,"message",None)=="opening",decoded)
                 self.assertEqual(len(requests),1)
+
+    def test_opening_error_at_and_past_the_limit(self):
+        # Exactly max_stream_event_bytes keeps the modelled fields in every
+        # encoding; one byte more is oversized, so a valid prefix is not decoded.
+        # A partly random message keeps the compressed body (~170 bytes) under
+        # the limit but puts its gzip trailer past the first input slice, and
+        # an empty member may follow a body already at the limit.
+        rng=random.Random(3);message="".join(rng.choice("abcdefgh") for _ in range(200))
+        document=json.dumps({"__type":"WorkFailed","message":message}).encode()
+        encodings=(("identity","",lambda b:b),("gzip","gzip",gzip.compress),
+                   ("gzip-empty-member","gzip",lambda b:gzip.compress(b)+gzip.compress(b"")),("deflate","deflate",zlib.compress))
+        for name,encoding,compress in encodings:
+            for size,decoded in ((256,True),(257,False)):
+                body=document+b" "*(size-len(document))
+                with self.subTest(encoding=name,size=size), raw(status=503,encoding=encoding,error_body=compress(body)) as (url,requests,_), StreamsClient(url,max_stream_event_bytes=256) as client:
+                    with self.assertRaises(Exception) as caught: client.publish(PublishInput(topic="send"))
+                    self.assertEqual(getattr(caught.exception,"message",None)==message,decoded)
+                    self.assertEqual(len(requests),1)
 
     def test_opening_error_fixture_reads_separate_post_body_before_response(self):
         class DelayedBody(httpx.AsyncByteStream):

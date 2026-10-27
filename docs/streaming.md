@@ -171,16 +171,20 @@ for events.Next() {
 return events.Err()
 ```
 
-`Metadata` retains opening HTTP metadata. `Next`, `Value`, and `Err` consume one
-item at a time; `Close` is idempotent and can interrupt a read from another
+`Metadata` retains opening HTTP metadata. Only `Next` consumes: it reads one
+item on demand. `Value` returns the item the last successful `Next` read, and
+`Err` the terminal error (nil after a complete stream); neither advances the
+stream. `Close` is idempotent and can interrupt a read from another
 goroutine. It releases the response without closing the caller's HTTP client.
 Context cancellation and `Config.Timeout` remain active during credentials,
 opening, decoding, and idle time between reads, and take precedence over
 buffered items. `Config.MaxStreamEventBytes` bounds frames and opening-error
 bodies (default 1 MiB, minimum 256).
 
-Malformed profiles and invalid values produce `*StreamProtocolError` through
-`Err`. Modeled late errors retain their generated types and `errors.As` support;
+An unsupported opening media type or stream profile is the call's returned
+error, a `*StreamProtocolError`, and no stream is opened. After opening,
+malformed framing, invalid values, and incomplete termination end the stream
+with a `*StreamProtocolError` reported by `Err`. Modeled late errors retain their generated types and `errors.As` support;
 header and payload members decode as document fields. Unknown application union
 variants keep `UnknownVariant`. See the [Go client guide](clients/go.md#response-streams).
 

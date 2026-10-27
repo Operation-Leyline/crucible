@@ -374,6 +374,36 @@ func TestOpeningRetriesAuthMiddlewareUnsafePostAndOversize(t *testing.T) {
 	}
 }
 
+func TestOpeningErrorAtAndPastTheLimit(t *testing.T) {
+	// A modelled opening error of exactly MaxStreamEventBytes keeps its fields;
+	// one byte more is oversized, so even a valid JSON prefix is not decoded.
+	document := `{"__type":"WorkFailed","message":"opening"}`
+	for _, test := range []struct {
+		name    string
+		size    int
+		decoded bool
+	}{{"exact", 256, true}, {"oversized", 257, false}} {
+		t.Run(test.name, func(t *testing.T) {
+			body := document + strings.Repeat(" ", test.size-len(document))
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(503)
+				io.WriteString(w, body)
+			}))
+			defer server.Close()
+			c := client(t, server.URL, func(c *streams.Config) { c.MaxStreamEventBytes = 256 })
+			_, err := c.Publish(context.Background(), &streams.PublishInput{Topic: "send"})
+			var service *streams.ServiceError
+			if !errors.As(err, &service) {
+				t.Fatal(err)
+			}
+			if (service.Message == "opening") != test.decoded {
+				t.Fatalf("message %q for a %d-byte body", service.Message, test.size)
+			}
+		})
+	}
+}
+
 func TestLateErrorsAreDocumentsAndRetainMetadata(t *testing.T) {
 	tests := []struct{ name, fields, reason string }{
 		{"WorkFailed", `{"message":"late","reason":"broken"}`, "broken"},

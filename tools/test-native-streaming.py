@@ -48,6 +48,9 @@ def qualify(language, output):
         for index, code in enumerate(re.findall(r"```python\n(.*?)```", (sdk / "README.md").read_text(encoding="utf-8"), re.S)):
             if "import streams_client" in code:
                 (samples / f"guide_{index}.py").write_text(code, encoding="utf-8")
+        # A guide regression that drops every sample must not pass vacuously.
+        if not any(samples.iterdir()):
+            raise SystemExit("no Python README samples were extracted for type checking")
         run(sys.executable, "-m", "mypy", str(samples), env=dict(env, MYPYPATH=str(sdk / "src")))
         run(sys.executable, "-m", "build", "--wheel", str(sdk))
         installed = output / "installed"
@@ -71,10 +74,15 @@ def qualify(language, output):
             consumer = output / ("consumer-" + package.name); consumer.mkdir()
             (consumer / "go.mod").write_text(f'module example.com/stream-consumer\n\ngo 1.24.0\nrequire example.com/streams v0.0.0\nreplace example.com/streams => ../{package.name}\n', encoding="utf-8")
             shutil.copyfile(ROOT / "crates/crucible-codegen-go/tests/streaming_test.go", consumer / "streaming_test.go")
+            extracted = 0
             for index, code in enumerate(re.findall(r"```go\n(.*?)```", (package / "README.md").read_text(encoding="utf-8"), re.S)):
                 if code.startswith("package main"):
                     sample = consumer / "cmd" / f"guide{index}"; sample.mkdir(parents=True)
                     (sample / "main.go").write_text(code, encoding="utf-8")
+                    extracted += 1
+            # A guide regression that drops every sample must not pass vacuously.
+            if not extracted:
+                raise SystemExit(f"no Go README samples were extracted from {package.name}")
             run(go, "fmt", "./...", cwd=consumer)
             run(go, "vet", "./...", cwd=consumer)
             run(go, "test", "-count=1", "-v", "./...", cwd=consumer, env=env)

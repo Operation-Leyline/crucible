@@ -55,9 +55,11 @@ async def read_opening_error(response: httpx.Response, limit: int) -> bytes:
     """
     data = bytearray()
     async for chunk in response.aiter_raw():
-        data.extend(chunk[:limit - len(data)])
-        if len(data) >= limit:
-            break
+        # One byte past the limit tells an oversized body from one that is
+        # exactly the limit; a prefix of an oversized body is never decoded.
+        data.extend(chunk[:limit + 1 - len(data)])
+        if len(data) > limit:
+            return b""
     encoding = response.headers.get("content-encoding", "identity").lower()
     if encoding not in ("gzip", "deflate"):
         return bytes(data)
@@ -66,8 +68,8 @@ async def read_opening_error(response: httpx.Response, limit: int) -> bytes:
     for format in (15, -15):
         try:
             decoder = zlib.decompressobj(format)
-            expanded_deflate = decoder.decompress(data, limit)
-            return expanded_deflate if decoder.eof else b""
+            expanded_deflate = decoder.decompress(data, limit + 1)
+            return expanded_deflate if decoder.eof and len(expanded_deflate) <= limit else b""
         except zlib.error:
             continue
     return b""
@@ -98,14 +100,14 @@ def _gunzip_members(data: memoryview, limit: int) -> bytes:
             decoder = zlib.decompressobj(31)
             step = 64
             while not decoder.eof:
-                room = limit - len(expanded)
-                if offset >= len(data) or room <= 0:
-                    # Truncated, or more output than the ceiling (zlib treats
-                    # max_length=0 as unbounded, so it is never passed).
+                if offset >= len(data):
                     return b""
                 piece = data[offset:offset + step]
-                expanded += decoder.decompress(piece, room)
-                if decoder.unconsumed_tail:
+                # Room for one byte past the ceiling, so a body of exactly the
+                # limit can still reach its trailer (zlib treats max_length=0
+                # as unbounded, so it is never passed).
+                expanded += decoder.decompress(piece, limit + 1 - len(expanded))
+                if len(expanded) > limit or decoder.unconsumed_tail:
                     return b""
                 offset += len(piece) - len(decoder.unused_data)
                 step = min(step * 2, 65536)
