@@ -25,7 +25,8 @@ public sealed class ResponseStream<T> : IAsyncEnumerable<T>, IAsyncEnumerator<T>
     private string eventName = "";
     private Exception? terminalError;
     // The first failure ends the stream: every later read rethrows it, as Go keeps Err.
-    private Exception? failure;
+    // Captured once, so repeated rethrows do not keep extending its stack trace.
+    private System.Runtime.ExceptionServices.ExceptionDispatchInfo? failure;
     /// <summary>The opening HTTP metadata, available before the first read.</summary>
     public ResponseMetadata Metadata { get; }
     /// <summary>The last event returned by MoveNextAsync.</summary>
@@ -85,7 +86,7 @@ public sealed class ResponseStream<T> : IAsyncEnumerable<T>, IAsyncEnumerator<T>
         {
             // Never resume parsing the buffer of a released response, whose reads look like EOF.
             Volatile.Write(ref reading, 0);
-            System.Runtime.ExceptionServices.ExceptionDispatchInfo.Throw(failed);
+            failed.Throw();
         }
         try
         {
@@ -179,7 +180,7 @@ public sealed class ResponseStream<T> : IAsyncEnumerable<T>, IAsyncEnumerator<T>
                 : error is StreamProtocolError or ServiceError or OperationCanceledException ? error
                 : error is HttpRequestException or IOException ? new NetworkError(error.Message, error)
                 : new StreamProtocolError("Invalid stream encoding or modeled value");
-            failure = thrown;
+            failure = System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(thrown);
             Report(thrown);
             if (ReferenceEquals(thrown, error)) throw;
             throw thrown;

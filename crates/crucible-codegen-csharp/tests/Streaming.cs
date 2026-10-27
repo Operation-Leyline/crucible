@@ -265,15 +265,22 @@ foreach (var (wire, failure) in new[] {
     await using var events = await client.WatchAsync();
     var iterator = events.GetAsyncEnumerator();
     var outcomes = new List<string>();
-    for (int read = 0; read < 4; read++)
+    var traces = new List<int>();
+    for (int read = 0; read < 6; read++)
     {
         try { outcomes.Add(await iterator.MoveNextAsync() ? "item" : "end"); }
-        catch (Exception error) when (error is StreamProtocolError or ServiceError) { outcomes.Add(error.GetType().Name); }
+        catch (Exception error) when (error is StreamProtocolError or ServiceError)
+        {
+            outcomes.Add(error.GetType().Name);
+            traces.Add(error.StackTrace?.Split('\n').Length ?? 0);
+        }
     }
     var expected = new List<string>();
     if (wire.StartsWith(Item, StringComparison.Ordinal)) expected.Add("item");
-    while (expected.Count < 4) expected.Add(failure);
+    while (expected.Count < 6) expected.Add(failure);
     Check(outcomes.SequenceEqual(expected), "sticky stream failure: " + string.Join(",", outcomes));
+    // Rethrowing the stored failure must not keep extending its stack trace.
+    Check(traces.Skip(1).Distinct().Count() == 1, "stored failure trace grows: " + string.Join(",", traces));
 }
 
 // Cancellation takes precedence over a modeled opening error whose body was read in
