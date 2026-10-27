@@ -1,0 +1,13 @@
+[package]
+name = "native-stream-http"
+version = "0.0.0"
+edition = "2024"
+publish = false
+
+[workspace]
+
+[dependencies]
+streaming-consumer = { path = "../streaming" }
+crucible-server-runtime-rust = { path = "../../../crates/crucible-server-runtime-rust" }
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "net"] }
+axum = "0.8"

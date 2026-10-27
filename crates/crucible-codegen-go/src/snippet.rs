@@ -555,6 +555,11 @@ pub(crate) fn snippets(
         _ => Vec::new(),
     };
     let invoke = format!("client.{method}(ctx, {argument})");
+    if operation.response_mode == crucible_ir::ir::ResponseMode::ServerStream {
+        standard.insert("fmt");
+        body.push_str(&format!("\tevents, err := {invoke}\n\tif err != nil {{ log.Fatal(err) }}\n\tdefer events.Close()\n\tfor events.Next() {{ fmt.Println(events.Value()) }}\n\tif err := events.Err(); err != nil {{ log.Print(err) }}\n"));
+        return (program(options, &alias, standard, &values, &body), None);
+    }
     let mut printed = !reads.is_empty();
     match call.error {
         Some(case) => {
@@ -725,6 +730,13 @@ pub(crate) fn guide(service: &Service, options: &Options) -> Guide {
          `*{alias}.NetworkError`, and cancellation and deadlines keep their context errors.",
         exception = exported(&crucible_codegen_common::service_exception_name(service)),
     );
+    if service
+        .operations
+        .iter()
+        .any(|op| op.response_mode == crucible_ir::ir::ResponseMode::ServerStream)
+    {
+        guide.errors.push_str(" Streaming calls return *ResponseStream[Item]. Always defer Close; Next, Value and Err consume it on demand. The caller context and total timeout remain active through body consumption, including idle time before the first read. Closing releases only that response. Successful headers are never replayed. Config.MaxStreamEventBytes bounds frames and opening error bodies (default 1 MiB, minimum 256). Invalid profiles report *StreamProtocolError.");
+    }
     guide.retries = format!(
         "Set `Config.MaxAttempts` to change the attempt limit (3, the first included; 1 turns \
          retries off) and `Config.RetryMode` to `{alias}.RetryModeStandard` or \

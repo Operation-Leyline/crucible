@@ -17,6 +17,13 @@ version's section when it is prepared.
 
 ### Added
 
+- Python sync/async and Go clients expose typed response-stream iteration,
+  opening metadata, bounded SSE parsing, total-call deadlines and cancellation,
+  and document-decoded late errors. Eligible opening failures use the existing
+  retry policy; successful headers are never replayed. Synchronous Python
+  streams own a cancellable transport and worker; existing unary APIs stay
+  compatible. See [response streams](docs/streaming.md).
+
 - Rust clients expose typed `ResponseStream` iteration, opening metadata,
   cancellation and drop ownership, total-call deadlines, bounded SSE parsing
   and document-decoded late errors. `Config::max_stream_event_bytes` controls

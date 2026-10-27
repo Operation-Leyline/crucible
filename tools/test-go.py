@@ -5,6 +5,7 @@ from pathlib import Path
 import queue
 import shutil
 import subprocess
+import sys
 import tempfile
 import threading
 from sdk_test_support import describe_sdk, generator_command, snippets
@@ -297,3 +298,4 @@ func main() {
 if __name__ == "__main__":
     with tempfile.TemporaryDirectory(prefix="crucible-go-") as directory:
         qualify(Path(directory))
+    run(sys.executable, "tools/test-native-streaming.py", "go")

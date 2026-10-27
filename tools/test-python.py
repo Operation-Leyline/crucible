@@ -136,3 +136,4 @@ if __name__ == "__main__":
     # A fresh owned directory also prevents stale output from hiding failures.
     with tempfile.TemporaryDirectory(prefix="crucible-python-") as output:
         qualify(Path(output) / "sdk")
+    run(sys.executable, "tools/test-native-streaming.py", "python")

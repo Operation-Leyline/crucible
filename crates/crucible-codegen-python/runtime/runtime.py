@@ -458,7 +458,7 @@ class _Base:
                  max_attempts: int = 3, base_delay: float = 0.1, max_delay: float = 20,
                  timeout: float = 30, middleware: list[Callable[..., Any]] | None = None,
                  retry_mode: str = "legacy", telemetry: TelemetryHook | None = None,
-                 clock: Any = None) -> None:
+                 clock: Any = None, max_stream_event_bytes: int = 1024 * 1024) -> None:
         """Configure without sending a request.
 
         endpoint: Absolute HTTP(S) base URL.
@@ -474,6 +474,15 @@ class _Base:
         retry_mode: legacy (default), standard retry quota, or adaptive rate limit.
         telemetry: Optional hook; exceptions are logged without failing calls.
         clock: Monotonic clock/sleep implementation for tests.
+        max_stream_event_bytes: Bound for each stream frame and opening error body;
+            default 1 MiB, minimum 256 bytes.
+        stream_http_factory: Sync clients only: creates a fresh, stream-owned
+            AsyncClient on the stream's worker thread. Required when supplying
+            http= and using response streams; configure TLS/proxies here too.
+            Its setup uses the original call budget; expiry is checked when
+            a synchronous factory returns, before credentials or HTTP begin.
+            Streams request identity encoding and refuse encoded successes;
+            ordinary opening errors support bounded gzip/deflate decoding.
 
         Close owned transport with close/aclose or context management. Supplied
         HTTPX transports remain caller-owned. Share only when all callbacks and
@@ -486,6 +495,9 @@ class _Base:
             raise ValueError("max_attempts must be positive and timeout finite and positive")
         if any(not math.isfinite(d) or d < 0 for d in (base_delay, max_delay)):
             raise ValueError("retry delays must be finite and nonnegative")
+        if isinstance(max_stream_event_bytes, bool) or not isinstance(max_stream_event_bytes, int) or max_stream_event_bytes < 256:
+            raise ValueError("max_stream_event_bytes must be an integer of at least 256")
+        self._max_stream_event_bytes = max_stream_event_bytes
         self._endpoint = endpoint.rstrip("/")
         self._codec = _Codec(schema, classes)
         self._token = token
@@ -500,6 +512,12 @@ class _Base:
         self._retry = RetryStrategy(retry_mode, self._clock, base_delay=base_delay, max_delay=max_delay)
         self._telemetry = telemetry
         self._service = str(schema.get("service", ""))
+
+    def _stream_deadline(self, timeout: float | None) -> float:
+        budget = self._timeout if timeout is None else timeout
+        if budget <= 0 or not math.isfinite(budget):
+            raise ValueError("timeout must be finite and positive")
+        return time.monotonic() + budget
 
     def _prepare(self, name: str, input: Any) -> tuple[dict[str, Any], str, bytes | None, dict[str, str]]:
         op = dict(self._codec.schema["operations"][name])
@@ -855,10 +873,12 @@ class _Trace:
 
 class SyncClient(_Base):
     """Synchronous HTTPX transport runtime; close or context management closes only its owned transport."""
-    def __init__(self, *, http: httpx.Client | None = None, **kwargs: Any) -> None:
+    def __init__(self, *, http: httpx.Client | None = None,
+                 stream_http_factory: Callable[[], httpx.AsyncClient] | None = None, **kwargs: Any) -> None:
         super().__init__(**kwargs)
         self._http = http or httpx.Client()
         self._owns_http = http is None
+        self._stream_http_factory = stream_http_factory
     __init__.__doc__ = _Base.__init__.__doc__
 
     def close(self) -> None:
@@ -873,6 +893,8 @@ class SyncClient(_Base):
         self.close()
 
     def _call(self, name: str, input: Any = None, *, timeout: float | None = None) -> Any:
+        if self._codec.schema["operations"][name].get("responseMode") == "server-stream":
+            raise ValueError("response-stream operation requires the streaming transport entry point")
         trace = _Trace(self, name)
         try:
             output = self._send(name, input, timeout, trace)
@@ -881,6 +903,11 @@ class SyncClient(_Base):
             raise
         trace.finished(None)
         return output
+
+    def _stream_call(self, name: str, input: Any = None, **options: Any) -> Any:
+        deadline = self._stream_deadline(options.get("timeout"))
+        from .stream import open_sync_stream
+        return open_sync_stream(self, name, input, deadline, options)
 
     def _send(self, name: str, input: Any, timeout: float | None, trace: _Trace) -> Any:
         op, url, body, headers = self._prepare(name, input)
@@ -992,6 +1019,8 @@ class AsyncClientBase(_Base):
         await self.aclose()
 
     async def _call(self, name: str, input: Any = None, *, timeout: float | None = None) -> Any:
+        if self._codec.schema["operations"][name].get("responseMode") == "server-stream":
+            raise ValueError("response-stream operation requires the streaming transport entry point")
         deadline = asyncio.get_running_loop().time() + (self._timeout if timeout is None else timeout)
         trace = _Trace(self, name)
         try:
@@ -1003,8 +1032,17 @@ class AsyncClientBase(_Base):
         trace.finished(None)
         return output
 
-    async def _send(self, name: str, input: Any, timeout: float | None, deadline: float, trace: _Trace) -> Any:
+    async def _stream_call(self, name: str, input: Any = None, **options: Any) -> Any:
+        deadline = self._stream_deadline(options.get("timeout"))
+        from .stream import open_async_stream
+        return await open_async_stream(self, name, input, _deadline=deadline, **options)
+
+    async def _send(self, name: str, input: Any, timeout: float | None, deadline: float, trace: _Trace,
+                    lifetime: Any = None) -> Any:
         op, url, body, headers = self._prepare(name, input)
+        if lifetime is not None:
+            headers = {key: value for key, value in headers.items() if key.lower() != "accept-encoding"}
+            headers["accept-encoding"] = "identity"
         last_cost: int | None = None
         for attempt in range(1, self._attempts + 1):
             wait = self._retry.send_delay()
@@ -1026,6 +1064,8 @@ class AsyncClientBase(_Base):
             if token is not None:
                 apply_auth(request, token)
             _check_credentials(request)
+            if lifetime is not None:
+                lifetime.check()
             trace.attempt_started(op, request)
             response = None
             failure: BaseException | None = None
@@ -1033,10 +1073,29 @@ class AsyncClientBase(_Base):
             try:
                 try:
                     response = await self._http.send(request, stream=True)
+                    transferred = False
                     try:
-                        data = b"" if response.is_success and not _has_body(op) else await response.aread()
+                        if lifetime is not None:
+                            lifetime.response = response
+                            lifetime.check()
+                            if response.is_success:
+                                from .stream import AsyncResponseStream, validate_profile
+                                validate_profile(response.headers.get("content-type", ""))
+                                if response.headers.get("content-encoding", "identity").lower() != "identity":
+                                    from .stream import StreamProtocolError
+                                    raise StreamProtocolError("content-encoded response streams are unsupported")
+                                self._succeeded(last_cost)
+                                trace.attempt_finished(response, None, 0)
+                                result = AsyncResponseStream(self, op, response, lifetime, trace)
+                                transferred = True
+                                return result
+                            from .stream import read_opening_error
+                            data = await read_opening_error(response, self._max_stream_event_bytes)
+                        else:
+                            data = b"" if response.is_success and not _has_body(op) else await response.aread()
                     finally:
-                        await response.aclose()
+                        if not transferred:
+                            await response.aclose()
                 except httpx.TransportError as error:
                     failure = error
                 else:

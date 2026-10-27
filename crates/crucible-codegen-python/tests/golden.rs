@@ -49,9 +49,15 @@ fn options() -> Options {
 fn weather_matches_goldens() {
     let service = weather();
     for file in emit(&service, &options()).unwrap() {
-        if ["runtime.py", "auth.py", "policy.py", "telemetry.py"]
-            .iter()
-            .any(|name| file.path.ends_with(name))
+        if [
+            "runtime.py",
+            "stream.py",
+            "auth.py",
+            "policy.py",
+            "telemetry.py",
+        ]
+        .iter()
+        .any(|name| file.path.ends_with(name))
         {
             continue;
         }
@@ -67,6 +73,44 @@ fn weather_matches_goldens() {
                 .unwrap_or_default()
                 .replace("\r\n", "\n"),
             file.contents,
+            "{}",
+            file.path
+        );
+    }
+}
+
+#[test]
+fn response_stream_api_and_guide_match_goldens() {
+    let root = Path::new(env!("CARGO_MANIFEST_DIR"));
+    let service =
+        crucible_lang::load_service(&root.join("../../tests/consumers/rust-stream-client/model"))
+            .unwrap();
+    let config = Options {
+        module_name: "streams_client".into(),
+        package_name: "streams-client".into(),
+        ..options()
+    };
+    for file in emit(&service, &config).unwrap() {
+        if ![
+            "src/streams_client/client.py",
+            "src/streams_client/__init__.py",
+            "README.md",
+        ]
+        .contains(&file.path.as_str())
+        {
+            continue;
+        }
+        let path = root.join("tests/golden/streaming").join(&file.path);
+        let contents = format!("{}\n", file.contents.trim_end());
+        if std::env::var_os("CRUCIBLE_BLESS").is_some() {
+            fs::create_dir_all(path.parent().unwrap()).unwrap();
+            fs::write(&path, &contents).unwrap();
+        }
+        assert_eq!(
+            fs::read_to_string(&path)
+                .unwrap_or_default()
+                .replace("\r\n", "\n"),
+            contents,
             "{}",
             file.path
         );

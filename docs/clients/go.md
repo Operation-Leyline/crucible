@@ -278,6 +278,46 @@ while retaining the HTTP failure metadata.
 requires one. A client without a token sends such an operation unauthenticated
 and leaves the service to answer.
 
+## Response streams
+
+An `output stream Event` method returns `(*ResponseStream[*Event], error)`.
+Keep the call's context alive for the entire sequence and always defer `Close`,
+including when abandoning the stream before its first read:
+
+```go
+events, err := client.Watch(ctx, sdk.Unit{})
+if err != nil {
+    return err
+}
+defer events.Close()
+for events.Next() {
+    event := events.Value()
+    fmt.Println(event)
+}
+return events.Err()
+```
+
+`Metadata` retains opening status, request ID, and headers. `Next` reads one
+item on demand; no background pump collects events. The stream has one consumer.
+`Close` is idempotent and may run concurrently to interrupt a blocked `Next`.
+It closes only that response, leaving the caller's HTTP client available.
+A loop `break` retains the stream until it is closed.
+
+Context cancellation and `Config.Timeout` cover credentials, opening retries,
+body reads, decoding, and idle time before or between reads. They take precedence
+over buffered items. `Config.MaxStreamEventBytes` bounds frames and opening error
+bodies (default 1 MiB, minimum 256 bytes). Malformed framing, invalid values, and
+missing or duplicate terminal events produce `*StreamProtocolError` through
+`Err`. Modeled late errors retain their ordinary generated Go types,
+`errors.As` support, and service metadata. Their members decode as document
+values, including members normally bound to headers or a payload. Unknown
+application union variants retain the usual `UnknownVariant` representation.
+
+Opening shares normal token resolution, request middleware, version headers,
+and retry classification. Successful headers transfer response ownership to the
+stream; Crucible never reconnects or replays after that point. Successful
+iteration requires exactly one completion terminal followed by HTTP body EOF.
+
 ## Qualification
 
 `python tools/test-go.py` generates the package, checks it with `go vet`, runs
