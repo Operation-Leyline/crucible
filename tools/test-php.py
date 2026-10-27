@@ -59,13 +59,15 @@ def error_documentation(output):
         str(ROOT / "tests/models/error-docs"), "--out", str(package), "--package-name", "example/error-docs",
         "--namespace", "Example\\ErrorDocs", "--package-version", "0.0.0")
     consumer = output / "error-docs-consumer"
-    consumer.mkdir()
+    consumer.mkdir(parents=True, exist_ok=True)
     (consumer / "composer.json").write_text(json.dumps({
         "name": "example/error-docs-consumer", "license": "proprietary",
         "repositories": [{"type": "path", "url": "../error-docs-sdk", "options": {"symlink": False}}],
         "require": {"example/error-docs": "0.0.0"},
     }), encoding="utf-8")
-    composer("install", cwd=consumer)
+    composer("update", cwd=consumer)
+    # A path repository with symlink=False must copy this generation, even at the same version.
+    composer("reinstall", "example/error-docs", cwd=consumer)
     run(PHP, str(ROOT / "crates/crucible-codegen-php/tests/error_docs.php"),
         str(ROOT / "tests/conformance/error-docs.json"), env=dict(os.environ, PHP_PACKAGE=str(consumer)))
 

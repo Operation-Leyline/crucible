@@ -9,14 +9,19 @@ using namespace docs;
 using namespace docs::runtime;
 void check(bool condition, const std::string& label) { if (!condition) throw std::runtime_error("Error documentation: " + label); }
 int main() {
-    std::ifstream input(std::getenv("ERROR_DOCS_CASES"));
+    const char* cases_path = std::getenv("ERROR_DOCS_CASES");
+    const char* endpoint = std::getenv("ERROR_DOCS_URL");
+    check(cases_path && *cases_path, "ERROR_DOCS_CASES must be set");
+    check(endpoint && *endpoint, "ERROR_DOCS_URL must be set");
+    std::ifstream input(cases_path);
+    check(input.is_open(), "cannot read ERROR_DOCS_CASES");
     const auto oracle = Json::parse(std::string(std::istreambuf_iterator<char>(input), {}));
     for (const auto& test : oracle.at("cases").array()) {
         const auto& label = test.at("name").string();
         std::exception_ptr saved;
         {
             ClientConfig config;
-            config.endpoint = std::getenv("ERROR_DOCS_URL"); config.max_attempts = 1;
+            config.endpoint = endpoint; config.max_attempts = 1;
             TroubleshootingClient client(config);
             try { (void)client.inspect(); }
             catch (const TroubleshootingException&) { saved = std::current_exception(); }

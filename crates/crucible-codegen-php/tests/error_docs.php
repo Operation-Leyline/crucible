@@ -45,8 +45,13 @@ $process = proc_open([PHP_BINARY, __FILE__, $argv[1], 'serve'],
 if (!is_resource($process)) throw new RuntimeException('Cannot start native HTTP fixture');
 fclose($pipes[0]);
 try {
-    $address = trim(fgets($pipes[1]));
-    if ($address === '') throw new RuntimeException('No fixture address');
+    $line = fgets($pipes[1]);
+    $address = $line === false ? '' : trim($line);
+    if ($address === '') {
+        proc_terminate($process);
+        $stderr = trim(stream_get_contents($pipes[2]));
+        throw new RuntimeException('No fixture address' . ($stderr === '' ? '' : ': ' . $stderr));
+    }
     $client = new TroubleshootingClient(new ClientConfig(endpoint:'http://' . $address, maxAttempts:1, timeout:5));
     foreach ($cases as $case) {
         try { $client->inspect(); throw new RuntimeException('Expected service failure'); }
