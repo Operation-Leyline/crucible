@@ -101,7 +101,7 @@ func (s *ResponseStream[T]) finish(err error) {
 	})
 }
 
-// fail finishes with err unless the stream's lifetime has already ended.
+// fail finishes with err unless the stream's lifetime is already over.
 // Parsing and decoding are synchronous, so the context can expire during
 // them; its cancellation or deadline takes precedence over the data failure.
 func (s *ResponseStream[T]) fail(err error) bool {
