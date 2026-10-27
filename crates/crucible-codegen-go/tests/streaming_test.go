@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -415,6 +416,27 @@ func TestOpeningErrorAtAndPastTheLimit(t *testing.T) {
 				t.Fatalf("ResponseBytes %d, expected %d", hook.bytes.Load(), want)
 			}
 		})
+	}
+}
+
+func TestOpeningErrorWithMaximumLimit(t *testing.T) {
+	// limit+1 must saturate: an overflowed LimitReader would read nothing.
+	body := `{"__type":"WorkFailed","message":"opening"}`
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(400)
+		io.WriteString(w, body)
+	}))
+	defer server.Close()
+	hook := &attemptBytes{}
+	c := client(t, server.URL, func(c *streams.Config) { c.MaxStreamEventBytes = math.MaxInt; c.Telemetry = hook })
+	_, err := c.Publish(context.Background(), &streams.PublishInput{Topic: "send"})
+	var service *streams.ServiceError
+	if !errors.As(err, &service) || service.Message != "opening" {
+		t.Fatalf("opening error lost with a maximum limit: %v", err)
+	}
+	if hook.bytes.Load() != int64(len(body)) {
+		t.Fatalf("ResponseBytes %d, expected %d", hook.bytes.Load(), len(body))
 	}
 }
 

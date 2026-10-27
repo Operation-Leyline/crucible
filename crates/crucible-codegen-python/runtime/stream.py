@@ -45,13 +45,16 @@ def _json(data: bytes) -> Any:
         raise StreamProtocolError("malformed UTF-8 or JSON") from None
 
 
-async def read_opening_error(response: httpx.Response, limit: int) -> bytes:
+async def read_opening_error(response: httpx.Response, limit: int) -> tuple[bytes, int]:
     """Bound both encoded input and expanded output of ordinary HTTP errors.
 
     HTTPX's streaming decompressor can allocate the entire expanded transport
     chunk before yielding. Decode its default gzip/deflate encodings with an
     explicit output ceiling instead; malformed/oversized bodies still retain
     HTTP status classification through the existing error decoder.
+    Returns the body to decode and the bytes read for telemetry: the decoded
+    length, or the bytes consumed when an oversized or malformed body is
+    discarded.
     """
     data = bytearray()
     async for chunk in response.aiter_raw():
@@ -59,12 +62,15 @@ async def read_opening_error(response: httpx.Response, limit: int) -> bytes:
         # exactly the limit; a prefix of an oversized body is never decoded.
         data.extend(chunk[:limit + 1 - len(data)])
         if len(data) > limit:
-            return b""
+            return b"", len(data)
     encoding = response.headers.get("content-encoding", "identity").lower()
     if encoding not in ("gzip", "deflate"):
-        return bytes(data)
-    if encoding == "gzip":
-        return _gunzip_members(memoryview(data), limit)
+        return bytes(data), len(data)
+    body = _gunzip_members(memoryview(data), limit) if encoding == "gzip" else _inflate(data, limit)
+    return body, len(body) if body else len(data)
+
+
+def _inflate(data: bytearray, limit: int) -> bytes:
     for format in (15, -15):
         try:
             decoder = zlib.decompressobj(format)
@@ -135,6 +141,9 @@ class _Lifetime:
         # The task this lifetime cancelled, so the handler that replaces that
         # CancelledError with the lifetime's own error withdraws the request.
         self.interrupted: asyncio.Task[Any] | None = None
+        # The active task's cancellation requests when it became active: only
+        # requests beyond these are the caller's, as in asyncio.timeout().
+        self.baseline = 0
         self.error: BaseException | None = None
         self.closed = False
         self._close_task: asyncio.Task[None] | None = None
@@ -146,6 +155,11 @@ class _Lifetime:
         if self.error is not None:
             raise self.error
         _check_start(self.deadline, self.cancellation)
+
+    def enter(self) -> None:
+        task = asyncio.current_task()
+        self.active = task
+        self.baseline = task.cancelling() if task is not None else 0
 
     def outcome(self, error: BaseException) -> BaseException:
         """The error a failed step reports: cancellation and expiry win.
@@ -161,7 +175,7 @@ class _Lifetime:
             # asyncio.timeout() scopes.
             self.interrupted = None
             interrupted.uncancel()
-        if isinstance(error, asyncio.CancelledError) and task is not None and task.cancelling():
+        if isinstance(error, asyncio.CancelledError) and task is not None and task.cancelling() > self.baseline:
             # The caller cancelled too: as with asyncio.timeout(), its own
             # cancellation wins over the lifetime's error.
             return error
@@ -345,7 +359,7 @@ class AsyncResponseStream(Generic[T], AsyncIterator[T]):
         if self._reading:
             raise RuntimeError("response stream refuses concurrent reads")
         self._reading = True
-        self._lifetime.active = asyncio.current_task()
+        self._lifetime.enter()
         try:
             self._lifetime.check()
             while True:
@@ -460,7 +474,7 @@ async def open_async_stream(client: AsyncClientBase, name: str, input: Any, *, t
     lifetime = _Lifetime(client._timeout if timeout is None else timeout, cancellation, deadline=_deadline)
     trace = _Trace(client, name)
     lifetime.trace = trace
-    lifetime.active = asyncio.current_task()
+    lifetime.enter()
     try:
         lifetime.check()
         return await client._send(name, input, timeout, lifetime.deadline, trace, lifetime)

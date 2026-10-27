@@ -1070,6 +1070,9 @@ class AsyncClientBase(_Base):
             response = None
             failure: BaseException | None = None
             data = b""
+            # Bytes read when they differ from the decoded body (an oversized
+            # opening error is read one byte past its limit, then discarded).
+            received: int | None = None
             try:
                 try:
                     response = await self._http.send(request, stream=True)
@@ -1090,7 +1093,7 @@ class AsyncClientBase(_Base):
                                 transferred = True
                                 return result
                             from .stream import read_opening_error
-                            data = await read_opening_error(response, self._max_stream_event_bytes)
+                            data, received = await read_opening_error(response, self._max_stream_event_bytes)
                         else:
                             data = b"" if response.is_success and not _has_body(op) else await response.aread()
                     finally:
@@ -1109,11 +1112,11 @@ class AsyncClientBase(_Base):
                         return output
             except BaseException as error:
                 self._interrupted(response)
-                trace.attempt_finished(response, error, len(data) if response is not None else None)
+                trace.attempt_finished(response, error, (len(data) if received is None else received) if response is not None else None)
                 raise
             assert failure is not None
             retry = self._after_failure(op, failure, response, attempt)
-            trace.attempt_finished(response, failure, len(data) if response is not None else None, retry)
+            trace.attempt_finished(response, failure, (len(data) if received is None else received) if response is not None else None, retry)
             if retry is None:
                 if isinstance(failure, httpx.TransportError):
                     raise NetworkError(str(failure)) from failure

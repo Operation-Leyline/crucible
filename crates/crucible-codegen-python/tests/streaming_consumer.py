@@ -482,11 +482,18 @@ class SyncStreams(unittest.TestCase):
                    ("gzip-empty-member","gzip",lambda b:gzip.compress(b)+gzip.compress(b"")),("deflate","deflate",zlib.compress))
         for name,encoding,compress in encodings:
             for size,decoded in ((256,True),(257,False)):
-                body=document+b" "*(size-len(document))
-                with self.subTest(encoding=name,size=size), raw(status=503,encoding=encoding,error_body=compress(body)) as (url,requests,_), StreamsClient(url,max_stream_event_bytes=256) as client:
+                body=document+b" "*(size-len(document));wire=compress(body)
+                attempts=[]
+                class Hook(TelemetryHook):
+                    def attempt_finished(self,event): attempts.append(event.response_bytes)
+                with self.subTest(encoding=name,size=size), raw(status=503,encoding=encoding,error_body=wire) as (url,requests,_), StreamsClient(url,max_stream_event_bytes=256,telemetry=Hook()) as client:
                     with self.assertRaises(Exception) as caught: client.publish(PublishInput(topic="send"))
                     self.assertEqual(getattr(caught.exception,"message",None)==message,decoded)
                     self.assertEqual(len(requests),1)
+                    # Telemetry reports the bytes read, as Go does: the decoded
+                    # body, or what was consumed before a body was discarded
+                    # (one byte past the limit for an oversized identity body).
+                    self.assertEqual(attempts,[size if decoded else 257 if not encoding else len(wire)])
 
     def test_opening_error_fixture_reads_separate_post_body_before_response(self):
         class DelayedBody(httpx.AsyncByteStream):
@@ -647,6 +654,25 @@ class AsyncStreams(unittest.IsolatedAsyncioTestCase):
                     await stream.aclose()
         finally:
             stream_module._Lifetime.interrupt=interrupt
+        # A task already carrying a caught, never-withdrawn cancel request
+        # still reports the stream deadline as TimeoutError, as with
+        # asyncio.timeout(): only requests made during the call are the caller's.
+        task.cancel()
+        try: await asyncio.sleep(0)
+        except asyncio.CancelledError: pass
+        try:
+            self.assertEqual(task.cancelling(),1)
+            with raw(b"",hold=True) as (url,_,_):
+                async with AsyncStreamsClient(url,timeout=.15) as client:
+                    stream=await client.watch()
+                    with self.assertRaisesRegex(TimeoutError,"deadline exceeded"): await anext(stream)
+                    await stream.aclose()
+            with socket.create_server(("127.0.0.1",0)) as listener:
+                async with AsyncStreamsClient(f"http://127.0.0.1:{listener.getsockname()[1]}",timeout=.15) as client:
+                    with self.assertRaisesRegex(TimeoutError,"deadline exceeded"): await client.watch()
+            self.assertEqual(task.cancelling(),1)
+        finally:
+            while task.cancelling(): task.uncancel()
         async with asyncio.timeout(1):
             async with asyncio.TaskGroup() as group:
                 child=group.create_task(asyncio.sleep(.01,"ok"))

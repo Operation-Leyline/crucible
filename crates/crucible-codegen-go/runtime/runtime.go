@@ -1161,7 +1161,12 @@ func (c *clientRuntime) sendMode(ctx context.Context, name string, values map[st
 				reader := io.Reader(response.Body)
 				// One byte past the limit tells an oversized opening error from one of
 				// exactly the limit; an oversized prefix is never decoded.
-				if opening != nil { reader = io.LimitReader(reader, int64(c.config.MaxStreamEventBytes)+1) }
+				if opening != nil {
+					// Saturate: limit+1 overflows to a negative count at math.MaxInt64.
+					limit := int64(c.config.MaxStreamEventBytes)
+					if limit < math.MaxInt64 { limit++ }
+					reader = io.LimitReader(reader, limit)
+				}
 				data, transportErr = io.ReadAll(reader)
 			}
 			response.Body.Close()
