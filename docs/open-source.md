@@ -8,6 +8,10 @@ references are retained. Track remaining release and repository setup in
 ## Library packages
 
 The library crates inherit repository, license, README, keywords and categories.
+Their shared README is [crates/README.md](../crates/README.md), not the root
+one: crates.io resolves relative links against the crate's own directory, so
+its links are absolute. `tools/check_publish_metadata.py` refuses a packaged
+README with relative links.
 Internal package dependencies carry the exact workspace version alongside their
 local path. `crucible-cli` and `crucible-lsp` are explicitly unpublished; the
 example and consumer workspaces also remain unpublished.
@@ -36,6 +40,13 @@ cargo package --workspace --exclude crucible-cli --exclude crucible-lsp --locked
 cargo publish --workspace --exclude crucible-cli --exclude crucible-lsp --dry-run --locked
 ```
 
+Generators keep their output reproducible from the registry too. Built from a
+source checkout, `crucible-build` pins a generated Rust SDK's runtime to its Git
+revision and points a generated CLI at the checkout's runtime crates. Built
+from crates.io, both depend on the published runtime crates at exactly the
+generator's version (`=X.Y.Z`); see [Build outputs](build-outputs.md).
+`tools/test-consumers.py` generates both from the packaged sources.
+
 The offline package check needs a populated dependency cache. The registry
 dry run may need network access; it builds the packaged sources in dependency
 order without uploading.
@@ -47,8 +58,10 @@ successful upload.
 Prepare the next workspace version through the
 [release procedure](releases.md). `tools/crucible_release.py prepare` updates
 versioned internal path requirements and every standalone consumer lock that
-pins workspace crates, as well as the core and nested Leyline locks. It
-validates the complete edit set before writing. `check` refuses version drift.
+pins workspace crates, as well as the core and nested Leyline locks, and the
+exact install snippets in the published `crucible-api` README and the docs that
+pin a version. It validates the complete edit set before writing and prints
+each file it changed. `check` refuses version drift.
 Unrelated registry versions, checksums and example package versions stay put.
 
 ## CLI binaries
@@ -66,9 +79,12 @@ installers select the matching archive; SHA-256 files accompany the assets.
 The existing [Release workflow](../.github/workflows/release.yml) remains the
 only creator of the release tag and GitHub Release. Its full CI qualification
 and the build-only [CLI artifact workflow](../.github/workflows/build-cli.yml)
-must both pass before publication. It attaches the CLI archives, installers,
-checksums and build manifests beside the existing starter and LSP assets, and
-attests the CLI artifacts. CLI artifact jobs have read-only repository access.
+must both pass before publication. A separate job, which runs no repository
+code, holds the only OIDC token and attests the CLI archives, installers and
+checksums; publication then attaches exactly those beside the existing starter
+and LSP assets. cargo-dist's build manifests stay in the workflow artifact.
+CLI artifact jobs have read-only repository access and set up Python 3.12
+themselves rather than relying on the runner image.
 They neither create a tag nor upload to a package registry.
 
 Run **Build CLI release artifacts** manually with the current workspace version

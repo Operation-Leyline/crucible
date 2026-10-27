@@ -1290,7 +1290,7 @@ fn generate(target: Target, audience: crucible_codegen::Audience) -> Result<(), 
                     bin_name,
                     package_version,
                     endpoint,
-                    runtime_path,
+                    runtime_path: Some(runtime_path),
                 },
             )
             .map_err(|diagnostics| format!("cannot generate the service CLI:\n{diagnostics}"))?;

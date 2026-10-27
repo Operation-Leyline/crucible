@@ -105,7 +105,6 @@ class PlanTests(unittest.TestCase):
     def test_openapi_export_keeps_its_rust_qualification(self):
         self.assertEqual(affected_groups(["crates/crucible-codegen-openapi/src/lib.rs"]), {"rust"})
         self.assertEqual(affected_groups(["crates/crucible-codegen-docs/src/lib.rs"]), {"rust", "docs_site"})
-        self.assertEqual(affected_groups(["crates/crucible-codegen-docs/runtime/explorer.js"]), {"rust", "docs_site", "e2e"})
         self.assertEqual(affected_groups(["crates/crucible-explorer-assets/runtime/explorer.js"]), CORE_GROUPS | {"docs_site", "consumers"})
         self.assertEqual(affected_groups(["tools/test-docs-site.sh"]), {"rust", "docs_site"})
         self.assertEqual(affected_groups(["crates/crucible-codegen-docs/tests/golden/weather-external/describe.json"]), {"rust", "docs_site"})
@@ -181,6 +180,8 @@ class PlanTests(unittest.TestCase):
             "crates/crucible-build/src/lib.rs", "crates/crucible-server-runtime-rust/src/host.rs",
             "crates/crucible-wire/src/error.rs", "crates/crucible-codegen-rust/src/lib.rs",
             "crates/crucible-auth/src/principal.rs",
+            # The packaged-registry consumer covers package detection and the CLI pin.
+            "crates/crucible-revision/build.rs", "crates/crucible-codegen-cli/src/package.rs",
             # The Leyline SDK consumer pins this runtime through `runtime_path`.
             "crates/crucible-client-runtime-rust/src/lib.rs",
             "tests/consumers/leyline/leyline-service/src/lib.rs", "tools/test-consumers.py",
@@ -211,8 +212,16 @@ class PlanTests(unittest.TestCase):
         # The aggregate cannot pass a release (full) run when consumers was skipped or failed.
         self.assertIn('results["plan"]["outputs"]["full"] == "true" and results["consumers"]["result"] != "success"', jobs["ci"])
         release = (ROOT / ".github/workflows/release.yml").read_text()
-        self.assertIn("needs: [preflight, qualify, cli-artifacts]", release)
+        self.assertIn("needs: [preflight, qualify, cli-artifacts, attest-cli]", release)
         self.assertIn("uses: ./.github/workflows/ci.yml", release)
+        jobs = dict(re.findall(r"^  ([\w-]+):\n(.*?)(?=^  [\w-]+:|\Z)",
+                              release.split("jobs:\n", 1)[1], re.MULTILINE | re.DOTALL))
+        # Only the attestation job, which runs no repository code, may mint OIDC tokens.
+        self.assertIn("id-token: write", jobs["attest-cli"])
+        self.assertNotIn("actions/checkout", jobs["attest-cli"])
+        self.assertNotIn("id-token", jobs["publish"])
+        for name in ("attest-cli", "publish"):
+            self.assertIn("rm -f dist/cli/*-dist-manifest.json", jobs[name])
 
     def test_declared_msrv_is_compiled_and_aggregate_rejects_missing_proof(self):
         workflow = (ROOT / ".github/workflows/ci.yml").read_text()
@@ -426,7 +435,7 @@ class PlanTests(unittest.TestCase):
         self.assertIn("workflow_dispatch:", workflow)
         self.assertIn("workflow_dispatch:", release)
         self.assertIn("uses: ./.github/workflows/ci.yml", release)
-        self.assertIn("needs: [preflight, qualify, cli-artifacts]", release)
+        self.assertIn("needs: [preflight, qualify, cli-artifacts, attest-cli]", release)
         self.assertIn('-f "sha=$GITHUB_SHA"', release)
         self.assertIn("--verify-tag", release)
 

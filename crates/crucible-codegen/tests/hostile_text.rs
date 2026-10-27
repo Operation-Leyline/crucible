@@ -343,7 +343,7 @@ fn hostile_model_text_never_reaches_infrastructure_or_cli_source_raw() {
         bin_name: "hostile".into(),
         package_version: "1.0.0".into(),
         endpoint: Some("https://example.test".into()),
-        runtime_path: "/crucible".into(),
+        runtime_path: Some("/crucible".into()),
     })
     .emit(&self::service())
     .unwrap_or_else(|error| panic!("cli: {error:?}"));
