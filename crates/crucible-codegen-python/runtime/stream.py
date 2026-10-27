@@ -166,6 +166,7 @@ class _Frames:
         self.event = ""
         self.size = 0
         self.skip_lf = False
+        self.cr_size = 0
         self.first = True
         self.terminal = False
 
@@ -188,6 +189,12 @@ class _Frames:
             if self.skip_lf:
                 self.skip_lf = False
                 if byte == 10:
+                    # The optional LF belongs to the CR's physical frame,
+                    # including when that blank CR already reset self.size.
+                    if self.cr_size + 1 > self.limit:
+                        raise StreamProtocolError("frame exceeds byte limit")
+                    if self.size:
+                        self.size += 1
                     continue
             if self.terminal:
                 raise StreamProtocolError("bytes after terminal")
@@ -199,6 +206,7 @@ class _Frames:
                 continue
             # CR finishes immediately, even if the peer holds the connection.
             self.skip_lf = byte == 13
+            self.cr_size = self.size
             line = bytes(self.line)
             self.line.clear()
             if self.first:

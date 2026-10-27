@@ -58,6 +58,100 @@ func client(t *testing.T, endpoint string, modify ...func(*streams.Config)) *str
 	return c
 }
 
+func TestPhysicalFrameBytesContiguousAndSplitCRLF(t *testing.T) {
+	type profile struct {
+		name, wire string
+		valid      bool
+		items      int
+	}
+	var cases []profile
+	for _, delimiter := range []struct{ name, wire string }{{"lf", "\n"}, {"cr", "\r"}, {"crlf", "\r\n"}} {
+		for _, size := range []int{256, 257} {
+			suffix := delimiter.wire + `data: {"ready":"first"}` + strings.Repeat(delimiter.wire, 2)
+			frame := "x:" + strings.Repeat("a", size-2-len(suffix)) + suffix
+			if len(frame) != size {
+				t.Fatal("incorrect physical boundary")
+			}
+			count := 0
+			// The blank CR delivers immediately; an optional LF that exceeds
+			// that completed frame's budget fails on the following Next.
+			if size == 256 || delimiter.name == "crlf" {
+				count = 1
+			}
+			cases = append(cases, profile{fmt.Sprintf("%s-%d", delimiter.name, size), frame + complete, size == 256, count})
+		}
+	}
+	cases = append(cases, profile{"ignored-crlf-65", strings.Repeat("x:\r\n", 65) + item + complete, false, 0})
+	for _, control := range []struct{ name, suffix string }{{"empty", "\r\n\r\n"}, {"terminal", "\r\nevent: crucible.complete\r\ndata: {}\r\n\r\n"}} {
+		wire := "x:" + strings.Repeat("a", 257-2-len(control.suffix)) + control.suffix
+		if control.name == "empty" {
+			wire += item + complete
+		}
+		cases = append(cases, profile{control.name + "-crlf-257", wire, false, 0})
+	}
+	suffix := "\r\n" + `data: {"ready":"first"}` + "\r\n\r\n"
+	frame := "x:" + strings.Repeat("a", 256-2-len(suffix)) + suffix
+	cases = append(cases, profile{"consecutive-crlf-256", frame + frame + complete, true, 2})
+	for _, split := range []bool{false, true} {
+		for _, test := range cases {
+			t.Run(fmt.Sprintf("%s/split-%v", test.name, split), func(t *testing.T) {
+				var requests atomic.Int32
+				disconnected := make(chan struct{})
+				server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					defer close(disconnected)
+					requests.Add(1)
+					w.Header().Set("Content-Type", media)
+					if split {
+						for _, b := range []byte(test.wire) {
+							if _, err := w.Write([]byte{b}); err != nil {
+								return
+							}
+							w.(http.Flusher).Flush()
+							if b == '\r' {
+								time.Sleep(time.Millisecond)
+							}
+						}
+					} else {
+						io.WriteString(w, test.wire)
+					}
+					if !test.valid {
+						w.(http.Flusher).Flush()
+						<-r.Context().Done()
+					}
+				}))
+				defer server.Close()
+				c := client(t, server.URL, func(c *streams.Config) { c.MaxStreamEventBytes = 256 })
+				events, err := c.Watch(context.Background(), streams.Unit{})
+				if err != nil {
+					t.Fatal(err)
+				}
+				defer events.Close()
+				count := 0
+				for events.Next() {
+					count++
+				}
+				var protocol *streams.StreamProtocolError
+				if test.valid && events.Err() != nil {
+					t.Fatal(events.Err())
+				}
+				if !test.valid && !errors.As(events.Err(), &protocol) {
+					t.Fatalf("expected protocol failure: %v", events.Err())
+				}
+				if count != test.items || requests.Load() != 1 {
+					t.Fatalf("items=%d expected=%d requests=%d", count, test.items, requests.Load())
+				}
+				if !test.valid {
+					select {
+					case <-disconnected:
+					case <-time.After(time.Second):
+						t.Fatal("response must close before helper cleanup")
+					}
+				}
+			})
+		}
+	}
+}
+
 func TestSharedProfilesOverBytewiseNativeTCP(t *testing.T) {
 	data, err := os.ReadFile(os.Getenv("CRUCIBLE_STREAM_VECTORS"))
 	if err != nil {

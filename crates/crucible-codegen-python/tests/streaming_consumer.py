@@ -24,9 +24,28 @@ ITEM = b'data: {"ready":"first"}\n\n'
 COMPLETE = b'event: crucible.complete\ndata: {}\n\n'
 
 
+def physical_frame_cases():
+    for name, delimiter in (("lf", b"\n"), ("cr", b"\r"), ("crlf", b"\r\n")):
+        for size in (256, 257):
+            suffix = delimiter + b'data: {"ready":"first"}' + delimiter * 2
+            frame = b"x:" + b"a" * (size - 2 - len(suffix)) + suffix
+            assert len(frame) == size
+            # A blank CR delivers immediately. Its optional LF can exceed the
+            # previous frame's budget only on the following consumption call.
+            items = int(size == 256 or name == "crlf")
+            yield f"{name}-{size}", frame + COMPLETE, size == 256, items
+    yield "ignored-crlf-65", b"x:\r\n" * 65 + ITEM + COMPLETE, False, 0
+    for name, suffix in (("empty", b"\r\n\r\n"), ("terminal", b"\r\nevent: crucible.complete\r\ndata: {}\r\n\r\n")):
+        frame = b"x:" + b"a" * (257 - 2 - len(suffix)) + suffix
+        yield f"{name}-crlf-257", frame + (ITEM + COMPLETE if name == "empty" else b""), False, 0
+    suffix = b'\r\ndata: {"ready":"first"}\r\n\r\n'
+    frame = b"x:" + b"a" * (256 - 2 - len(suffix)) + suffix
+    yield "consecutive-crlf-256", frame * 2 + COMPLETE, True, 2
+
+
 @contextmanager
 def raw(wire=ITEM + COMPLETE, *, hold=False, status=200, mime=MIME, bytewise=False, statuses=None,
-        encoding="", error_body=None, hold_errors=False, truncate_http=False):
+        encoding="", error_body=None, hold_errors=False, truncate_http=False, split_crlf=False):
     requests = []
     disconnected = threading.Event()
     released = threading.Event()
@@ -57,6 +76,7 @@ def raw(wire=ITEM + COMPLETE, *, hold=False, status=200, mime=MIME, bytewise=Fal
                 for chunk in chunks:
                     if chunk:
                         self.request.sendall(f"{len(chunk):x}\r\n".encode()+chunk+b"\r\n")
+                        if split_crlf and chunk == b"\r": time.sleep(.001)
                 if hold and (code == 200 or hold_errors):
                     while not released.is_set():
                         try:
@@ -101,6 +121,21 @@ def dropped(counts):
 
 
 class SyncStreams(unittest.TestCase):
+    def test_physical_frame_bytes_contiguous_and_split_crlf(self):
+        for split in (False, True):
+            for name, wire, valid, expected_items in physical_frame_cases():
+                with self.subTest(case=name, split=split), raw(wire, bytewise=split, split_crlf=split) as (url, requests, _), StreamsClient(url, max_stream_event_bytes=256) as client:
+                    with client.watch() as stream:
+                        items=[];error=None
+                        try:
+                            for value in stream: items.append(value)
+                        except StreamProtocolError as caught: error=caught
+                        self.assertEqual(error is None, valid)
+                        self.assertEqual(len(items), expected_items)
+                        self.assertTrue(stream._closed)
+                        self.assertFalse(stream._thread.is_alive())
+                        self.assertEqual(len(requests), 1)
+
     def test_factory_setup_uses_original_total_deadline_and_releases_worker(self):
         for options in ({},{"timeout":.2}):
             with self.subTest(call_options=options):
@@ -369,6 +404,21 @@ class SyncStreams(unittest.TestCase):
 
 
 class AsyncStreams(unittest.IsolatedAsyncioTestCase):
+    async def test_physical_frame_bytes_contiguous_and_split_crlf(self):
+        for split in (False, True):
+            for name, wire, valid, expected_items in physical_frame_cases():
+                with self.subTest(case=name, split=split), raw(wire, bytewise=split, split_crlf=split) as (url, requests, _):
+                    async with AsyncStreamsClient(url, max_stream_event_bytes=256) as client:
+                        async with await client.watch() as stream:
+                            items=[];error=None
+                            try:
+                                async for value in stream: items.append(value)
+                            except StreamProtocolError as caught: error=caught
+                            self.assertEqual(error is None, valid)
+                            self.assertEqual(len(items), expected_items)
+                            self.assertTrue(stream._closed)
+                            self.assertEqual(len(requests), 1)
+
     async def test_deep_json_is_protocol_error_and_closes_before_manual_cleanup(self):
         wire=b'data: {"future":'+b'['*20000+b'0'+b']'*20000+b'}\n\n'+COMPLETE
         self.assertEqual(len(wire),40055)

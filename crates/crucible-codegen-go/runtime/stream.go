@@ -60,6 +60,7 @@ type ResponseStream[T any] struct {
 	event         string
 	frameBytes    int
 	skipLF        bool
+	crFrameBytes  int
 	first         bool
 	terminal      bool
 	terminalError error
@@ -211,6 +212,14 @@ func (s *ResponseStream[T]) frame() (string, []byte, error) {
 		if s.skipLF {
 			s.skipLF = false
 			if b == '\n' {
+				// Charge the LF to the CR's physical frame, even when a
+				// blank CR has already reset frameBytes for the next frame.
+				if s.crFrameBytes+1 > s.client.config.MaxStreamEventBytes {
+					return "", nil, streamProtocol("frame exceeds byte limit")
+				}
+				if s.frameBytes != 0 {
+					s.frameBytes++
+				}
 				continue
 			}
 		}
@@ -226,6 +235,7 @@ func (s *ResponseStream[T]) frame() (string, []byte, error) {
 			continue
 		}
 		s.skipLF = b == '\r'
+		s.crFrameBytes = s.frameBytes
 		line := s.line
 		s.line = nil
 		if !utf8.Valid(line) {
