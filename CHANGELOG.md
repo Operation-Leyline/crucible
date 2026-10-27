@@ -118,12 +118,15 @@ version's section when it is prepared.
 - Release preparation and checking include standalone consumer lockfiles and
   keep published internal dependency requirements aligned with the workspace
   version, while preserving registry dependencies and example versions. The
-  `crucible-api` README's install requirement follows the release too.
+  exact install snippets in the `crucible-api` README, `docs/explorer.md` and
+  `docs/framework.md` follow the release too, and `prepare` prints every file it
+  changed.
 - `crucible-build` built from crates.io no longer fails to generate a Rust SDK
   (`rust_client`) or service CLI (`cli`) for want of Git provenance or a source
   checkout. The generated manifests depend on the published runtime crates at
   exactly the generator's version (`=X.Y.Z`). Workspace and Git builds keep
-  their path and revision pins.
+  their path and revision pins. A vendored copy of a Git dependency is not a
+  published package and still needs an explicit runtime.
 - The packaged server runtime's optional explorer reads shared renderer assets
   from a leaf package, so it compiles outside the Crucible source workspace.
 
