@@ -18,9 +18,13 @@ def run(*args, cwd=ROOT, **kwargs):
 
 def qualify(language, output):
     fixture = os.environ.get("CRUCIBLE_STREAM_FIXTURE")
-    if not fixture:
-        run("cargo", "build", "--manifest-path", "tests/consumers/native-stream-http/Cargo.toml")
-        target = Path(os.environ.get("CARGO_TARGET_DIR", ROOT / "tests/consumers/native-stream-http/target"))
+    if fixture:
+        # The consumers launch it from their own directories.
+        fixture = str(Path(fixture).resolve())
+    else:
+        run("cargo", "build", "--locked", "--manifest-path", "tests/consumers/native-stream-http/Cargo.toml")
+        # Cargo resolves a relative CARGO_TARGET_DIR against its cwd, ROOT.
+        target = ROOT / os.environ.get("CARGO_TARGET_DIR", "tests/consumers/native-stream-http/target")
         fixture = str(target / "debug" / ("native-stream-http.exe" if os.name == "nt" else "native-stream-http"))
     env = dict(os.environ, CRUCIBLE_STREAM_FIXTURE=fixture,
                CRUCIBLE_STREAM_VECTORS=str(ROOT / "tests/conformance/response-stream.json"))

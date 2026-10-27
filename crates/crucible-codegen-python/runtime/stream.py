@@ -61,12 +61,30 @@ async def read_opening_error(response: httpx.Response, limit: int) -> bytes:
     encoding = response.headers.get("content-encoding", "identity").lower()
     if encoding not in ("gzip", "deflate"):
         return bytes(data)
-    formats = (31,) if encoding == "gzip" else (15, -15)
-    for format in formats:
+    if encoding == "gzip":
+        # RFC 1952 permits concatenated members; decode each from the previous
+        # member's unused input, with one output ceiling shared by all of them.
+        expanded = bytearray()
+        remaining = bytes(data)
+        try:
+            while remaining:
+                if len(expanded) >= limit:
+                    # zlib treats max_length=0 as unbounded; more input here
+                    # means the expanded body exceeds the ceiling.
+                    return b""
+                decoder = zlib.decompressobj(31)
+                expanded += decoder.decompress(remaining, limit - len(expanded))
+                if not decoder.eof:
+                    return b""
+                remaining = decoder.unused_data
+        except zlib.error:
+            return b""
+        return bytes(expanded)
+    for format in (15, -15):
         try:
             decoder = zlib.decompressobj(format)
-            expanded = decoder.decompress(data, limit)
-            return expanded if decoder.eof else b""
+            expanded_deflate = decoder.decompress(data, limit)
+            return expanded_deflate if decoder.eof else b""
         except zlib.error:
             continue
     return b""
@@ -88,6 +106,9 @@ class _Lifetime:
         self.cancellation = cancellation
         self.response: httpx.Response | None = None
         self.active: asyncio.Task[Any] | None = None
+        # The task this lifetime cancelled, so the handler that replaces that
+        # CancelledError with the lifetime's own error withdraws the request.
+        self.interrupted: asyncio.Task[Any] | None = None
         self.error: BaseException | None = None
         self.closed = False
         self._close_task: asyncio.Task[None] | None = None
@@ -99,6 +120,36 @@ class _Lifetime:
         if self.error is not None:
             raise self.error
         _check_start(self.deadline, self.cancellation)
+
+    def outcome(self, error: BaseException) -> BaseException:
+        """The error a failed step reports: cancellation and expiry win.
+
+        The watchdog cannot run during synchronous parsing or decoding, so a
+        failure there is rechecked against the lifetime before it is reported.
+        """
+        interrupted = self.interrupted
+        if interrupted is not None and interrupted is asyncio.current_task():
+            # Our cancel() was consumed here; without uncancel() the caller's
+            # task keeps a pending request that breaks later TaskGroup and
+            # asyncio.timeout() scopes.
+            self.interrupted = None
+            interrupted.uncancel()
+        if self.error is not None:
+            return self.error
+        if not isinstance(error, Exception):
+            # A caller's own task cancellation or interrupt is never renamed.
+            return error
+        try:
+            _check_start(self.deadline, self.cancellation)
+        except (asyncio.CancelledError, TimeoutError) as expired:
+            return expired
+        return error
+
+    def interrupt(self, task: asyncio.Task[Any]) -> None:
+        # One request interrupts the await; outcome() withdraws exactly one.
+        if self.interrupted is not task:
+            self.interrupted = task
+            task.cancel()
 
     async def _watch(self) -> None:
         try:
@@ -121,7 +172,7 @@ class _Lifetime:
                 await asyncio.sleep(remaining)
                 self.error = TimeoutError("response stream deadline exceeded")
             if self.active is not None:
-                self.active.cancel()
+                self.interrupt(self.active)
             if self.response is not None:
                 await self._close_response()
             self.finish(self.error)
@@ -296,7 +347,7 @@ class AsyncResponseStream(Generic[T], AsyncIterator[T]):
         except StopAsyncIteration:
             raise
         except BaseException as error:
-            error = self._lifetime.error or error
+            error = self._lifetime.outcome(error)
             if isinstance(error, httpx.TransportError):
                 error = NetworkError(str(error))
             await self._finish(error)
@@ -354,7 +405,7 @@ class AsyncResponseStream(Generic[T], AsyncIterator[T]):
         active = self._lifetime.active
         if active is not None and active is not asyncio.current_task():
             self._lifetime.error = asyncio.CancelledError("response stream closed")
-            active.cancel()
+            self._lifetime.interrupt(active)
         await self._finish(asyncio.CancelledError("response stream closed"))
 
     async def __aenter__(self) -> Self:
@@ -377,7 +428,7 @@ async def open_async_stream(client: AsyncClientBase, name: str, input: Any, *, t
         lifetime.check()
         return await client._send(name, input, timeout, lifetime.deadline, trace, lifetime)
     except BaseException as error:
-        error = lifetime.error or error
+        error = lifetime.outcome(error)
         await lifetime.close()
         lifetime.finish(error)
         raise error
@@ -400,13 +451,19 @@ class ResponseStream(Generic[T], Iterator[T]):
         self._thread.start()
         self._http: httpx.AsyncClient | None = None
         self._stream: AsyncResponseStream[T] | None = None
+        self._opening: asyncio.Task[Any] | None = None
         async def opening() -> AsyncResponseStream[T]:
+            # Recorded on the loop so close() can cancel and await an opening
+            # whose caller was interrupted (for example by KeyboardInterrupt)
+            # instead of stopping the loop with the task and watchdog pending.
+            self._opening = asyncio.current_task()
             _check_start(deadline, options.get("cancellation"))
             bridge = object.__new__(AsyncClientBase)
             bridge.__dict__.update(client.__dict__)
             self._http = client._stream_http_factory() if client._stream_http_factory else httpx.AsyncClient()
             bridge._http = self._http
-            return await open_async_stream(bridge, name, input, _deadline=deadline, **options)
+            self._stream = await open_async_stream(bridge, name, input, _deadline=deadline, **options)
+            return self._stream
         try:
             self._stream = self._submit(opening())
             self.metadata = self._stream.metadata
@@ -463,6 +520,10 @@ class ResponseStream(Generic[T], Iterator[T]):
                 return
             self._closed = True
         async def cleanup() -> None:
+            opening = self._opening
+            if opening is not None and not opening.done():
+                opening.cancel()
+                await asyncio.gather(opening, return_exceptions=True)
             if self._stream is not None:
                 active = self._stream._lifetime.active
                 await self._stream.aclose()

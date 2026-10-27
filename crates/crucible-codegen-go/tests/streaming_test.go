@@ -45,6 +45,59 @@ func TestSuccessfulHeadersAreNotReplayedWithTransportError(t *testing.T) {
 	}
 }
 
+// cancelOnLast cancels the call as it returns its final chunk, so the frame
+// completes from buffered bytes and fails parsing after the lifetime ended.
+type cancelOnLast struct {
+	chunks []string
+	cancel context.CancelFunc
+}
+
+func (b *cancelOnLast) Read(p []byte) (int, error) {
+	if len(b.chunks) == 0 {
+		return 0, io.EOF
+	}
+	chunk := b.chunks[0]
+	b.chunks = b.chunks[1:]
+	if len(b.chunks) == 0 {
+		b.cancel()
+	}
+	return copy(p, chunk), nil
+}
+
+func (b *cancelOnLast) Close() error { return nil }
+
+func TestProtocolFailuresAfterCancellationReportContext(t *testing.T) {
+	frames := map[string]string{
+		"malformed-json":     "data: {bad\n",
+		"invalid-item":       "data: {\"ready\":5}\n",
+		"invalid-completion": "event: crucible.complete\ndata: []\n",
+		"invalid-late-error": "event: crucible.error\ndata: {}\n",
+		"unknown-event":      "event: future\ndata: {}\n",
+	}
+	for name, frame := range frames {
+		t.Run(name, func(t *testing.T) {
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			c := client(t, "http://127.0.0.1:1", func(c *streams.Config) {
+				c.HTTPClient = clientFunc(func(r *http.Request) (*http.Response, error) {
+					return &http.Response{StatusCode: 200, Header: http.Header{"Content-Type": []string{media}}, Body: &cancelOnLast{chunks: []string{frame, "\n"}, cancel: cancel}}, nil
+				})
+			})
+			events, err := c.Watch(ctx, streams.Unit{})
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer events.Close()
+			if events.Next() {
+				t.Fatal("disclosed an item after cancellation")
+			}
+			if !errors.Is(events.Err(), context.Canceled) {
+				t.Fatalf("cancellation must take precedence over %s: %v", name, events.Err())
+			}
+		})
+	}
+}
+
 func client(t *testing.T, endpoint string, modify ...func(*streams.Config)) *streams.StreamsClient {
 	t.Helper()
 	config := streams.Config{Endpoint: endpoint, Timeout: 3 * time.Second, BaseDelay: time.Nanosecond}
@@ -329,6 +382,7 @@ func TestLateErrorsAreDocumentsAndRetainMetadata(t *testing.T) {
 		{"DefaultReason", `{"message":"late"}`, "broken"},
 		{"DefaultEmptyReason", `{"message":"late"}`, ""},
 		{"FutureError", `{"message":"late"}`, ""},
+		{"FutureError", `{"message":5}`, ""},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -358,6 +412,14 @@ func TestLateErrorsAreDocumentsAndRetainMetadata(t *testing.T) {
 			}
 			if service.Name != test.name || service.Metadata.Status != 503 || service.Metadata.RequestID != "profile" {
 				t.Fatal(service)
+			}
+			// A late error without a string message keeps the opening fallback.
+			want := "HTTP 503"
+			if strings.Contains(test.fields, `"message":"late"`) {
+				want = "late"
+			}
+			if service.Message != want {
+				t.Fatalf("message %q, expected %q", service.Message, want)
 			}
 			switch test.name {
 			case "HeaderFailure":
@@ -403,13 +465,29 @@ func fixture(t *testing.T, mode string) (string, func() [2]int) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { command.Process.Kill(); command.Wait() })
-	scanner := bufio.NewScanner(pipe)
-	if !scanner.Scan() {
-		t.Fatal("Rust fixture did not start")
+	// A fixture that hangs or exits before printing its endpoints fails this
+	// test (the cleanup kills it) instead of blocking the whole run.
+	started := make(chan string, 1)
+	go func() {
+		scanner := bufio.NewScanner(pipe)
+		if scanner.Scan() {
+			started <- scanner.Text()
+		}
+		close(started)
+	}()
+	var line string
+	select {
+	case text, ok := <-started:
+		if !ok {
+			t.Fatalf("Rust fixture %q exited before starting", mode)
+		}
+		line = text
+	case <-time.After(30 * time.Second):
+		t.Fatalf("Rust fixture %q printed no endpoints within 30s", mode)
 	}
-	urls := strings.Fields(scanner.Text())
+	urls := strings.Fields(line)
 	if len(urls) != 2 {
-		t.Fatal(scanner.Text())
+		t.Fatal(line)
 	}
 	counts := func() (result [2]int) {
 		response, e := http.Get(urls[1])

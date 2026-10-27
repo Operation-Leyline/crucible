@@ -6,6 +6,7 @@ from contextlib import contextmanager
 import json
 import os
 from pathlib import Path
+import queue
 import socket
 import socketserver
 import subprocess
@@ -16,8 +17,9 @@ import zlib
 from urllib.request import urlopen
 
 import httpx
-from streams_client import StreamsClient, AsyncStreamsClient, PublishInput, WorkFailed, HeaderFailure, PayloadFailure, DefaultReason, DefaultEmptyReason, NetworkError
+from streams_client import StreamsClient, AsyncStreamsClient, PublishInput, WorkFailed, HeaderFailure, PayloadFailure, DefaultReason, DefaultEmptyReason, NetworkError, TelemetryHook
 from streams_client.stream import StreamProtocolError
+import streams_client.stream as stream_module
 
 MIME = "text/event-stream; charset=utf-8; crucible-stream=1"
 ITEM = b'data: {"ready":"first"}\n\n'
@@ -107,7 +109,17 @@ def rust(mode):
     server = subprocess.Popen([binary, mode], stdout=subprocess.PIPE, text=True,
                               creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0)
     try:
-        endpoint, control = server.stdout.readline().split()
+        # A fixture that hangs or exits before printing its endpoints must
+        # fail this test, not block the whole qualification on readline().
+        lines = queue.Queue()
+        threading.Thread(target=lambda: lines.put(server.stdout.readline()), daemon=True).start()
+        try:
+            line = lines.get(timeout=30)
+        except queue.Empty:
+            raise RuntimeError(f"Rust fixture {mode!r} printed no endpoints within 30s") from None
+        if not line:
+            raise RuntimeError(f"Rust fixture {mode!r} exited before starting (status {server.poll()})")
+        endpoint, control = line.split()
         yield endpoint, lambda: json.load(urlopen(control, timeout=2))
     finally:
         server.terminate(); server.wait(timeout=5); server.stdout.close()
@@ -326,6 +338,54 @@ class SyncStreams(unittest.TestCase):
             with client.watch() as stream:
                 with self.assertRaises(TimeoutError): next(stream)
 
+    def test_failed_decode_crossing_lifetime_reports_lifetime(self):
+        # The watchdog cannot run during synchronous parsing or decoding, so a
+        # failure there must be rechecked against the deadline and cancellation.
+        for path in ("item","json"):
+            for lifetime in ("deadline","cancel"):
+                with self.subTest(path=path,lifetime=lifetime), raw() as (url,_,_), StreamsClient(url,timeout=.1 if lifetime=="deadline" else 2) as client:
+                    event=threading.Event()
+                    def cross():
+                        if lifetime=="deadline": time.sleep(.15)
+                        else: event.set()
+                    convert=client._codec.convert;parse=stream_module._json
+                    def failing_convert(target,value,**options):
+                        if target and target.endswith("#Progress"): cross();raise ValueError("invalid")
+                        return convert(target,value,**options)
+                    def failing_json(data):
+                        cross();raise StreamProtocolError("malformed UTF-8 or JSON")
+                    if path=="item": client._codec.convert=failing_convert
+                    else: stream_module._json=failing_json
+                    try:
+                        with client.watch(cancellation=event) as stream:
+                            with self.assertRaises(TimeoutError if lifetime=="deadline" else asyncio.CancelledError): next(stream)
+                    finally:
+                        stream_module._json=parse
+
+    def test_interrupted_sync_opening_finishes_task_and_telemetry(self):
+        finished=[];futures=[];accepted=[]
+        class Hook(TelemetryHook):
+            def operation_finished(self,event): finished.append(event)
+        submit=stream_module.ResponseStream._submit
+        with socket.create_server(("127.0.0.1",0)) as listener:
+            listener.settimeout(5)
+            def interrupted(stream,coroutine):
+                if futures: return submit(stream,coroutine)
+                futures.append(asyncio.run_coroutine_threadsafe(coroutine,stream._loop))
+                # The opening is in flight (its request is connected) when the
+                # caller is interrupted, as Ctrl-C would during result().
+                accepted.append(listener.accept()[0])
+                raise KeyboardInterrupt
+            stream_module.ResponseStream._submit=interrupted
+            try:
+                with StreamsClient(f"http://127.0.0.1:{listener.getsockname()[1]}",telemetry=Hook()) as client:
+                    with self.assertRaises(KeyboardInterrupt): client.watch()
+            finally:
+                stream_module.ResponseStream._submit=submit
+                for connection in accepted: connection.close()
+        self.assertTrue(futures[0].done(),"close cancels and awaits the pending opening")
+        self.assertEqual(len(finished),1,"the interrupted opening still reports operation finished")
+
     def test_encoded_success_refused_and_closed_before_cleanup(self):
         with raw(gzip.compress(ITEM+COMPLETE),encoding="gzip",hold=True) as (url,requests,disconnected), StreamsClient(url) as client:
             with self.assertRaises(StreamProtocolError): client.watch()
@@ -351,6 +411,22 @@ class SyncStreams(unittest.TestCase):
             with raw(statuses=[503,200],encoding=encoding,error_body=large) as (url,requests,_), StreamsClient(url,max_stream_event_bytes=256,base_delay=0) as client:
                 with client.watch() as stream: self.assertEqual(len(list(stream)),1)
                 self.assertEqual(len(requests),2)
+
+    def test_concatenated_gzip_opening_error_members_share_the_ceiling(self):
+        body=b'{"__type":"WorkFailed","message":"opening","reason":"broken"}'
+        members=gzip.compress(body[:20])+gzip.compress(body[20:40])+gzip.compress(body[40:])
+        with raw(status=503,encoding="gzip",error_body=members) as (url,requests,_), StreamsClient(url,max_stream_event_bytes=256) as client:
+            with self.assertRaises(WorkFailed) as caught: client.publish(PublishInput(topic="send"))
+            self.assertEqual(caught.exception.message,"opening")
+            self.assertEqual(str(caught.exception.reason),"broken")
+            self.assertEqual(len(requests),1)
+        # Each member is under the ceiling, together they exceed it: the body
+        # is oversized, so only the HTTP status classifies it (a safe retry).
+        large=json.dumps({"__type":"WorkFailed","message":"x"*300}).encode()
+        members=gzip.compress(large[:160])+gzip.compress(large[160:])
+        with raw(statuses=[503,200],encoding="gzip",error_body=members) as (url,requests,_), StreamsClient(url,max_stream_event_bytes=256,base_delay=0) as client:
+            with client.watch() as stream: self.assertEqual(len(list(stream)),1)
+            self.assertEqual(len(requests),2)
 
     def test_opening_error_fixture_reads_separate_post_body_before_response(self):
         class DelayedBody(httpx.AsyncByteStream):
@@ -400,6 +476,7 @@ class SyncStreams(unittest.TestCase):
                     self.assertEqual(str(caught.exception.reason),fields["reason"])
                 if name=="DefaultReason": self.assertEqual(str(caught.exception.reason),"broken")
                 if name=="DefaultEmptyReason": self.assertEqual(str(caught.exception.reason),"")
+                if name=="PayloadFailure": self.assertEqual(caught.exception.message,"HTTP 503")
                 self.assertEqual(len(requests),1)
 
 
@@ -474,6 +551,30 @@ class AsyncStreams(unittest.IsolatedAsyncioTestCase):
                     if mode!="close":
                         with self.assertRaises(asyncio.CancelledError if mode=="event" else TimeoutError): await anext(stream)
                     await stream.aclose()
+
+    async def test_lifetime_interrupts_withdraw_their_task_cancellation(self):
+        task=asyncio.current_task()
+        for mode in ("deadline","event"):
+            with self.subTest(mode=mode), raw(b"",hold=True) as (url,_,_):
+                async with AsyncStreamsClient(url,timeout=.15 if mode=="deadline" else 2) as client:
+                    event=asyncio.Event();stream=await client.watch(cancellation=event)
+                    if mode=="deadline":
+                        with self.assertRaises(TimeoutError): await anext(stream)
+                    else:
+                        asyncio.get_running_loop().call_later(.05,event.set)
+                        with self.assertRaises(asyncio.CancelledError): await anext(stream)
+                    # The lifetime's own cancel() must not stay pending on the
+                    # caller's task once it has been reported as an error.
+                    self.assertEqual(task.cancelling(),0)
+                    await stream.aclose()
+        with socket.create_server(("127.0.0.1",0)) as listener:
+            async with AsyncStreamsClient(f"http://127.0.0.1:{listener.getsockname()[1]}",timeout=.15) as client:
+                with self.assertRaises(TimeoutError): await client.watch()
+            self.assertEqual(task.cancelling(),0)
+        async with asyncio.timeout(1):
+            async with asyncio.TaskGroup() as group:
+                child=group.create_task(asyncio.sleep(.01,"ok"))
+        self.assertEqual(child.result(),"ok")
 
     async def test_async_post_and_late_error(self):
         with rust("hold") as (url,counts), self.assertRaises(WorkFailed):
