@@ -2321,6 +2321,7 @@
         "protocolHeaders": {
           "Content-Type": "application/json"
         },
+        "reasons": [],
         "retryable": null,
         "sample": {
           "fallbacks": [],
@@ -3646,6 +3647,7 @@
         "protocolHeaders": {
           "Content-Type": "application/json"
         },
+        "reasons": [],
         "retryable": null,
         "sample": {
           "fallbacks": [],
@@ -4364,6 +4366,7 @@
         "protocolHeaders": {
           "Content-Type": "application/json"
         },
+        "reasons": [],
         "retryable": {
           "throttling": true
         },
@@ -4542,6 +4545,7 @@
         "protocolHeaders": {
           "Content-Type": "application/json"
         },
+        "reasons": [],
         "retryable": null,
         "sample": {
           "fallbacks": [],

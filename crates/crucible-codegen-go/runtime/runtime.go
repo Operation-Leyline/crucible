@@ -131,6 +131,10 @@ type ResponseMetadata struct {
 	RequestID string
 	Headers   http.Header
 	Body      []byte
+// BEGIN ERROR DOCUMENTATION
+	// DocURL is the static modeled error/reason documentation page; empty for an unknown identity.
+	DocURL string
+// END ERROR DOCUMENTATION
 }
 // ServiceException is the common interface for modeled and unrecognized service responses; use errors.As to catch it.
 type ServiceException interface {
@@ -207,7 +211,32 @@ type memberDescription struct {
 	// Sensitive members are redacted from telemetry wherever they are bound.
 	Sensitive bool
 }
+// BEGIN ERROR DOCUMENTATION
+type errorDocumentation struct {
+    URL string
+    ReasonMember *string
+    ReasonDefault *string
+    ReasonURLs map[string]string
+}
+
+func errorDocURL(documentation *errorDocumentation, values map[string]any) string {
+    if documentation == nil { return "" }
+    // nil values classify a malformed response; its code page remains authoritative.
+    if documentation.ReasonMember != nil && values != nil {
+        value, present := values[*documentation.ReasonMember]
+        if !present && documentation.ReasonDefault != nil { value = *documentation.ReasonDefault }
+        if reason, ok := value.(string); ok {
+            if url, exists := documentation.ReasonURLs[reason]; exists { return url }
+        }
+    }
+    return documentation.URL
+}
+
+// END ERROR DOCUMENTATION
 type errorDescription struct {
+// BEGIN ERROR DOCUMENTATION
+	Documentation *errorDocumentation
+// END ERROR DOCUMENTATION
 	WireCode string
 	HeaderEncodings map[string]string
 	Payload []string
@@ -1217,9 +1246,16 @@ func (c *clientRuntime) decode(op operationDescription, response *http.Response,
 		if err := c.responseBindings(op.Output, op.Response, response, values); err != nil { return nil, err }
 		return values, nil
 	}
+// BEGIN ERROR DOCUMENTATION
+    documentationBodyAbsent := len(bytes.Trim(data, " \t\r\n")) == 0
+    documentationBodyValid := documentationBodyAbsent
+// END ERROR DOCUMENTATION
 	if value, err := parseJSON(data); err == nil {
 		if object, ok := value.(map[string]any); ok {
 			values = object
+// BEGIN ERROR DOCUMENTATION
+            documentationBodyValid = true
+// END ERROR DOCUMENTATION
 		}
 	}
 	name, _ := values["__type"].(string)
@@ -1259,10 +1295,20 @@ func (c *clientRuntime) decode(op operationDescription, response *http.Response,
 		shape := c.schema.Shapes[target]
 		metadata.Retryable = shape.Error.Retryable
 		metadata.Throttling = shape.Error.Throttling
+// BEGIN ERROR DOCUMENTATION
+		metadata.Metadata.DocURL = errorDocURL(shape.Error.Documentation, nil)
+        if len(shape.Error.Payload) != 2 && !documentationBodyValid { return nil, metadata }
+// END ERROR DOCUMENTATION
 		if len(shape.Error.Payload) == 2 {
+// BEGIN ERROR DOCUMENTATION
+            if shape.Error.PayloadKind != "document" || !documentationBodyAbsent {
+// END ERROR DOCUMENTATION
 			value, err := payloadValue(shape.Error.PayloadKind, data)
 			if err != nil { return nil, metadata }
 			values = map[string]any{shape.Error.Payload[0]: value}
+// BEGIN ERROR DOCUMENTATION
+            }
+// END ERROR DOCUMENTATION
 		}
 		if err := c.responseBindings(target, bindings{Headers:shape.Error.Headers, TimestampFormats:shape.Error.TimestampFormats, HeaderEncodings:shape.Error.HeaderEncodings}, response, values); err != nil {
 			// Preserve wire failure metadata if a modeled binding is malformed.

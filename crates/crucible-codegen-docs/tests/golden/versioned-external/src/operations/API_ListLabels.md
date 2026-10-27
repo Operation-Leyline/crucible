@@ -51,6 +51,13 @@ Content-Type: application/json
 | [ValidationException](../shapes/ValidationException.md) | <code>ValidationException</code> | 400 | client | No | <p>A request cannot be parsed or does not satisfy the service's input model.</p>  |
 | [InternalServerException](../shapes/InternalServerException.md) | <code>InternalServerException</code> | 500 | server | Yes | <p>An unexpected server failure. Its message never exposes the underlying cause.</p>  |
 
+<code>ValidationException</code> reasons (<code>reason</code>):
+
+- <code>cannotParse</code>
+- <code>fieldValidationFailed</code>
+- <code>other</code>
+- <code>unknownOperation</code>
+
 An error response names its code in the <code>X-Crucible-Error</code> header and in its JSON body.
 
 ## Idempotency and retries

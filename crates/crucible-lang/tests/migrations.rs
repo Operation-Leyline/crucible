@@ -2173,3 +2173,302 @@ fn a_retype_declares_the_rebinding_it_causes() {
     assert_eq!(problems(&checked), Vec::<String>::new());
     assert!(checked.declared > 0);
 }
+
+#[test]
+fn error_documentation_changes_require_no_wire_migration() {
+    let baseline = "service Errors { version \"v1\" protocol json errors [Problem] } error Problem { status 400 reason?: Reason } enum Reason { FIRST = \"first\" }";
+    let current = baseline
+        .replace(
+            "protocol json",
+            "protocol json errorDocs \"https://docs.example.test/errors\"",
+        )
+        .replace("reason?:", "@errorReason reason?:");
+    let dir = package_from("error-documentation", baseline, &current, "");
+    let package = load_package(&dir).unwrap();
+    let compiled = compile(&package, None);
+    assert!(compiled.service.is_some(), "{}", compiled.render());
+    let checked = guard(&package, &compiled, package.files.len(), &Config::default())
+        .unwrap()
+        .unwrap();
+    assert!(!checked.has_errors(), "{}", checked.render(&compiled));
+    assert_eq!(checked.declared, 0);
+}
+
+#[test]
+fn error_retypes_reconcile_reason_designation_with_the_restored_member() {
+    for (old_type, declaration, expected_reason) in [
+        ("integer", "", None),
+        ("OldReason", "enum OldReason { OLD = \"a\" }", Some("a")),
+    ] {
+        // Keep the older enum reachable in both releases; its retirement
+        // would be a separate compatibility change from the member's retype.
+        let legacy = if expected_reason.is_some() {
+            "legacy?: OldReason"
+        } else {
+            ""
+        };
+        let baseline = format!(
+            "service Independent {{ version \"v1\" protocol json errors [Problem] operations [Read] }} readonly operation Read {{ http GET \"/read\" output {{}} }} error Problem {{ status 409 message: string detail?: {old_type} {legacy} }} {declaration}"
+        );
+        let current = baseline
+            .replace(
+                "protocol json",
+                "protocol json errorDocs \"https://docs.test/errors\"",
+            )
+            .replace(
+                &format!("detail?: {old_type}"),
+                "@errorReason detail?: Reason",
+            )
+            + " enum Reason { A = \"a\" }";
+        let dir = package_from(
+            &format!("error-reason-retype-{old_type}"),
+            &baseline,
+            &current,
+            "migration \"v2\" from \"v1\" { retype Problem.detail -> Reason by hook }",
+        );
+        let service = crucible_lang::load_versioned_service(&dir)
+            .unwrap_or_else(|error| panic!("{old_type}: {error}"));
+        let id = crucible_ir::ShapeId::new("example.shop", "Problem");
+        let current = service.error_documentation(&id).unwrap();
+        assert_eq!(current.reason_member.as_deref(), Some("detail"));
+        assert_eq!(current.reasons[0].value, "a");
+        let projected = crucible_ir::versions::projections(&service).unwrap();
+        let historical = projected[0].service.error_documentation(&id).unwrap();
+        assert_eq!(
+            historical.url.as_deref(),
+            Some("https://docs.test/errors/Problem")
+        );
+        match expected_reason {
+            Some(value) => {
+                assert_eq!(historical.reason_member.as_deref(), Some("detail"));
+                assert_eq!(historical.reasons[0].value, value);
+                assert_eq!(historical.reasons[0].name, "OLD");
+                assert_eq!(
+                    historical.reasons[0].url.as_deref(),
+                    Some("https://docs.test/errors/Problem/reason-a")
+                );
+            }
+            None => {
+                assert_eq!(historical.reason_member, None);
+                assert!(historical.reasons.is_empty());
+            }
+        }
+    }
+}
+
+#[test]
+fn historical_error_reason_defaults_come_from_the_restored_member() {
+    let baseline = r#"service Independent { version "v1" protocol json errors [Problem] operations [Read] }
+        readonly operation Read { http GET "/read" output {} }
+        error Problem { status 409 message: string detail: OldReason = EMPTY legacy?: OldReason }
+        enum OldReason { EMPTY = "access/needed" }"#;
+    let current = baseline
+        .replace(
+            "protocol json",
+            "protocol json errorDocs \"https://docs.test/errors\"",
+        )
+        .replace(
+            "detail: OldReason = EMPTY",
+            "@errorReason detail: Reason = ACCESS",
+        )
+        + " enum Reason { ACCESS = \"access/needed\" }";
+    let dir = package_from(
+        "error-reason-default-retype",
+        baseline,
+        &current,
+        "migration \"v2\" from \"v1\" { retype Problem.detail -> Reason by hook }",
+    );
+    let service =
+        crucible_lang::load_versioned_service(&dir).unwrap_or_else(|error| panic!("{error}"));
+    let id = crucible_ir::ShapeId::new("example.shop", "Problem");
+    assert_eq!(
+        service
+            .error_documentation(&id)
+            .unwrap()
+            .reason_default
+            .as_deref(),
+        Some("access/needed")
+    );
+    let projected = crucible_ir::versions::projections(&service).unwrap();
+    assert_eq!(
+        projected[0]
+            .service
+            .error_documentation(&id)
+            .unwrap()
+            .reason_default
+            .as_deref(),
+        Some("access/needed")
+    );
+    // Default-changing source migrations have a separate compatibility.default
+    // policy. Direct IR still proves selection does not borrow today's value.
+    fn set_default(model: &mut crucible_ir::ir::Service, id: &crucible_ir::ShapeId, value: &str) {
+        let crucible_ir::ir::Shape::Structure(shape) = model.shapes.get_mut(id).unwrap() else {
+            panic!()
+        };
+        let member = shape
+            .members
+            .iter_mut()
+            .find(|member| member.name == "detail")
+            .unwrap();
+        member.default = Some(serde_json::json!(value));
+        member.wire_default = Some(serde_json::json!(value));
+        let target = member.target.clone();
+        let crucible_ir::ir::Shape::Enum(shape) = model.shapes.get_mut(&target).unwrap() else {
+            panic!()
+        };
+        shape.values[0].value = value.into();
+    }
+    for (old, current) in [("", "access/needed"), ("access/needed", "")] {
+        let mut direct = service.clone();
+        set_default(&mut direct, &id, current);
+        set_default(&mut direct.versions[0].release, &id, old);
+        // The retained legacy member keeps the old enum reachable; undo uses
+        // that current definition when resolving a restored member's target.
+        let old_enum = crucible_ir::ShapeId::new("example.shop", "OldReason");
+        let crucible_ir::ir::Shape::Enum(shape) = direct.shapes.get_mut(&old_enum).unwrap() else {
+            panic!()
+        };
+        shape.values[0].value = old.into();
+        assert_eq!(
+            direct
+                .error_documentation(&id)
+                .unwrap()
+                .reason_default
+                .as_deref(),
+            Some(current)
+        );
+        let projected = crucible_ir::versions::projections(&direct).unwrap();
+        let historical = projected[0].service.error_documentation(&id).unwrap();
+        assert_eq!(historical.reason_default.as_deref(), Some(old));
+        let page = historical
+            .reasons
+            .iter()
+            .find(|reason| reason.value == old)
+            .unwrap()
+            .url
+            .as_deref();
+        assert_eq!(
+            page,
+            Some(if old.is_empty() {
+                "https://docs.test/errors/Problem/reason-"
+            } else {
+                "https://docs.test/errors/Problem/reason-access%2Fneeded"
+            })
+        );
+        assert_eq!(
+            direct
+                .error_documentation(&id)
+                .unwrap()
+                .reason_default
+                .as_deref(),
+            Some(current)
+        );
+    }
+}
+
+#[test]
+fn reason_designation_survives_three_release_retypes_and_member_renames() {
+    for renamed in [false, true] {
+        let (old, middle, current) = if renamed {
+            ("first", "middle", "detail")
+        } else {
+            ("detail", "detail", "detail")
+        };
+        let baseline = format!(
+            r#"service Independent {{ version "v1" protocol json errors [Problem] operations [Read] }}
+            readonly operation Read {{ http GET "/read" output {{}} }}
+            error Problem {{ status 409 {old}?: Reason legacy?: Reason }} enum Reason {{ ACCESS = "access/needed" }}"#
+        );
+        let rename2 = if renamed {
+            "rename Problem.first -> middle"
+        } else {
+            ""
+        };
+        let rename3 = if renamed {
+            "rename Problem.middle -> detail"
+        } else {
+            ""
+        };
+        let to_v2 = format!(
+            "migration \"v2\" from \"v1\" {{ {rename2} retype Problem.{middle} -> integer by hook }}"
+        );
+        let v2 = baseline
+            .replace("version \"v1\"", "version \"v2\"")
+            .replace(&format!("{old}?: Reason"), &format!("{middle}?: integer"))
+            + "\n"
+            + &to_v2;
+        let to_v3 = format!(
+            "migration \"v3\" from \"v2\" {{ {rename3} retype Problem.{current} -> Reason by hook }}"
+        );
+        let v3 = v2
+            .replace("version \"v2\"", "version \"v3\"")
+            .replace(
+                "protocol json",
+                "protocol json errorDocs \"https://docs.test/errors\"",
+            )
+            .replace(
+                &format!("{middle}?: integer"),
+                &format!("@errorReason {current}?: Reason"),
+            )
+            + "\n"
+            + &to_v3;
+        let dir = Path::new(env!("CARGO_TARGET_TMPDIR"))
+            .join(format!("error-docs-three-releases-{renamed}"));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        freeze(&dir, &baseline);
+        freeze(&dir, &v2);
+        std::fs::write(
+            dir.join("crucible.toml"),
+            format!("{MANIFEST}\n[model.baseline]\npath = \"releases/v2.json\"\n"),
+        )
+        .unwrap();
+        std::fs::write(dir.join("shop.cru"), v3).unwrap();
+        let service =
+            crucible_lang::load_versioned_service(&dir).unwrap_or_else(|error| panic!("{error}"));
+        let id = crucible_ir::ShapeId::new("example.shop", "Problem");
+        assert_eq!(
+            service
+                .error_documentation(&id)
+                .unwrap()
+                .reason_member
+                .as_deref(),
+            Some(current)
+        );
+        let stored = service.versions[0]
+            .service
+            .error_documentation(&id)
+            .unwrap();
+        let line = crucible_ir::versions::line(&service, "v1").unwrap();
+        let served = line.error_documentation(&id).unwrap();
+        assert_eq!(
+            (
+                stored.reason_member.as_deref(),
+                served.reason_member.as_deref()
+            ),
+            (Some(old), Some(old))
+        );
+        assert_eq!(
+            served.reasons[0].url.as_deref(),
+            Some("https://docs.test/errors/Problem/reason-access%2Fneeded")
+        );
+        assert_eq!(
+            service.versions[1]
+                .service
+                .error_documentation(&id)
+                .unwrap()
+                .reason_member,
+            None
+        );
+        let versions = crucible_ir::versions::projections(&service).unwrap();
+        let oldest = versions[0].service.error_documentation(&id).unwrap();
+        assert_eq!(oldest.reason_member.as_deref(), Some(old));
+        assert_eq!(
+            oldest.reasons[0].url.as_deref(),
+            Some("https://docs.test/errors/Problem/reason-access%2Fneeded")
+        );
+        let scalar = versions[1].service.error_documentation(&id).unwrap();
+        assert_eq!(scalar.reason_member, None);
+        assert!(scalar.reasons.is_empty());
+    }
+}

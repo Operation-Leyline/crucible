@@ -49,12 +49,54 @@ pub struct Projection {
 /// definition neither model has, an older requirement with no current
 /// permission, and every problem the IR's own checks find in a projection.
 pub fn projections(service: &Service) -> Result<Vec<Projection>, Diagnostics> {
+    project_chain(service, &service.versions)
+}
+
+/// Reconciles reason designations on the served projections of a checked chain.
+///
+/// `versions` is the checked chain in oldest-first order, as `Service::versions`
+/// stores it. The compiler checks each `ApiVersion::service` with source-owned
+/// diagnostics first. This shared chain analysis then follows the current role
+/// through every undo and rename, including across scalar intermediate releases.
+/// Only `ErrorInfo::reason_member` on matching existing error definitions changes;
+/// stored shapes, bindings, defaults and frozen releases remain untouched.
+pub fn reconcile_error_reason_projections(
+    current: &Service,
+    versions: &mut [ApiVersion],
+) -> Result<(), Diagnostics> {
+    let canonical = project_chain(current, versions)?;
+    for (version, projection) in versions.iter_mut().zip(canonical) {
+        for (id, shape) in &projection.service.shapes {
+            let Shape::Structure(shape) = shape else {
+                continue;
+            };
+            let Some(reason) = &shape.error else { continue };
+            if let Some(Shape::Structure(stored)) = version.service.shapes.get_mut(id)
+                && let Some(error) = &mut stored.error
+            {
+                error.reason_member = reason.reason_member.clone();
+            }
+        }
+    }
+    Ok(())
+}
+
+fn project_chain(
+    service: &Service,
+    versions: &[ApiVersion],
+) -> Result<Vec<Projection>, Diagnostics> {
     let mut errors = Diagnostics::default();
-    let mut out: Vec<Projection> = Vec::with_capacity(service.versions.len());
-    for version in service.versions.iter().rev() {
-        let newer = out.last().map_or(service, |projection| &projection.service);
+    let mut out: Vec<Projection> = Vec::with_capacity(versions.len());
+    // A scalar intermediate release hides its role in public IR, but must
+    // not erase the current designation before an older enum is restored.
+    let mut canonical = None;
+    for version in versions.iter().rev() {
+        let newer = canonical.as_ref().unwrap_or(service);
         let mut warnings = Diagnostics::default();
-        let (projected, restored) = undo_restoring(newer, version, &mut errors, &mut warnings);
+        let (mut projected, restored) =
+            undo_retaining_reason_roles(newer, version, &mut errors, &mut warnings);
+        canonical = Some(projected.clone());
+        reconcile_reason_roles(&mut projected);
         let mut problems = Diagnostics::default();
         crate::validate::service(&projected, &mut problems);
         for problem in problems.iter() {
@@ -113,6 +155,43 @@ pub fn undo(
 /// [`ApiVersion::restored`] records, sorted. The reference dates and
 /// documents each as the release had it (decision 79).
 pub fn undo_restoring(
+    newer: &Service,
+    version: &ApiVersion,
+    errors: &mut Diagnostics,
+    warnings: &mut Diagnostics,
+) -> (Service, Vec<ShapeId>) {
+    let (mut projected, restored) = undo_retaining_reason_roles(newer, version, errors, warnings);
+    reconcile_reason_roles(&mut projected);
+    (projected, restored)
+}
+
+fn reconcile_reason_roles(service: &mut Service) {
+    let invalid: Vec<_> = service
+        .shapes
+        .iter()
+        .filter_map(|(id, shape)| {
+            let Shape::Structure(shape) = shape else {
+                return None;
+            };
+            let member = shape.error.as_ref()?.reason_member.as_deref()?;
+            let valid = shape.member(member).is_some_and(|member| {
+                matches!(service.shape(&member.target), Some(Shape::Enum(_)))
+            });
+            (!valid).then_some(id.clone())
+        })
+        .collect();
+    for id in invalid {
+        if let Some(Shape::Structure(shape)) = service.shapes.get_mut(&id)
+            && let Some(error) = &mut shape.error
+        {
+            error.reason_member = None;
+        }
+    }
+}
+
+// Keep the current role through retypes and let the existing rename logic
+// map its identity. Only the externally returned projection clears invalid roles.
+fn undo_retaining_reason_roles(
     newer: &Service,
     version: &ApiVersion,
     errors: &mut Diagnostics,
@@ -249,6 +328,7 @@ fn without_versions(service: &Service) -> Service {
         id: service.id.clone(),
         version: service.version.clone(),
         title: service.title.clone(),
+        error_docs_base: service.error_docs_base.clone(),
         docs: service.docs.clone(),
         notes: service.notes.clone(),
         auth: service.auth.clone(),
@@ -1756,6 +1836,9 @@ fn rename_bindings(bindings: &mut Bindings, older: Option<&Bindings>, to: &str, 
 
 /// A member renamed back in an error's own bindings.
 fn rename_error(error: &mut ErrorInfo, older: Option<&ErrorInfo>, to: &str, from: &str) {
+    if error.reason_member.as_deref() == Some(to) {
+        error.reason_member = Some(from.to_owned());
+    }
     for binding in error.headers.iter_mut().filter(|b| b.member == to) {
         *binding = older
             .and_then(|e| e.headers.iter().find(|b| b.member == from))

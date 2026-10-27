@@ -218,3 +218,13 @@ fn unattached_model_exports_are_available_without_operations_or_resources() {
     assert!(schema["properties"].get("private").is_none());
     assert!(schema["$defs"].get("example.schema.Secret").is_none());
 }
+
+#[test]
+fn error_documentation_does_not_change_the_value_schema() {
+    let service = crucible_ir::project(&load("error-docs"), Audience::External).unwrap();
+    let configured = document(&service, "DefaultReason");
+    let mut ordinary = service;
+    ordinary.error_docs_base = None;
+    assert_eq!(configured, document(&ordinary, "DefaultReason"));
+    assert!(!configured.to_string().contains("reasonUrls"));
+}

@@ -23,6 +23,7 @@ fn load(name: &str) -> Service {
 const REFUSED: &[&str] = &[
     "body-name-collision-refusal",
     "doc-links-unresolved",
+    "error-docs-invalid",
     "example-range-refusals",
     "external-docs-refusals",
     "number-literal-refusals",

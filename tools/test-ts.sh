@@ -21,6 +21,7 @@ crucible generate ts tests/models/internal \
 crucible generate ts tests/fixtures/permissions \
   --out "$dir/generated-permissions" --package-name @example/permissions >/dev/null
 crucible generate ts tests/models/client-docs --out "$dir/generated-docs" --package-name @example/docs >/dev/null
+crucible generate ts tests/models/error-docs --out "$dir/generated-error-docs" --package-name @example/error-docs >/dev/null
 crucible generate ts tests/models/weather \
   --out "$dir/generated" --package-name @example/weather \
   --endpoint https://weather.example --middleware content-sha256 >/dev/null

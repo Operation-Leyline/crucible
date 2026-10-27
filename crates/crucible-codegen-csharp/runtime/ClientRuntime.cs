@@ -501,7 +501,19 @@ internal sealed partial class ClientRuntime : IDisposable
     private ServiceError Error(JsonObject op, int status, Dictionary<string, string> headers, byte[] bytes)
     {
         JsonObject body;
-        try { body = JsonNode.Parse(bytes) as JsonObject ?? new JsonObject(); } catch (JsonException) { body = new(); }
+        // BEGIN ERROR DOCUMENTATION
+        var documentationBodyAbsent = bytes.All(value => value is 0x20 or 0x09 or 0x0d or 0x0a);
+        var documentationBodyValid = documentationBodyAbsent;
+        // END ERROR DOCUMENTATION
+        try
+        {
+            var parsed = JsonNode.Parse(bytes) as JsonObject;
+            // BEGIN ERROR DOCUMENTATION
+            documentationBodyValid = documentationBodyAbsent || parsed is not null;
+            // END ERROR DOCUMENTATION
+            body = parsed ?? new JsonObject();
+        }
+        catch (JsonException) { body = new(); }
         static string? StringValue(JsonNode? v) => v is JsonValue j && j.TryGetValue<string>(out var s) ? s : null;
         var name = headers.GetValueOrDefault("x-crucible-error") ?? StringValue(body["__type"]);
         var candidates = op["errors"]!.AsArray().Select(n => Text(n)!).ToList();
@@ -510,14 +522,32 @@ internal sealed partial class ClientRuntime : IDisposable
         else { var matches = candidates.Where(id => Shape(id)["error"]!["status"]!.GetValue<int>() == status).ToList(); target = matches.Count == 1 ? matches[0] : null; }
         ServiceError error = new ServiceException();
         var metadata = target is null ? null : Shape(target)["error"];
+        // BEGIN ERROR DOCUMENTATION
+        var documentation = metadata?["documentation"] as JsonObject;
+        var documentationUrl = Text(documentation?["url"]);
+        // END ERROR DOCUMENTATION
         if (target is not null)
         {
             try
             {
-                if (metadata!["payload"] is JsonArray payload)
+                // BEGIN ERROR DOCUMENTATION
+                if (metadata!["payload"] is not JsonArray && !documentationBodyValid)
+                    throw new JsonException("modeled error body requires object");
+                // END ERROR DOCUMENTATION
+                if (metadata!["payload"] is JsonArray payload
+                    // BEGIN ERROR DOCUMENTATION
+                    && !(Text(metadata["payloadKind"]) == "document" && documentationBodyAbsent)
+                    // END ERROR DOCUMENTATION
+                )
                     body = new JsonObject { [Text(payload[0])!] = PayloadValue(Text(metadata["payloadKind"]), bytes) };
                 ResponseBindings(target, metadata!, headers, body);
                 error = (ServiceError)Decode(target, body)!;
+                // BEGIN ERROR DOCUMENTATION
+                var member = Text(documentation?["reasonMember"]);
+                var reason = member is null ? null : StringValue(body.ContainsKey(member) ? body[member] : documentation?["reasonDefault"]);
+                if (reason is not null && documentation?["reasonUrls"] is JsonObject pages
+                    && pages.TryGetPropertyValue(reason, out var page)) documentationUrl = Text(page);
+                // END ERROR DOCUMENTATION
             }
             catch (Exception e) when (e is JsonException or InvalidOperationException or FormatException or OverflowException or ArgumentException)
             {
@@ -527,6 +557,9 @@ internal sealed partial class ClientRuntime : IDisposable
         name ??= target is null ? "UnknownError" : ErrorCode(target);
         var requestId = headers.GetValueOrDefault("x-request-id") ?? StringValue(body["requestId"]);
         error.Initialize(name, StringValue(body["message"]) ?? $"HTTP {status}", status, requestId, headers, Flag(metadata?["retryable"]), Flag(metadata?["throttling"]));
+        // BEGIN ERROR DOCUMENTATION
+        error.DocUrl = documentationUrl;
+        // END ERROR DOCUMENTATION
         return error;
     }
     /// <summary>The delay after the given (1-based) failed attempt: a valid Retry-After, or full-jitter backoff.</summary>

@@ -472,7 +472,7 @@ with nullable `message` and `since` strings; `since` is a nullable string;
 
 | Object | Fields and types |
 |---|---|
-| `service` | `id`, `name`, `title`, `version`: strings; `internal`: boolean; `documentation`, `notes`: common objects |
+| `service` | `id`, `name`, `title`, `version`: strings; `internal`: boolean; `documentation`, `notes`: common objects; optional `errorDocsBase`: normalized documentation-base URL string |
 | Protocol metadata | `protocol`: protocol string |
 | Authentication | `auth`: effective default scheme-ID array; `authSchemes`: scheme ID to lowered authentication configuration |
 | Service references | `errors`: service-declared error-ID array; `resourceRoots`: direct resource-ID array |
@@ -486,6 +486,20 @@ part of the contract (decision 67 in [idl/decisions.md](idl/decisions.md)).
 The resource graph is lowered for documentation separately from infrastructure.
 It includes lifecycle, identifiers, and property target shapes without requiring
 provisioning member bindings or interpreting design-time resource references.
+
+### Error documentation URLs
+
+An error shape's `error` object always carries `reasons`, an array of its
+explicitly designated string-enum reasons, or an empty array. `reasonMember`
+names the designated model member when present. Each reason carries `name`
+(the symbol), `value` (the literal wire value), `documentation`, `notes` and
+nullable `docUrl`. With service `errorDocs`, the error object also carries its
+code-page `docUrl`. The Markdown error reference links these code and reason pages.
+
+The [language reference](idl/reference.md#error-documentation) defines URL
+derivation and validation. This metadata comes from the audience-projected IR:
+internal errors, members and enum values do not leak into external descriptions
+or SDK URL tables. Changing documentation metadata does not require a migration.
 
 ### Operations and bindings
 

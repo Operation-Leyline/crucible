@@ -460,3 +460,40 @@ fn doc_links_are_javadoc_link_tags() {
         );
     }
 }
+
+#[test]
+fn configured_error_documentation_keeps_unconfigured_runtime_unchanged() {
+    let files = emit(&load("error-docs"), &options()).expect("configured errors are supported");
+    let base = files
+        .iter()
+        .find(|file| file.path.ends_with("/ServiceError.java"))
+        .unwrap();
+    assert!(base.contents.contains("docUrl"));
+    let schema = files
+        .iter()
+        .find(|file| file.path.ends_with("schema.json"))
+        .unwrap();
+    assert!(schema.contents.contains("reason-access%2Fneeded"));
+    let ordinary = emit(&weather(), &options()).unwrap();
+    let base = ordinary
+        .iter()
+        .find(|file| file.path.ends_with("/ServiceError.java"))
+        .unwrap();
+    assert!(!base.contents.contains("docUrl"));
+}
+
+#[test]
+fn documentation_member_collision_is_diagnosed_only_when_configured() {
+    let service = load_with("error-docs", |text| {
+        text.replace("message: string", "docUrl: string")
+    });
+    let diagnostics = emit(&service, &options())
+        .err()
+        .expect("configured accessor collision");
+    assert!(format!("{diagnostics:?}").contains("docUrl"));
+    let service = load_with("error-docs", |text| {
+        text.replace("message: string", "docUrl: string")
+            .replace("    errorDocs \"https://docs.example.test/errors/\"\n", "")
+    });
+    emit(&service, &options()).expect("legacy modeled docUrl remains allowed");
+}

@@ -19,7 +19,8 @@ mod line;
 mod projection;
 pub use line::{is_line, line, line_current, releases};
 pub use projection::{
-    Projection, current_permission, projections, rename_path, undo, undo_restoring,
+    Projection, current_permission, projections, reconcile_error_reason_projections, rename_path,
+    undo, undo_restoring,
 };
 
 use crate::ShapeId;

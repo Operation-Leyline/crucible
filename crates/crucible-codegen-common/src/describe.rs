@@ -253,13 +253,24 @@ fn error_bindings(service: &Service, id: &ShapeId, info: &ErrorInfo) -> Bindings
 }
 
 fn error(service: &Service, id: &ShapeId, info: &ErrorInfo) -> Value {
-    json!({"shape":id.to_string(),"status":info.status,"wireCode":info.body_discriminator.as_ref().unwrap_or(&info.wire_code),
+    let mut value = json!({"shape":id.to_string(),"status":info.status,"wireCode":info.body_discriminator.as_ref().unwrap_or(&info.wire_code),
         "bodyDiscriminator":info.body_discriminator,"discriminatorHeader":info.discriminator_header,
         "protocolHeaders":info.protocol_headers,
         "fault":match info.fault { Fault::Client => "client", Fault::Server => "server" },
         "retryable":info.retryable.map(|r|json!({"throttling":r.throttling})),
         "bindings":bindings(&error_bindings(service,id,info)),
-        "sample":error_sample(service,id,info)})
+        "sample":error_sample(service,id,info),"reasons":[]});
+    if let Some(docs) = service.error_documentation(id) {
+        if let Some(url) = docs.url {
+            value["docUrl"] = json!(url);
+        }
+        if let Some(member) = docs.reason_member {
+            value["reasonMember"] = json!(member);
+            value["reasons"] = json!(docs.reasons.iter().map(|reason| json!({"name":reason.name,"value":reason.value,
+                "documentation":documentation(service, reason.docs.as_deref()), "notes": notes(&reason.notes), "docUrl":reason.url})).collect::<Vec<_>>());
+        }
+    }
+    value
 }
 
 /// An error response as the wire carries it, from a model-form value: the
@@ -530,6 +541,9 @@ fn describe_inner(
         versions,
         schemas: None,
     };
+    if let Some(base) = &service.error_docs_base {
+        description.service["errorDocsBase"] = json!(base);
+    }
     // The permission registry (docs/permissions.md §6.3): internal entries
     // only when the caller described the server audience, whose IR keeps
     // them. Absent for a service that declares none.

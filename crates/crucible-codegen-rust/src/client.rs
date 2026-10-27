@@ -181,6 +181,13 @@ fn service_exception(service: &Service, diagnostics: &mut Diagnostics) -> String
         let error = service.name_of(id);
         out.push_str(&format!("impl From<errors::{error}> for {name} {{\n    fn from(error: errors::{error}) -> Self {{ Self::{error}(error) }}\n}}\n"));
     }
+    if service.error_docs_base.is_some() {
+        out.push_str(&documentation_enum(
+            service,
+            &name,
+            errors.iter().map(|(id, _)| *id),
+        ));
+    }
     let display = if errors.is_empty() {
         "let _ = f; match *self {}".to_owned()
     } else {
@@ -211,6 +218,26 @@ fn service_exception(service: &Service, diagnostics: &mut Diagnostics) -> String
 
 pub(crate) fn error_type(op: &Operation) -> String {
     format!("{}Error", op.name())
+}
+
+fn documentation_enum<'a>(
+    service: &Service,
+    name: &str,
+    ids: impl IntoIterator<Item = &'a ShapeId>,
+) -> String {
+    let arms = ids
+        .into_iter()
+        .map(|id| format!("Self::{}(error) => error.doc_url(),", service.name_of(id)))
+        .collect::<Vec<_>>()
+        .join("\n");
+    let body = if arms.is_empty() {
+        "match *self {}".to_owned()
+    } else {
+        format!("match self {{ {arms} }}")
+    };
+    format!(
+        "impl {name} {{\n    /// Static documentation for this modeled error and known reason.\n    pub fn doc_url(&self) -> ::std::option::Option<&'static str> {{ {body} }}\n}}\n"
+    )
 }
 
 fn wire_error(service: &Service, op: &Operation, name: &str) -> String {
@@ -257,15 +284,23 @@ fn error_enum(service: &Service, op: &Operation) -> String {
         out.push_str(&format!("    {error}(errors::{error}),\n"));
     }
     out.push_str("}\n\n");
+    if service.error_docs_base.is_some() {
+        out.push_str(&documentation_enum(service, &name, op.errors.iter()));
+    }
     let infos: Vec<String> = errors
         .iter()
         .map(|error| format!("&errors::{}", info_static(error)))
         .collect();
+    let decoder = if service.error_docs_base.is_some() {
+        "decode_documented_modelled"
+    } else {
+        "decode_modelled"
+    };
     let arms: String = errors
         .iter()
         .map(|error| {
             format!(
-                "            {} => ::crucible_server_runtime_rust::__generated::decode_modelled(&errors::{}, headers, body).map(Self::{error}),\n",
+                "            {} => ::crucible_server_runtime_rust::__generated::{decoder}(&errors::{}, headers, body).map(Self::{error}),\n",
                 literal(&wire_error(service, op, error)),
                 info_static(error)
             )
@@ -324,8 +359,29 @@ fn error_enum(service: &Service, op: &Operation) -> String {
             .join(" ");
         format!("let name = {fallback}; match name {{ {arms} _ => None }}")
     };
+    let documentation = if service.error_docs_base.is_some() {
+        let pages = op
+            .errors
+            .iter()
+            .filter_map(|id| {
+                let docs = service.error_documentation(id)?;
+                let url = docs.url?;
+                Some(format!(
+                    "{} => Some({}),",
+                    literal(&wire_error(service, op, service.name_of(id))),
+                    literal(&url)
+                ))
+            })
+            .collect::<Vec<_>>()
+            .join(" ");
+        format!(
+            "\n    fn doc_url(&self) -> ::std::option::Option<&'static str> {{ self.doc_url() }}\n    fn classified_doc_url(status: u16, type_name: ::std::option::Option<&str>) -> ::std::option::Option<&'static str> {{\n        let info = <Self as ::crucible_server_runtime_rust::__generated::OperationErrors>::classify(status, type_name)?;\n        match info.name {{ {pages} _ => None }}\n    }}\n"
+        )
+    } else {
+        String::new()
+    };
     out.push_str(&format!(
-        "impl ::crucible_server_runtime_rust::__generated::OperationErrors for {name} {{\n    fn decode(status: u16, type_name: ::std::option::Option<&str>, headers: &::crucible_server_runtime_rust::__generated::http::HeaderMap, body: &[u8]) -> ::std::option::Option<Self> {{\n{decode_body}    }}\n\n    fn info(&self) -> &'static ::crucible_server_runtime_rust::__generated::operation::ErrorInfo {{\n        {info_body}\n    }}\n\n    fn classify(status: u16, type_name: ::std::option::Option<&str>) -> ::std::option::Option<&'static ::crucible_server_runtime_rust::__generated::operation::ErrorInfo> {{\n        {classify}\n    }}\n}}\n\n"
+        "impl ::crucible_server_runtime_rust::__generated::OperationErrors for {name} {{\n    fn decode(status: u16, type_name: ::std::option::Option<&str>, headers: &::crucible_server_runtime_rust::__generated::http::HeaderMap, body: &[u8]) -> ::std::option::Option<Self> {{\n{decode_body}    }}\n\n    fn info(&self) -> &'static ::crucible_server_runtime_rust::__generated::operation::ErrorInfo {{\n        {info_body}\n    }}\n\n    fn classify(status: u16, type_name: ::std::option::Option<&str>) -> ::std::option::Option<&'static ::crucible_server_runtime_rust::__generated::operation::ErrorInfo> {{\n        {classify}\n    }}\n{documentation}}}\n\n"
     ));
     out.push_str(&format!(
         "impl ::std::fmt::Display for {name} {{\n    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {{\n        {display_body}\n    }}\n}}\n\nimpl ::std::error::Error for {name} {{}}\n"

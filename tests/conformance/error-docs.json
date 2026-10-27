@@ -1,0 +1,591 @@
+{
+  "schemaVersion": 1,
+  "model": "tests/models/error-docs",
+  "cases": [
+    {
+      "name": "body",
+      "status": 403,
+      "identity": "Denied",
+      "body": "{\"message\": \"denied\", \"detail\": \"access/needed\"}",
+      "header": null,
+      "docUrl": "https://docs.example.test/errors/Denied/reason-access%2Fneeded",
+      "typed": true
+    },
+    {
+      "name": "empty",
+      "status": 403,
+      "identity": "Denied",
+      "body": "{\"message\": \"denied\", \"detail\": \"\"}",
+      "header": null,
+      "docUrl": "https://docs.example.test/errors/Denied/reason-",
+      "typed": true
+    },
+    {
+      "name": "dots",
+      "status": 403,
+      "identity": "Denied",
+      "body": "{\"message\": \"denied\", \"detail\": \"..\"}",
+      "header": null,
+      "docUrl": "https://docs.example.test/errors/Denied/reason-%2E%2E",
+      "typed": true
+    },
+    {
+      "name": "unicode",
+      "status": 403,
+      "identity": "Denied",
+      "body": "{\"message\": \"denied\", \"detail\": \"café\"}",
+      "header": null,
+      "docUrl": "https://docs.example.test/errors/Denied/reason-caf%C3%A9",
+      "typed": true
+    },
+    {
+      "name": "null",
+      "status": 403,
+      "identity": "Denied",
+      "body": "{\"message\": \"denied\", \"detail\": null}",
+      "header": null,
+      "docUrl": "https://docs.example.test/errors/Denied",
+      "typed": true
+    },
+    {
+      "name": "future",
+      "status": 403,
+      "identity": "Denied",
+      "body": "{\"message\": \"denied\", \"detail\": \"future\"}",
+      "header": null,
+      "docUrl": "https://docs.example.test/errors/Denied",
+      "typed": true
+    },
+    {
+      "name": "internal",
+      "status": 403,
+      "identity": "Denied",
+      "body": "{\"message\": \"denied\", \"detail\": \"secret\"}",
+      "header": null,
+      "docUrl": "https://docs.example.test/errors/Denied",
+      "typed": true
+    },
+    {
+      "name": "absent",
+      "status": 403,
+      "identity": "Denied",
+      "body": "{\"message\":\"denied\"}",
+      "header": null,
+      "docUrl": "https://docs.example.test/errors/Denied",
+      "typed": true
+    },
+    {
+      "name": "mapped-member",
+      "status": 418,
+      "identity": "MappedReasonError",
+      "body": "{\"message\":\"denied\",\"failureReason\":\"access/needed\"}",
+      "header": null,
+      "docUrl": "https://docs.example.test/errors/MappedReasonError/reason-access%2Fneeded",
+      "typed": true
+    },
+    {
+      "name": "header-wins",
+      "status": 409,
+      "identity": "HeaderError",
+      "body": "{\"message\":\"denied\",\"reason\":\"future\"}",
+      "header": "access/needed",
+      "docUrl": "https://docs.example.test/errors/HeaderError/reason-access%2Fneeded",
+      "typed": true
+    },
+    {
+      "name": "header-absent",
+      "status": 409,
+      "identity": "HeaderError",
+      "body": "{\"message\":\"denied\"}",
+      "header": null,
+      "docUrl": "https://docs.example.test/errors/HeaderError",
+      "typed": true
+    },
+    {
+      "name": "header-empty",
+      "status": 409,
+      "identity": "HeaderError",
+      "body": "{\"message\":\"denied\"}",
+      "header": "",
+      "docUrl": "https://docs.example.test/errors/HeaderError/reason-",
+      "typed": true
+    },
+    {
+      "name": "payload",
+      "status": 422,
+      "identity": "PayloadError",
+      "body": "access/needed",
+      "header": null,
+      "docUrl": "https://docs.example.test/errors/PayloadError/reason-access%2Fneeded",
+      "typed": true
+    },
+    {
+      "name": "payload-empty",
+      "status": 422,
+      "identity": "PayloadError",
+      "body": "",
+      "header": null,
+      "docUrl": "https://docs.example.test/errors/PayloadError/reason-",
+      "typed": true
+    },
+    {
+      "name": "payload-future",
+      "status": 422,
+      "identity": "PayloadError",
+      "body": "future",
+      "header": null,
+      "docUrl": "https://docs.example.test/errors/PayloadError",
+      "typed": true
+    },
+    {
+      "name": "undesignated",
+      "status": 400,
+      "identity": "PlainError",
+      "body": "{\"message\":\"denied\",\"reason\":\"access/needed\"}",
+      "header": null,
+      "docUrl": "https://docs.example.test/errors/PlainError",
+      "typed": true
+    },
+    {
+      "name": "required-reason",
+      "status": 402,
+      "identity": "RequiredReason",
+      "body": "{\"reason\":\"access/needed\"}",
+      "header": null,
+      "docUrl": "https://docs.example.test/errors/RequiredReason/reason-access%2Fneeded",
+      "typed": true
+    },
+    {
+      "name": "missing-required-reason",
+      "status": 402,
+      "identity": "RequiredReason",
+      "body": "{}",
+      "header": null,
+      "docUrl": "https://docs.example.test/errors/RequiredReason",
+      "typed": false
+    },
+    {
+      "name": "null-required-reason",
+      "status": 402,
+      "identity": "RequiredReason",
+      "body": "{\"reason\":null}",
+      "header": null,
+      "docUrl": "https://docs.example.test/errors/RequiredReason",
+      "typed": false
+    },
+    {
+      "name": "missing-required-message",
+      "status": 403,
+      "identity": "Denied",
+      "body": "{\"detail\":\"access/needed\"}",
+      "header": null,
+      "docUrl": "https://docs.example.test/errors/Denied",
+      "typed": false
+    },
+    {
+      "name": "malformed-reason",
+      "status": 403,
+      "identity": "Denied",
+      "body": "{\"message\":\"denied\",\"detail\":{}}",
+      "header": null,
+      "docUrl": "https://docs.example.test/errors/Denied",
+      "typed": false
+    },
+    {
+      "name": "unknown-identity",
+      "status": 403,
+      "identity": "UnknownFuture",
+      "body": "{\"message\":\"denied\",\"detail\":\"access/needed\"}",
+      "header": null,
+      "docUrl": null,
+      "typed": false
+    },
+    {
+      "name": "status-inference",
+      "status": 403,
+      "identity": null,
+      "body": "{\"message\":\"denied\",\"detail\":\"access/needed\"}",
+      "header": null,
+      "docUrl": "https://docs.example.test/errors/Denied/reason-access%2Fneeded",
+      "typed": true
+    },
+    {
+      "name": "unknown-status",
+      "status": 599,
+      "identity": null,
+      "body": "{}",
+      "header": null,
+      "docUrl": null,
+      "typed": false
+    },
+    {
+      "name": "wire-url-untrusted",
+      "status": 403,
+      "identity": "Denied",
+      "body": "{\"message\":\"denied\",\"docUrl\":\"https://evil.test/\"}",
+      "header": null,
+      "docUrl": "https://docs.example.test/errors/Denied",
+      "typed": true
+    },
+    {
+      "name": "default-known",
+      "status": 419,
+      "identity": "DefaultReason",
+      "body": "{\"message\": \"denied\"}",
+      "header": null,
+      "docUrl": "https://docs.example.test/errors/DefaultReason/reason-access%2Fneeded",
+      "typed": true
+    },
+    {
+      "name": "default-empty",
+      "status": 420,
+      "identity": "DefaultEmptyReason",
+      "body": "{\"message\": \"denied\"}",
+      "header": null,
+      "docUrl": "https://docs.example.test/errors/DefaultEmptyReason/reason-",
+      "typed": true
+    },
+    {
+      "name": "default-null",
+      "status": 419,
+      "identity": "DefaultReason",
+      "body": "{\"message\": \"denied\", \"detail\": null}",
+      "header": null,
+      "docUrl": "https://docs.example.test/errors/DefaultReason",
+      "typed": false
+    },
+    {
+      "name": "default-future",
+      "status": 419,
+      "identity": "DefaultReason",
+      "body": "{\"message\": \"denied\", \"detail\": \"future\"}",
+      "header": null,
+      "docUrl": "https://docs.example.test/errors/DefaultReason",
+      "typed": true
+    },
+    {
+      "name": "DefaultReason-malformed",
+      "status": 419,
+      "identity": "DefaultReason",
+      "body": "{invalid",
+      "header": null,
+      "docUrl": "https://docs.example.test/errors/DefaultReason",
+      "typed": false
+    },
+    {
+      "name": "DefaultReason-scalar",
+      "status": 419,
+      "identity": "DefaultReason",
+      "body": "42",
+      "header": null,
+      "docUrl": "https://docs.example.test/errors/DefaultReason",
+      "typed": false
+    },
+    {
+      "name": "DefaultReason-array",
+      "status": 419,
+      "identity": "DefaultReason",
+      "body": "[]",
+      "header": null,
+      "docUrl": "https://docs.example.test/errors/DefaultReason",
+      "typed": false
+    },
+    {
+      "name": "DefaultReason-json-null",
+      "status": 419,
+      "identity": "DefaultReason",
+      "body": "null",
+      "header": null,
+      "docUrl": "https://docs.example.test/errors/DefaultReason",
+      "typed": false
+    },
+    {
+      "name": "DefaultReason-empty-object",
+      "status": 419,
+      "identity": "DefaultReason",
+      "body": "{}",
+      "header": null,
+      "docUrl": "https://docs.example.test/errors/DefaultReason/reason-access%2Fneeded",
+      "typed": true
+    },
+    {
+      "name": "DefaultEmptyReason-malformed",
+      "status": 420,
+      "identity": "DefaultEmptyReason",
+      "body": "{invalid",
+      "header": null,
+      "docUrl": "https://docs.example.test/errors/DefaultEmptyReason",
+      "typed": false
+    },
+    {
+      "name": "DefaultEmptyReason-scalar",
+      "status": 420,
+      "identity": "DefaultEmptyReason",
+      "body": "42",
+      "header": null,
+      "docUrl": "https://docs.example.test/errors/DefaultEmptyReason",
+      "typed": false
+    },
+    {
+      "name": "DefaultEmptyReason-array",
+      "status": 420,
+      "identity": "DefaultEmptyReason",
+      "body": "[]",
+      "header": null,
+      "docUrl": "https://docs.example.test/errors/DefaultEmptyReason",
+      "typed": false
+    },
+    {
+      "name": "DefaultEmptyReason-json-null",
+      "status": 420,
+      "identity": "DefaultEmptyReason",
+      "body": "null",
+      "header": null,
+      "docUrl": "https://docs.example.test/errors/DefaultEmptyReason",
+      "typed": false
+    },
+    {
+      "name": "DefaultEmptyReason-empty-object",
+      "status": 420,
+      "identity": "DefaultEmptyReason",
+      "body": "{}",
+      "header": null,
+      "docUrl": "https://docs.example.test/errors/DefaultEmptyReason/reason-",
+      "typed": true
+    },
+    {
+      "name": "DefaultReason-empty-body",
+      "status": 419,
+      "identity": "DefaultReason",
+      "body": "",
+      "header": null,
+      "docUrl": "https://docs.example.test/errors/DefaultReason/reason-access%2Fneeded",
+      "typed": true
+    },
+    {
+      "name": "DefaultEmptyReason-empty-body",
+      "status": 420,
+      "identity": "DefaultEmptyReason",
+      "body": "",
+      "header": null,
+      "docUrl": "https://docs.example.test/errors/DefaultEmptyReason/reason-",
+      "typed": true
+    },
+    {
+      "name": "blob-payload",
+      "status": 421,
+      "identity": "BlobPayloadError",
+      "body": "not-json /blob",
+      "header": "access/needed",
+      "docUrl": "https://docs.example.test/errors/BlobPayloadError/reason-access%2Fneeded",
+      "typed": true
+    },
+    {
+      "name": "empty-blob-payload",
+      "status": 421,
+      "identity": "BlobPayloadError",
+      "body": "",
+      "header": "",
+      "docUrl": "https://docs.example.test/errors/BlobPayloadError/reason-",
+      "typed": true
+    },
+    {
+      "name": "DefaultReason-json-whitespace",
+      "status": 419,
+      "identity": "DefaultReason",
+      "body": " \t\r\n ",
+      "header": null,
+      "docUrl": "https://docs.example.test/errors/DefaultReason/reason-access%2Fneeded",
+      "typed": true
+    },
+    {
+      "name": "DefaultReason-vertical-tab",
+      "status": 419,
+      "identity": "DefaultReason",
+      "body": "\u000b",
+      "header": null,
+      "docUrl": "https://docs.example.test/errors/DefaultReason",
+      "typed": false
+    },
+    {
+      "name": "DefaultReason-nonbreaking-space",
+      "status": 419,
+      "identity": "DefaultReason",
+      "body": " ",
+      "header": null,
+      "docUrl": "https://docs.example.test/errors/DefaultReason",
+      "typed": false
+    },
+    {
+      "name": "DefaultEmptyReason-json-whitespace",
+      "status": 420,
+      "identity": "DefaultEmptyReason",
+      "body": " \t\r\n ",
+      "header": null,
+      "docUrl": "https://docs.example.test/errors/DefaultEmptyReason/reason-",
+      "typed": true
+    },
+    {
+      "name": "DefaultEmptyReason-vertical-tab",
+      "status": 420,
+      "identity": "DefaultEmptyReason",
+      "body": "\u000b",
+      "header": null,
+      "docUrl": "https://docs.example.test/errors/DefaultEmptyReason",
+      "typed": false
+    },
+    {
+      "name": "DefaultEmptyReason-nonbreaking-space",
+      "status": 420,
+      "identity": "DefaultEmptyReason",
+      "body": " ",
+      "header": null,
+      "docUrl": "https://docs.example.test/errors/DefaultEmptyReason",
+      "typed": false
+    },
+    {
+      "name": "nonfinite-NaN",
+      "status": 403,
+      "identity": "Denied",
+      "body": "{\"message\":\"denied\",\"detail\":\"access/needed\",\"extra\":NaN}",
+      "header": null,
+      "docUrl": "https://docs.example.test/errors/Denied",
+      "typed": false
+    },
+    {
+      "name": "nonfinite-Infinity",
+      "status": 403,
+      "identity": "Denied",
+      "body": "{\"message\":\"denied\",\"detail\":\"access/needed\",\"extra\":Infinity}",
+      "header": null,
+      "docUrl": "https://docs.example.test/errors/Denied",
+      "typed": false
+    },
+    {
+      "name": "nonfinite--Infinity",
+      "status": 403,
+      "identity": "Denied",
+      "body": "{\"message\":\"denied\",\"detail\":\"access/needed\",\"extra\":-Infinity}",
+      "header": null,
+      "docUrl": "https://docs.example.test/errors/Denied",
+      "typed": false
+    },
+    {
+      "name": "document-object",
+      "status": 423,
+      "identity": "DocumentPayloadError",
+      "body": "{\"value\":1.25}",
+      "header": "access/needed",
+      "docUrl": "https://docs.example.test/errors/DocumentPayloadError/reason-access%2Fneeded",
+      "typed": true
+    },
+    {
+      "name": "document-array",
+      "status": 423,
+      "identity": "DocumentPayloadError",
+      "body": "[1,true,null]",
+      "header": "access/needed",
+      "docUrl": "https://docs.example.test/errors/DocumentPayloadError/reason-access%2Fneeded",
+      "typed": true
+    },
+    {
+      "name": "document-number",
+      "status": 423,
+      "identity": "DocumentPayloadError",
+      "body": "42",
+      "header": "access/needed",
+      "docUrl": "https://docs.example.test/errors/DocumentPayloadError/reason-access%2Fneeded",
+      "typed": true
+    },
+    {
+      "name": "document-null",
+      "status": 423,
+      "identity": "DocumentPayloadError",
+      "body": "null",
+      "header": "access/needed",
+      "docUrl": "https://docs.example.test/errors/DocumentPayloadError/reason-access%2Fneeded",
+      "typed": true
+    },
+    {
+      "name": "document-string",
+      "status": 423,
+      "identity": "DocumentPayloadError",
+      "body": "\"NaN\"",
+      "header": "access/needed",
+      "docUrl": "https://docs.example.test/errors/DocumentPayloadError/reason-access%2Fneeded",
+      "typed": true
+    },
+    {
+      "name": "document-empty",
+      "status": 423,
+      "identity": "DocumentPayloadError",
+      "body": "",
+      "header": "access/needed",
+      "docUrl": "https://docs.example.test/errors/DocumentPayloadError/reason-access%2Fneeded",
+      "typed": true
+    },
+    {
+      "name": "document-whitespace",
+      "status": 423,
+      "identity": "DocumentPayloadError",
+      "body": " \t\r\n",
+      "header": "access/needed",
+      "docUrl": "https://docs.example.test/errors/DocumentPayloadError/reason-access%2Fneeded",
+      "typed": true
+    },
+    {
+      "name": "document-invalid-nan",
+      "status": 423,
+      "identity": "DocumentPayloadError",
+      "body": "NaN",
+      "header": "access/needed",
+      "docUrl": "https://docs.example.test/errors/DocumentPayloadError",
+      "typed": false
+    },
+    {
+      "name": "document-invalid-nested-nan",
+      "status": 423,
+      "identity": "DocumentPayloadError",
+      "body": "{\"value\":NaN}",
+      "header": "access/needed",
+      "docUrl": "https://docs.example.test/errors/DocumentPayloadError",
+      "typed": false
+    },
+    {
+      "name": "document-invalid-infinity",
+      "status": 423,
+      "identity": "DocumentPayloadError",
+      "body": "Infinity",
+      "header": "access/needed",
+      "docUrl": "https://docs.example.test/errors/DocumentPayloadError",
+      "typed": false
+    },
+    {
+      "name": "document-invalid-vt",
+      "status": 423,
+      "identity": "DocumentPayloadError",
+      "body": "\u000b",
+      "header": "access/needed",
+      "docUrl": "https://docs.example.test/errors/DocumentPayloadError",
+      "typed": false
+    },
+    {
+      "name": "document-invalid-nbsp",
+      "status": 423,
+      "identity": "DocumentPayloadError",
+      "body": " ",
+      "header": "access/needed",
+      "docUrl": "https://docs.example.test/errors/DocumentPayloadError",
+      "typed": false
+    },
+    {
+      "name": "document-invalid-ff",
+      "status": 423,
+      "identity": "DocumentPayloadError",
+      "body": "\f",
+      "header": "access/needed",
+      "docUrl": "https://docs.example.test/errors/DocumentPayloadError",
+      "typed": false
+    }
+  ]
+}

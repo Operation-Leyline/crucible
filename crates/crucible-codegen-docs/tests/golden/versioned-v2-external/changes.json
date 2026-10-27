@@ -628,7 +628,194 @@
                 "status": 200,
                 "uri": "/count"
               },
-              "shapes": {}
+              "shapes": {
+                "crucible.errors#ValidationException": {
+                  "documentation": {
+                    "html": "<p>A request cannot be parsed or does not satisfy the service's input model.</p>\n",
+                    "markdown": "A request cannot be parsed or does not satisfy the service's input model.",
+                    "text": "A request cannot be parsed or does not satisfy the service's input model."
+                  },
+                  "error": {
+                    "bindings": {
+                      "body": [
+                        "message",
+                        "reason",
+                        "fieldList"
+                      ],
+                      "headerEncodings": {},
+                      "headers": [],
+                      "labels": [],
+                      "payload": null,
+                      "query": [],
+                      "timestampFormats": {}
+                    },
+                    "bodyDiscriminator": "ValidationException",
+                    "discriminatorHeader": "X-Crucible-Error",
+                    "fault": "client",
+                    "protocolHeaders": {
+                      "Content-Type": "application/json"
+                    },
+                    "reasons": [],
+                    "retryable": null,
+                    "sample": {
+                      "fallbacks": [],
+                      "generated": true,
+                      "message": {
+                        "body": {
+                          "__type": "ValidationException",
+                          "fieldList": [
+                            {
+                              "message": "message",
+                              "name": "name"
+                            }
+                          ],
+                          "message": "message",
+                          "reason": "unknownOperation"
+                        },
+                        "headers": {
+                          "Content-Type": "application/json",
+                          "X-Crucible-Error": "ValidationException"
+                        },
+                        "labels": {},
+                        "payload": null,
+                        "query": []
+                      }
+                    },
+                    "shape": "crucible.errors#ValidationException",
+                    "status": 400,
+                    "wireCode": "ValidationException"
+                  },
+                  "history": {
+                    "added": null,
+                    "changed": [],
+                    "missing": []
+                  },
+                  "id": "crucible.errors#ValidationException",
+                  "internal": false,
+                  "kind": "structure",
+                  "members": [
+                    {
+                      "clientOptional": false,
+                      "constraints": {
+                        "length": null,
+                        "pattern": null,
+                        "range": null,
+                        "uniqueItems": false
+                      },
+                      "default": null,
+                      "documentation": {
+                        "html": "",
+                        "markdown": "",
+                        "text": ""
+                      },
+                      "history": {
+                        "added": null,
+                        "changed": [],
+                        "missing": []
+                      },
+                      "internal": false,
+                      "name": "message",
+                      "notes": {
+                        "deprecated": null,
+                        "externalDocs": {},
+                        "since": null,
+                        "unstable": false
+                      },
+                      "nullable": false,
+                      "required": true,
+                      "sensitive": false,
+                      "target": "crucible.api#String",
+                      "targetName": "String",
+                      "targetType": "string",
+                      "timestampFormat": "date-time",
+                      "wireDefault": null,
+                      "wireName": "message"
+                    },
+                    {
+                      "clientOptional": false,
+                      "constraints": {
+                        "length": null,
+                        "pattern": null,
+                        "range": null,
+                        "uniqueItems": false
+                      },
+                      "default": null,
+                      "documentation": {
+                        "html": "",
+                        "markdown": "",
+                        "text": ""
+                      },
+                      "history": {
+                        "added": null,
+                        "changed": [],
+                        "missing": []
+                      },
+                      "internal": false,
+                      "name": "reason",
+                      "notes": {
+                        "deprecated": null,
+                        "externalDocs": {},
+                        "since": null,
+                        "unstable": false
+                      },
+                      "nullable": false,
+                      "required": true,
+                      "sensitive": false,
+                      "target": "crucible.errors#ValidationExceptionReason",
+                      "targetName": "ValidationExceptionReason",
+                      "targetType": "enum",
+                      "timestampFormat": "date-time",
+                      "wireDefault": null,
+                      "wireName": "reason"
+                    },
+                    {
+                      "clientOptional": false,
+                      "constraints": {
+                        "length": null,
+                        "pattern": null,
+                        "range": null,
+                        "uniqueItems": false
+                      },
+                      "default": null,
+                      "documentation": {
+                        "html": "",
+                        "markdown": "",
+                        "text": ""
+                      },
+                      "history": {
+                        "added": null,
+                        "changed": [],
+                        "missing": []
+                      },
+                      "internal": false,
+                      "name": "fieldList",
+                      "notes": {
+                        "deprecated": null,
+                        "externalDocs": {},
+                        "since": null,
+                        "unstable": false
+                      },
+                      "nullable": true,
+                      "required": false,
+                      "sensitive": false,
+                      "target": "crucible.errors#ValidationExceptionFieldList",
+                      "targetName": "ValidationExceptionFieldList",
+                      "targetType": "list",
+                      "timestampFormat": "date-time",
+                      "wireDefault": null,
+                      "wireName": "fieldList"
+                    }
+                  ],
+                  "name": "ValidationException",
+                  "notes": {
+                    "deprecated": null,
+                    "externalDocs": {},
+                    "since": null,
+                    "unstable": false
+                  },
+                  "sensitive": false
+                }
+              }
             },
             "operation": "example.shop#CountItems",
             "subjects": [

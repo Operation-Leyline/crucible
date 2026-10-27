@@ -1,4 +1,5 @@
 //! Native Go models, context-aware clients, and a standard-library runtime.
+mod error_docs;
 mod links;
 mod permissions;
 mod snippet;
@@ -203,6 +204,7 @@ pub fn capabilities() -> crucible_ir::Capabilities {
         Feature::NonBlobPayload,
         Feature::MediaTypeHeaders,
         Feature::ErrorPayload,
+        Feature::ErrorDocumentation,
     ])
 }
 
@@ -571,7 +573,12 @@ fn emit_package(
     for (id, shape) in &service.shapes {
         if matches!(shape,Shape::Structure(s) if s.error.is_some()) {
             let name = type_name(service, id);
-            client.push_str(&format!(" case {}:\n  result := &{name}{{Metadata: metadata}}\n  if err := decodeModel(wireSchema, target, values, result); err != nil {{ return metadata }}\n  return result\n",literal(&id.to_string())));
+            let documentation = if service.error_docs_base.is_some() {
+                "  metadata.Metadata.DocURL = errorDocURL(wireSchema.Shapes[target].Error.Documentation, values)\n"
+            } else {
+                ""
+            };
+            client.push_str(&format!(" case {}:\n  result := &{name}{{Metadata: metadata}}\n  if err := decodeModel(wireSchema, target, values, result); err != nil {{ return metadata }}\n{documentation}  return result\n",literal(&id.to_string())));
         }
     }
     client.push_str(" }\n return metadata\n}\n\n");
@@ -634,7 +641,7 @@ fn emit_package(
                 "{header}{}",
                 crucible_codegen_common::service_exception_runtime_named(
                     &exception,
-                    include_str!("../runtime/runtime.go")
+                    &error_docs::runtime(service)
                 )
                 .replace("\r\n", "\n")
                 .replacen("package sdk\n", "", 1)

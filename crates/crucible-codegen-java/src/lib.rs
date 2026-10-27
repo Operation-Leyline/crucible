@@ -550,6 +550,7 @@ pub fn capabilities() -> crucible_ir::Capabilities {
         Feature::NonBlobPayload,
         Feature::ErrorPayload,
         Feature::MediaTypeHeaders,
+        Feature::ErrorDocumentation,
     ])
 }
 
@@ -612,6 +613,12 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
                     );
                 }
                 let native = member_field(&m.name, &options.package_name);
+                if s.error.is_some() && service.error_docs_base.is_some() && native == "docUrl" {
+                    diagnostics.push(
+                        &id.with_member(&m.name),
+                        "Java error member collides with generated documentation accessor docUrl",
+                    );
+                }
                 if !accessors.insert(accessor(&native, s.error.is_some())) {
                     diagnostics.push(
                         &id.with_member(&m.name),
@@ -1246,13 +1253,29 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
             format!("{source}/{name}.java"),
             format!(
                 "{header}{}",
-                crucible_codegen_common::service_exception_runtime(service, body)
-                    .replace("\r\n", "\n")
-                    .replace("Models.Unit", &format!("{package}.model.Unit"))
+                runtime(service, body).replace("Models.Unit", &format!("{package}.model.Unit"))
             ),
         ));
     }
     Ok(files)
+}
+
+fn runtime(service: &Service, source: &str) -> String {
+    let source = crucible_codegen_common::service_exception_runtime(service, source);
+    let mut include = true;
+    let mut result = String::new();
+    for line in source.lines() {
+        match line.trim() {
+            "// BEGIN ERROR DOCUMENTATION" => include = service.error_docs_base.is_some(),
+            "// END ERROR DOCUMENTATION" => include = true,
+            _ if include => {
+                result.push_str(line);
+                result.push('\n');
+            }
+            _ => {}
+        }
+    }
+    result
 }
 
 // Recursive collection aliases require a nominal JVM type to break the cycle.

@@ -207,6 +207,17 @@ on every attempt, so refreshed credentials are picked up.
 
 ## Models and errors
 
+When the service declares [`errorDocs`](../idl/reference.md#error-documentation),
+generated modeled errors, operation error enums and the service exception enum
+provide `doc_url() -> Option<&'static str>`. The runtime's `Error<E>` and
+`ServiceError<E>` expose the same method for generated operation errors. A known
+designated reason selects its static page. An absent reason applies its model
+default; otherwise absence, null and future values select the code page. An unknown
+error identity or a transport failure has no URL.
+An error recognized by code but with malformed modeled fields retains its code
+page through `Error<E>::doc_url()`. Packages without a documentation base keep
+their generated model APIs unchanged.
+
 Structures use public snake_case fields. `long` is `i64`, `integer` is
 `i32`, document values use `serde_json::Value` (the runtime's version,
 named `weather_client::runtime::Document` without a `serde_json`

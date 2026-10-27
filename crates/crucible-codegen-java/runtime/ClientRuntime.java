@@ -862,8 +862,15 @@ final class ClientRuntime {
           response);
       return values;
     }
+    // BEGIN ERROR DOCUMENTATION
+    boolean documentationBodyAbsent = body.chars().allMatch(c -> c == ' ' || c == '\t' || c == '\r' || c == '\n');
+    boolean documentationBodyValid = documentationBodyAbsent;
+    // END ERROR DOCUMENTATION
     try {
       JsonElement parsed = JSON.fromJson(body, JsonElement.class);
+      // BEGIN ERROR DOCUMENTATION
+      documentationBodyValid = documentationBodyAbsent || (parsed != null && parsed.isJsonObject());
+      // END ERROR DOCUMENTATION
       if (parsed != null && parsed.isJsonObject()) values = parsed.getAsJsonObject();
     } catch (RuntimeException ignored) {
     }
@@ -886,14 +893,37 @@ final class ClientRuntime {
       name = text(shape(target), "name");
     }
     JsonObject traits = target == null ? new JsonObject() : shape(target).getAsJsonObject("error");
+    // BEGIN ERROR DOCUMENTATION
+    JsonObject documentation = traits.getAsJsonObject("documentation");
+    String documentationUrl = documentation == null ? null : text(documentation, "url");
+    // END ERROR DOCUMENTATION
     ServiceError error = new ServiceException();
     if (target != null) {
       try {
         JsonObject typedValues = values.deepCopy();
         String payload = payloadMember(traits);
-        if (payload != null) typedValues.add(payload, payloadValue(traits, bytes));
+        // BEGIN ERROR DOCUMENTATION
+        if (payload == null && !documentationBodyValid) throw new IllegalArgumentException("modeled error body requires object");
+        // END ERROR DOCUMENTATION
+        if (payload != null
+            // BEGIN ERROR DOCUMENTATION
+            && !("document".equals(text(traits, "payloadKind")) && documentationBodyAbsent)
+            // END ERROR DOCUMENTATION
+        ) typedValues.add(payload, payloadValue(traits, bytes));
         applyHeaders(typedValues, target, traits, response);
         error = (ServiceError) decode(target, typedValues, null);
+        // BEGIN ERROR DOCUMENTATION
+        if (documentation != null) {
+          String member = text(documentation, "reasonMember");
+          JsonElement reason = member == null ? null : typedValues.get(member);
+          if (member != null && !typedValues.has(member)) reason = documentation.get("reasonDefault");
+          JsonObject pages = documentation.getAsJsonObject("reasonUrls");
+          if (reason != null && reason.isJsonPrimitive() && reason.getAsJsonPrimitive().isString()
+              && pages.has(reason.getAsString())) {
+            documentationUrl = pages.get(reason.getAsString()).getAsString();
+          }
+        }
+        // END ERROR DOCUMENTATION
       } catch (RuntimeException ignored) {
         // Malformed modeled members must not hide HTTP metadata or the retry policy.
       }
@@ -917,6 +947,9 @@ final class ClientRuntime {
         bytes,
         flag(traits, "retryable"),
         flag(traits, "throttling"));
+    // BEGIN ERROR DOCUMENTATION
+    error.initializeDocumentation(documentationUrl);
+    // END ERROR DOCUMENTATION
     throw error;
   }
 

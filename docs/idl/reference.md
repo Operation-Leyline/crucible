@@ -133,7 +133,7 @@ field       = ( ident | string ) ":" value ;
 
 service     = "service" ident "{" { clause } "}" ;
                  (* clauses: version, title, protocol, auth, paginated(..),
-                    operations, resources, errors, notFound Error *)
+                    operations, resources, errors, notFound Error, errorDocs "URL" *)
 protocol    = "protocol" ident "{" { clause } "}" ;
 clause      = ident ( "(" args ")" | "{" { clause } "}" | value ) ;
 
@@ -468,6 +468,69 @@ The IR carries them as `Service::permissions`, `Service::permission_types`,
 permission or alias, changing a value or an authorization name, and moving
 a permission to `internal` are breaking changes to the release guard;
 adding a requirement is reported as an authorization change.
+
+## Error documentation
+
+Declare a documentation base on the service and explicitly designate the
+string-enum member that gives an error its reason:
+
+```cru
+service Example {
+    version "v1"
+    protocol json
+    errorDocs "https://docs.example.test/errors"
+    errors [AccessDenied]
+}
+
+error AccessDenied {
+    status 403
+    message: string
+    @errorReason
+    reason?: AccessReason
+}
+
+enum AccessReason {
+    MISSING_GRANT = "missingGrant"
+    EXPIRED = "expired"
+}
+```
+
+The base is an absolute HTTP or HTTPS URL with a host. Credentials, queries,
+fragments, whitespace, controls, bidirectional formatting characters, backslashes
+and invalid percent escapes are refused. Trailing slashes are removed.
+
+The error-code page is `BASE/CODE`; a known reason page is
+`BASE/CODE/reason-VALUE`. `CODE` is the error's wire code and `VALUE` is the
+literal enum wire value. Each component uses uppercase UTF-8 percent escapes;
+ASCII letters, digits, hyphen, underscore and tilde remain literal. The fixed
+`reason-` prefix preserves empty and dot-only reasons as path components.
+
+`@errorReason` takes no arguments and applies to at most one member of an error.
+Its target must be a string enum. It works with ordinary body, header and enum
+payload bindings. A member named `reason` has no special role without the
+annotation. The bundled `ValidationException.reason` is designated explicitly.
+
+Descriptions list designated reasons even without a base. With a base, SDK errors
+select a static reason page for a known effective value. An absent reason applies
+its model default, including an empty-string default. Without a known default,
+absence uses the code page, as do explicit null and future values. An ordinary
+body containing only JSON whitespace (space, TAB, CR and LF) is absent, matching
+the shared wire reader. Other blank characters are malformed JSON bodies. JSON
+payloads must be syntactically valid JSON, then pass their declared type's validation.
+A document payload accepts any JSON value. An absent body omits the payload member;
+an explicit JSON `null` preserves it. Malformed JSON payloads keep the
+code page; raw string, enum and blob payloads retain their byte semantics. Unknown
+error identities have no documentation URL. External
+outputs omit internal reason values. Whole definitions shown in frozen release
+history retain their frozen designation; a member named `reason` in an older
+release does not acquire a role from a newer bundled definition. Documentation
+metadata changes no error wire
+field and requires no wire migration. See [API references](../docs.md#error-documentation-urls)
+and the client guides for [Rust](../clients/rust.md#models-and-errors),
+[TypeScript](../clients/typescript.md#models-and-errors),
+[Python](../clients/python.md#models-and-precision), [Go](../clients/go.md#models-and-errors),
+[Java](../clients/java.md#models-and-errors), [Kotlin](../clients/kotlin.md#models-and-errors)
+and [C#](../clients/csharp.md#models-and-errors).
 
 ## Sender-signed operations
 

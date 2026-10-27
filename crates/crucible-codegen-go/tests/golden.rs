@@ -479,3 +479,41 @@ fn hyphenated_permission_symbols_spell_words() {
         "no file spells `mail-send` as {expected}"
     );
 }
+
+#[test]
+fn error_documentation_is_opt_in_and_does_not_reserve_model_doc_url() {
+    let options = Options {
+        metadata: Default::default(),
+        module_path: "example.com/troubleshooting".into(),
+        package_name: "troubleshooting".into(),
+        endpoint: None,
+    };
+    let service = crucible_lang::load_service(&model_dir("error-docs")).unwrap();
+    let files = emit(&service, &options).expect("error documentation is supported");
+    let runtime = &files
+        .iter()
+        .find(|file| file.path == "runtime.go")
+        .unwrap()
+        .contents;
+    assert!(runtime.contains("DocURL string"));
+    assert!(runtime.contains("ReasonMember *string"));
+    assert!(!runtime.contains("BEGIN ERROR DOCUMENTATION"));
+    let mut collision = service.clone();
+    let crucible_ir::ir::Shape::Structure(denied) = collision
+        .shapes
+        .get_mut(&ShapeId::new("example.error_docs", "Denied"))
+        .unwrap()
+    else {
+        unreachable!()
+    };
+    denied.members[0].name = "docURL".into();
+    emit(&collision, &options).expect("modeled DocURL lives separately from response metadata");
+    let files = emit(&weather(), &options).unwrap();
+    let runtime = &files
+        .iter()
+        .find(|file| file.path == "runtime.go")
+        .unwrap()
+        .contents;
+    assert!(!runtime.contains("DocURL"));
+    assert!(!runtime.contains("BEGIN ERROR DOCUMENTATION"));
+}

@@ -948,6 +948,20 @@ fn page(d: &Description, id: &str, operation: Option<&str>) -> Option<String> {
         .map(shape_path)
 }
 
+fn reason_item(reason: &Value, prefix: &str) -> String {
+    let value = string(&reason["value"]);
+    let label = if value.is_empty() { "\"\"" } else { value };
+    let page = reason["docUrl"]
+        .as_str()
+        .map_or_else(|| code(label), |url| external_link(label, url));
+    let description = cell_docs(reason, prefix);
+    if description.trim().is_empty() {
+        format!("- {page}\n")
+    } else {
+        format!("- {page}: {}\n", description.trim())
+    }
+}
+
 fn errors(d: &Description, ids: &Value, prefix: &str) -> String {
     if list(ids).is_empty() {
         return "No modeled errors.\n\n".into();
@@ -984,13 +998,30 @@ fn errors(d: &Description, ids: &Value, prefix: &str) -> String {
                 &format!("{prefix}{}", shape_path(shape))
             ),
             badge(shape),
-            code(wire),
+            e["docUrl"]
+                .as_str()
+                .map_or_else(|| code(wire), |url| external_link(wire, url)),
             e["status"],
             string(&e["fault"]),
             cell_docs(shape, prefix)
         ));
     }
     out.push('\n');
+    for id in list(ids) {
+        let shape = &d.shapes[string(id)];
+        let error = &shape["error"];
+        if let Some(member) = error["reasonMember"].as_str() {
+            out.push_str(&format!(
+                "{} reasons ({}):\n\n",
+                code(string(&shape["name"])),
+                code(member)
+            ));
+            for reason in list(&error["reasons"]) {
+                out.push_str(&reason_item(reason, prefix));
+            }
+            out.push('\n');
+        }
+    }
     // How a reader tells the errors apart: the code travels in a header
     // beside the body.
     if let [header] = headers.into_iter().collect::<Vec<_>>()[..] {
@@ -1565,6 +1596,22 @@ fn shape_page(d: &Description, shape: &Value) -> String {
     );
     if shape["sensitive"] == true {
         out.push_str("**Sensitive:** avoid logging this value.\n\n");
+    }
+    if let Some(url) = shape["error"]["docUrl"].as_str() {
+        out.push_str(&format!(
+            "Error documentation: {}.\n\n",
+            external_link(string(&shape["error"]["wireCode"]), url)
+        ));
+    }
+    if let Some(member) = shape["error"]["reasonMember"].as_str() {
+        out.push_str(&format!(
+            "## Reasons\n\nDesignated member: {}.\n\n",
+            code(member)
+        ));
+        for reason in list(&shape["error"]["reasons"]) {
+            out.push_str(&reason_item(reason, "../"));
+        }
+        out.push('\n');
     }
     if !list(&shape["members"]).is_empty() {
         out.push_str("## Members\n\n");

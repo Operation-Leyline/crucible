@@ -471,6 +471,10 @@ export class ServiceError extends Error {
   readonly $fault: "client" | "server";
   /** Modeled retryability and throttling classification, when declared. */
   readonly $retryable?: { readonly throttling: boolean };
+  // BEGIN ERROR DOCUMENTATION
+  /** Static documentation page for the modeled error code and known reason. */
+  readonly docUrl?: string;
+  // END ERROR DOCUMENTATION
 
   /** Construct an error response with its identity, message, metadata and retry classification. */
   constructor(
@@ -479,17 +483,41 @@ export class ServiceError extends Error {
     metadata: ResponseMetadata,
     fault: "client" | "server",
     retryable?: { readonly throttling: boolean },
+    // BEGIN ERROR DOCUMENTATION
+    docUrl?: string,
+    // END ERROR DOCUMENTATION
   ) {
     super(message);
     this.name = name;
     this.$metadata = metadata;
     this.$fault = fault;
     this.$retryable = retryable;
+    // BEGIN ERROR DOCUMENTATION
+    this.docUrl = docUrl;
+    // END ERROR DOCUMENTATION
   }
 }
 
 /** Base for every error response from this service. */
 export class ServiceException extends ServiceError {}
+
+// BEGIN ERROR DOCUMENTATION
+/** Precomputed pages from the audience-projected model. */
+export interface ErrorDocumentation {
+  readonly url: string;
+  readonly reasonMember: string | null;
+  readonly reasonDefault?: string;
+  readonly reasonUrls: Readonly<Record<string, string>>;
+}
+/** Select declared pages from the effective value; only absence applies the model default. */
+export function errorDocUrl(documentation: ErrorDocumentation, fields: Record<string, unknown>): string {
+  const value = documentation.reasonMember === null || !Object.hasOwn(fields, documentation.reasonMember)
+    ? undefined : fields[documentation.reasonMember];
+  const reason = value === undefined ? documentation.reasonDefault : value;
+  return typeof reason === "string" && Object.hasOwn(documentation.reasonUrls, reason)
+    ? documentation.reasonUrls[reason] : documentation.url;
+}
+// END ERROR DOCUMENTATION
 
 type DebugMember = { readonly target: string; readonly attribute: string; readonly sensitive?: boolean };
 type DebugShape = { readonly name: string; readonly kind: string; readonly sensitive?: boolean; readonly members?: Readonly<Record<string, DebugMember>>; readonly member?: DebugMember; readonly key?: DebugMember; readonly value?: DebugMember };
@@ -537,6 +565,9 @@ export class TimeoutError extends Error {
 
 /** Static modeled error decoding metadata and its typed constructor. */
 export interface ErrorSpec {
+  // BEGIN ERROR DOCUMENTATION
+  readonly documentation?: ErrorDocumentation;
+  // END ERROR DOCUMENTATION
   readonly payload?: string;
   readonly payloadKind?: "blob" | "string" | "document";
   readonly headerEncodings?: Readonly<Record<string,"base64">>;
@@ -958,7 +989,17 @@ export class Transport {
   #decodeError(operation: OperationSpec, response: Response, text: string, bytes: Uint8Array): ServiceError {
     let parsed: unknown;
     try { parsed = readJson(text); } catch { /* An HTTP error may have a non-JSON body. */ }
+    // BEGIN ERROR DOCUMENTATION
+    const documentationBodyAbsent = !/[^ \t\r\n]/.test(text);
+    const documentationJsonValid = documentationBodyAbsent || parsed !== undefined;
+    const documentationBodyValid = documentationBodyAbsent || (parsed !== null && typeof parsed === "object" && !Array.isArray(parsed));
+    // END ERROR DOCUMENTATION
+    // BEGIN ERROR DOCUMENTATION
+    let body = (parsed !== null && typeof parsed === "object" ? parsed : {}) as Record<string, unknown>;
+    // END ERROR DOCUMENTATION
+    // BEGIN LEGACY ERROR MEMBERS
     const body = (parsed !== null && typeof parsed === "object" ? parsed : {}) as Record<string, unknown>;
+    // END LEGACY ERROR MEMBERS
     const metadata: ResponseMetadata = {
       status: response.status,
       requestId: response.headers.get("x-request-id") ?? response.headers.get("x-amzn-requestid") ?? response.headers.get("x-amz-request-id") ?? stringField(body, "requestId"),
@@ -971,15 +1012,39 @@ export class Transport {
       const message = stringField(body, "message") ?? `${operation.name} failed with HTTP ${response.status}`;
       return new ServiceException(name ?? "UnknownError", message, metadata, response.status >= 500 ? "server" : "client");
     }
+    // BEGIN ERROR DOCUMENTATION
+    const documentationMessage = stringField(body, "message");
+    // END ERROR DOCUMENTATION
     let fields: Record<string, unknown>;
     try {
+      // BEGIN ERROR DOCUMENTATION
+      if (spec.payload === undefined && !documentationBodyValid) throw new TypeError("modeled error body requires an object");
+      if (spec.payloadKind === "document" && !documentationJsonValid) throw new TypeError("error document payload requires valid JSON");
+      if (spec.payloadKind === "document") body = {};
+      // END ERROR DOCUMENTATION
+      // BEGIN ERROR DOCUMENTATION
+      if (spec.payload!==undefined
+        && !(spec.payloadKind === "document" && documentationBodyAbsent)
+      ) Object.defineProperty(body,spec.payload,{value:decodePayload(spec.payloadKind,bytes),writable:true,configurable:true,enumerable:true});
+      // END ERROR DOCUMENTATION
+      // BEGIN LEGACY ERROR MEMBERS
       if (spec.payload!==undefined) Object.defineProperty(body,spec.payload,{value:decodePayload(spec.payloadKind,bytes),writable:true,configurable:true,enumerable:true});
+      // END LEGACY ERROR MEMBERS
       readHeaders(response.headers, spec.headers, body, true, spec.headerEncodings);
       fields = fromWire(spec.schema, body) as Record<string, unknown>;
     } catch (error) {
       if (!(error instanceof TypeError || error instanceof RangeError || error instanceof DOMException)) throw error;
+      // BEGIN ERROR DOCUMENTATION
+      return new ServiceException(name!, stringField(body, "message") ?? documentationMessage ?? `${operation.name} failed with HTTP ${response.status}`,
+      // END ERROR DOCUMENTATION
+      // BEGIN LEGACY ERROR MEMBERS
       return new ServiceException(name!, stringField(body, "message") ?? `${operation.name} failed with HTTP ${response.status}`,
-        metadata, spec.fault ?? (response.status >= 500 ? "server" : "client"), spec.retryable);
+      // END LEGACY ERROR MEMBERS
+        metadata, spec.fault ?? (response.status >= 500 ? "server" : "client"), spec.retryable
+        // BEGIN ERROR DOCUMENTATION
+        , spec.documentation?.url
+        // END ERROR DOCUMENTATION
+      );
     }
     return spec.create(fields, metadata);
   }

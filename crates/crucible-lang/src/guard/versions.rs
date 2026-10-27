@@ -267,6 +267,22 @@ fn versions_with(
         projected = Some(projection);
     }
     out.versions.reverse();
+    // Source-owned checks above keep their existing diagnostics. After a valid
+    // chain, the IR reconciles documentation roles on the actual served models.
+    if !out.has_errors()
+        && let Err(problems) =
+            crucible_ir::versions::reconcile_error_reason_projections(service, &mut out.versions)
+    {
+        for problem in problems.iter() {
+            out.push(
+                None,
+                Diagnostic::new(
+                    Span::default(),
+                    format!("{}: {}", problem.shape, problem.message),
+                ),
+            );
+        }
+    }
     out
 }
 
@@ -1231,13 +1247,14 @@ fn step_span(step: &Step) -> Span {
 }
 
 /// A shape as its wire and SDK contract has it: documentation, notes and
-/// raw traits left out, and whether lowering met it as an input, so two
+/// raw traits and documentation-only error reason designation left out, along
+/// with whether lowering met it as an input, so two
 /// definitions that differ only there are the same shape.
 fn structure(shape: &Shape) -> serde_json::Value {
     fn strip(value: &mut serde_json::Value) {
         match value {
             serde_json::Value::Object(map) => {
-                for key in ["docs", "notes", "traits"] {
+                for key in ["docs", "notes", "traits", "reason_member"] {
                     map.remove(key);
                 }
                 map.values_mut().for_each(strip);

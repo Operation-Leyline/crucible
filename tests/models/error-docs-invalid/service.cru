@@ -1,0 +1,21 @@
+@errorReason
+service Invalid {
+    version "1"
+    protocol json
+    errorDocs "https://user:password@docs.example.test/errors"
+    errorDocs "https://docs.example.test/errors"
+    errors [InvalidReason]
+}
+
+structure NotAnError {
+    @errorReason
+    reason?: string
+}
+
+error InvalidReason {
+    status 400
+    @errorReason("not an argument")
+    first?: string
+    @errorReason
+    second?: integer
+}

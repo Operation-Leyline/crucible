@@ -59,6 +59,13 @@ async with AsyncWeatherClient(token=async_access_token) as client:
 
 ## Models and precision
 
+With service [`errorDocs`](../idl/reference.md#error-documentation), service errors
+provide optional `doc_url`. Known designated reasons select their static pages;
+absent reasons apply their model default; otherwise absence, null and future
+reasons use the error-code page. Unknown error identities have no URL. Recognized errors with malformed fields retain the code page. This
+attribute is added only for configured services, which diagnose an error member
+that claims the same attribute name.
+
 Models are exported directly from the package and are keyword-only dataclasses.
 Pass native values, such as `CreateCityInput(name="Oslo", location=None)`, and
 read them directly with `city.city.name`. Lists and maps are ordinary Python

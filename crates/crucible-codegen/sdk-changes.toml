@@ -117,3 +117,9 @@ id = 17
 languages = ["rust", "ts", "python", "go", "java", "kotlin", "csharp", "swift", "dart", "php", "ruby", "cpp", "c", "r"]
 kind = "patch"
 summary = "Git-channel development exports in every language omit invented release tags; Rust guides preserve home-relative SCP paths in Cargo SSH URLs."
+
+[[change]]
+id = 18
+languages = ["rust", "ts", "python", "go", "java", "kotlin", "csharp"]
+kind = "additive"
+summary = "Configured error documentation exposes static code and known-reason URLs on SDK errors; unknown reasons retain the code page."

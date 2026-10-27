@@ -33,6 +33,8 @@ pub(crate) fn error_shapes(service: &Service) -> Vec<(&ShapeId, &Structure)> {
 
 pub(crate) fn emit(service: &Service, links: &Links<'_>, diagnostics: &mut Diagnostics) -> String {
     let exception = crucible_codegen_common::service_exception_name(service);
+    let helper_name = documentation_name(service, "errorDocUrl");
+    let table_name = documentation_name(service, "errorDocumentation");
     let links = &links.naming("m.", crate::names::CLIENT_SCOPE, "");
     let mut out = String::new();
     for (id, structure) in error_shapes(service) {
@@ -48,7 +50,9 @@ pub(crate) fn emit(service: &Service, links: &Links<'_>, diagnostics: &mut Diagn
         );
         out.push_str(&format!("export class {name} extends {exception} {{\n"));
         for member in &structure.members {
-            if INHERITED.contains(&member.name.as_str()) {
+            if INHERITED.contains(&member.name.as_str())
+                || (service.error_docs_base.is_some() && member.name == "docUrl")
+            {
                 diagnostics.push(
                     &id.with_member(&member.name),
                     format!(
@@ -85,6 +89,14 @@ pub(crate) fn emit(service: &Service, links: &Links<'_>, diagnostics: &mut Diagn
             let name = crate::names::literal(&member.name);
             format!("    if (globalThis.Object.hasOwn(fields, {name})) globalThis.Object.defineProperty(this, {name}, {{ value: fields[{name}], enumerable: true }});\n")
         }).collect::<Vec<_>>().join("");
+        let documentation = crucible_codegen_common::error_documentation(service, id)
+            .map(|_| {
+                format!(
+                    ", {helper_name}({table_name}[{}], fields)",
+                    crate::names::literal(&error.wire_code)
+                )
+            })
+            .unwrap_or_default();
         doc(
             &mut out,
             "  ",
@@ -92,7 +104,7 @@ pub(crate) fn emit(service: &Service, links: &Links<'_>, diagnostics: &mut Diagn
         );
         out.push_str(&format!(
             "  constructor(fields: globalThis.Record<string, unknown>, metadata: ResponseMetadata) {{\n    \
-             super({}, typeof fields.message === \"string\" ? fields.message : \"\", metadata, \"{fault}\", {retryable});\n\
+             super({}, typeof fields.message === \"string\" ? fields.message : \"\", metadata, \"{fault}\", {retryable}{documentation});\n\
              {assignments}  }}\n}}\n",
             crate::names::literal(&error.wire_code)
         ));
@@ -102,11 +114,31 @@ pub(crate) fn emit(service: &Service, links: &Links<'_>, diagnostics: &mut Diagn
     }
     let mut header = String::from(crate::HEADER);
     header.push_str(&format!("import {{ {exception}, formatModel }} from \"./runtime.js\";\nexport {{ {exception} }} from \"./runtime.js\";\n"));
+    if service.error_docs_base.is_some() {
+        header.push_str(&format!(
+            "import {{ errorDocUrl as {helper_name} }} from \"./runtime.js\";\n"
+        ));
+    }
     header.push_str(&crate::names::runtime_types(&out, &["ResponseMetadata"]));
     if out.contains("m.") {
         header.push_str("import type * as m from \"./models.js\";\n");
     }
     header.push_str(&crate::names::doc_imports(&out, false));
+    if service.error_docs_base.is_some() {
+        let table: std::collections::BTreeMap<_, _> = error_shapes(service)
+            .iter()
+            .filter_map(|(id, shape)| {
+                crucible_codegen_common::error_documentation(service, id)
+                    .map(|docs| (&shape.error.as_ref().expect("error").wire_code, docs))
+            })
+            .collect();
+        header.push_str(&format!(
+            "\nconst {table_name} = globalThis.JSON.parse({});\n",
+            crate::names::literal(
+                &serde_json::to_string(&table).expect("documentation serializes")
+            )
+        ));
+    }
     let mut shapes = crucible_codegen_common::schema(service, str::to_owned)["shapes"].clone();
     // Only error classes need formatting metadata, including their nested targets.
     let mut pending: Vec<_> = error_shapes(service)
@@ -172,6 +204,20 @@ pub(crate) fn emit(service: &Service, links: &Links<'_>, diagnostics: &mut Diagn
             crate::names::literal(&shapes.to_string())
         )
         + &out
+}
+
+fn documentation_name(service: &Service, base: &str) -> String {
+    let names = error_shapes(service)
+        .iter()
+        .map(|(id, _)| service.name_of(id))
+        .collect::<std::collections::BTreeSet<_>>();
+    let mut name = base.to_owned();
+    let mut suffix = 2;
+    while names.contains(name.as_str()) {
+        name = format!("{base}{suffix}");
+        suffix += 1;
+    }
+    name
 }
 
 fn debug_member(member: &mut serde_json::Value) {

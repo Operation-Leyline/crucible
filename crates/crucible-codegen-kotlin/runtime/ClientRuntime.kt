@@ -273,7 +273,17 @@ internal class ClientRuntime(input: ClientConfig, endpoint: String,
         }
     }
     private fun decodeError(op: JsonObject, response: WireResponse): ServiceError {
-        val body = try { (codec.parse(response.body.decodeToString()) as? JsonObject)?.toMutableMap() ?: mutableMapOf() } catch (_: Exception) { mutableMapOf() }
+        // BEGIN ERROR DOCUMENTATION
+        val documentationBodyAbsent = response.body.all { it == 0x20.toByte() || it == 0x09.toByte() || it == 0x0d.toByte() || it == 0x0a.toByte() }
+        var documentationBodyValid = documentationBodyAbsent
+        // END ERROR DOCUMENTATION
+        val body = try {
+            val parsed = codec.parse(response.body.decodeToString()) as? JsonObject
+            // BEGIN ERROR DOCUMENTATION
+            documentationBodyValid = documentationBodyAbsent || parsed != null
+            // END ERROR DOCUMENTATION
+            parsed?.toMutableMap() ?: mutableMapOf()
+        } catch (_: Exception) { mutableMapOf() }
         fun text(name: String): String? = (body[name] as? JsonPrimitive)?.takeIf { it.isString }?.content
         var name = text("__type") ?: response.header("x-crucible-error")
         val declared = op.array("errors").map { it.jsonPrimitive.content }
@@ -281,13 +291,41 @@ internal class ClientRuntime(input: ClientConfig, endpoint: String,
             declared.filter { codec.shape(it).obj("error").text("status")?.toInt() == response.status }.singleOrNull()
         if (name == null && target != null) name = codec.shape(target).text("name")
         val metadata = target?.let { codec.shape(it).obj("error") }
+        // BEGIN ERROR DOCUMENTATION
+        val documentation = metadata?.get("documentation") as? JsonObject
+        var documentationUrl = documentation?.text("url")
+        // END ERROR DOCUMENTATION
         val error = if (target == null) ServiceException() else try {
-            payloadMember(metadata!!)?.let { body[it] = payloadValue(metadata, response.body) }
+            // BEGIN ERROR DOCUMENTATION
+            if (payloadMember(metadata!!) == null && !documentationBodyValid) error("modeled error body requires object")
+            // END ERROR DOCUMENTATION
+            payloadMember(metadata!!)?.let {
+                // BEGIN ERROR DOCUMENTATION
+                if (metadata.text("payloadKind") != "document" || !documentationBodyAbsent) {
+                // END ERROR DOCUMENTATION
+                body[it] = payloadValue(metadata, response.body)
+                // BEGIN ERROR DOCUMENTATION
+                }
+                // END ERROR DOCUMENTATION
+            }
             applyHeaders(target, body, metadata!!, response)
-            codec.decode(target, JsonObject(body)) as ServiceError
+            val decoded = codec.decode(target, JsonObject(body)) as ServiceError
+            // BEGIN ERROR DOCUMENTATION
+            val member = documentation?.text("reasonMember")
+            val value = member?.let { if (body.containsKey(it)) body[it] else documentation?.get("reasonDefault") }
+            val reason = (value as? JsonPrimitive)?.takeIf { it.isString }?.content
+            if (reason != null) {
+                val pages = documentation?.get("reasonUrls") as? JsonObject
+                if (pages?.containsKey(reason) == true) documentationUrl = pages.text(reason)
+            }
+            // END ERROR DOCUMENTATION
+            decoded
         } catch (_: Exception) { ServiceException() }
         error.initialize(name ?: "UnknownError", text("message") ?: "HTTP ${response.status}", response.status,
             response.header("x-request-id") ?: text("requestId"), response.headers, metadata?.flag("retryable") == true, metadata?.flag("throttling") == true)
+        // BEGIN ERROR DOCUMENTATION
+        error.initializeDocumentation(documentationUrl)
+        // END ERROR DOCUMENTATION
         return error
     }
     private fun payloadValue(binding: JsonObject, bytes: ByteArray): JsonElement = when (binding.text("payloadKind")) {

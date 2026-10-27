@@ -134,6 +134,11 @@ class ResourcePermissions:
     permissions: tuple[PermissionDescription, ...]
 
 
+# BEGIN ERROR DOCUMENTATION
+def _reject_json_constant(value: str) -> Any:
+    raise ValueError(f"invalid JSON constant: {value}")
+# END ERROR DOCUMENTATION
+
 def _json(value: Any) -> str:
     """Write Decimal as a JSON number without passing through binary floats."""
     if isinstance(value, Decimal):
@@ -162,6 +167,9 @@ class ServiceError(Exception):
     """Error response with name, message, metadata, retry classification and decoded modeled fields."""
     def __init__(self, *, name: str, message: str, metadata: ResponseMetadata,
                  retryable: bool = False, throttling: bool = False,
+# BEGIN ERROR DOCUMENTATION
+                 doc_url: str | None = None,
+# END ERROR DOCUMENTATION
                  fields: dict[str, Any] | None = None) -> None:
         super().__init__(message)
         self.name = name
@@ -170,6 +178,10 @@ class ServiceError(Exception):
         self.retryable = retryable
         self.throttling = throttling
         self.fields = fields or {}
+# BEGIN ERROR DOCUMENTATION
+        # Selected from generated metadata, never from the response's fields.
+        self.doc_url = doc_url
+# END ERROR DOCUMENTATION
 
     def __getattr__(self, name: str) -> Any:
         try:
@@ -268,15 +280,30 @@ class _Codec:
         self.classes = classes
 
     def convert(self, target: str | None, value: Any, *, decode: bool = False,
-                fmt: str | None = None) -> Any:
+                fmt: str | None = None, strict: bool = False) -> Any:
         if target is None:
             return None
         shape = self.shapes[target]
         if shape["kind"] == "unit" and not isinstance(value, Unset):
+            if strict and value is not None and (not isinstance(value, dict) or value):
+                raise ValueError("unit requires an empty object")
             return None if decode else {}
         if value is None or isinstance(value, Unset):
             return value
         kind = shape["kind"]
+        if strict:
+            if kind == "string" and not isinstance(value, str):
+                raise ValueError("string requires text")
+            if kind == "boolean" and not isinstance(value, bool):
+                raise ValueError("boolean requires bool")
+            if kind in ("float", "double") and (isinstance(value, bool) or not (
+                    isinstance(value, (int, float, Decimal))
+                    or isinstance(value, str) and value in ("NaN", "Infinity", "-Infinity"))):
+                raise ValueError("float requires a number or a modeled nonfinite literal")
+            if kind == "list" and not isinstance(value, list):
+                raise ValueError("list requires an array")
+            if kind == "map" and not isinstance(value, dict):
+                raise ValueError("map requires an object")
         if kind == "timestamp":
             return _timestamp(value, fmt or shape["format"], decode)
         if kind == "blob":
@@ -302,7 +329,7 @@ class _Codec:
             member = shape["member"]
             if not shape.get("sparse", False) and any(v is None for v in value):
                 raise ValueError("Null element in non-sparse list")
-            converted = [self.convert(member["target"], v, decode=decode, fmt=member["format"]) for v in value]
+            converted = [self.convert(member["target"], v, decode=decode, fmt=member["format"], strict=strict) for v in value]
             if shape.get("set", False) and any(item in converted[:index] for index, item in enumerate(converted)):
                 raise ValueError("duplicate element in set")
             return converted
@@ -310,39 +337,9 @@ class _Codec:
             member = shape["value"]
             if not shape.get("sparse", False) and any(v is None for v in value.values()):
                 raise ValueError("Null value in non-sparse map")
-            return {self.convert(shape["key"]["target"], k, decode=decode): self.convert(member["target"], v, decode=decode, fmt=member["format"]) for k, v in value.items()}
+            return {self.convert(shape["key"]["target"], k, decode=decode, strict=strict): self.convert(member["target"], v, decode=decode, fmt=member["format"], strict=strict) for k, v in value.items()}
         if kind in ("structure", "union"):
-            if decode and not isinstance(value, dict):
-                raise ValueError(f"expected an object for {shape['name']}")
-            out: dict[str, Any] = {}
-            for key, m in shape["members"].items():
-                native = m["attribute"]
-                item = value.get(key, UNSET) if isinstance(value, dict) else getattr(value, native, UNSET)
-                if isinstance(item, Unset) and decode and m["default"] is not None:
-                    item = copy.deepcopy(m["default"])
-                if isinstance(item, Unset):
-                    if kind == "structure" and m.get("optional") is False:
-                        raise ValueError(f"missing required member: {key}")
-                    continue
-                if (kind == "structure" and item is None and m.get("optional") is False
-                        and self.shapes[m["target"]]["kind"] != "document"):
-                    raise ValueError(f"null for nonoptional member: {key}")
-                out[native if decode else key] = self.convert(m["target"], item, decode=decode, fmt=m["format"])
-            if kind == "union":
-                if decode:
-                    if len(value) != 1:
-                        raise ValueError("a union must contain exactly one member")
-                    wire = next(iter(value))
-                    if wire not in shape["members"]:
-                        out["_unknown"] = (wire, value[wire])
-                else:
-                    unknown = getattr(value, "_unknown", UNSET)
-                    if not isinstance(unknown, Unset):
-                        if unknown[0] in shape["members"]:
-                            raise ValueError("unknown union member collides with a known member")
-                        out[unknown[0]] = unknown[1]
-                    if len(out) != 1:
-                        raise ValueError("a union must contain exactly one member")
+            out = self.members(shape, value, decode=decode, strict=strict)
             return self.classes[target](**out) if decode else out
         if kind in ("byte", "short", "integer", "long"):
             bits = {"byte": 8, "short": 16, "integer": 32, "long": 64}[kind]
@@ -352,6 +349,43 @@ class _Codec:
             if isinstance(value, Decimal):
                 return float(value)
         return value
+
+    def members(self, shape: dict[str, Any], value: Any, *, decode: bool,
+                strict: bool = False) -> dict[str, Any]:
+        """Decode the shared structure/union members before constructing its model."""
+        kind = shape["kind"]
+        if decode and not isinstance(value, dict):
+            raise ValueError(f"expected an object for {shape['name']}")
+        out: dict[str, Any] = {}
+        for key, m in shape["members"].items():
+            native = m["attribute"]
+            item = value.get(key, UNSET) if isinstance(value, dict) else getattr(value, native, UNSET)
+            if isinstance(item, Unset) and decode and m["default"] is not None:
+                item = copy.deepcopy(m["default"])
+            if isinstance(item, Unset):
+                if kind == "structure" and m.get("optional") is False:
+                    raise ValueError(f"missing required member: {key}")
+                continue
+            if (kind == "structure" and item is None and m.get("optional") is False
+                    and self.shapes[m["target"]]["kind"] != "document"):
+                raise ValueError(f"null for nonoptional member: {key}")
+            out[native if decode else key] = self.convert(m["target"], item, decode=decode, fmt=m["format"], strict=strict)
+        if kind == "union":
+            if decode:
+                if len(value) != 1:
+                    raise ValueError("a union must contain exactly one member")
+                wire = next(iter(value))
+                if wire not in shape["members"]:
+                    out["_unknown"] = (wire, value[wire])
+            else:
+                unknown = getattr(value, "_unknown", UNSET)
+                if not isinstance(unknown, Unset):
+                    if unknown[0] in shape["members"]:
+                        raise ValueError("unknown union member collides with a known member")
+                    out[unknown[0]] = unknown[1]
+                if len(out) != 1:
+                    raise ValueError("a union must contain exactly one member")
+        return out
 
     def bound(self, member: dict[str, Any], value: Any, *, header: bool = False, encoding: str | None = None, fmt: str | None = None) -> str:
         shape = self.shapes[member["target"]]
@@ -608,11 +642,22 @@ class _Base:
                 values[member] = self._codec.convert(m["target"], parsed, fmt=m["format"])
 
     @staticmethod
-    def _payload(bindings: dict[str, Any], body: bytes) -> Any:
+    def _payload(bindings: dict[str, Any], body: bytes,
+# BEGIN ERROR DOCUMENTATION
+                 *, error_json: tuple[bool, Any] | None = None,
+# END ERROR DOCUMENTATION
+                 ) -> Any:
         kind = bindings.get("payloadKind", "blob")
         if kind == "string":
             return body.decode("utf-8")
         if kind == "document":
+# BEGIN ERROR DOCUMENTATION
+            if error_json is not None:
+                valid, value = error_json
+                if not valid:
+                    raise ValueError("error document payload requires valid JSON")
+                return value
+# END ERROR DOCUMENTATION
             return json.loads(body, parse_float=Decimal) if body else None
         return body
 
@@ -628,8 +673,22 @@ class _Base:
                                       if payload is not None else json.loads(body, parse_float=Decimal) if body else {})
             self._response_bindings(target, op["response"], response, values)
             return self._codec.convert(target, values, decode=True)
+# BEGIN ERROR DOCUMENTATION
+        documentation_body_absent = not body.strip(b" \t\r\n")
+        documentation_body_valid = documentation_body_absent
+        documentation_json: tuple[bool, Any] = (documentation_body_absent, None)
+# END ERROR DOCUMENTATION
         try:
-            fields = json.loads(body, parse_float=Decimal)
+            fields = json.loads(
+                body, parse_float=Decimal,
+# BEGIN ERROR DOCUMENTATION
+                parse_constant=_reject_json_constant,
+# END ERROR DOCUMENTATION
+            )
+# BEGIN ERROR DOCUMENTATION
+            documentation_body_valid = isinstance(fields, dict)
+            documentation_json = (True, fields)
+# END ERROR DOCUMENTATION
         except (ValueError, UnicodeDecodeError):
             fields = {}
         if not isinstance(fields, dict):
@@ -655,18 +714,48 @@ class _Base:
             try:
                 payload = error.get("payload")
                 if payload is not None:
+# BEGIN ERROR DOCUMENTATION
+                    if error.get("payloadKind") == "document" and documentation_body_absent:
+                        fields = {}
+                    else:
+                        fields = {payload[0]: self._payload(error, body, error_json=documentation_json)}
+# END ERROR DOCUMENTATION
+# BEGIN LEGACY ERROR MEMBERS
                     fields = {payload[0]: self._payload(error, body)}
+# END LEGACY ERROR MEMBERS
                 self._response_bindings(target, error, response, fields)
+# BEGIN ERROR DOCUMENTATION
+                if payload is None and not documentation_body_valid:
+                    raise ValueError("modeled error body requires an object")
+                converted = self._codec.members(shape, fields, decode=True, strict=True)
+# END ERROR DOCUMENTATION
+# BEGIN LEGACY ERROR MEMBERS
                 for key, m in shape["members"].items():
                     converted[m["attribute"]] = self._codec.convert(m["target"], fields.get(key, UNSET), decode=True, fmt=m["format"])
+# END LEGACY ERROR MEMBERS
                 cls = self._codec.classes[target]
             except (ValueError, TypeError, OverflowError, AttributeError):
                 # A malformed modeled member must not hide the HTTP failure or its retry policy.
                 converted = {}
+# BEGIN ERROR DOCUMENTATION
+        doc_url = None
+        documentation = error.get("documentation")
+        if target is not None and documentation is not None:
+            doc_url = documentation["url"]
+            member = documentation["reasonMember"]
+            if member is not None:
+                attribute = self._codec.shapes[target]["members"][member]["attribute"]
+                reason = converted.get(attribute, UNSET)
+                if isinstance(reason, str):
+                    doc_url = documentation["reasonUrls"].get(reason, doc_url)
+# END ERROR DOCUMENTATION
         message = fields.get("message")
         raise cls(name=name if name is not None else "UnknownError",
                   message=message if isinstance(message, str) else f"HTTP {response.status_code}",
                   metadata=metadata, retryable=error.get("retryable", False),
+# BEGIN ERROR DOCUMENTATION
+                  doc_url=doc_url,
+# END ERROR DOCUMENTATION
                   throttling=error.get("throttling", False), fields=converted)
 
     def _delay(self, attempt: int, response: httpx.Response | None) -> float:

@@ -104,6 +104,16 @@ and reject a token repeated immediately; they do not track all past tokens.
 
 ## Models and errors
 
+When the service declares [`errorDocs`](../idl/reference.md#error-documentation),
+service errors expose optional `docUrl`. It selects a static page for the error
+code and known designated reason. An absent reason applies its model default;
+otherwise absence, null and future values use the code page. An unknown error
+identity has no URL. Malformed fields on a recognized error retain its code page.
+Documentation URLs are generated from the model,
+independently of any similarly named wire field. A configured service cannot use
+`docUrl` as an error member. Without a documentation base, the generated error
+API keeps its existing members and has no added `docUrl` property.
+
 Strings, booleans, arrays, and objects use JavaScript values. Blobs are
 `Uint8Array`: standard padded base64 in JSON and raw bytes for `@httpPayload`.
 Optional fields use `undefined` for omission. The runtime preserves explicit

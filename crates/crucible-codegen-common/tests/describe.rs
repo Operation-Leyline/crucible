@@ -72,6 +72,72 @@ fn load(name: &str) -> crucible_ir::ir::Service {
 }
 
 #[test]
+fn error_reasons_and_urls_use_the_projected_ir_in_descriptions_and_runtime_schemas() {
+    let service = project(&load("error-docs"), Audience::External).unwrap();
+    let description = describe::describe(&service).unwrap();
+    assert_eq!(
+        description.service["errorDocsBase"],
+        "https://docs.example.test/errors"
+    );
+    let error = &description.shapes["example.error_docs#Denied"]["error"];
+    assert_eq!(error["reasonMember"], "detail");
+    assert_eq!(error["docUrl"], "https://docs.example.test/errors/Denied");
+    let reasons = error["reasons"].as_array().unwrap();
+    assert_eq!(reasons.len(), 4);
+    assert_eq!(reasons[0]["value"], "");
+    assert_eq!(
+        reasons[0]["docUrl"],
+        "https://docs.example.test/errors/Denied/reason-"
+    );
+    assert!(!description.to_json().contains("secret"));
+    let runtime = crucible_codegen_common::schema(&service, str::to_owned);
+    let docs = &runtime["shapes"]["example.error_docs#HeaderError"]["error"]["documentation"];
+    assert_eq!(docs["reasonMember"], "reason");
+    assert_eq!(
+        docs["reasonUrls"]["access/needed"],
+        "https://docs.example.test/errors/HeaderError/reason-access%2Fneeded"
+    );
+    assert!(docs["reasonUrls"].get("secret").is_none());
+    assert!(docs.get("reasonDefault").is_none());
+    for (name, expected) in [
+        ("DefaultReason", "access/needed"),
+        ("DefaultEmptyReason", ""),
+    ] {
+        let docs =
+            &runtime["shapes"][format!("example.error_docs#{name}")]["error"]["documentation"];
+        assert_eq!(docs["reasonDefault"], expected);
+        assert_eq!(docs.as_object().unwrap().len(), 4);
+    }
+    assert_eq!(docs.as_object().unwrap().len(), 3);
+
+    assert_eq!(
+        description.shapes["example.error_docs#PlainError"]["error"]["reasons"],
+        serde_json::json!([])
+    );
+    let mut without_base = service.clone();
+    without_base.error_docs_base = None;
+    let description = describe::describe(&without_base).unwrap();
+    assert_eq!(
+        description.shapes["example.error_docs#Denied"]["error"]["reasons"]
+            .as_array()
+            .unwrap()
+            .len(),
+        4
+    );
+    assert!(
+        description.shapes["example.error_docs#Denied"]["error"]
+            .get("docUrl")
+            .is_none()
+    );
+    let runtime = crucible_codegen_common::schema(&without_base, str::to_owned);
+    assert!(
+        runtime["shapes"]["example.error_docs#Denied"]["error"]
+            .get("documentation")
+            .is_none()
+    );
+}
+
+#[test]
 fn error_examples_use_the_body_and_header_discriminators() {
     let service = load("weather");
     let description = describe::describe(&service).unwrap();
@@ -213,4 +279,55 @@ fn a_doc_link_cannot_be_forged_or_break_out_of_its_attribute() {
         // What remains is the author's own link, never a doc link anchor.
         assert!(!html.contains("data-crucible-ref"), "{markdown}: {html}");
     }
+}
+
+#[test]
+fn frozen_error_documentation_roles_are_not_inferred_from_current_bundled_definitions() {
+    let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../e2e/weather-service/versioned");
+    let service = crucible_lang::load_versioned_service(&dir).unwrap();
+    let id = crucible_ir::ShapeId::new("crucible.errors", "ValidationException");
+    assert_eq!(
+        service
+            .error_documentation(&id)
+            .unwrap()
+            .reason_member
+            .as_deref(),
+        Some("reason")
+    );
+    let mut checked = 0;
+    for version in &service.versions {
+        let frozen = &version.release;
+        let Some(documentation) = frozen.error_documentation(&id) else {
+            continue;
+        };
+        checked += 1;
+        // Older releases froze this member before @errorReason existed.
+        assert_eq!(documentation.reason_member, None);
+        assert!(documentation.reasons.is_empty());
+        let before = describe::describe(frozen).unwrap();
+        assert_eq!(
+            before.shapes[&id.to_string()]["error"]["reasons"],
+            serde_json::json!([])
+        );
+        let mut annotated = frozen.clone();
+        let crucible_ir::ir::Shape::Structure(shape) = annotated.shapes.get_mut(&id).unwrap()
+        else {
+            panic!()
+        };
+        shape.error.as_mut().unwrap().reason_member = Some("reason".into());
+        let after = describe::describe(&annotated).unwrap();
+        assert_eq!(
+            after.shapes[&id.to_string()]["error"]["reasonMember"],
+            "reason"
+        );
+        assert_eq!(
+            after.shapes[&id.to_string()]["error"]["reasons"]
+                .as_array()
+                .unwrap()
+                .len(),
+            4
+        );
+    }
+    assert!(checked > 0);
 }

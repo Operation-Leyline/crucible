@@ -1,0 +1,95 @@
+service Troubleshooting {
+    version "1"
+    protocol json
+    errorDocs "https://docs.example.test/errors/"
+    errors [Denied, HeaderError, PayloadError, PlainError, RequiredReason, MappedReasonError, DefaultReason, DefaultEmptyReason, BlobPayloadError, DocumentPayloadError]
+    operations [Inspect]
+}
+
+readonly operation Inspect {
+    http GET "/inspect"
+    output {}
+}
+
+error Denied {
+    status 403
+    message: string
+    @errorReason
+    detail?: Reason
+}
+
+error HeaderError {
+    status 409
+    message: string
+    @errorReason
+    @header("X-Error-Reason")
+    reason?: Reason
+}
+
+error PayloadError {
+    status 422
+    @errorReason
+    @payload
+    reason?: Reason
+}
+
+error PlainError {
+    status 400
+    message: string
+    reason?: Reason
+}
+
+error RequiredReason {
+    status 402
+    @errorReason
+    reason: Reason
+}
+
+error MappedReasonError {
+    status 418
+    message: string
+    @errorReason
+    failureReason?: Reason
+}
+
+enum Reason {
+    EMPTY = ""
+    /// The resource owner must grant access.
+    ACCESS = "access/needed"
+    /// A value that must remain a single path segment.
+    DOT = ".."
+    UNICODE = "café"
+    internal SECRET = "secret"
+}
+
+error DefaultReason {
+    status 419
+    message: string = "denied"
+    @errorReason
+    detail: Reason = ACCESS
+}
+
+error DefaultEmptyReason {
+    status 420
+    message: string = "denied"
+    @errorReason
+    detail: Reason = EMPTY
+}
+
+error BlobPayloadError {
+    status 421
+    @errorReason
+    @header("X-Error-Reason")
+    reason?: Reason
+    @payload
+    data?: blob
+}
+
+error DocumentPayloadError {
+    status 423
+    @errorReason
+    @header("X-Error-Reason")
+    reason?: Reason
+    @payload
+    data?: document
+}

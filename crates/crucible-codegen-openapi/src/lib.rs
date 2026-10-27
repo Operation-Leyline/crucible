@@ -30,6 +30,7 @@ pub fn capabilities() -> Capabilities {
         Feature::ErrorPayload,
         Feature::MediaTypeHeaders,
         Feature::ServerStreaming,
+        Feature::ErrorDocumentation,
     ])
 }
 
@@ -118,7 +119,11 @@ pub fn generate(service: &Service, options: &Options) -> Result<String, Diagnost
     description(service, &mut info, service.docs.as_deref());
     let mut schemas = Map::new();
     for (id, shape) in &service.shapes {
-        schemas.insert(key(id), schemas::shape(service, shape));
+        let mut value = schemas::shape(service, shape);
+        if let Some(documentation) = crucible_codegen_common::error_documentation(service, id) {
+            value["x-crucible-error-documentation"] = documentation;
+        }
+        schemas.insert(key(id), value);
     }
     let mut paths = Map::new();
     let mut ops: Vec<_> = service.operations.iter().collect();

@@ -6,6 +6,15 @@
 
 Type: <code>structure</code>.
 
+## Reasons
+
+Designated member: <code>reason</code>.
+
+- <code>cannotParse</code>
+- <code>fieldValidationFailed</code>
+- <code>other</code>
+- <code>unknownOperation</code>
+
 ## Members
 
 | Member | Wire location | Type | Required | Default | Constraints | Description |

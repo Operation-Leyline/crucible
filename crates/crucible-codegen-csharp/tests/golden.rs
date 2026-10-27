@@ -359,3 +359,45 @@ fn doc_links_are_see_cref_elements() {
     assert!(client.contains("<c>[NotALink]</c> in code"), "{client}");
     assert!(!all.contains("Models.Secret\"") && !all.contains("RevealAsync\""));
 }
+
+#[test]
+fn configured_error_documentation_preserves_unconfigured_runtime() {
+    let service = crucible_lang::load_service(&model_dir("error-docs")).unwrap();
+    let files = emit(&service, &options()).expect("configured error documentation is supported");
+    let runtime = files
+        .iter()
+        .find(|file| file.path == "ServiceError.cs")
+        .unwrap();
+    assert!(runtime.contents.contains("DocUrl"));
+    let ordinary = emit(&weather(), &options()).unwrap();
+    let runtime = ordinary
+        .iter()
+        .find(|file| file.path == "ServiceError.cs")
+        .unwrap();
+    assert!(!runtime.contents.contains("DocUrl"));
+}
+
+#[test]
+fn documentation_member_collision_is_configured_only() {
+    let mut service = crucible_lang::load_service(&model_dir("error-docs")).unwrap();
+    let id = service
+        .shapes
+        .keys()
+        .find(|id| id.name() == "Denied")
+        .unwrap()
+        .clone();
+    if let crucible_ir::ir::Shape::Structure(shape) = service.shapes.get_mut(&id).unwrap() {
+        shape
+            .members
+            .iter_mut()
+            .find(|m| m.name == "message")
+            .unwrap()
+            .name = "docUrl".into();
+    }
+    let diagnostics = emit(&service, &options())
+        .err()
+        .expect("configured documentation collision");
+    assert!(format!("{diagnostics:?}").contains("DocUrl"));
+    service.error_docs_base = None;
+    emit(&service, &options()).expect("no-base modeled DocUrl remains allowed");
+}
