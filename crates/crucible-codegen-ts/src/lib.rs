@@ -326,7 +326,14 @@ fn runtime(service: &Service) -> String {
             include = configured;
             continue;
         }
-        if line.trim() == "// END ERROR DOCUMENTATION" {
+        if line.trim() == "// BEGIN LEGACY ERROR MEMBERS" {
+            include = !configured;
+            continue;
+        }
+        if matches!(
+            line.trim(),
+            "// END ERROR DOCUMENTATION" | "// END LEGACY ERROR MEMBERS"
+        ) {
             include = true;
             continue;
         }

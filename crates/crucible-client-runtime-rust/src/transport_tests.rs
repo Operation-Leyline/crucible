@@ -648,7 +648,9 @@ fn documentation_json_payload_guard_preserves_values_and_absence() {
         b"null",
         br#""NaN""#,
     ] {
-        assert!(decode_documented_modelled::<Document>(&INFO, &headers, body).is_some());
+        let expected = serde_json::from_slice::<Option<Value>>(body).unwrap();
+        let decoded = decode_documented_modelled::<Document>(&INFO, &headers, body).unwrap();
+        assert_eq!(decoded.data, expected, "payload {body:?}");
     }
     // Preserve the legacy reader's existing form-feed-as-absence behavior;
     // configured documentation enforces the canonical JSON syntax boundary.

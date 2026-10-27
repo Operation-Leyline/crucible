@@ -994,7 +994,12 @@ export class Transport {
     const documentationJsonValid = documentationBodyAbsent || parsed !== undefined;
     const documentationBodyValid = documentationBodyAbsent || (parsed !== null && typeof parsed === "object" && !Array.isArray(parsed));
     // END ERROR DOCUMENTATION
+    // BEGIN ERROR DOCUMENTATION
     let body = (parsed !== null && typeof parsed === "object" ? parsed : {}) as Record<string, unknown>;
+    // END ERROR DOCUMENTATION
+    // BEGIN LEGACY ERROR MEMBERS
+    const body = (parsed !== null && typeof parsed === "object" ? parsed : {}) as Record<string, unknown>;
+    // END LEGACY ERROR MEMBERS
     const metadata: ResponseMetadata = {
       status: response.status,
       requestId: response.headers.get("x-request-id") ?? response.headers.get("x-amzn-requestid") ?? response.headers.get("x-amz-request-id") ?? stringField(body, "requestId"),
@@ -1007,6 +1012,9 @@ export class Transport {
       const message = stringField(body, "message") ?? `${operation.name} failed with HTTP ${response.status}`;
       return new ServiceException(name ?? "UnknownError", message, metadata, response.status >= 500 ? "server" : "client");
     }
+    // BEGIN ERROR DOCUMENTATION
+    const documentationMessage = stringField(body, "message");
+    // END ERROR DOCUMENTATION
     let fields: Record<string, unknown>;
     try {
       // BEGIN ERROR DOCUMENTATION
@@ -1014,16 +1022,24 @@ export class Transport {
       if (spec.payloadKind === "document" && !documentationJsonValid) throw new TypeError("error document payload requires valid JSON");
       if (spec.payloadKind === "document") body = {};
       // END ERROR DOCUMENTATION
+      // BEGIN ERROR DOCUMENTATION
       if (spec.payload!==undefined
-        // BEGIN ERROR DOCUMENTATION
         && !(spec.payloadKind === "document" && documentationBodyAbsent)
-        // END ERROR DOCUMENTATION
       ) Object.defineProperty(body,spec.payload,{value:decodePayload(spec.payloadKind,bytes),writable:true,configurable:true,enumerable:true});
+      // END ERROR DOCUMENTATION
+      // BEGIN LEGACY ERROR MEMBERS
+      if (spec.payload!==undefined) Object.defineProperty(body,spec.payload,{value:decodePayload(spec.payloadKind,bytes),writable:true,configurable:true,enumerable:true});
+      // END LEGACY ERROR MEMBERS
       readHeaders(response.headers, spec.headers, body, true, spec.headerEncodings);
       fields = fromWire(spec.schema, body) as Record<string, unknown>;
     } catch (error) {
       if (!(error instanceof TypeError || error instanceof RangeError || error instanceof DOMException)) throw error;
+      // BEGIN ERROR DOCUMENTATION
+      return new ServiceException(name!, stringField(body, "message") ?? documentationMessage ?? `${operation.name} failed with HTTP ${response.status}`,
+      // END ERROR DOCUMENTATION
+      // BEGIN LEGACY ERROR MEMBERS
       return new ServiceException(name!, stringField(body, "message") ?? `${operation.name} failed with HTTP ${response.status}`,
+      // END LEGACY ERROR MEMBERS
         metadata, spec.fault ?? (response.status >= 500 ? "server" : "client"), spec.retryable
         // BEGIN ERROR DOCUMENTATION
         , spec.documentation?.url

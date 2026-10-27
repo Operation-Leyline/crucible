@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { TroubleshootingClient, TroubleshootingException, Denied, DefaultReason, DefaultEmptyReason } from "./generated-error-docs/src/index.js";
+import { Transport, document, integer, string, structure } from "./generated-error-docs/src/runtime.js";
+import { errors, Inspect } from "./generated-error-docs/src/schemas.js";
 import { NotFoundError } from "./generated/src/index.js";
 
 const base = "https://docs.example.test/errors";
@@ -94,4 +96,29 @@ test("constructed defaulted errors distinguish undefined from null and future va
     assert.equal(new DefaultReason({ detail }, metadata).docUrl, `${base}/DefaultReason`);
   }
   assert.equal(new DefaultEmptyReason({}, metadata).docUrl, `${base}/DefaultEmptyReason/reason-`);
+});
+
+
+test("document payload decoding fallback preserves the response diagnostic", async () => {
+  // A malformed modeled integer header forces fallback after payload decoding.
+  const transport = new Transport({
+    endpoint: "https://api.example.test",
+    fetch: async () => new Response('{"message":"payload diagnostic"}', {
+      status: 423,
+      headers: { "X-Crucible-Error": "DocumentPayloadError", "X-Error-Reason": "access/needed", "X-Count": "invalid" },
+    }),
+  }, { middleware: [], bearer: false }, {
+    ...errors,
+    DocumentPayloadError: {
+      ...errors.DocumentPayloadError,
+      headers: [["reason", "X-Error-Reason"], ["count", "X-Count", integer(32)]],
+      schema: structure(() => ({ reason: string, count: integer(32), data: document }), {}, []),
+    },
+  });
+  await assert.rejects(transport.send(Inspect, {}), (error: unknown) => {
+    assert.ok(error instanceof TroubleshootingException);
+    assert.equal(error.docUrl, `${base}/DocumentPayloadError`);
+    assert.equal(error.message, "payload diagnostic");
+    return true;
+  });
 });
