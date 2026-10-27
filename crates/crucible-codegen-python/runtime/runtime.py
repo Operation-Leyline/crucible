@@ -134,6 +134,11 @@ class ResourcePermissions:
     permissions: tuple[PermissionDescription, ...]
 
 
+# BEGIN ERROR DOCUMENTATION
+def _reject_json_constant(value: str) -> Any:
+    raise ValueError(f"invalid JSON constant: {value}")
+# END ERROR DOCUMENTATION
+
 def _json(value: Any) -> str:
     """Write Decimal as a JSON number without passing through binary floats."""
     if isinstance(value, Decimal):
@@ -661,7 +666,12 @@ class _Base:
         documentation_body_valid = not body.strip(b" \t\r\n")
 # END ERROR DOCUMENTATION
         try:
-            fields = json.loads(body, parse_float=Decimal)
+            fields = json.loads(
+                body, parse_float=Decimal,
+# BEGIN ERROR DOCUMENTATION
+                parse_constant=_reject_json_constant,
+# END ERROR DOCUMENTATION
+            )
 # BEGIN ERROR DOCUMENTATION
             documentation_body_valid = isinstance(fields, dict)
 # END ERROR DOCUMENTATION

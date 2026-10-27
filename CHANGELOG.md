@@ -22,7 +22,8 @@ version's section when it is prepared.
   and static documentation URLs. Configured Rust, TypeScript, Python, Go, Java,
   Kotlin and C# SDK errors expose native URL accessors; other SDK targets diagnose
   the unsupported capability until their runtime supports it. URL selection uses
-  model defaults for omitted reasons. Error wire responses are unchanged.
+  model defaults for omitted reasons. Served release projections retain valid
+  reason roles across retypes and member renames. Error wire responses are unchanged.
 
 - Operation documentation can use conventional `Use when` and `Don't use when`
   Markdown sections. Lowering preserves the original prose and records optional

@@ -623,6 +623,9 @@ async fn main() {
     let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
     let endpoint = format!("http://{}", listener.local_addr().unwrap());
     let cases = [
+        (403, "X-Crucible-Error: Denied\r\n", r#"{"message":"denied","detail":"access/needed","extra":NaN}"#, Some("Denied")),
+        (403, "X-Crucible-Error: Denied\r\n", r#"{"message":"denied","detail":"access/needed","extra":Infinity}"#, Some("Denied")),
+        (403, "X-Crucible-Error: Denied\r\n", r#"{"message":"denied","detail":"access/needed","extra":-Infinity}"#, Some("Denied")),
         (419, "X-Crucible-Error: DefaultReason\r\n", " \t\r\n ", Some("DefaultReason/reason-access%2Fneeded")),
         (419, "X-Crucible-Error: DefaultReason\r\n", "\u{000b}", Some("DefaultReason")),
         (419, "X-Crucible-Error: DefaultReason\r\n", "\u{00a0}", Some("DefaultReason")),

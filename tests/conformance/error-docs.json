@@ -442,6 +442,33 @@
       "header": null,
       "docUrl": "https://docs.example.test/errors/DefaultEmptyReason",
       "typed": false
+    },
+    {
+      "name": "nonfinite-NaN",
+      "status": 403,
+      "identity": "Denied",
+      "body": "{\"message\":\"denied\",\"detail\":\"access/needed\",\"extra\":NaN}",
+      "header": null,
+      "docUrl": "https://docs.example.test/errors/Denied",
+      "typed": false
+    },
+    {
+      "name": "nonfinite-Infinity",
+      "status": 403,
+      "identity": "Denied",
+      "body": "{\"message\":\"denied\",\"detail\":\"access/needed\",\"extra\":Infinity}",
+      "header": null,
+      "docUrl": "https://docs.example.test/errors/Denied",
+      "typed": false
+    },
+    {
+      "name": "nonfinite--Infinity",
+      "status": 403,
+      "identity": "Denied",
+      "body": "{\"message\":\"denied\",\"detail\":\"access/needed\",\"extra\":-Infinity}",
+      "header": null,
+      "docUrl": "https://docs.example.test/errors/Denied",
+      "typed": false
     }
   ]
 }

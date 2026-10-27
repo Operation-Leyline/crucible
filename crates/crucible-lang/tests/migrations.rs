@@ -2435,6 +2435,31 @@ fn reason_designation_survives_three_release_retypes_and_member_renames() {
                 .as_deref(),
             Some(current)
         );
+        let stored = service.versions[0]
+            .service
+            .error_documentation(&id)
+            .unwrap();
+        let line = crucible_ir::versions::line(&service, "v1").unwrap();
+        let served = line.error_documentation(&id).unwrap();
+        assert_eq!(
+            (
+                stored.reason_member.as_deref(),
+                served.reason_member.as_deref()
+            ),
+            (Some(old), Some(old))
+        );
+        assert_eq!(
+            served.reasons[0].url.as_deref(),
+            Some("https://docs.test/errors/Problem/reason-access%2Fneeded")
+        );
+        assert_eq!(
+            service.versions[1]
+                .service
+                .error_documentation(&id)
+                .unwrap()
+                .reason_member,
+            None
+        );
         let versions = crucible_ir::versions::projections(&service).unwrap();
         let oldest = versions[0].service.error_documentation(&id).unwrap();
         assert_eq!(oldest.reason_member.as_deref(), Some(old));

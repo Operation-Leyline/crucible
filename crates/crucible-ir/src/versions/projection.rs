@@ -49,12 +49,48 @@ pub struct Projection {
 /// definition neither model has, an older requirement with no current
 /// permission, and every problem the IR's own checks find in a projection.
 pub fn projections(service: &Service) -> Result<Vec<Projection>, Diagnostics> {
+    project_chain(service, &service.versions)
+}
+
+/// Reconciles reason designations on the served projections of a checked chain.
+///
+/// `versions` is the checked chain in oldest-first order, as `Service::versions`
+/// stores it. The compiler checks each `ApiVersion::service` with source-owned
+/// diagnostics first. This shared chain analysis then follows the current role
+/// through every undo and rename, including across scalar intermediate releases.
+/// Only `ErrorInfo::reason_member` on matching existing error definitions changes;
+/// stored shapes, bindings, defaults and frozen releases remain untouched.
+pub fn reconcile_error_reason_projections(
+    current: &Service,
+    versions: &mut [ApiVersion],
+) -> Result<(), Diagnostics> {
+    let canonical = project_chain(current, versions)?;
+    for (version, projection) in versions.iter_mut().zip(canonical) {
+        for (id, shape) in &projection.service.shapes {
+            let Shape::Structure(shape) = shape else {
+                continue;
+            };
+            let Some(reason) = &shape.error else { continue };
+            if let Some(Shape::Structure(stored)) = version.service.shapes.get_mut(id)
+                && let Some(error) = &mut stored.error
+            {
+                error.reason_member = reason.reason_member.clone();
+            }
+        }
+    }
+    Ok(())
+}
+
+fn project_chain(
+    service: &Service,
+    versions: &[ApiVersion],
+) -> Result<Vec<Projection>, Diagnostics> {
     let mut errors = Diagnostics::default();
-    let mut out: Vec<Projection> = Vec::with_capacity(service.versions.len());
+    let mut out: Vec<Projection> = Vec::with_capacity(versions.len());
     // A scalar intermediate release hides its role in public IR, but must
     // not erase the current designation before an older enum is restored.
     let mut canonical = None;
-    for version in service.versions.iter().rev() {
+    for version in versions.iter().rev() {
         let newer = canonical.as_ref().unwrap_or(service);
         let mut warnings = Diagnostics::default();
         let (mut projected, restored) =

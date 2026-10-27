@@ -267,6 +267,22 @@ fn versions_with(
         projected = Some(projection);
     }
     out.versions.reverse();
+    // Source-owned checks above keep their existing diagnostics. After a valid
+    // chain, the IR reconciles documentation roles on the actual served models.
+    if !out.has_errors()
+        && let Err(problems) =
+            crucible_ir::versions::reconcile_error_reason_projections(service, &mut out.versions)
+    {
+        for problem in problems.iter() {
+            out.push(
+                None,
+                Diagnostic::new(
+                    Span::default(),
+                    format!("{}: {}", problem.shape, problem.message),
+                ),
+            );
+        }
+    }
     out
 }
 

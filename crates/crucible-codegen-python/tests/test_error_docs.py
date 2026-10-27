@@ -49,6 +49,9 @@ def cases():
     yield "DefaultEmptyReason-json-whitespace", "DefaultEmptyReason", 420, b' \t\r\n ', {}, "DefaultEmptyReason/reason-", None, None
     yield "DefaultEmptyReason-vertical-tab", "DefaultEmptyReason", 420, b'\x0b', {}, "DefaultEmptyReason", None, None
     yield "DefaultEmptyReason-nonbreaking-space", "DefaultEmptyReason", 420, b'\xc2\xa0', {}, "DefaultEmptyReason", None, None
+    yield "nonfinite-NaN", "Denied", 403, b'{"message":"denied","detail":"access/needed","extra":NaN}', {}, "Denied", None, None
+    yield "nonfinite-Infinity", "Denied", 403, b'{"message":"denied","detail":"access/needed","extra":Infinity}', {}, "Denied", None, None
+    yield "nonfinite--Infinity", "Denied", 403, b'{"message":"denied","detail":"access/needed","extra":-Infinity}', {}, "Denied", None, None
     yield "absent", "Denied", 403, body(message="problem"), {}, "Denied", None, None
     yield "wire-url-untrusted", "Denied", 403, body(detail="future", doc_url="https://evil.test", docUrl="https://evil.test"), {}, "Denied", None, None
     yield "body-identity", None, 403, body(__type="Denied", detail="access/needed"), {}, "Denied/reason-access%2Fneeded", "detail", "access/needed"
@@ -125,7 +128,7 @@ class ErrorDocumentationTests(unittest.TestCase):
                     with self.assertRaises(sdk.TroubleshootingException) as caught:
                         client.inspect()
                     self.check_error(caught.exception, suffix, attribute, value, status, body)
-                    if label.startswith("invalid-"):
+                    if label.startswith(("invalid-", "nonfinite-")):
                         self.assertIs(type(caught.exception), sdk.TroubleshootingException)
                     self.assertEqual(self.requests, before + 1)
 
@@ -165,7 +168,7 @@ class ErrorDocumentationTests(unittest.TestCase):
                         with self.assertRaises(sdk.TroubleshootingException) as caught:
                             await client.inspect()
                         self.check_error(caught.exception, suffix, attribute, value, status, body)
-                        if label.startswith("invalid-"):
+                        if label.startswith(("invalid-", "nonfinite-")):
                             self.assertIs(type(caught.exception), sdk.TroubleshootingException)
         asyncio.run(check())
 
