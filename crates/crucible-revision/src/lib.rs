@@ -18,6 +18,15 @@ pub fn source_revision() -> Option<&'static str> {
     option_env!("CRUCIBLE_GENERATOR_REVISION")
 }
 
+/// Whether this was built from a published package (a registry download or
+/// vendored copy) rather than from the Crucible source workspace. Its sources
+/// are then exactly the crate version, so a generated package can depend on
+/// the runtimes at that version from crates.io instead of a Git revision.
+/// A source checkout without readable Git metadata returns `false`.
+pub fn packaged() -> bool {
+    option_env!("CRUCIBLE_GENERATOR_PACKAGED").is_some()
+}
+
 /// Whether the recorded generator-input paths were dirty when built.
 ///
 /// This checks Git's tracked and nonignored untracked status for `crates/`,

@@ -100,6 +100,10 @@ version's section when it is prepared.
 
 ### Changed
 
+- `CliOptions::runtime_path` (the per-language `crucible_codegen_cli::Options`)
+  is now `Option<PathBuf>`: wrap an explicit checkout in `Some`. `None` depends
+  on the published runtimes. `CliOutput::runtime_path(...)` is unchanged.
+
 - Older Rust API versions skip intermediate JSON conversion when their empty
   conversion chains and identical types permit it. Unproven Rust representation
   round trips retain conversion. Frozen strictness, historical operation
@@ -113,7 +117,13 @@ version's section when it is prepared.
 
 - Release preparation and checking include standalone consumer lockfiles and
   keep published internal dependency requirements aligned with the workspace
-  version, while preserving registry dependencies and example versions.
+  version, while preserving registry dependencies and example versions. The
+  `crucible-api` README's install requirement follows the release too.
+- `crucible-build` built from crates.io no longer fails to generate a Rust SDK
+  (`rust_client`) or service CLI (`cli`) for want of Git provenance or a source
+  checkout. The generated manifests depend on the published runtime crates at
+  exactly the generator's version (`=X.Y.Z`). Workspace and Git builds keep
+  their path and revision pins.
 - The packaged server runtime's optional explorer reads shared renderer assets
   from a leaf package, so it compiles outside the Crucible source workspace.
 

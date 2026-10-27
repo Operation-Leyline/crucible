@@ -12,6 +12,7 @@ fn main() {
     let manifest = PathBuf::from(std::env::var_os("CARGO_MANIFEST_DIR").expect("Cargo manifest"));
     let candidate = manifest.join("../..");
     let Ok(workspace) = candidate.canonicalize() else {
+        packaged();
         return;
     };
     // A packaged or vendored emitter must not inherit a consumer repository's
@@ -32,6 +33,7 @@ fn main() {
             .is_file()
         || !workspace.join("Cargo.toml").is_file()
     {
+        packaged();
         return;
     }
     let Some(top) = git(&workspace, &["rev-parse", "--show-toplevel"]) else {
@@ -69,6 +71,14 @@ fn main() {
     if dirty {
         println!("cargo::rustc-env=CRUCIBLE_GENERATOR_DIRTY=1");
     }
+}
+
+/// Not inside the Crucible source workspace: a registry download, a vendored
+/// copy or `cargo package` verification. Such a build has no revision to pin,
+/// but its sources are exactly its published version. A checkout whose Git
+/// metadata is unreadable is not this case: it keeps no provenance at all.
+fn packaged() {
+    println!("cargo::rustc-env=CRUCIBLE_GENERATOR_PACKAGED=1");
 }
 
 fn watch_refs(workspace: &Path) {

@@ -36,6 +36,13 @@ cargo package --workspace --exclude crucible-cli --exclude crucible-lsp --locked
 cargo publish --workspace --exclude crucible-cli --exclude crucible-lsp --dry-run --locked
 ```
 
+Generators keep their output reproducible from the registry too. Built from a
+source checkout, `crucible-build` pins a generated Rust SDK's runtime to its Git
+revision and points a generated CLI at the checkout's runtime crates. Built
+from crates.io, both depend on the published runtime crates at exactly the
+generator's version (`=X.Y.Z`); see [Build outputs](build-outputs.md).
+`tools/test-consumers.py` generates both from the packaged sources.
+
 The offline package check needs a populated dependency cache. The registry
 dry run may need network access; it builds the packaged sources in dependency
 order without uploading.

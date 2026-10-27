@@ -25,7 +25,7 @@ fn options() -> Options {
         bin_name: "weather".into(),
         package_version: "0.1.0".into(),
         endpoint: Some("http://localhost:8080".into()),
-        runtime_path: PathBuf::from("../crucible"),
+        runtime_path: Some(PathBuf::from("../crucible")),
     }
 }
 
@@ -113,11 +113,33 @@ fn rejects_invalid_package_metadata_without_emitting_files() {
     let options = Options {
         bin_name: "../weather\n[dependencies]".into(),
         package_version: "1.0\n".into(),
-        runtime_path: PathBuf::new(),
+        runtime_path: Some(PathBuf::new()),
         ..options()
     };
     let errors = emit(&service, &options).unwrap_err();
     assert_eq!(errors.len(), 3);
+}
+
+#[test]
+fn without_a_checkout_the_runtimes_come_from_crates_io_at_this_version() {
+    let options = Options {
+        runtime_path: None,
+        ..options()
+    };
+    let files = emit(&weather(), &options).unwrap();
+    let manifest = &files
+        .iter()
+        .find(|file| file.path == "Cargo.toml")
+        .unwrap()
+        .contents;
+    let pin = format!("{{ version = \"={}\" }}", env!("CARGO_PKG_VERSION"));
+    for runtime in ["crucible-client-runtime-rust", "crucible-cli-runtime"] {
+        assert!(
+            manifest.contains(&format!("\n{runtime} = {pin}\n")),
+            "{manifest}"
+        );
+    }
+    assert!(!manifest.contains("{ path ="), "{manifest}");
 }
 
 #[test]
