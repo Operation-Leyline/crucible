@@ -2,7 +2,7 @@ service Troubleshooting {
     version "1"
     protocol json
     errorDocs "https://docs.example.test/errors/"
-    errors [Denied, HeaderError, PayloadError, PlainError, RequiredReason, MappedReasonError, DefaultReason, DefaultEmptyReason, BlobPayloadError]
+    errors [Denied, HeaderError, PayloadError, PlainError, RequiredReason, MappedReasonError, DefaultReason, DefaultEmptyReason, BlobPayloadError, DocumentPayloadError]
     operations [Inspect]
 }
 
@@ -83,4 +83,13 @@ error BlobPayloadError {
     reason?: Reason
     @payload
     data?: blob
+}
+
+error DocumentPayloadError {
+    status 423
+    @errorReason
+    @header("X-Error-Reason")
+    reason?: Reason
+    @payload
+    data?: document
 }

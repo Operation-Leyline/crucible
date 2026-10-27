@@ -608,9 +608,13 @@ pub fn decode_documented_modelled<T: DeserializeOwned>(
     headers: &HeaderMap,
     body: &[u8],
 ) -> Option<T> {
-    if Location::payload(info.members).is_none()
-        && !crucible_wire::text::empty_json_body(body)
-        && (body.trim_ascii().first() != Some(&b'{')
+    let json_payload = match Location::payload(info.members) {
+        None => false,
+        Some((member, _)) if matches!(member.location, Location::DocumentPayload(_)) => true,
+        Some(_) => return decode_modelled(info, headers, body),
+    };
+    if !crucible_wire::text::empty_json_body(body)
+        && ((!json_payload && body.trim_ascii().first() != Some(&b'{'))
             || serde_json::from_slice::<serde::de::IgnoredAny>(body).is_err())
     {
         return None;

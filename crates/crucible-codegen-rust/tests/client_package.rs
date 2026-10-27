@@ -623,6 +623,19 @@ async fn main() {
     let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
     let endpoint = format!("http://{}", listener.local_addr().unwrap());
     let cases = [
+        (423, "X-Crucible-Error: DocumentPayloadError\r\nX-Error-Reason: access/needed\r\n", "\u{000c}", Some("DocumentPayloadError")),
+        (423, "X-Crucible-Error: DocumentPayloadError\r\nX-Error-Reason: access/needed\r\n", "{\"value\":1.25}", Some("DocumentPayloadError/reason-access%2Fneeded")),
+        (423, "X-Crucible-Error: DocumentPayloadError\r\nX-Error-Reason: access/needed\r\n", "[1,true,null]", Some("DocumentPayloadError/reason-access%2Fneeded")),
+        (423, "X-Crucible-Error: DocumentPayloadError\r\nX-Error-Reason: access/needed\r\n", "42", Some("DocumentPayloadError/reason-access%2Fneeded")),
+        (423, "X-Crucible-Error: DocumentPayloadError\r\nX-Error-Reason: access/needed\r\n", "null", Some("DocumentPayloadError/reason-access%2Fneeded")),
+        (423, "X-Crucible-Error: DocumentPayloadError\r\nX-Error-Reason: access/needed\r\n", "\"NaN\"", Some("DocumentPayloadError/reason-access%2Fneeded")),
+        (423, "X-Crucible-Error: DocumentPayloadError\r\nX-Error-Reason: access/needed\r\n", "", Some("DocumentPayloadError/reason-access%2Fneeded")),
+        (423, "X-Crucible-Error: DocumentPayloadError\r\nX-Error-Reason: access/needed\r\n", " \t\r\n", Some("DocumentPayloadError/reason-access%2Fneeded")),
+        (423, "X-Crucible-Error: DocumentPayloadError\r\nX-Error-Reason: access/needed\r\n", "NaN", Some("DocumentPayloadError")),
+        (423, "X-Crucible-Error: DocumentPayloadError\r\nX-Error-Reason: access/needed\r\n", "{\"value\":NaN}", Some("DocumentPayloadError")),
+        (423, "X-Crucible-Error: DocumentPayloadError\r\nX-Error-Reason: access/needed\r\n", "Infinity", Some("DocumentPayloadError")),
+        (423, "X-Crucible-Error: DocumentPayloadError\r\nX-Error-Reason: access/needed\r\n", "\u{000b}", Some("DocumentPayloadError")),
+        (423, "X-Crucible-Error: DocumentPayloadError\r\nX-Error-Reason: access/needed\r\n", "\u{00a0}", Some("DocumentPayloadError")),
         (403, "X-Crucible-Error: Denied\r\n", r#"{"message":"denied","detail":"access/needed","extra":NaN}"#, Some("Denied")),
         (403, "X-Crucible-Error: Denied\r\n", r#"{"message":"denied","detail":"access/needed","extra":Infinity}"#, Some("Denied")),
         (403, "X-Crucible-Error: Denied\r\n", r#"{"message":"denied","detail":"access/needed","extra":-Infinity}"#, Some("Denied")),

@@ -642,11 +642,22 @@ class _Base:
                 values[member] = self._codec.convert(m["target"], parsed, fmt=m["format"])
 
     @staticmethod
-    def _payload(bindings: dict[str, Any], body: bytes) -> Any:
+    def _payload(bindings: dict[str, Any], body: bytes,
+# BEGIN ERROR DOCUMENTATION
+                 *, error_json: tuple[bool, Any] | None = None,
+# END ERROR DOCUMENTATION
+                 ) -> Any:
         kind = bindings.get("payloadKind", "blob")
         if kind == "string":
             return body.decode("utf-8")
         if kind == "document":
+# BEGIN ERROR DOCUMENTATION
+            if error_json is not None:
+                valid, value = error_json
+                if not valid:
+                    raise ValueError("error document payload requires valid JSON")
+                return value
+# END ERROR DOCUMENTATION
             return json.loads(body, parse_float=Decimal) if body else None
         return body
 
@@ -663,7 +674,9 @@ class _Base:
             self._response_bindings(target, op["response"], response, values)
             return self._codec.convert(target, values, decode=True)
 # BEGIN ERROR DOCUMENTATION
-        documentation_body_valid = not body.strip(b" \t\r\n")
+        documentation_body_absent = not body.strip(b" \t\r\n")
+        documentation_body_valid = documentation_body_absent
+        documentation_json: tuple[bool, Any] = (documentation_body_absent, None)
 # END ERROR DOCUMENTATION
         try:
             fields = json.loads(
@@ -674,6 +687,7 @@ class _Base:
             )
 # BEGIN ERROR DOCUMENTATION
             documentation_body_valid = isinstance(fields, dict)
+            documentation_json = (True, fields)
 # END ERROR DOCUMENTATION
         except (ValueError, UnicodeDecodeError):
             fields = {}
@@ -700,7 +714,15 @@ class _Base:
             try:
                 payload = error.get("payload")
                 if payload is not None:
+# BEGIN ERROR DOCUMENTATION
+                    if error.get("payloadKind") == "document" and documentation_body_absent:
+                        fields = {}
+                    else:
+                        fields = {payload[0]: self._payload(error, body, error_json=documentation_json)}
+# END ERROR DOCUMENTATION
+# BEGIN LEGACY ERROR MEMBERS
                     fields = {payload[0]: self._payload(error, body)}
+# END LEGACY ERROR MEMBERS
                 self._response_bindings(target, error, response, fields)
 # BEGIN ERROR DOCUMENTATION
                 if payload is None and not documentation_body_valid:

@@ -469,6 +469,123 @@
       "header": null,
       "docUrl": "https://docs.example.test/errors/Denied",
       "typed": false
+    },
+    {
+      "name": "document-object",
+      "status": 423,
+      "identity": "DocumentPayloadError",
+      "body": "{\"value\":1.25}",
+      "header": "access/needed",
+      "docUrl": "https://docs.example.test/errors/DocumentPayloadError/reason-access%2Fneeded",
+      "typed": true
+    },
+    {
+      "name": "document-array",
+      "status": 423,
+      "identity": "DocumentPayloadError",
+      "body": "[1,true,null]",
+      "header": "access/needed",
+      "docUrl": "https://docs.example.test/errors/DocumentPayloadError/reason-access%2Fneeded",
+      "typed": true
+    },
+    {
+      "name": "document-number",
+      "status": 423,
+      "identity": "DocumentPayloadError",
+      "body": "42",
+      "header": "access/needed",
+      "docUrl": "https://docs.example.test/errors/DocumentPayloadError/reason-access%2Fneeded",
+      "typed": true
+    },
+    {
+      "name": "document-null",
+      "status": 423,
+      "identity": "DocumentPayloadError",
+      "body": "null",
+      "header": "access/needed",
+      "docUrl": "https://docs.example.test/errors/DocumentPayloadError/reason-access%2Fneeded",
+      "typed": true
+    },
+    {
+      "name": "document-string",
+      "status": 423,
+      "identity": "DocumentPayloadError",
+      "body": "\"NaN\"",
+      "header": "access/needed",
+      "docUrl": "https://docs.example.test/errors/DocumentPayloadError/reason-access%2Fneeded",
+      "typed": true
+    },
+    {
+      "name": "document-empty",
+      "status": 423,
+      "identity": "DocumentPayloadError",
+      "body": "",
+      "header": "access/needed",
+      "docUrl": "https://docs.example.test/errors/DocumentPayloadError/reason-access%2Fneeded",
+      "typed": true
+    },
+    {
+      "name": "document-whitespace",
+      "status": 423,
+      "identity": "DocumentPayloadError",
+      "body": " \t\r\n",
+      "header": "access/needed",
+      "docUrl": "https://docs.example.test/errors/DocumentPayloadError/reason-access%2Fneeded",
+      "typed": true
+    },
+    {
+      "name": "document-invalid-nan",
+      "status": 423,
+      "identity": "DocumentPayloadError",
+      "body": "NaN",
+      "header": "access/needed",
+      "docUrl": "https://docs.example.test/errors/DocumentPayloadError",
+      "typed": false
+    },
+    {
+      "name": "document-invalid-nested-nan",
+      "status": 423,
+      "identity": "DocumentPayloadError",
+      "body": "{\"value\":NaN}",
+      "header": "access/needed",
+      "docUrl": "https://docs.example.test/errors/DocumentPayloadError",
+      "typed": false
+    },
+    {
+      "name": "document-invalid-infinity",
+      "status": 423,
+      "identity": "DocumentPayloadError",
+      "body": "Infinity",
+      "header": "access/needed",
+      "docUrl": "https://docs.example.test/errors/DocumentPayloadError",
+      "typed": false
+    },
+    {
+      "name": "document-invalid-vt",
+      "status": 423,
+      "identity": "DocumentPayloadError",
+      "body": "\u000b",
+      "header": "access/needed",
+      "docUrl": "https://docs.example.test/errors/DocumentPayloadError",
+      "typed": false
+    },
+    {
+      "name": "document-invalid-nbsp",
+      "status": 423,
+      "identity": "DocumentPayloadError",
+      "body": " ",
+      "header": "access/needed",
+      "docUrl": "https://docs.example.test/errors/DocumentPayloadError",
+      "typed": false
+    },
+    {
+      "name": "document-invalid-ff",
+      "status": 423,
+      "identity": "DocumentPayloadError",
+      "body": "\f",
+      "header": "access/needed",
+      "docUrl": "https://docs.example.test/errors/DocumentPayloadError",
+      "typed": false
     }
   ]
 }

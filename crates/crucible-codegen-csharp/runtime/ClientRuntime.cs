@@ -534,7 +534,11 @@ internal sealed partial class ClientRuntime : IDisposable
                 if (metadata!["payload"] is not JsonArray && !documentationBodyValid)
                     throw new JsonException("modeled error body requires object");
                 // END ERROR DOCUMENTATION
-                if (metadata!["payload"] is JsonArray payload)
+                if (metadata!["payload"] is JsonArray payload
+                    // BEGIN ERROR DOCUMENTATION
+                    && !(Text(metadata["payloadKind"]) == "document" && documentationBodyAbsent)
+                    // END ERROR DOCUMENTATION
+                )
                     body = new JsonObject { [Text(payload[0])!] = PayloadValue(Text(metadata["payloadKind"]), bytes) };
                 ResponseBindings(target, metadata!, headers, body);
                 error = (ServiceError)Decode(target, body)!;

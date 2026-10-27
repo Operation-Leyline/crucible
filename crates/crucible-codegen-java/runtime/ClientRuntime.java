@@ -905,7 +905,11 @@ final class ClientRuntime {
         // BEGIN ERROR DOCUMENTATION
         if (payload == null && !documentationBodyValid) throw new IllegalArgumentException("modeled error body requires object");
         // END ERROR DOCUMENTATION
-        if (payload != null) typedValues.add(payload, payloadValue(traits, bytes));
+        if (payload != null
+            // BEGIN ERROR DOCUMENTATION
+            && !("document".equals(text(traits, "payloadKind")) && documentationBodyAbsent)
+            // END ERROR DOCUMENTATION
+        ) typedValues.add(payload, payloadValue(traits, bytes));
         applyHeaders(typedValues, target, traits, response);
         error = (ServiceError) decode(target, typedValues, null);
         // BEGIN ERROR DOCUMENTATION

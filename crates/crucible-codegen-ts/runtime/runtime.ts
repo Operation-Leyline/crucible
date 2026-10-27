@@ -990,9 +990,11 @@ export class Transport {
     let parsed: unknown;
     try { parsed = readJson(text); } catch { /* An HTTP error may have a non-JSON body. */ }
     // BEGIN ERROR DOCUMENTATION
-    const documentationBodyValid = !/[^ \t\r\n]/.test(text) || (parsed !== null && typeof parsed === "object" && !Array.isArray(parsed));
+    const documentationBodyAbsent = !/[^ \t\r\n]/.test(text);
+    const documentationJsonValid = documentationBodyAbsent || parsed !== undefined;
+    const documentationBodyValid = documentationBodyAbsent || (parsed !== null && typeof parsed === "object" && !Array.isArray(parsed));
     // END ERROR DOCUMENTATION
-    const body = (parsed !== null && typeof parsed === "object" ? parsed : {}) as Record<string, unknown>;
+    let body = (parsed !== null && typeof parsed === "object" ? parsed : {}) as Record<string, unknown>;
     const metadata: ResponseMetadata = {
       status: response.status,
       requestId: response.headers.get("x-request-id") ?? response.headers.get("x-amzn-requestid") ?? response.headers.get("x-amz-request-id") ?? stringField(body, "requestId"),
@@ -1009,8 +1011,14 @@ export class Transport {
     try {
       // BEGIN ERROR DOCUMENTATION
       if (spec.payload === undefined && !documentationBodyValid) throw new TypeError("modeled error body requires an object");
+      if (spec.payloadKind === "document" && !documentationJsonValid) throw new TypeError("error document payload requires valid JSON");
+      if (spec.payloadKind === "document") body = {};
       // END ERROR DOCUMENTATION
-      if (spec.payload!==undefined) Object.defineProperty(body,spec.payload,{value:decodePayload(spec.payloadKind,bytes),writable:true,configurable:true,enumerable:true});
+      if (spec.payload!==undefined
+        // BEGIN ERROR DOCUMENTATION
+        && !(spec.payloadKind === "document" && documentationBodyAbsent)
+        // END ERROR DOCUMENTATION
+      ) Object.defineProperty(body,spec.payload,{value:decodePayload(spec.payloadKind,bytes),writable:true,configurable:true,enumerable:true});
       readHeaders(response.headers, spec.headers, body, true, spec.headerEncodings);
       fields = fromWire(spec.schema, body) as Record<string, unknown>;
     } catch (error) {

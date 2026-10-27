@@ -1247,7 +1247,8 @@ func (c *clientRuntime) decode(op operationDescription, response *http.Response,
 		return values, nil
 	}
 // BEGIN ERROR DOCUMENTATION
-    documentationBodyValid := len(bytes.Trim(data, " \t\r\n")) == 0
+    documentationBodyAbsent := len(bytes.Trim(data, " \t\r\n")) == 0
+    documentationBodyValid := documentationBodyAbsent
 // END ERROR DOCUMENTATION
 	if value, err := parseJSON(data); err == nil {
 		if object, ok := value.(map[string]any); ok {
@@ -1299,9 +1300,15 @@ func (c *clientRuntime) decode(op operationDescription, response *http.Response,
         if len(shape.Error.Payload) != 2 && !documentationBodyValid { return nil, metadata }
 // END ERROR DOCUMENTATION
 		if len(shape.Error.Payload) == 2 {
+// BEGIN ERROR DOCUMENTATION
+            if shape.Error.PayloadKind != "document" || !documentationBodyAbsent {
+// END ERROR DOCUMENTATION
 			value, err := payloadValue(shape.Error.PayloadKind, data)
 			if err != nil { return nil, metadata }
 			values = map[string]any{shape.Error.Payload[0]: value}
+// BEGIN ERROR DOCUMENTATION
+            }
+// END ERROR DOCUMENTATION
 		}
 		if err := c.responseBindings(target, bindings{Headers:shape.Error.Headers, TimestampFormats:shape.Error.TimestampFormats, HeaderEncodings:shape.Error.HeaderEncodings}, response, values); err != nil {
 			// Preserve wire failure metadata if a modeled binding is malformed.

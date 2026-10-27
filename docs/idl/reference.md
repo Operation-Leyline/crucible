@@ -515,8 +515,11 @@ select a static reason page for a known effective value. An absent reason applie
 its model default, including an empty-string default. Without a known default,
 absence uses the code page, as do explicit null and future values. An ordinary
 body containing only JSON whitespace (space, TAB, CR and LF) is absent, matching
-the shared wire reader. Other blank characters are malformed JSON bodies. Unknown error
-identities have no documentation URL. External
+the shared wire reader. Other blank characters are malformed JSON bodies. A JSON
+payload accepts any valid JSON value, with an absent body omitting the payload
+member and an explicit JSON `null` preserving it. Malformed JSON payloads keep the
+code page; raw string, enum and blob payloads retain their byte semantics. Unknown
+error identities have no documentation URL. External
 outputs omit internal reason values. Whole definitions shown in frozen release
 history retain their frozen designation; a member named `reason` in an older
 release does not acquire a role from a newer bundled definition. Documentation

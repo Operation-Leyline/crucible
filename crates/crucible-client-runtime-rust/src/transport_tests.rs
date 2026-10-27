@@ -614,3 +614,76 @@ fn documentation_body_guard_distinguishes_null_from_effective_omission() {
         assert!(decode_documented_modelled::<Defaulted>(&INFO, &headers, body).is_none());
     }
 }
+
+#[test]
+fn documentation_json_payload_guard_preserves_values_and_absence() {
+    static MEMBERS: [MemberInfo; 1] = [crate::__generated::member_info(
+        "data",
+        Location::DocumentPayload("application/json"),
+        Scalar::Json,
+        &crucible_wire::operation::Redaction::Public,
+        &[],
+    )];
+    static INFO: ErrorInfo =
+        crate::__generated::error_info("Document", 423, Fault::Client, false, false, &MEMBERS);
+    #[derive(Debug, serde::Deserialize)]
+    struct Document {
+        #[serde(default)]
+        data: Option<Value>,
+    }
+    let headers = HeaderMap::new();
+    for body in [b"".as_slice(), b" \t\r\n"] {
+        assert!(
+            decode_documented_modelled::<Document>(&INFO, &headers, body)
+                .unwrap()
+                .data
+                .is_none()
+        );
+    }
+    for body in [
+        b"{}".as_slice(),
+        b"[]",
+        b"42",
+        b"true",
+        b"null",
+        br#""NaN""#,
+    ] {
+        assert!(decode_documented_modelled::<Document>(&INFO, &headers, body).is_some());
+    }
+    // Preserve the legacy reader's existing form-feed-as-absence behavior;
+    // configured documentation enforces the canonical JSON syntax boundary.
+    assert!(decode_modelled::<Document>(&INFO, &headers, b"\x0c").is_some());
+    assert!(decode_modelled::<Document>(&INFO, &headers, b"\x0b").is_none());
+    for body in [
+        b"NaN".as_slice(),
+        b"Infinity",
+        b"-Infinity",
+        b"{invalid",
+        b"\x0b",
+        b"\x0c",
+        b"\xc2\xa0",
+    ] {
+        assert!(decode_documented_modelled::<Document>(&INFO, &headers, body).is_none());
+    }
+    static TEXT: [MemberInfo; 1] = [crate::__generated::member_info(
+        "data",
+        Location::TextPayload("text/plain"),
+        Scalar::String,
+        &crucible_wire::operation::Redaction::Public,
+        &[],
+    )];
+    static RAW_INFO: ErrorInfo =
+        crate::__generated::error_info("Text", 423, Fault::Client, false, false, &TEXT);
+    #[derive(Debug, serde::Deserialize)]
+    struct Text {
+        data: String,
+    }
+    for body in ["", "NaN", " \t\r\n", "\u{000b}"] {
+        assert_eq!(
+            decode_documented_modelled::<Text>(&RAW_INFO, &headers, body.as_bytes())
+                .unwrap()
+                .data,
+            body
+        );
+    }
+}

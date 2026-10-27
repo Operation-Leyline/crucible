@@ -299,7 +299,15 @@ internal class ClientRuntime(input: ClientConfig, endpoint: String,
             // BEGIN ERROR DOCUMENTATION
             if (payloadMember(metadata!!) == null && !documentationBodyValid) error("modeled error body requires object")
             // END ERROR DOCUMENTATION
-            payloadMember(metadata!!)?.let { body[it] = payloadValue(metadata, response.body) }
+            payloadMember(metadata!!)?.let {
+                // BEGIN ERROR DOCUMENTATION
+                if (metadata.text("payloadKind") != "document" || !documentationBodyAbsent) {
+                // END ERROR DOCUMENTATION
+                body[it] = payloadValue(metadata, response.body)
+                // BEGIN ERROR DOCUMENTATION
+                }
+                // END ERROR DOCUMENTATION
+            }
             applyHeaders(target, body, metadata!!, response)
             val decoded = codec.decode(target, JsonObject(body)) as ServiceError
             // BEGIN ERROR DOCUMENTATION

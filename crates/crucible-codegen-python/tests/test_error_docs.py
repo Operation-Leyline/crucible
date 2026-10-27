@@ -1,5 +1,6 @@
 """Installed generated clients select static error URLs over real loopback HTTP."""
 import asyncio
+from decimal import Decimal
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
 import queue
@@ -52,6 +53,19 @@ def cases():
     yield "nonfinite-NaN", "Denied", 403, b'{"message":"denied","detail":"access/needed","extra":NaN}', {}, "Denied", None, None
     yield "nonfinite-Infinity", "Denied", 403, b'{"message":"denied","detail":"access/needed","extra":Infinity}', {}, "Denied", None, None
     yield "nonfinite--Infinity", "Denied", 403, b'{"message":"denied","detail":"access/needed","extra":-Infinity}', {}, "Denied", None, None
+    yield "document-object", "DocumentPayloadError", 423, b'{"value":1.25}', {"X-Error-Reason": "access/needed"}, "DocumentPayloadError/reason-access%2Fneeded", None, None
+    yield "document-array", "DocumentPayloadError", 423, b'[1,true,null]', {"X-Error-Reason": "access/needed"}, "DocumentPayloadError/reason-access%2Fneeded", None, None
+    yield "document-number", "DocumentPayloadError", 423, b'42', {"X-Error-Reason": "access/needed"}, "DocumentPayloadError/reason-access%2Fneeded", None, None
+    yield "document-null", "DocumentPayloadError", 423, b'null', {"X-Error-Reason": "access/needed"}, "DocumentPayloadError/reason-access%2Fneeded", None, None
+    yield "document-string", "DocumentPayloadError", 423, b'"NaN"', {"X-Error-Reason": "access/needed"}, "DocumentPayloadError/reason-access%2Fneeded", None, None
+    yield "document-empty", "DocumentPayloadError", 423, b'', {"X-Error-Reason": "access/needed"}, "DocumentPayloadError/reason-access%2Fneeded", None, None
+    yield "document-whitespace", "DocumentPayloadError", 423, b' \t\r\n', {"X-Error-Reason": "access/needed"}, "DocumentPayloadError/reason-access%2Fneeded", None, None
+    yield "document-invalid-nan", "DocumentPayloadError", 423, b'NaN', {"X-Error-Reason": "access/needed"}, "DocumentPayloadError", None, None
+    yield "document-invalid-nested-nan", "DocumentPayloadError", 423, b'{"value":NaN}', {"X-Error-Reason": "access/needed"}, "DocumentPayloadError", None, None
+    yield "document-invalid-infinity", "DocumentPayloadError", 423, b'Infinity', {"X-Error-Reason": "access/needed"}, "DocumentPayloadError", None, None
+    yield "document-invalid-vt", "DocumentPayloadError", 423, b'\x0b', {"X-Error-Reason": "access/needed"}, "DocumentPayloadError", None, None
+    yield "document-invalid-nbsp", "DocumentPayloadError", 423, b'\xc2\xa0', {"X-Error-Reason": "access/needed"}, "DocumentPayloadError", None, None
+    yield "document-invalid-ff", "DocumentPayloadError", 423, b'\x0c', {"X-Error-Reason": "access/needed"}, "DocumentPayloadError", None, None
     yield "absent", "Denied", 403, body(message="problem"), {}, "Denied", None, None
     yield "wire-url-untrusted", "Denied", 403, body(detail="future", doc_url="https://evil.test", docUrl="https://evil.test"), {}, "Denied", None, None
     yield "body-identity", None, 403, body(__type="Denied", detail="access/needed"), {}, "Denied/reason-access%2Fneeded", "detail", "access/needed"
@@ -117,6 +131,16 @@ class ErrorDocumentationTests(unittest.TestCase):
         self.assertEqual(error.metadata.body, raw)
         if attribute is not None:
             self.assertEqual(getattr(error, attribute), value)
+        if raw in (b"", b" \t\r\n") and isinstance(error, sdk.DocumentPayloadError):
+            self.assertFalse(hasattr(error, "data"))
+        elif raw == b"null" and isinstance(error, sdk.DocumentPayloadError):
+            self.assertIsNone(error.data)
+        elif raw == b'{"value":1.25}' and isinstance(error, sdk.DocumentPayloadError):
+            self.assertIsInstance(error.data["value"], Decimal)
+            self.assertEqual(error.data["value"], Decimal("1.25"))
+        if raw == b"" and isinstance(error, sdk.BlobPayloadError):
+            self.assertEqual(error.data, b"")
+
 
     def test_sync_static_urls_and_projected_reasons(self):
         self.assertFalse(hasattr(sdk.Reason, "SECRET"))
@@ -128,7 +152,7 @@ class ErrorDocumentationTests(unittest.TestCase):
                     with self.assertRaises(sdk.TroubleshootingException) as caught:
                         client.inspect()
                     self.check_error(caught.exception, suffix, attribute, value, status, body)
-                    if label.startswith(("invalid-", "nonfinite-")):
+                    if label.startswith(("invalid-", "nonfinite-", "document-invalid-")):
                         self.assertIs(type(caught.exception), sdk.TroubleshootingException)
                     self.assertEqual(self.requests, before + 1)
 
@@ -168,7 +192,7 @@ class ErrorDocumentationTests(unittest.TestCase):
                         with self.assertRaises(sdk.TroubleshootingException) as caught:
                             await client.inspect()
                         self.check_error(caught.exception, suffix, attribute, value, status, body)
-                        if label.startswith(("invalid-", "nonfinite-")):
+                        if label.startswith(("invalid-", "nonfinite-", "document-invalid-")):
                             self.assertIs(type(caught.exception), sdk.TroubleshootingException)
         asyncio.run(check())
 
