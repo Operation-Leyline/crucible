@@ -80,6 +80,37 @@ default 1 MiB limit; override `maxStreamEventBytes` on the client or call
 `StreamProtocolError`. Unknown application union variants use the normal
 generated union representation.
 
+## Rust client
+
+```rust,ignore
+let mut events = client.watch().await?;
+println!("HTTP {}", events.metadata().status);
+while let Some(event) = events.next().await {
+    let event = event?;
+    // Handle the generated item or its preserved unknown union variant.
+}
+```
+
+Generated streaming methods return `ResponseStream<Item, OperationError>`.
+It implements `futures_core::Stream` and has an inherent async `next`, so a
+consumer can iterate without importing an extension trait. Late failures use
+the same generated operation error enum as opening failures. Their fields are
+decoded as document values, including members normally bound to headers or a
+payload.
+
+Drop the owned stream or call its synchronous, idempotent `cancel()` to stop.
+Breaking a loop while retaining the stream keeps it alive until cancellation
+or drop. `CallOptions::cancellation` and the total client/call timeout remain
+active even before the first poll. They also take precedence over buffered
+items. `Config::max_stream_event_bytes` changes the default 1 MiB frame limit;
+values below 256 are refused before opening. The same limit bounds buffered
+opening-error bodies.
+
+The client reads on consumer demand through bounded channels. It never
+reconnects after successful headers, including malformed profiles or a later
+connection failure. Success requires `crucible.complete` and body EOF; extra
+bytes after a terminal are a decoding failure.
+
 ## Wire contract
 
 Successful responses use `Content-Type: text/event-stream; charset=utf-8;
@@ -145,7 +176,7 @@ single responses. Keep transactional business deduplication in the service.
 
 ## Current support
 
-Rust servers and TypeScript web/Node clients implement profile 1. Other clients
+Rust servers, Rust clients and TypeScript web/Node clients implement profile 1. Other clients
 diagnose `server-streaming` instead of emitting a unary API. OpenAPI includes
 SSE and `x-crucible-stream` item/control metadata. Static references, explorer,
 MCP, historical server adapters, and direct invocation do not yet serve
@@ -158,6 +189,8 @@ release predates that operation; this initial implementation diagnoses it.
 
 [Backlog #389](https://github.com/Operation-Leyline/crucible/issues/389) tracks
 client parity and the remaining tooling and host qualification.
+
+`python tools/test-rust-streaming.py` builds an independent generated Cargo SDK consumer over native HTTP and shared profile vectors.
 
 `bash tools/test-ts.sh` covers parser behavior and generated TypeScript-to-Rust
 HTTP calls. `python tools/test-consumers.py` covers stable service consumers.

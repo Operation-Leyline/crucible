@@ -30,6 +30,12 @@ pub trait OperationErrors: Sized + fmt::Debug {
         body: &[u8],
     ) -> Option<Self>;
 
+    /// Decodes a terminal stream error's document fields without HTTP bindings.
+    /// Older handwritten implementations conservatively retain an unknown error.
+    fn decode_document(_status: u16, _type_name: &str, _body: &[u8]) -> Option<Self> {
+        None
+    }
+
     fn info(&self) -> &'static ErrorInfo;
 
     /// Static documentation page for this modeled error and its known reason.
@@ -209,7 +215,21 @@ impl Transport {
         O::Output: DeserializeOwned,
         E: OperationErrors,
     {
-        let deadline = options
+        let deadline = self.deadline(options)?;
+        match crate::stream_budget::within(
+            deadline,
+            options.cancellation.as_ref(),
+            self.send_inner::<O, E>(input, false),
+        )
+        .await?
+        {
+            Sent::Output(output) => Ok(output),
+            Sent::Stream(_) => unreachable!("buffered operation"),
+        }
+    }
+
+    fn deadline<E>(&self, options: &CallOptions) -> Result<Option<tokio::time::Instant>, Error<E>> {
+        options
             .timeout
             .or(self.config.timeout)
             .map(|timeout| {
@@ -217,38 +237,74 @@ impl Transport {
                     .checked_add(timeout)
                     .ok_or_else(|| Error::Invalid("call timeout out of range".into()))
             })
-            .transpose()?;
-        let cancelled = async {
-            match &options.cancellation {
-                Some(token) => token.cancelled().await,
-                None => std::future::pending().await,
-            }
-        };
-        let expired = async {
-            match deadline {
-                // An expired budget must be ready even between timer ticks.
-                Some(deadline) if deadline > tokio::time::Instant::now() => {
-                    tokio::time::sleep_until(deadline).await;
-                }
-                Some(_) => (),
-                None => std::future::pending().await,
-            }
-        };
-        tokio::select! {
-            biased;
-            () = cancelled => Err(Error::Cancelled),
-            () = expired => Err(Error::Timeout),
-            result = self.send_inner::<O, E>(input) => result,
-        }
+            .transpose()
     }
 
-    async fn send_inner<O, E>(&self, input: &O::Input) -> Result<O::Output, Error<E>>
+    /// Opens a typed response sequence using the ordinary authentication and retry policy.
+    pub async fn send_stream<O, E>(
+        &self,
+        input: &O::Input,
+    ) -> Result<crate::ResponseStream<O::Output, E>, Error<E>>
+    where
+        O: Operation,
+        O::Output: DeserializeOwned,
+        E: OperationErrors + Send + 'static,
+    {
+        self.send_stream_with_options::<O, E>(input, &CallOptions::default())
+            .await
+    }
+
+    /// The total call budget remains active until stream termination or drop.
+    pub async fn send_stream_with_options<O, E>(
+        &self,
+        input: &O::Input,
+        options: &CallOptions,
+    ) -> Result<crate::ResponseStream<O::Output, E>, Error<E>>
+    where
+        O: Operation,
+        O::Output: DeserializeOwned,
+        E: OperationErrors + Send + 'static,
+    {
+        if self.config.max_stream_event_bytes < 256 {
+            return Err(Error::Invalid(
+                "stream event byte limit must be at least 256".into(),
+            ));
+        }
+        let deadline = self.deadline(options)?;
+        let response = match crate::stream_budget::within(
+            deadline,
+            options.cancellation.as_ref(),
+            self.send_inner::<O, E>(input, true),
+        )
+        .await?
+        {
+            Sent::Stream(response) => response,
+            Sent::Output(_) => unreachable!("stream operation"),
+        };
+        crate::response_stream::open(
+            response,
+            deadline,
+            options.cancellation.clone(),
+            self.config.max_stream_event_bytes,
+        )
+    }
+
+    async fn send_inner<O, E>(
+        &self,
+        input: &O::Input,
+        stream: bool,
+    ) -> Result<Sent<O::Output>, Error<E>>
     where
         O: Operation,
         O::Output: DeserializeOwned,
         E: OperationErrors,
     {
         let info = O::INFO;
+        if info.server_stream != stream {
+            return Err(Error::Invalid(
+                "transport response mode does not match the operation".into(),
+            ));
+        }
         let (url, mut bound_headers, body) = self.prepare_at(info, input, &self.config.endpoint)?;
         // The release this client was generated for (docs/api-versions-clients.md).
         if let Some(version) = O::API_VERSION
@@ -289,14 +345,22 @@ impl Transport {
                 }
             };
             let status = response.status().as_u16();
+            if stream && (200..300).contains(&status) {
+                return Ok(Sent::Stream(response));
+            }
             let response_headers = std::mem::take(response.headers_mut());
             let transient_status = retryable_status(status);
             let success = (200..300).contains(&status);
             // A connection lost mid-body is the same fault as one lost before
             // the response: retried under the same rule.
-            let bytes = match response.bytes().await {
+            let bytes = match response_bytes(
+                response,
+                stream.then_some(self.config.max_stream_event_bytes),
+            )
+            .await
+            {
                 Ok(bytes) => bytes,
-                Err(error) => {
+                Err(Error::Transport(error)) => {
                     if retry_safe && attempt < retry.max_attempts {
                         tokio::time::sleep(backoff(attempt, &retry)).await;
                         attempt += 1;
@@ -304,9 +368,22 @@ impl Transport {
                     }
                     return Err(Error::Transport(error));
                 }
+                Err(Error::Decode(_))
+                    if retry_safe && transient_status && attempt < retry.max_attempts =>
+                {
+                    // A bounded opening error body can still have a retryable
+                    // status. The response is dropped before the next attempt.
+                    let delay =
+                        retry_after(&response_headers).unwrap_or_else(|| backoff(attempt, &retry));
+                    tokio::time::sleep(delay).await;
+                    attempt += 1;
+                    continue;
+                }
+                Err(error) => return Err(error),
             };
             if success {
-                return decode_output::<O, E>(info.output, &response_headers, &bytes);
+                return decode_output::<O, E>(info.output, &response_headers, &bytes)
+                    .map(Sent::Output);
             }
             let error = decode_error::<E>(status, &response_headers, &bytes);
             let (throttling, transient) = match &error {
@@ -496,6 +573,30 @@ impl Transport {
         }
         Ok(request)
     }
+}
+
+enum Sent<T> {
+    Output(T),
+    Stream(reqwest::Response),
+}
+
+async fn response_bytes<E>(
+    mut response: reqwest::Response,
+    limit: Option<usize>,
+) -> Result<Bytes, Error<E>> {
+    let Some(limit) = limit else {
+        return response.bytes().await.map_err(Error::Transport);
+    };
+    let mut bytes = bytes::BytesMut::new();
+    while let Some(chunk) = response.chunk().await.map_err(Error::Transport)? {
+        if chunk.len() > limit.saturating_sub(bytes.len()) {
+            return Err(Error::Decode(
+                "stream opening error body exceeds the byte limit".into(),
+            ));
+        }
+        bytes.extend_from_slice(&chunk);
+    }
+    Ok(bytes.freeze())
 }
 
 /// A request body: its content type and bytes.

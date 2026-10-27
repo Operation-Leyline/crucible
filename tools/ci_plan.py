@@ -75,6 +75,8 @@ TOOLS = {
     "tools/package_lsp.py": {"e2e"},
     "tools/test_crucible_release.py": {"e2e"},
     "tools/test-consumers.py": {"consumers"},
+    "tools/test-rust-streaming.py": {"consumers"},
+    "tests/conformance/response-stream.json": MODEL_GROUPS | {"consumers"},
 }
 
 

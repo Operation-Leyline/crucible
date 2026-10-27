@@ -1,0 +1,77 @@
+service Streams {
+    version "1"
+    protocol json
+    errorDocs "https://docs.example.test/errors"
+    auth bearer
+    operations [Watch, Publish, Read]
+    errors [ValidationError, WorkFailed, HeaderFailure, PayloadFailure, DefaultReason, DefaultEmptyReason]
+}
+
+/// Observe a bounded or long-lived sequence of progress events.
+readonly operation Watch {
+    http GET "/events"
+    output stream Progress
+    example "Ready" { output { ready: "ready" } }
+}
+
+operation Publish {
+    http POST "/events"
+    input { topic: string { length 1..64 } }
+    output stream Progress
+}
+
+readonly operation Read {
+    http GET "/read"
+    output { value: string }
+}
+
+union Progress {
+    update: Update
+    ready: string
+}
+
+structure Update {
+    text: string { length 1..64 }
+}
+
+error ValidationError {
+    status 400
+    message: string
+}
+
+error WorkFailed {
+    status 503
+    message: string
+    @errorReason
+    reason?: FailureReason
+}
+
+error HeaderFailure {
+    status 409
+    message: string
+    @errorReason
+    @header("X-Reason")
+    reason: FailureReason
+}
+error PayloadFailure {
+    status 422
+    @errorReason
+    @payload
+    reason: FailureReason
+}
+enum FailureReason {
+    BROKEN = "broken"
+    EMPTY = ""
+}
+error DefaultReason {
+    status 419
+    message: string
+    @errorReason
+    reason: FailureReason = BROKEN
+}
+error DefaultEmptyReason {
+    status 420
+    message: string
+    @errorReason
+    reason: FailureReason = EMPTY
+}

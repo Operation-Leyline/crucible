@@ -8,6 +8,15 @@ The generated package uses `crucible-client-runtime-rust` and
 the shared `crucible-wire` runtime. Use the current stable Rust toolchain
 and an async runtime such as Tokio.
 
+For `output stream Item`, calls return a typed `ResponseStream<Item, OperationError>`.
+Use its async `next()` or `futures_core::Stream`, read opening `metadata()`, and
+drop or `cancel()` it when finished. Total deadlines and cancellation remain
+active before consumption. See [response streams](../streaming.md#rust-client)
+for lifecycle, terminal errors and frame limits.
+The inherent `next()` needs no additional dependency. For `StreamExt`
+combinators, add `futures-util` to the consuming application and import its
+extension trait as usual.
+
 ## API audience
 
 Clients omit `@internal` API by default. Select `--audience internal` for a full

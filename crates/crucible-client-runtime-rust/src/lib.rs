@@ -26,6 +26,11 @@ mod cancellation;
 mod config;
 pub mod error;
 mod paginate;
+mod response_stream;
+mod stream_body;
+mod stream_budget;
+mod stream_event;
+mod stream_parser;
 mod transport;
 
 pub use build_error::BuildError;
@@ -44,6 +49,7 @@ pub mod permissions {
     pub use crucible_wire::permissions::{PermissionDescription, ResourcePermissions, Tier};
 }
 pub use paginate::Paginator;
+pub use response_stream::ResponseStream;
 pub use transport::{Error, ResponseMetadata, ServiceError, Transport, UnknownError};
 #[doc(hidden)]
 pub use transport::{OperationErrors, by_status, decode_modelled};
@@ -68,8 +74,8 @@ pub mod __generated {
     pub use crate::transport::decode_documented_modelled;
     pub use crate::{
         BuildError, CallOptions, Config, Error, Field, ModelledError, Operation, OperationErrors,
-        OperationInfo, Paginator, Transport, UnknownUnion, by_status, decode_modelled,
-        idempotency_token,
+        OperationInfo, Paginator, ResponseStream, Transport, UnknownUnion, by_status,
+        decode_modelled, idempotency_token,
     };
     pub use __crucible_check_abi as check_abi;
     pub use crucible_wire::__generated::{error_info, member_info, operation_info, service_info};

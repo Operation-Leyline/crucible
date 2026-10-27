@@ -612,6 +612,7 @@ dependencies = [
  "bytes",
  "chrono",
  "crucible-wire",
+ "futures-core",
  "http",
  "regex",
  "reqwest",

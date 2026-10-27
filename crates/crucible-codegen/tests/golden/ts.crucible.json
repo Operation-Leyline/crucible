@@ -2,7 +2,7 @@
   "schemaVersion": 2,
   "generator": "crucible",
   "generatorVersion": "0.8.0",
-  "generatorChanges": 18,
+  "generatorChanges": 19,
   "language": "ts",
   "package": "@example/weather",
   "packageVersion": "0.0.0-dev",

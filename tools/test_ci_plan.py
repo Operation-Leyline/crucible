@@ -21,6 +21,12 @@ EVENT = {"pull_request": {"base": {"sha": "a" * 40}, "head": {"sha": "b" * 40}}}
 
 
 class PlanTests(unittest.TestCase):
+    def test_rust_streaming_consumer_tool_selects_its_gate(self):
+        self.assertEqual(affected_groups(["tools/test-rust-streaming.py"]), {"rust", "consumers"})
+
+    def test_stream_profile_only_changes_keep_native_and_existing_wire_gates(self):
+        self.assertEqual(affected_groups(["tests/conformance/response-stream.json"]), MODEL_GROUPS | CONSUMERS)
+
     def test_browser_streaming_sources_select_native_browser_and_http_gates(self):
         for path in ("tools/test-streaming-browser.py", "tools/streaming-browser.mjs", "tools/requirements-browser.txt"):
             with self.subTest(path=path):

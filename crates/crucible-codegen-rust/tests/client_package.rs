@@ -123,6 +123,43 @@ fn content_sha256_guides_say_which_requests_carry_the_digest() {
 }
 
 #[test]
+fn streaming_guides_cover_iteration_late_errors_and_no_replay() {
+    let service = common::load("server-stream");
+    let options = explicit();
+    let files = emit_client_package(&service, &options).unwrap();
+    for path in ["README.md", "AGENTS.md"] {
+        let text = &files
+            .iter()
+            .find(|file| file.path == path)
+            .unwrap()
+            .contents;
+        assert!(text.contains("next().await returns each item or a late error"));
+        assert!(text.contains("Drop or cancel the stream"));
+        assert!(text.contains("never reconnect after successful response headers"));
+    }
+    let surface = crucible_codegen_rust::surface(&service, &options);
+    let mut streams = 0;
+    for (name, operation) in &surface.operations {
+        if name.ends_with("#Watch") || name.ends_with("#Publish") {
+            streams += 1;
+            assert!(
+                operation
+                    .snippet
+                    .contains("while let Some(event) = events.next().await")
+            );
+            assert!(
+                operation
+                    .snippet
+                    .contains("Opening and late modeled errors propagate with `?`")
+            );
+            assert!(operation.snippet.contains("event?"));
+            assert!(operation.paginated_snippet.is_none());
+        }
+    }
+    assert_eq!(streams, 2);
+}
+
+#[test]
 fn automatic_runtime_pins_the_embedded_crucible_commit_without_local_paths() {
     let files = emit_client_package(&service(), &ClientOptions::default()).unwrap();
     let manifest: toml::Value = toml::from_str(&files[0].contents).unwrap();

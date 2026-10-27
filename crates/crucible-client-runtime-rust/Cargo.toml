@@ -14,9 +14,10 @@ chrono = { version = "0.4", default-features = false, features = ["std", "clock"
 regex = "1"
 serde = { version = "1", features = ["derive"] }
 serde_json.workspace = true
-tokio = { version = "1", features = ["time", "sync", "macros"] }
+tokio = { version = "1", features = ["time", "sync", "macros", "rt"] }
 uuid = { version = "1", features = ["v4", "fast-rng"] }
 bytes = "1"
+futures-core = "0.3"
 sha2 = "0.10"
 http = "1.5.0"
 reqwest = { version = "0.13.5", default-features = false, features = ["rustls-no-provider", "stream"] }
