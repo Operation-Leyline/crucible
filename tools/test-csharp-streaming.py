@@ -9,9 +9,13 @@ from sdk_test_support import ROOT, run
 
 def qualify(output):
     fixture = os.environ.get("CRUCIBLE_STREAM_FIXTURE")
-    if not fixture:
-        run("cargo", "build", "--manifest-path", "tests/consumers/native-stream-http/Cargo.toml")
-        target = Path(os.environ.get("CARGO_TARGET_DIR", ROOT / "tests/consumers/native-stream-http/target"))
+    if fixture:
+        # The consumers launch it from their own directories.
+        fixture = str(Path(fixture).resolve())
+    else:
+        run("cargo", "build", "--locked", "--manifest-path", "tests/consumers/native-stream-http/Cargo.toml")
+        # Cargo resolves a relative CARGO_TARGET_DIR against its cwd, ROOT.
+        target = ROOT / os.environ.get("CARGO_TARGET_DIR", "tests/consumers/native-stream-http/target")
         fixture = str(target / "debug" / ("native-stream-http.exe" if os.name == "nt" else "native-stream-http"))
     env = dict(os.environ, CRUCIBLE_STREAM_FIXTURE=fixture,
                CRUCIBLE_STREAM_VECTORS=str(ROOT / "tests/conformance/response-stream.json"))
@@ -53,6 +57,7 @@ error TimeFailure {
         run("dotnet", "build", "--no-restore", "--nologo", "-v", "quiet", "-warnaserror", cwd=consumer)
         run("dotnet", str(consumer / "bin/Debug/net8.0/Consumer.dll"), cwd=consumer, env=env)
         # Compile each generated README snippet against the separately installed package.
+        compiled = 0
         for index, code in enumerate(re.findall(r"```csharp\n(.*?)```", (sdk / "README.md").read_text(encoding="utf-8"), re.S)):
             if "using Example.Streams;" not in code:
                 continue
@@ -62,6 +67,10 @@ error TimeFailure {
             (sample / "Program.cs").write_text(code, encoding="utf-8")
             run("dotnet", "restore", "--source", str(feed), "--packages", str(output / (name + "-installed")), cwd=sample)
             run("dotnet", "build", "--no-restore", "--nologo", "-v", "quiet", "-warnaserror", cwd=sample)
+            compiled += 1
+        # A guide regression that drops every sample must not pass vacuously.
+        if not compiled:
+            raise SystemExit(f"no C# README samples were extracted from {sdk.name}")
 
 
 if __name__ == "__main__":

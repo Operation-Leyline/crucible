@@ -25,7 +25,28 @@ class PlanTests(unittest.TestCase):
         self.assertEqual(affected_groups(["tools/test-rust-streaming.py"]), {"rust", "consumers"})
 
     def test_stream_profile_only_changes_keep_native_and_existing_wire_gates(self):
-        self.assertEqual(affected_groups(["tests/conformance/response-stream.json"]), MODEL_GROUPS | CONSUMERS)
+        self.assertEqual(affected_groups(["tests/conformance/response-stream.json"]), MODEL_GROUPS | CONSUMERS | {"csharp"})
+
+    def test_csharp_stream_sources_select_the_csharp_gate(self):
+        # The C# gate (tools/test-csharp.py) runs the installed-package stream consumer.
+        for path in ("tools/test-csharp-streaming.py", "crates/crucible-codegen-csharp/tests/Streaming.cs",
+                     "crates/crucible-codegen-csharp/runtime/ResponseStream.cs"):
+            with self.subTest(path=path):
+                self.assertEqual(affected_groups([path]), {"rust", "csharp"})
+
+    def test_csharp_gate_invokes_the_stream_consumer(self):
+        # Selecting the C# job must execute streaming, not only the unary gate.
+        source = (ROOT / "tools/test-csharp.py").read_text(encoding="utf-8")
+        self.assertIn('run(sys.executable, "tools/test-csharp-streaming.py")', source)
+        workflow = (ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
+        job = workflow.split("\n  csharp:\n", 1)[1].split("\n  java:\n", 1)[0]
+        self.assertIn("python tools/test-csharp.py", job)
+        self.assertNotIn("CSHARP_ONLY", job)
+
+    def test_shared_native_stream_fixture_and_model_select_every_native_stream_gate(self):
+        for path in ("tests/consumers/native-stream-http/src/main.rs", "tests/consumers/rust-stream-client/model/model.cru"):
+            with self.subTest(path=path):
+                self.assertEqual(affected_groups([path]), {"rust", "consumers", "python", "go", "csharp"})
 
     def test_browser_streaming_sources_select_native_browser_and_http_gates(self):
         for path in ("tools/test-streaming-browser.py", "tools/streaming-browser.mjs", "tools/requirements-browser.txt"):

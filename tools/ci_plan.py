@@ -77,8 +77,15 @@ TOOLS = {
     "tools/test_crucible_release.py": {"e2e"},
     "tools/test-consumers.py": {"consumers"},
     "tools/test-rust-streaming.py": {"consumers"},
-    "tests/conformance/response-stream.json": MODEL_GROUPS | {"consumers"},
+    "tools/test-csharp-streaming.py": {"csharp"},
+    # The shared profile vectors; the C# stream consumer reads them too.
+    "tests/conformance/response-stream.json": MODEL_GROUPS | {"consumers", "csharp"},
 }
+
+# The Rust HTTP fixture and the stream model are shared by the Rust consumer
+# (`tools/test-rust-streaming.py`) and every native stream client gate.
+NATIVE_STREAM_PATHS = ("tests/consumers/native-stream-http/", "tests/consumers/rust-stream-client/")
+NATIVE_STREAM_GROUPS = frozenset({"consumers", "python", "go", "csharp"})
 
 
 # Starter provisioning differs per host, so changes to it qualify Windows and
@@ -161,6 +168,8 @@ def affected_groups(paths):
             selected.update({"c", "cpp"})
         elif path.startswith("tests/consumers/streaming/"):
             selected.update({"consumers", "typescript", "e2e"})
+        elif path.startswith(NATIVE_STREAM_PATHS):
+            selected.update(NATIVE_STREAM_GROUPS)
         elif path.startswith("tests/consumers/"):
             selected.add("consumers")
         elif path.startswith("e2e/"):
