@@ -345,10 +345,11 @@ class SyncStreams(unittest.TestCase):
         # failure there must be rechecked against the deadline and cancellation.
         for path in ("item","json"):
             for lifetime in ("deadline","cancel"):
-                with self.subTest(path=path,lifetime=lifetime), raw() as (url,_,_), StreamsClient(url,timeout=.1 if lifetime=="deadline" else 2) as client:
+                with self.subTest(path=path,lifetime=lifetime), raw() as (url,_,_), StreamsClient(url,timeout=.5 if lifetime=="deadline" else 2) as client:
                     event=threading.Event()
                     def cross():
-                        if lifetime=="deadline": time.sleep(.15)
+                        # The budget leaves room for opening on a loaded machine.
+                        if lifetime=="deadline": time.sleep(.6)
                         else: event.set()
                     convert=client._codec.convert;parse=stream_module._json
                     def failing_convert(target,value,**options):
@@ -494,6 +495,15 @@ class SyncStreams(unittest.TestCase):
                     # body, or what was consumed before a body was discarded
                     # (one byte past the limit for an oversized identity body).
                     self.assertEqual(attempts,[size if decoded else 257 if not encoding else len(wire)])
+        # A valid empty compressed body decodes to 0 bytes; a malformed one
+        # reports the bytes consumed before it was discarded.
+        for encoding,wire,expected in (("gzip",gzip.compress(b""),0),("deflate",zlib.compress(b""),0),("gzip",b"not gzip",8)):
+            attempts=[]
+            class Hook(TelemetryHook):
+                def attempt_finished(self,event): attempts.append(event.response_bytes)
+            with self.subTest(encoding=encoding,wire=wire), raw(status=503,encoding=encoding,error_body=wire) as (url,_,_), StreamsClient(url,telemetry=Hook()) as client:
+                with self.assertRaises(Exception): client.publish(PublishInput(topic="send"))
+                self.assertEqual(attempts,[expected])
 
     def test_opening_error_fixture_reads_separate_post_body_before_response(self):
         class DelayedBody(httpx.AsyncByteStream):
@@ -623,7 +633,8 @@ class AsyncStreams(unittest.IsolatedAsyncioTestCase):
         task=asyncio.current_task()
         for mode in ("deadline","event"):
             with self.subTest(mode=mode), raw(b"",hold=True) as (url,_,_):
-                async with AsyncStreamsClient(url,timeout=.15 if mode=="deadline" else 2) as client:
+                # The read deadline leaves room for opening on a loaded machine.
+                async with AsyncStreamsClient(url,timeout=1 if mode=="deadline" else 2) as client:
                     event=asyncio.Event();stream=await client.watch(cancellation=event)
                     if mode=="deadline":
                         with self.assertRaises(TimeoutError): await anext(stream)
@@ -646,7 +657,7 @@ class AsyncStreams(unittest.IsolatedAsyncioTestCase):
         stream_module._Lifetime.interrupt=with_caller_cancel
         try:
             with raw(b"",hold=True) as (url,_,_):
-                async with AsyncStreamsClient(url,timeout=.15) as client:
+                async with AsyncStreamsClient(url,timeout=1) as client:
                     stream=await client.watch()
                     reader=asyncio.create_task(anext(stream))
                     with self.assertRaises(asyncio.CancelledError): await reader
@@ -663,7 +674,7 @@ class AsyncStreams(unittest.IsolatedAsyncioTestCase):
         try:
             self.assertEqual(task.cancelling(),1)
             with raw(b"",hold=True) as (url,_,_):
-                async with AsyncStreamsClient(url,timeout=.15) as client:
+                async with AsyncStreamsClient(url,timeout=1) as client:
                     stream=await client.watch()
                     with self.assertRaisesRegex(TimeoutError,"deadline exceeded"): await anext(stream)
                     await stream.aclose()

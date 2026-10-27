@@ -67,18 +67,19 @@ async def read_opening_error(response: httpx.Response, limit: int) -> tuple[byte
     if encoding not in ("gzip", "deflate"):
         return bytes(data), len(data)
     body = _gunzip_members(memoryview(data), limit) if encoding == "gzip" else _inflate(data, limit)
-    return body, len(body) if body else len(data)
+    # None marks a discarded body; a valid empty one decodes to b"" (0 bytes).
+    return (b"", len(data)) if body is None else (body, len(body))
 
 
-def _inflate(data: bytearray, limit: int) -> bytes:
+def _inflate(data: bytearray, limit: int) -> bytes | None:
     for format in (15, -15):
         try:
             decoder = zlib.decompressobj(format)
             expanded_deflate = decoder.decompress(data, limit + 1)
-            return expanded_deflate if decoder.eof and len(expanded_deflate) <= limit else b""
+            return expanded_deflate if decoder.eof and len(expanded_deflate) <= limit else None
         except zlib.error:
             continue
-    return b""
+    return None
 
 
 _GZIP_MAGIC = b"\x1f\x8b"
@@ -87,7 +88,7 @@ _GZIP_MAGIC = b"\x1f\x8b"
 _MAX_GZIP_MEMBERS = 64
 
 
-def _gunzip_members(data: memoryview, limit: int) -> bytes:
+def _gunzip_members(data: memoryview, limit: int) -> bytes | None:
     """Decode concatenated gzip members in linear time under one ceiling.
 
     Input is fed from an offset in geometrically growing slices, so the copy
@@ -102,24 +103,25 @@ def _gunzip_members(data: memoryview, limit: int) -> bytes:
         while offset < len(data) and data[offset:offset + 2] == _GZIP_MAGIC:
             members += 1
             if members > _MAX_GZIP_MEMBERS:
-                return b""
+                return None
             decoder = zlib.decompressobj(31)
             step = 64
             while not decoder.eof:
                 if offset >= len(data):
-                    return b""
+                    return None
                 piece = data[offset:offset + step]
                 # Room for one byte past the ceiling, so a body of exactly the
                 # limit can still reach its trailer (zlib treats max_length=0
                 # as unbounded, so it is never passed).
                 expanded += decoder.decompress(piece, limit + 1 - len(expanded))
                 if len(expanded) > limit or decoder.unconsumed_tail:
-                    return b""
+                    return None
                 offset += len(piece) - len(decoder.unused_data)
                 step = min(step * 2, 65536)
     except zlib.error:
-        return b""
-    return bytes(expanded)
+        return None
+    # Input that never starts a member is malformed, not an empty body.
+    return bytes(expanded) if members or not data else None
 
 
 def _check_start(deadline: float, cancellation: asyncio.Event | threading.Event | None) -> None:
