@@ -19,7 +19,10 @@ class ErrorDocumentationFixtures(unittest.TestCase):
         directory.mkdir(parents=True)
         (directory / "error-docs.json").write_text(json.dumps({"cases": [dict(
             name="one", status=403, identity="Denied", body="{}", header=None,
-            docUrl="https://docs.example.test/errors/Denied", typed=False)]}), encoding="utf-8")
+            docUrl="https://docs.example.test/errors/Denied", typed=False), dict(
+            name="two", status=400, identity=None, body='{"__type":"Denied"}', header="access/needed",
+            docUrl="https://docs.example.test/errors/Denied/reason-access%2Fneeded", typed=True)]}),
+            encoding="utf-8")
         environment = patch.dict(os.environ, SDK_HTTP_BIND="127.0.0.1", SDK_HTTP_HOST="127.0.0.1")
         environment.start()
         self.addCleanup(environment.stop)
@@ -38,10 +41,9 @@ class ErrorDocumentationFixtures(unittest.TestCase):
         try:
             connection.request(method, path, headers={"x-case": str(index)})
             response = connection.getresponse()
-            response.read()
-            return response.status
+            return response.status, response.headers, response.read()
         except RemoteDisconnected:
-            return None
+            return None, None, None
         finally:
             connection.close()
 
@@ -52,22 +54,29 @@ class ErrorDocumentationFixtures(unittest.TestCase):
             with self.subTest(language=language):
                 with self.fixture(language) as (cases, endpoint):
                     for index, case in enumerate(cases):
-                        self.assertEqual(self.request(endpoint, "GET", "/inspect", index), case["status"])
+                        status, headers, body = self.request(endpoint, "GET", "/inspect", index)
+                        self.assertEqual(status, case["status"], case["name"])
+                        self.assertEqual(headers.get("X-Crucible-Error"), case["identity"], case["name"])
+                        self.assertEqual(headers.get("X-Error-Reason"), case["header"], case["name"])
+                        self.assertEqual(body, case["body"].encode("utf-8"), case["name"])
                 self.assertTrue(required.issubset({case["name"] for case in cases}))
 
     def test_each_fixture_rejects_the_wrong_path(self):
         for language in ("dart", "swift"):
             with self.subTest(language=language):
-                with self.assertRaisesRegex(AssertionError, "unexpected request path"):
+                with self.assertRaisesRegex(AssertionError, "unexpected request path: /wrong"):
                     with self.fixture(language) as (_cases, endpoint):
                         self.request(endpoint, "GET", "/wrong")
 
     def test_each_fixture_rejects_the_wrong_method(self):
         for language in ("dart", "swift"):
             with self.subTest(language=language):
-                with self.assertRaises(AssertionError):
-                    with self.fixture(language) as (_cases, endpoint):
-                        self.assertEqual(self.request(endpoint, "POST", "/inspect"), 501)
+                # Every GET case completes, so only the rejected POST can fail the fixture.
+                with self.assertRaisesRegex(AssertionError, "unexpected request method: POST"):
+                    with self.fixture(language) as (cases, endpoint):
+                        self.assertEqual(self.request(endpoint, "POST", "/inspect")[0], 405)
+                        for index, case in enumerate(cases):
+                            self.assertEqual(self.request(endpoint, "GET", "/inspect", index)[0], case["status"])
 
 
 if __name__ == "__main__":

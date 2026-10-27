@@ -54,6 +54,13 @@ def error_docs_fixture(output, *, root=None):
             except Exception as error:
                 failures.append(error)
 
+        def reject_method(self):
+            # A consumer that sends anything but GET must fail the run, not only see an error status.
+            failures.append(AssertionError(f"unexpected request method: {self.command}"))
+            self.send_error(405)
+
+        do_POST = do_PUT = do_PATCH = do_DELETE = do_OPTIONS = reject_method
+
         def log_message(self, *_args):
             pass
 
