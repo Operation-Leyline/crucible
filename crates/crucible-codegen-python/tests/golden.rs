@@ -90,16 +90,17 @@ fn response_stream_api_and_guide_match_goldens() {
         package_name: "streams-client".into(),
         ..options()
     };
+    let expected = [
+        "README.md",
+        "src/streams_client/__init__.py",
+        "src/streams_client/client.py",
+    ];
+    let mut seen = Vec::new();
     for file in emit(&service, &config).unwrap() {
-        if ![
-            "src/streams_client/client.py",
-            "src/streams_client/__init__.py",
-            "README.md",
-        ]
-        .contains(&file.path.as_str())
-        {
+        if !expected.contains(&file.path.as_str()) {
             continue;
         }
+        seen.push(file.path.clone());
         let path = root.join("tests/golden/streaming").join(&file.path);
         let contents = format!("{}\n", file.contents.trim_end());
         if std::env::var_os("CRUCIBLE_BLESS").is_some() {
@@ -114,6 +115,53 @@ fn response_stream_api_and_guide_match_goldens() {
             "{}",
             file.path
         );
+    }
+    // A renamed or dropped output must fail rather than skip its comparison,
+    // and a golden no output matches any more is stale.
+    seen.sort();
+    assert_eq!(seen, expected, "streaming outputs");
+    let mut checked_in = Vec::new();
+    let mut pending = vec![root.join("tests/golden/streaming")];
+    while let Some(dir) = pending.pop() {
+        for entry in fs::read_dir(&dir).unwrap() {
+            let path = entry.unwrap().path();
+            if path.is_dir() {
+                pending.push(path);
+            } else {
+                let relative = path
+                    .strip_prefix(root.join("tests/golden/streaming"))
+                    .unwrap();
+                checked_in.push(relative.to_string_lossy().replace('\\', "/"));
+            }
+        }
+    }
+    checked_in.sort();
+    assert_eq!(checked_in, expected, "stale streaming goldens");
+}
+
+#[test]
+fn stream_names_are_reserved_only_when_streaming() {
+    // A unary service may name a model after a stream export it never imports.
+    for name in [
+        "ResponseStream",
+        "AsyncResponseStream",
+        "StreamProtocolError",
+    ] {
+        let unary = weather_with(|text| text.replace("CitySummary", name));
+        assert!(emit(&unary, &options()).is_ok(), "{name}");
+        let dir = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../tests/consumers/rust-stream-client/model");
+        let mut package = crucible_lang::load_package(&dir).unwrap();
+        for file in &mut package.files {
+            file.text = file.text.replace("Update", name);
+        }
+        let compiled = crucible_lang::compile(&package, None);
+        let streaming = compiled
+            .service
+            .clone()
+            .unwrap_or_else(|| panic!("{}", compiled.render()));
+        let diagnostics = emit(&streaming, &options()).err().expect(name);
+        assert!(diagnostics.to_string().contains(name), "{name}");
     }
 }
 

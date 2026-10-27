@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -45,6 +46,59 @@ func TestSuccessfulHeadersAreNotReplayedWithTransportError(t *testing.T) {
 	}
 }
 
+// cancelOnLast cancels the call as it returns its final chunk, so the frame
+// completes from buffered bytes and fails parsing after the lifetime ended.
+type cancelOnLast struct {
+	chunks []string
+	cancel context.CancelFunc
+}
+
+func (b *cancelOnLast) Read(p []byte) (int, error) {
+	if len(b.chunks) == 0 {
+		return 0, io.EOF
+	}
+	chunk := b.chunks[0]
+	b.chunks = b.chunks[1:]
+	if len(b.chunks) == 0 {
+		b.cancel()
+	}
+	return copy(p, chunk), nil
+}
+
+func (b *cancelOnLast) Close() error { return nil }
+
+func TestProtocolFailuresAfterCancellationReportContext(t *testing.T) {
+	frames := map[string]string{
+		"malformed-json":     "data: {bad\n",
+		"invalid-item":       "data: {\"ready\":5}\n",
+		"invalid-completion": "event: crucible.complete\ndata: []\n",
+		"invalid-late-error": "event: crucible.error\ndata: {}\n",
+		"unknown-event":      "event: future\ndata: {}\n",
+	}
+	for name, frame := range frames {
+		t.Run(name, func(t *testing.T) {
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			c := client(t, "http://127.0.0.1:1", func(c *streams.Config) {
+				c.HTTPClient = clientFunc(func(r *http.Request) (*http.Response, error) {
+					return &http.Response{StatusCode: 200, Header: http.Header{"Content-Type": []string{media}}, Body: &cancelOnLast{chunks: []string{frame, "\n"}, cancel: cancel}}, nil
+				})
+			})
+			events, err := c.Watch(ctx, streams.Unit{})
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer events.Close()
+			if events.Next() {
+				t.Fatal("disclosed an item after cancellation")
+			}
+			if !errors.Is(events.Err(), context.Canceled) {
+				t.Fatalf("cancellation must take precedence over %s: %v", name, events.Err())
+			}
+		})
+	}
+}
+
 func client(t *testing.T, endpoint string, modify ...func(*streams.Config)) *streams.StreamsClient {
 	t.Helper()
 	config := streams.Config{Endpoint: endpoint, Timeout: 3 * time.Second, BaseDelay: time.Nanosecond}
@@ -56,6 +110,100 @@ func client(t *testing.T, endpoint string, modify ...func(*streams.Config)) *str
 		t.Fatal(err)
 	}
 	return c
+}
+
+func TestPhysicalFrameBytesContiguousAndSplitCRLF(t *testing.T) {
+	type profile struct {
+		name, wire string
+		valid      bool
+		items      int
+	}
+	var cases []profile
+	for _, delimiter := range []struct{ name, wire string }{{"lf", "\n"}, {"cr", "\r"}, {"crlf", "\r\n"}} {
+		for _, size := range []int{256, 257} {
+			suffix := delimiter.wire + `data: {"ready":"first"}` + strings.Repeat(delimiter.wire, 2)
+			frame := "x:" + strings.Repeat("a", size-2-len(suffix)) + suffix
+			if len(frame) != size {
+				t.Fatal("incorrect physical boundary")
+			}
+			count := 0
+			// The blank CR delivers immediately; an optional LF that exceeds
+			// that completed frame's budget fails on the following Next.
+			if size == 256 || delimiter.name == "crlf" {
+				count = 1
+			}
+			cases = append(cases, profile{fmt.Sprintf("%s-%d", delimiter.name, size), frame + complete, size == 256, count})
+		}
+	}
+	cases = append(cases, profile{"ignored-crlf-65", strings.Repeat("x:\r\n", 65) + item + complete, false, 0})
+	for _, control := range []struct{ name, suffix string }{{"empty", "\r\n\r\n"}, {"terminal", "\r\nevent: crucible.complete\r\ndata: {}\r\n\r\n"}} {
+		wire := "x:" + strings.Repeat("a", 257-2-len(control.suffix)) + control.suffix
+		if control.name == "empty" {
+			wire += item + complete
+		}
+		cases = append(cases, profile{control.name + "-crlf-257", wire, false, 0})
+	}
+	suffix := "\r\n" + `data: {"ready":"first"}` + "\r\n\r\n"
+	frame := "x:" + strings.Repeat("a", 256-2-len(suffix)) + suffix
+	cases = append(cases, profile{"consecutive-crlf-256", frame + frame + complete, true, 2})
+	for _, split := range []bool{false, true} {
+		for _, test := range cases {
+			t.Run(fmt.Sprintf("%s/split-%v", test.name, split), func(t *testing.T) {
+				var requests atomic.Int32
+				disconnected := make(chan struct{})
+				server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					defer close(disconnected)
+					requests.Add(1)
+					w.Header().Set("Content-Type", media)
+					if split {
+						for _, b := range []byte(test.wire) {
+							if _, err := w.Write([]byte{b}); err != nil {
+								return
+							}
+							w.(http.Flusher).Flush()
+							if b == '\r' {
+								time.Sleep(time.Millisecond)
+							}
+						}
+					} else {
+						io.WriteString(w, test.wire)
+					}
+					if !test.valid {
+						w.(http.Flusher).Flush()
+						<-r.Context().Done()
+					}
+				}))
+				defer server.Close()
+				c := client(t, server.URL, func(c *streams.Config) { c.MaxStreamEventBytes = 256 })
+				events, err := c.Watch(context.Background(), streams.Unit{})
+				if err != nil {
+					t.Fatal(err)
+				}
+				defer events.Close()
+				count := 0
+				for events.Next() {
+					count++
+				}
+				var protocol *streams.StreamProtocolError
+				if test.valid && events.Err() != nil {
+					t.Fatal(events.Err())
+				}
+				if !test.valid && !errors.As(events.Err(), &protocol) {
+					t.Fatalf("expected protocol failure: %v", events.Err())
+				}
+				if count != test.items || requests.Load() != 1 {
+					t.Fatalf("items=%d expected=%d requests=%d", count, test.items, requests.Load())
+				}
+				if !test.valid {
+					select {
+					case <-disconnected:
+					case <-time.After(time.Second):
+						t.Fatal("response must close before helper cleanup")
+					}
+				}
+			})
+		}
+	}
 }
 
 func TestSharedProfilesOverBytewiseNativeTCP(t *testing.T) {
@@ -227,6 +375,71 @@ func TestOpeningRetriesAuthMiddlewareUnsafePostAndOversize(t *testing.T) {
 	}
 }
 
+type attemptBytes struct {
+	streams.NopTelemetryHook
+	bytes atomic.Int64
+}
+
+func (h *attemptBytes) AttemptFinished(event streams.AttemptFinishedEvent) {
+	h.bytes.Store(event.ResponseBytes)
+}
+
+func TestOpeningErrorAtAndPastTheLimit(t *testing.T) {
+	// A modelled opening error of exactly MaxStreamEventBytes keeps its fields;
+	// one byte more is oversized, so even a valid JSON prefix is not decoded.
+	document := `{"__type":"WorkFailed","message":"opening"}`
+	for _, test := range []struct {
+		name    string
+		size    int
+		decoded bool
+	}{{"exact", 256, true}, {"oversized", 257, false}} {
+		t.Run(test.name, func(t *testing.T) {
+			body := document + strings.Repeat(" ", test.size-len(document))
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(503)
+				io.WriteString(w, body)
+			}))
+			defer server.Close()
+			hook := &attemptBytes{}
+			c := client(t, server.URL, func(c *streams.Config) { c.MaxStreamEventBytes = 256; c.Telemetry = hook })
+			_, err := c.Publish(context.Background(), &streams.PublishInput{Topic: "send"})
+			var service *streams.ServiceError
+			if !errors.As(err, &service) {
+				t.Fatal(err)
+			}
+			if (service.Message == "opening") != test.decoded {
+				t.Fatalf("message %q for a %d-byte body", service.Message, test.size)
+			}
+			// Telemetry reports the bytes read even when the body is discarded.
+			if want := int64(test.size); hook.bytes.Load() != want {
+				t.Fatalf("ResponseBytes %d, expected %d", hook.bytes.Load(), want)
+			}
+		})
+	}
+}
+
+func TestOpeningErrorWithMaximumLimit(t *testing.T) {
+	// limit+1 must saturate: an overflowed LimitReader would read nothing.
+	body := `{"__type":"WorkFailed","message":"opening"}`
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(400)
+		io.WriteString(w, body)
+	}))
+	defer server.Close()
+	hook := &attemptBytes{}
+	c := client(t, server.URL, func(c *streams.Config) { c.MaxStreamEventBytes = math.MaxInt; c.Telemetry = hook })
+	_, err := c.Publish(context.Background(), &streams.PublishInput{Topic: "send"})
+	var service *streams.ServiceError
+	if !errors.As(err, &service) || service.Message != "opening" {
+		t.Fatalf("opening error lost with a maximum limit: %v", err)
+	}
+	if hook.bytes.Load() != int64(len(body)) {
+		t.Fatalf("ResponseBytes %d, expected %d", hook.bytes.Load(), len(body))
+	}
+}
+
 func TestLateErrorsAreDocumentsAndRetainMetadata(t *testing.T) {
 	tests := []struct{ name, fields, reason string }{
 		{"WorkFailed", `{"message":"late","reason":"broken"}`, "broken"},
@@ -235,6 +448,7 @@ func TestLateErrorsAreDocumentsAndRetainMetadata(t *testing.T) {
 		{"DefaultReason", `{"message":"late"}`, "broken"},
 		{"DefaultEmptyReason", `{"message":"late"}`, ""},
 		{"FutureError", `{"message":"late"}`, ""},
+		{"FutureError", `{"message":5}`, ""},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -264,6 +478,14 @@ func TestLateErrorsAreDocumentsAndRetainMetadata(t *testing.T) {
 			}
 			if service.Name != test.name || service.Metadata.Status != 503 || service.Metadata.RequestID != "profile" {
 				t.Fatal(service)
+			}
+			// A late error without a string message keeps the opening fallback.
+			want := "HTTP 503"
+			if strings.Contains(test.fields, `"message":"late"`) {
+				want = "late"
+			}
+			if service.Message != want {
+				t.Fatalf("message %q, expected %q", service.Message, want)
 			}
 			switch test.name {
 			case "HeaderFailure":
@@ -309,13 +531,29 @@ func fixture(t *testing.T, mode string) (string, func() [2]int) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { command.Process.Kill(); command.Wait() })
-	scanner := bufio.NewScanner(pipe)
-	if !scanner.Scan() {
-		t.Fatal("Rust fixture did not start")
+	// A fixture that hangs or exits before printing its endpoints fails this
+	// test (the cleanup kills it) instead of blocking the whole run.
+	started := make(chan string, 1)
+	go func() {
+		scanner := bufio.NewScanner(pipe)
+		if scanner.Scan() {
+			started <- scanner.Text()
+		}
+		close(started)
+	}()
+	var line string
+	select {
+	case text, ok := <-started:
+		if !ok {
+			t.Fatalf("Rust fixture %q exited before starting", mode)
+		}
+		line = text
+	case <-time.After(30 * time.Second):
+		t.Fatalf("Rust fixture %q printed no endpoints within 30s", mode)
 	}
-	urls := strings.Fields(scanner.Text())
+	urls := strings.Fields(line)
 	if len(urls) != 2 {
-		t.Fatal(scanner.Text())
+		t.Fatal(line)
 	}
 	counts := func() (result [2]int) {
 		response, e := http.Get(urls[1])

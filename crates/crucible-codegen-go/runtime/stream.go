@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"mime"
 	"net/http"
@@ -60,6 +61,7 @@ type ResponseStream[T any] struct {
 	event         string
 	frameBytes    int
 	skipLF        bool
+	crFrameBytes  int
 	first         bool
 	terminal      bool
 	terminalError error
@@ -97,6 +99,17 @@ func (s *ResponseStream[T]) finish(err error) {
 		s.response.Body.Close()
 		s.trace.finished(err)
 	})
+}
+
+// fail finishes with err unless the stream's lifetime is already over.
+// Parsing and decoding are synchronous, so the context can expire during
+// them; its cancellation or deadline takes precedence over the data failure.
+func (s *ResponseStream[T]) fail(err error) bool {
+	if e := s.ctx.Err(); e != nil {
+		err = e
+	}
+	s.finish(err)
+	return false
 }
 
 // Close stops consumption and releases this response without closing the HTTP client.
@@ -150,16 +163,14 @@ func (s *ResponseStream[T]) Next() bool {
 		}
 		raw, err := parseJSON(data)
 		if err != nil {
-			s.finish(streamProtocol("malformed JSON"))
-			return false
+			return s.fail(streamProtocol("malformed JSON"))
 		}
 		switch event {
 		case "", "message":
 			var value T
 			object, ok := raw.(map[string]any)
 			if !ok || decodeModel(s.client.schema, s.op.Output, object, &value) != nil {
-				s.finish(streamProtocol("invalid item"))
-				return false
+				return s.fail(streamProtocol("invalid item"))
 			}
 			s.mu.Lock()
 			err = s.ctx.Err()
@@ -176,20 +187,17 @@ func (s *ResponseStream[T]) Next() bool {
 		case "crucible.complete":
 			object, ok := raw.(map[string]any)
 			if !ok || len(object) != 0 {
-				s.finish(streamProtocol("invalid completion"))
-				return false
+				return s.fail(streamProtocol("invalid completion"))
 			}
 			s.terminal = true
 		case "crucible.error":
 			late, err := s.decodeLateError(raw, data)
 			if err != nil {
-				s.finish(err)
-				return false
+				return s.fail(err)
 			}
 			s.terminal, s.terminalError = true, late
 		default:
-			s.finish(streamProtocol("unknown event"))
-			return false
+			return s.fail(streamProtocol("unknown event"))
 		}
 	}
 }
@@ -211,6 +219,14 @@ func (s *ResponseStream[T]) frame() (string, []byte, error) {
 		if s.skipLF {
 			s.skipLF = false
 			if b == '\n' {
+				// Charge the LF to its CR-terminated frame, retaining the
+				// completed count across the blank-line reset.
+				if s.crFrameBytes+1 > s.client.config.MaxStreamEventBytes {
+					return "", nil, streamProtocol("frame exceeds byte limit")
+				}
+				if s.frameBytes != 0 {
+					s.frameBytes++
+				}
 				continue
 			}
 		}
@@ -226,6 +242,7 @@ func (s *ResponseStream[T]) frame() (string, []byte, error) {
 			continue
 		}
 		s.skipLF = b == '\r'
+		s.crFrameBytes = s.frameBytes
 		line := s.line
 		s.line = nil
 		if !utf8.Valid(line) {
@@ -282,7 +299,11 @@ func (s *ResponseStream[T]) decodeLateError(raw any, data []byte) (error, error)
 	if !ok {
 		return nil, streamProtocol("invalid error fields")
 	}
-	message, _ := fields["message"].(string)
+	message, ok := fields["message"].(string)
+	if !ok {
+		// The same fallback as an opening error without a string message.
+		message = fmt.Sprintf("HTTP %d", code)
+	}
 	metadata := &ServiceError{Name: name, Message: message, Metadata: ResponseMetadata{Status: int(code), RequestID: s.Metadata.RequestID, Headers: s.Metadata.Headers.Clone(), Body: bytes.Clone(data)}}
 	for _, target := range s.op.Errors {
 		shape := s.client.schema.Shapes[target]

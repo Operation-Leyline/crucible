@@ -22,10 +22,13 @@ fn response_stream_api_and_guide_match_goldens() {
         endpoint: None,
         metadata: Default::default(),
     };
+    let expected = ["README.md", "client.go"];
+    let mut seen = Vec::new();
     for file in emit(&service, &config).unwrap() {
-        if !["client.go", "README.md"].contains(&file.path.as_str()) {
+        if !expected.contains(&file.path.as_str()) {
             continue;
         }
+        seen.push(file.path.clone());
         let path = root.join("tests/golden/streaming").join(&file.path);
         let contents = format!("{}\n", file.contents.trim_end());
         if std::env::var_os("CRUCIBLE_BLESS").is_some() {
@@ -41,6 +44,16 @@ fn response_stream_api_and_guide_match_goldens() {
             file.path
         );
     }
+    // A renamed or dropped output must fail rather than skip its comparison,
+    // and a golden no output matches any more is stale.
+    seen.sort();
+    assert_eq!(seen, expected, "streaming outputs");
+    let mut checked_in: Vec<String> = std::fs::read_dir(root.join("tests/golden/streaming"))
+        .unwrap()
+        .map(|entry| entry.unwrap().file_name().to_string_lossy().into_owned())
+        .collect();
+    checked_in.sort();
+    assert_eq!(checked_in, expected, "stale streaming goldens");
 }
 /// The weather package with `edit` applied to every source file and `extra`
 /// source appended to it.

@@ -318,36 +318,12 @@ struct Fake: VoidSDK.HTTPTransport {
 
 @contextmanager
 def error_documentation_fixture():
-    """Shared wire vectors through actual native HTTP, never a fake transport."""
-    cases = json.loads((ROOT / "tests/conformance/error-docs.json").read_text(encoding="utf-8"))["cases"]
-    received = []
-
-    class Handler(BaseHTTPRequestHandler):
-        def log_message(self, *_args):
-            pass
-        def do_GET(self):
-            index = int(self.headers["x-case"])
-            received.append(index)
-            case = cases[index]
-            body = case["body"].encode("utf-8")
-            self.send_response(case["status"])
-            if case["identity"] is not None:
-                self.send_header("x-crucible-error", case["identity"])
-            if case["header"] is not None:
-                self.send_header("x-error-reason", case["header"])
-            self.send_header("Content-Length", str(len(body)))
-            self.end_headers()
-            self.wfile.write(body)
-    server = ThreadingHTTPServer((os.environ.get("SDK_HTTP_BIND", "127.0.0.1"), 0), Handler)
-    thread = threading.Thread(target=server.serve_forever, daemon=True)
-    thread.start()
-    try:
-        yield cases, f"http://{os.environ.get('SDK_HTTP_HOST', '127.0.0.1')}:{server.server_port}"
-        assert received == list(range(len(cases))), received
-    finally:
-        server.shutdown()
-        server.server_close()
-        thread.join(timeout=5)
+    """Use the shared oracle and strict GET /inspect server for native consumers."""
+    from sdk_error_docs_fixture import error_docs_fixture
+    with tempfile.TemporaryDirectory(prefix="crucible-error-docs-") as directory:
+        with error_docs_fixture(Path(directory), root=ROOT) as (endpoint, oracle):
+            cases = json.loads(oracle.read_text(encoding="utf-8"))["cases"]
+            yield cases, endpoint
 
 
 def qualify_error_documentation(output):
@@ -373,11 +349,12 @@ let package = Package(name: "DocsConsumer", platforms: [.macOS(.v12)],
 
 
 if __name__ == "__main__":
+    qualifier = qualify_error_documentation if os.environ.get("ERROR_DOCS_ONLY") else qualify
     explicit = os.environ.get("SWIFT_TEST_OUTPUT")
     if explicit:
         directory = Path(explicit).resolve()
         directory.mkdir(parents=True, exist_ok=True)
-        qualify(directory)
+        qualifier(directory)
     else:
         with tempfile.TemporaryDirectory(prefix="crucible-swift-") as directory:
-            qualify(Path(directory))
+            qualifier(Path(directory))

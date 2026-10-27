@@ -4,7 +4,7 @@ import Docs
 struct Vector: Decodable {
     let name: String
     let docUrl: String?
-    let typed: Bool
+    let typed: Bool?
 }
 
 @main struct DocsConsumer {
@@ -19,7 +19,9 @@ struct Vector: Decodable {
             } catch let error as any ServiceError {
                 retained = error
                 precondition(error.docURL == vector.docUrl, "\(vector.name): \(error.docURL ?? "nil") != \(vector.docUrl ?? "nil")")
-                precondition(!(error is UnknownServiceError) == vector.typed, "Wrong typed error for \(vector.name)")
+                if let typed = vector.typed {
+                    precondition(!(error is UnknownServiceError) == typed, "Wrong typed error for \(vector.name)")
+                }
                 if ["document-empty", "document-whitespace", "document-null"].contains(vector.name) {
                     let payload = (error as! DocumentPayloadError).dataPresence
                     precondition(payload.isSet == (vector.name == "document-null"), "\(vector.name): document presence")

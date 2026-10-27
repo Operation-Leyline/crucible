@@ -37,6 +37,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"os"
@@ -61,10 +62,23 @@ func main() {
 	}
 
 	events, err := client.Publish(ctx, input)
-	if err != nil { log.Fatal(err) }
+	var validationError *streams.ValidationError
+	if errors.As(err, &validationError) {
+		fmt.Printf("ValidationError (HTTP %d): %v\n", validationError.Metadata.Metadata.Status, validationError.Message)
+		return
+	}
+	if err != nil {
+		log.Fatal(err)
+	}
 	defer events.Close()
-	for events.Next() { fmt.Println(events.Value()) }
-	if err := events.Err(); err != nil { log.Print(err) }
+	for events.Next() {
+		fmt.Println(events.Value())
+	}
+	if err := events.Err(); errors.As(err, &validationError) {
+		fmt.Printf("ValidationError (HTTP %d): %v\n", validationError.Metadata.Metadata.Status, validationError.Message)
+	} else if err != nil {
+		log.Print(err)
+	}
 }
 ```
 

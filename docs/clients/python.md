@@ -279,9 +279,10 @@ activity. Unary calls continue using that pool. Asynchronous streams use the
 supplied `httpx.AsyncClient` and close only the response, leaving the caller's
 pool and other calls available.
 
-A synchronous factory cannot be forcibly interrupted. If its call budget expires
-during setup, the stream closes the returned transport and joins its worker
-before reporting the timeout, without invoking credentials or sending HTTP.
+A synchronous factory cannot be forcibly interrupted: the call waits for it to
+return, and the deadline is checked only then. If it returns after the
+deadline, the stream closes the returned transport and joins its worker before
+reporting the timeout, without invoking credentials or sending HTTP.
 
 Streaming requests ask for `Accept-Encoding: identity`. Content-encoded success
 responses are explicitly refused: the Python runtime reads raw transport chunks
