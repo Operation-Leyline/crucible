@@ -24,8 +24,9 @@ MAX_CATEGORIES = 5
 # inline Markdown link, a reference definition, or an HTML href/src attribute.
 NOT_ABSOLUTE = r"(?!https?://|mailto:|#)"
 RELATIVE_LINK = re.compile(
-    rf"\]\({NOT_ABSOLUTE}([^)\s]+)"
-    # `(?!<)` keeps `<?` from backtracking past an angle-bracketed absolute URL.
+    # Markdown allows `<...>` around either destination; `(?!<)` keeps `<?`
+    # from backtracking past the bracket of an absolute URL.
+    rf"\]\(<?(?!<){NOT_ABSOLUTE}([^)\s>]+)"
     rf"|^ {{0,3}}\[[^\]]+\]:[ \t]*<?(?!<){NOT_ABSOLUTE}([^\s>]+)"
     rf"""|\b(?:href|src)\s*=\s*["']{NOT_ABSOLUTE}([^"']+)["']""",
     re.MULTILINE)
