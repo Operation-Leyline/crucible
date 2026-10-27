@@ -77,17 +77,16 @@ pub(crate) fn run(args: &Args) -> Result<(), String> {
         let Ok(message) = serde_json::from_slice::<Value>(line) else {
             continue;
         };
-        if message["reason"].as_str() == Some("compiler-message") {
-            if let Some(rendered) = message["message"]["rendered"].as_str() {
-                eprint!("{rendered}");
-            }
+        if message["reason"].as_str() == Some("compiler-message")
+            && let Some(rendered) = message["message"]["rendered"].as_str()
+        {
+            eprint!("{rendered}");
         }
         if message["reason"].as_str() == Some("build-script-executed")
             && message["package_id"].as_str() == Some(package_id)
+            && let Some(path) = message["out_dir"].as_str()
         {
-            if let Some(path) = message["out_dir"].as_str() {
-                outputs.insert(PathBuf::from(path));
-            }
+            outputs.insert(PathBuf::from(path));
         }
     }
     if !build.status.success() {

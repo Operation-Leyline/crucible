@@ -4,6 +4,14 @@ version.workspace = true
 edition.workspace = true
 license.workspace = true
 publish.workspace = true
+description = "Shared lowered wire descriptions and documentation support for Crucible client generators"
+readme.workspace = true
+license-file.workspace = true
+keywords.workspace = true
+categories.workspace = true
+exclude.workspace = true
+repository.workspace = true
+rust-version.workspace = true
 
 [dependencies]
 crucible-ir.workspace = true
@@ -19,4 +27,4 @@ regex = "1"
 workspace = true
 
 [dev-dependencies]
-crucible-lang.workspace = true
+crucible-lang = { path = "../crucible-lang" }

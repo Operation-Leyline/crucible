@@ -111,9 +111,8 @@ handler that needs to change.
 
 ## Quick start
 
-You need [Rust](https://rustup.rs) 1.85 or newer (1.88 if you add
-`crucible-auth`). Cargo fetches Crucible itself; there is no JVM or other
-runtime to install.
+You need [Rust](https://rustup.rs) 1.88 or newer. Cargo fetches Crucible
+itself; there is no JVM or other runtime to install.
 
 **Start from the template.** The
 [Crucible service template](https://github.com/Operation-Leyline/crucible-service-template)

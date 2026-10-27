@@ -36,6 +36,7 @@ class PlanTests(unittest.TestCase):
     def test_server_runtime_rename_keeps_old_and_new_paths_qualified(self):
         self.assertEqual(affected_groups(["crates/crucible/src/lib.rs"]), set(CORE_GROUPS))
         self.assertEqual(affected_groups(["crates/crucible-server-runtime-rust/src/lib.rs"]), CORE_GROUPS | CONSUMERS)
+        self.assertEqual(affected_groups(["crates/crucible-api/src/lib.rs"]), CORE_GROUPS | CONSUMERS)
 
     def test_language_changes_keep_native_consumers_and_dependencies(self):
         for language, expected in {
@@ -74,7 +75,7 @@ class PlanTests(unittest.TestCase):
     def test_openapi_export_keeps_its_rust_qualification(self):
         self.assertEqual(affected_groups(["crates/crucible-codegen-openapi/src/lib.rs"]), {"rust"})
         self.assertEqual(affected_groups(["crates/crucible-codegen-docs/src/lib.rs"]), {"rust", "docs_site"})
-        self.assertEqual(affected_groups(["crates/crucible-codegen-docs/runtime/explorer.js"]), {"rust", "docs_site", "e2e"})
+        self.assertEqual(affected_groups(["crates/crucible-explorer-assets/runtime/explorer.js"]), CORE_GROUPS | {"docs_site", "consumers"})
         self.assertEqual(affected_groups(["tools/test-docs-site.sh"]), {"rust", "docs_site"})
         self.assertEqual(affected_groups(["crates/crucible-codegen-docs/tests/golden/weather-external/describe.json"]), {"rust", "docs_site"})
         self.assertEqual(affected_groups(["crates/crucible-codegen-openapi/tests/golden/weather.openapi.json"]), {"rust"})
@@ -150,6 +151,8 @@ class PlanTests(unittest.TestCase):
             "crates/crucible-build/src/lib.rs", "crates/crucible-server-runtime-rust/src/host.rs",
             "crates/crucible-wire/src/error.rs", "crates/crucible-codegen-rust/src/lib.rs",
             "crates/crucible-auth/src/principal.rs",
+            # The packaged-registry consumer covers package detection and the CLI pin.
+            "crates/crucible-revision/build.rs", "crates/crucible-codegen-cli/src/package.rs",
             # The Leyline SDK consumer pins this runtime through `runtime_path`.
             "crates/crucible-client-runtime-rust/src/lib.rs",
             "tests/consumers/leyline/leyline-service/src/lib.rs", "tools/test-consumers.py",
@@ -180,8 +183,37 @@ class PlanTests(unittest.TestCase):
         # The aggregate cannot pass a release (full) run when consumers was skipped or failed.
         self.assertIn('results["plan"]["outputs"]["full"] == "true" and results["consumers"]["result"] != "success"', jobs["ci"])
         release = (ROOT / ".github/workflows/release.yml").read_text()
-        self.assertIn("needs: [preflight, qualify]", release)
+        self.assertIn("needs: [preflight, qualify, cli-artifacts, attest-cli]", release)
         self.assertIn("uses: ./.github/workflows/ci.yml", release)
+        jobs = dict(re.findall(r"^  ([\w-]+):\n(.*?)(?=^  [\w-]+:|\Z)",
+                              release.split("jobs:\n", 1)[1], re.MULTILINE | re.DOTALL))
+        # Only the attestation job, which runs no repository code, may mint OIDC tokens.
+        self.assertIn("id-token: write", jobs["attest-cli"])
+        self.assertNotIn("actions/checkout", jobs["attest-cli"])
+        self.assertNotIn("id-token", jobs["publish"])
+        for name in ("attest-cli", "publish"):
+            self.assertIn("rm -f dist/cli/*-dist-manifest.json", jobs[name])
+
+    def test_declared_msrv_is_compiled_and_aggregate_rejects_missing_proof(self):
+        workflow = (ROOT / ".github/workflows/ci.yml").read_text()
+        jobs = dict(re.findall(r"^  ([\w-]+):\n(.*?)(?=^  [\w-]+:|\Z)",
+                              workflow.split("jobs:\n", 1)[1], re.MULTILINE | re.DOTALL))
+        self.assertIn("toolchain: '1.88.0'", jobs["msrv"])
+        self.assertIn("cargo check --workspace --all-features --all-targets --locked", jobs["msrv"])
+        self.assertIn('rust-version = "1.88"', (ROOT / "Cargo.toml").read_text())
+        script = jobs["ci"].split("python3 - <<'PY'\n", 1)[1].rsplit("\n          PY", 1)[0]
+        script = "\n".join(line[10:] for line in script.splitlines())
+        results = {
+            "plan": {"result": "success", "outputs": {"tools": "false", "full": "false", "typescript": "false"}},
+            "rust": {"result": "success"}, "msrv": {"result": "success"},
+        }
+        for status in ("success", "skipped", "failure", "cancelled"):
+            with self.subTest(msrv=status):
+                results["msrv"]["result"] = status
+                result = subprocess.run([sys.executable, "-c", script],
+                                        env={**os.environ, "RESULTS": json.dumps(results)},
+                                        capture_output=True, text=True)
+                self.assertEqual(result.returncode == 0, status == "success", result.stderr)
 
     def test_unknown_paths_keep_all_linux_consumers(self):
         for path in ("new-generator/runtime.js", "crates/crucible-new/src/lib.rs"):
@@ -318,7 +350,7 @@ class PlanTests(unittest.TestCase):
                 continue
             group = re.search(r"needs\.plan\.outputs\.(\w+) == 'true'", body).group(1)
             self.assertIn(group, GROUPS)
-            if job in {"rust", "qualification-tools"}:
+            if job in {"rust", "msrv", "qualification-tools"}:
                 self.assertIn("needs: plan", body)
             else:
                 self.assertRegex(body, r"needs: \[plan, rust(?:, qualification-tools)?\]")
@@ -352,14 +384,14 @@ class PlanTests(unittest.TestCase):
                 selected.extend((name, variant) for variant in variants)
             return selected
 
-        self.assertEqual(len(selected_jobs(CORE_GROUPS, False)), 7)
+        self.assertEqual(len(selected_jobs(CORE_GROUPS, False)), 8)
         self.assertIn(("browser-streaming", None), selected_jobs(CORE_GROUPS, False))
         # Python and Go reuse one tools build instead of compiling twice.
-        self.assertEqual(len(selected_jobs(MODEL_GROUPS, False)), 10)
-        self.assertEqual(len(selected_jobs({"rust", "kotlin"}, False)), 6)
+        self.assertEqual(len(selected_jobs(MODEL_GROUPS, False)), 11)
+        self.assertEqual(len(selected_jobs({"rust", "kotlin"}, False)), 7)
         # Preserve the 37 test variants (including consumers and browser) plus planner/aggregate, one tools build
-        # and the release-only language server build.
-        self.assertEqual(len(selected_jobs(GROUPS, True)), 41)
+        # and the release-only language server build, plus the minimum Rust compiler.
+        self.assertEqual(len(selected_jobs(GROUPS, True)), 42)
         for name, variant in selected_jobs(GROUPS, False)[2:]:
             self.assertNotIn(name, {"c-windows", "cpp-windows", "swift-apple", "kotlin-android"})
             if isinstance(variant, dict):
@@ -374,7 +406,7 @@ class PlanTests(unittest.TestCase):
         self.assertIn("workflow_dispatch:", workflow)
         self.assertIn("workflow_dispatch:", release)
         self.assertIn("uses: ./.github/workflows/ci.yml", release)
-        self.assertIn("needs: [preflight, qualify]", release)
+        self.assertIn("needs: [preflight, qualify, cli-artifacts, attest-cli]", release)
         self.assertIn('-f "sha=$GITHUB_SHA"', release)
         self.assertIn("--verify-tag", release)
 

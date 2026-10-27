@@ -674,6 +674,23 @@ jobs:
           du -sh target/consumer-tests 2>/dev/null || true
           du -sh e2e/target 2>/dev/null || true
 
+  # Keep the published compiler requirement honest on the complete library surface.
+  msrv:
+    needs: plan
+    if: needs.plan.outputs.rust == 'true'
+    runs-on: ${{ vars.LINUX_RUNNER || 'ubuntu-latest' }}
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with: { persist-credentials: false }
+      - uses: dtolnay/rust-toolchain@89b12181fb390509a0842a86cc55eeb8eb928c1d # stable
+        with: { toolchain: '1.88.0' }
+      - uses: Swatinem/rust-cache@e9d7b9f1e587218970671bac74e5511ed9506e6a # v2
+        with:
+          key: msrv-1.88.0
+          save-if: "${{ github.ref == 'refs/heads/main' }}"
+      - run: cargo check --workspace --all-features --all-targets --locked
+
   # The generated TypeScript client, compiled and run against a fake fetch.
   typescript:
     needs: [plan, rust, qualification-tools]
@@ -841,7 +858,7 @@ jobs:
   # A stable aggregate reports failures while allowing intentionally omitted jobs.
   ci:
     if: always() && (github.event_name != 'pull_request' || !github.event.pull_request.draft)
-    needs: [plan, qualification-tools, service-cli, cdk, terraform, c-linux, r, cpp-linux, c-windows, cpp-windows, ruby, php, dart, swift-linux, swift-apple, kotlin, kotlin-multiplatform, kotlin-android, csharp, java, go, python, rust, typescript, browser-streaming, docs-site, e2e, consumers, onboarding, lsp-binaries]
+    needs: [plan, qualification-tools, service-cli, cdk, terraform, c-linux, r, cpp-linux, c-windows, cpp-windows, ruby, php, dart, swift-linux, swift-apple, kotlin, kotlin-multiplatform, kotlin-android, csharp, java, go, python, rust, msrv, typescript, browser-streaming, docs-site, e2e, consumers, onboarding, lsp-binaries]
     runs-on: ${{ vars.LINUX_RUNNER || 'ubuntu-latest' }}
     timeout-minutes: 5
     steps:
@@ -853,8 +870,8 @@ jobs:
           import json, os
           results = json.loads(os.environ["RESULTS"])
           failed = [name for name, job in results.items() if job["result"] not in {"success", "skipped"}]
-          if results["plan"]["result"] != "success" or results["rust"]["result"] != "success" or (results["plan"]["outputs"]["tools"] == "true" and results["qualification-tools"]["result"] != "success"):
-              failed.append("required planner/Rust/tools gate")
+          if results["plan"]["result"] != "success" or results["rust"]["result"] != "success" or results["msrv"]["result"] != "success" or (results["plan"]["outputs"]["tools"] == "true" and results["qualification-tools"]["result"] != "success"):
+              failed.append("required planner/Rust/MSRV/tools gate")
           # Release qualification (full) never tags a commit the consumers cannot build.
           if results["plan"]["outputs"]["full"] == "true" and results["consumers"]["result"] != "success":
               failed.append("required consumers gate")

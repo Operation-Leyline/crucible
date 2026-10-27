@@ -147,3 +147,9 @@ id = 22
 languages = ["ts"]
 kind = "patch"
 summary = "Response streams dispatch bare-CR frames immediately, enforce physical CRLF byte limits, and reject all trailing data after successful completion."
+
+[[change]]
+id = 23
+languages = ["rust"]
+kind = "patch"
+summary = "Generated Cargo packages declare Rust 1.88, matching the runtime compiler requirement already imposed by Rust 2024 let chains."

@@ -5,6 +5,12 @@ service authors. Generated bindings use a separate, hidden API at
 `crucible_server_runtime_rust::__generated`. The Rust SDK uses the corresponding
 `crucible_client_runtime_rust::__generated` boundary.
 
+The optional `crucible-api` crate adds the stable `server`, `client` and `auth`
+crate aliases behind features of the same names. No features are enabled by
+default. These expose the original runtime types and their existing stability
+boundaries; they do not introduce another generated-code API. Build scripts
+continue to depend on `crucible-build` separately.
+
 Crucible is still pre-1.0. A release may deliberately change the consumer API;
 its migration instructions describe those changes. The hidden generated API
 has no compatibility guarantee between versions. Regenerate bindings when

@@ -29,6 +29,9 @@ SDK_GROUPS = MODEL_GROUPS | {"java", "cdk", "terraform", "service_cli"}
 CONSUMER_CRATES = frozenset({
     "crucible-build", "crucible-server-runtime-rust", "crucible-wire",
     "crucible-codegen-rust", "crucible-auth", "crucible-client-runtime-rust",
+    "crucible-api",
+    # The packaged-registry consumer: package detection and the CLI's registry pin.
+    "crucible-revision", "crucible-codegen-cli",
 })
 GENERATORS = {
     # The OpenAPI emitter is qualified by Rust unit/golden and CLI tests.
@@ -105,7 +108,9 @@ TOOL_GROUPS = frozenset({
 def affected_groups(paths):
     selected = {"rust"}
     for path in paths:
-        if path in {"crates/crucible-codegen-docs/runtime/explorer.js", "crates/crucible-codegen-docs/tests/site/fake-dom.mjs"}:
+        # The explorer runtime itself lives in crucible-explorer-assets, which
+        # selects the HTTP gate below; its DOM test double stays here.
+        if path == "crates/crucible-codegen-docs/tests/site/fake-dom.mjs":
             selected.add("e2e")
         parts = Path(path).parts
         if len(parts) >= 2 and parts[0] == "crates":
@@ -126,7 +131,9 @@ def affected_groups(paths):
                 selected.update({"e2e", "service_cli"})
             elif crate == "crucible-cli-runtime":
                 selected.add("service_cli")
-            elif crate in {"crucible", "crucible-server-runtime-rust", "crucible-wire", "crucible-policy", "crucible-cli", "crucible-codegen-rust", "crucible-auth"}:
+            elif crate == "crucible-explorer-assets":
+                selected.update(CORE_GROUPS | {"docs_site", "consumers"})
+            elif crate in {"crucible", "crucible-server-runtime-rust", "crucible-wire", "crucible-policy", "crucible-cli", "crucible-codegen-rust", "crucible-auth", "crucible-api"}:
                 selected.update(CORE_GROUPS)
                 if crate == "crucible-cli":
                     selected.add("service_cli")

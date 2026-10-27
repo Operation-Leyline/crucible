@@ -3,7 +3,10 @@ use std::path::PathBuf;
 /// Runtime source for a generated Cargo SDK package.
 #[derive(Debug, Clone, Default)]
 pub enum RuntimeDependency {
-    /// Pin the verified Crucible revision embedded when the generator was built.
+    /// Pin the Crucible revision embedded when the generator was built from
+    /// the source workspace. A generator built from a registry package has no
+    /// revision; it depends on the runtime from crates.io at exactly its own
+    /// version (`=X.Y.Z`).
     #[default]
     Auto,
     /// Explicit repository, immutable commit or release reference, and version requirement.

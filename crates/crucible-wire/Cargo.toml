@@ -7,6 +7,11 @@ license.workspace = true
 rust-version.workspace = true
 publish.workspace = true
 repository.workspace = true
+readme.workspace = true
+license-file.workspace = true
+keywords.workspace = true
+categories.workspace = true
+exclude.workspace = true
 
 [features]
 mcp = ["dep:jsonschema"]
@@ -25,4 +30,4 @@ serde_json = { workspace = true, features = ["arbitrary_precision"] }
 workspace = true
 
 [dev-dependencies]
-crucible-ir.workspace = true
+crucible-ir = { path = "../crucible-ir" }

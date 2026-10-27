@@ -459,8 +459,7 @@ fn method(service: &Service, op: &Operation, options_name: Option<&str>) -> Stri
     };
     if op.input.is_none() {
         out.push_str(&format!(
-            "    pub async fn {}(&self{options_parameter}) -> {result} {{\n        {send}(&{UNIT} {{}}{options_argument}){finish}\n    }}\n",
-            method_name
+            "    pub async fn {method_name}(&self{options_parameter}) -> {result} {{\n        {send}(&{UNIT} {{}}{options_argument}){finish}\n    }}\n"
         ));
         return out;
     }

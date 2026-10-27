@@ -401,7 +401,7 @@ fn an_editor_session_gets_diagnostics_highlighting_and_navigation() {
         json!({ "textDocument": { "uri": service } }),
     );
     let data = tokens["data"].as_array().unwrap();
-    assert!(data.len() > 20 && data.len() % 5 == 0, "{tokens}");
+    assert!(data.len() > 20 && data.len().is_multiple_of(5), "{tokens}");
 
     // `ItemId` is declared in the other file.
     let definition = client.request(
@@ -453,7 +453,10 @@ fn an_editor_session_gets_diagnostics_highlighting_and_navigation() {
         assert_eq!(hover["contents"]["kind"], "markdown");
         // Every fence is tagged with the language and closed.
         let fences: Vec<&str> = text.lines().filter(|l| l.starts_with("```")).collect();
-        assert!(fences.len() >= 2 && fences.len() % 2 == 0, "{text}");
+        assert!(
+            fences.len() >= 2 && fences.len().is_multiple_of(2),
+            "{text}"
+        );
         for pair in fences.chunks(2) {
             assert_eq!(pair, ["```crucible", "```"], "{text}");
         }

@@ -7,6 +7,11 @@ license.workspace = true
 rust-version.workspace = true
 publish.workspace = true
 repository.workspace = true
+readme.workspace = true
+license-file.workspace = true
+keywords.workspace = true
+categories.workspace = true
+exclude.workspace = true
 
 [dependencies]
 crucible-codegen-rust = { workspace = true, optional = true }
@@ -14,6 +19,7 @@ crucible-codegen = { workspace = true, default-features = false }
 crucible-lang.workspace = true
 crucible-ir.workspace = true
 crucible-policy.workspace = true
+crucible-revision.workspace = true
 serde_json.workspace = true
 serde = { workspace = true, features = ["derive"] }
 

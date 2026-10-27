@@ -434,10 +434,10 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
                 models.push('\n');
             }
         }
-        if matches!(shape, Shape::Simple(_) | Shape::List(_) | Shape::Map(_)) {
-            if let Some(docs) = crucible_codegen_common::documentation::model_with_notes(shape) {
-                python_doc(service, &mut models, "", &docs);
-            }
+        if matches!(shape, Shape::Simple(_) | Shape::List(_) | Shape::Map(_))
+            && let Some(docs) = crucible_codegen_common::documentation::model_with_notes(shape)
+        {
+            python_doc(service, &mut models, "", &docs);
         }
     }
     models.push_str(&format!(

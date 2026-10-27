@@ -1,0 +1,17 @@
+[package]
+name = "crucible-explorer-assets"
+description = "Shared static renderer assets for Crucible API references and the local explorer"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+license-file.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+repository.workspace = true
+readme.workspace = true
+keywords.workspace = true
+categories.workspace = true
+exclude.workspace = true
+
+[lints]
+workspace = true

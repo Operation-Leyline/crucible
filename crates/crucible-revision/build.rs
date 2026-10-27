@@ -10,6 +10,16 @@ const SOURCE_TREES: &[&str] = &["crates", "Cargo.toml", "Cargo.lock"];
 fn main() {
     println!("cargo::rerun-if-changed=build.rs");
     let manifest = PathBuf::from(std::env::var_os("CARGO_MANIFEST_DIR").expect("Cargo manifest"));
+    // `cargo package` writes .cargo_vcs_info.json into every package it
+    // builds from Git, so a registry download (or a vendored copy of one) and
+    // a package verification have it wherever they sit. Nothing else counts
+    // as published: a vendored or Nix-imported copy of a Git dependency has
+    // no such file and may be any unreleased revision, so it records neither
+    // a revision nor `packaged`, and automatic runtime selection refuses it.
+    if manifest.join(".cargo_vcs_info.json").is_file() {
+        packaged();
+        return;
+    }
     let candidate = manifest.join("../..");
     let Ok(workspace) = candidate.canonicalize() else {
         return;
@@ -23,14 +33,17 @@ fn main() {
                 line.trim() == "repository = \"https://github.com/Operation-Leyline/crucible\""
             })
         });
-    if !repository_matches
-        || !workspace
-            .join("crates/crucible-client-runtime-rust/Cargo.toml")
-            .is_file()
+    if !repository_matches {
+        return;
+    }
+    // An incomplete source checkout (a sparse one, say) is still a checkout:
+    // it records no revision, and is not mistaken for a published package.
+    if !workspace
+        .join("crates/crucible-client-runtime-rust/Cargo.toml")
+        .is_file()
         || !workspace
             .join("crates/crucible-codegen-rust/Cargo.toml")
             .is_file()
-        || !workspace.join("Cargo.toml").is_file()
     {
         return;
     }
@@ -69,6 +82,14 @@ fn main() {
     if dirty {
         println!("cargo::rustc-env=CRUCIBLE_GENERATOR_DIRTY=1");
     }
+}
+
+/// A published package: a registry download, a vendored copy of one, or
+/// `cargo package` verification. It has no revision to pin, but its sources
+/// are exactly its published version. Anything without Cargo's package
+/// record (a source checkout, or a vendored Git dependency) is not this case.
+fn packaged() {
+    println!("cargo::rustc-env=CRUCIBLE_GENERATOR_PACKAGED=1");
 }
 
 fn watch_refs(workspace: &Path) {
@@ -163,9 +184,10 @@ fn watch_ignores(workspace: &Path) {
         ],
     ) {
         let entries: Vec<_> = includes.split('\0').collect();
-        for pair in entries.chunks_exact(2) {
-            if let Some((_, path)) = pair[1].split_once('\n') {
-                let base = pair[0]
+        // `as_chunks` is stable since 1.88, the declared rust-version.
+        for [origin, value] in entries.as_chunks::<2>().0 {
+            if let Some((_, path)) = value.split_once('\n') {
+                let base = origin
                     .strip_prefix("file:")
                     .and_then(|origin| Path::new(origin).parent())
                     .unwrap_or(workspace);

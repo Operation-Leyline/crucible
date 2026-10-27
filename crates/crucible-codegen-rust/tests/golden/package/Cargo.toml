@@ -3,7 +3,7 @@
 name = "weather-sdk"
 version = "1.2.3"
 edition = "2024"
-rust-version = "1.85"
+rust-version = "1.88"
 description = "Rust SDK for example.weather#Weather"
 readme = "README.md"
 

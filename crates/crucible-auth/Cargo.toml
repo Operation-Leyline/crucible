@@ -8,13 +8,18 @@ license.workspace = true
 rust-version = "1.88"
 publish.workspace = true
 repository.workspace = true
+readme.workspace = true
+license-file.workspace = true
+keywords.workspace = true
+categories.workspace = true
+exclude.workspace = true
 
 [features]
 default = []
 test-support = ["dep:rsa", "dep:rand", "dep:base64", "dep:p256"]
 
 [dependencies]
-crucible-server-runtime-rust = { path = "../crucible-server-runtime-rust", default-features = false }
+crucible-server-runtime-rust = { version = "=0.8.0", path = "../crucible-server-runtime-rust", default-features = false }
 async-trait = "0.1"
 axum = "0.8"
 # Pure-Rust crypto backend: no C toolchain, and verification only uses public keys.

@@ -7,6 +7,11 @@ license.workspace = true
 rust-version.workspace = true
 publish.workspace = true
 repository.workspace = true
+readme.workspace = true
+license-file.workspace = true
+keywords.workspace = true
+categories.workspace = true
+exclude.workspace = true
 
 [dependencies]
 crucible-ir.workspace = true
@@ -14,7 +19,7 @@ crucible-codegen-common.workspace = true
 serde_json = { workspace = true, features = ["preserve_order"] }
 
 [dev-dependencies]
-crucible-lang.workspace = true
+crucible-lang = { path = "../crucible-lang" }
 jsonschema = { version = "0.26.2", default-features = false }
 
 [lints]

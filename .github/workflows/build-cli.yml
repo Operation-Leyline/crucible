@@ -1,0 +1,108 @@
+name: Build CLI release artifacts
+
+on:
+  workflow_call:
+    inputs:
+      version:
+        required: true
+        type: string
+  # Qualify binary packaging without creating a tag, release or registry upload.
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Workspace version to package
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+env:
+  CARGO_BUILD_JOBS: '2'
+  CARGO_INCREMENTAL: '0'
+
+jobs:
+  local:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: ubuntu-22.04, target: x86_64-unknown-linux-musl }
+          - { os: ubuntu-24.04-arm, target: aarch64-unknown-linux-musl }
+          - { os: macos-15-intel, target: x86_64-apple-darwin }
+          - { os: macos-15, target: aarch64-apple-darwin }
+          - { os: windows-2022, target: x86_64-pc-windows-msvc }
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with: { persist-credentials: false }
+      # tools/*.py need Python 3.11+ (tomllib); ubuntu-22.04 ships 3.10,
+      # windows-2022 defaults to 3.9 and macOS images have no `python`.
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with: { python-version: '3.12' }
+      - uses: dtolnay/rust-toolchain@89b12181fb390509a0842a86cc55eeb8eb928c1d # stable
+        with: { toolchain: stable, targets: '${{ matrix.target }}' }
+      - name: Install musl tools
+        if: startsWith(matrix.target, 'x86_64-unknown-linux') || startsWith(matrix.target, 'aarch64-unknown-linux')
+        run: sudo apt-get update && sudo apt-get install --yes musl-tools
+      - name: Install pinned cargo-dist
+        run: python tools/install_cargo_dist.py --out "${{ runner.temp }}/cargo-dist"
+      - name: Package the requested workspace version
+        id: build
+        shell: bash
+        env:
+          RELEASE_VERSION: ${{ inputs.version }}
+          DIST_TARGET: ${{ matrix.target }}
+        run: |
+          python tools/crucible_release.py check "$RELEASE_VERSION"
+          dist generate --check
+          dist build --artifacts=local --target "$DIST_TARGET" --tag "v$RELEASE_VERSION" --output-format=json > dist-manifest.json
+          echo "paths<<EOF" >> "$GITHUB_OUTPUT"
+          dist print-upload-files-from-manifest --manifest dist-manifest.json >> "$GITHUB_OUTPUT"
+          echo "EOF" >> "$GITHUB_OUTPUT"
+          # Each target's manifest is retained without colliding during download.
+          cp dist-manifest.json "target/distrib/$DIST_TARGET-dist-manifest.json"
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: cli-local-${{ matrix.target }}
+          path: |
+            ${{ steps.build.outputs.paths }}
+            target/distrib/*-dist-manifest.json
+          if-no-files-found: error
+  global:
+    needs: local
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with: { persist-credentials: false }
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with: { python-version: '3.12' }
+      # dist reads Cargo metadata, so do not rely on the image's preinstalled Rust.
+      - uses: dtolnay/rust-toolchain@89b12181fb390509a0842a86cc55eeb8eb928c1d # stable
+        with: { toolchain: stable }
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
+        with:
+          pattern: cli-local-*
+          path: target/distrib
+          merge-multiple: true
+      - name: Install pinned cargo-dist
+        run: python tools/install_cargo_dist.py --out "${{ runner.temp }}/cargo-dist"
+      - name: Build installers and combined checksums
+        env:
+          RELEASE_VERSION: ${{ inputs.version }}
+        run: |
+          dist build --artifacts=global --tag "v$RELEASE_VERSION" --output-format=json > target/distrib/global-dist-manifest.json
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: crucible-cli-release
+          path: |
+            target/distrib/*.tar.xz
+            target/distrib/*.zip
+            target/distrib/*.sha256
+            target/distrib/*.sh
+            target/distrib/*.ps1
+            target/distrib/sha256.sum
+            target/distrib/*-dist-manifest.json
+          if-no-files-found: error

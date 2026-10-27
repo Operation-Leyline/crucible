@@ -1,0 +1,28 @@
+[package]
+name = "crucible-api"
+description = "Opt-in server, client and authentication entry points for Crucible APIs"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+license-file.workspace = true
+rust-version = "1.88"
+publish.workspace = true
+repository.workspace = true
+readme = "README.md"
+keywords.workspace = true
+categories.workspace = true
+exclude.workspace = true
+
+[features]
+default = []
+server = ["dep:crucible-server-runtime-rust"]
+client = ["dep:crucible-client-runtime-rust"]
+auth = ["dep:crucible-auth"]
+
+[dependencies]
+crucible-server-runtime-rust = { workspace = true, optional = true }
+crucible-client-runtime-rust = { workspace = true, optional = true }
+crucible-auth = { version = "=0.8.0", path = "../crucible-auth", optional = true }
+
+[lints]
+workspace = true

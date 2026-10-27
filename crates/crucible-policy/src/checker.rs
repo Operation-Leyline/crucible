@@ -168,21 +168,20 @@ impl Checker<'_> {
                     .find(|id| error_code(self.new, id) == error_code(self.old, old_error));
                 if let Some(new_error) = new_error {
                     let new_info = error_info(self.new, new_error);
-                    if let (Some(a), Some(b)) = (old_info, new_info) {
-                        if a.status != b.status
+                    if let (Some(a), Some(b)) = (old_info, new_info)
+                        && (a.status != b.status
                             || a.fault != b.fault
                             || a.retryable != b.retryable
                             || a.payload != b.payload
                             || a.headers != b.headers
                             || a.timestamp_formats != b.timestamp_formats
-                            || a.header_encodings != b.header_encodings
-                        {
-                            self.push(
-                                "compatibility.error",
-                                old_error,
-                                "error status, fault, retryability, or wire bindings changed",
-                            );
-                        }
+                            || a.header_encodings != b.header_encodings)
+                    {
+                        self.push(
+                            "compatibility.error",
+                            old_error,
+                            "error status, fault, retryability, or wire bindings changed",
+                        );
                     }
                     self.shape(old_error, new_error, Direction::Output, None);
                 }

@@ -7,16 +7,21 @@ license.workspace = true
 rust-version.workspace = true
 publish.workspace = true
 repository.workspace = true
+readme.workspace = true
+license-file.workspace = true
+keywords.workspace = true
+categories.workspace = true
+exclude.workspace = true
 
 [dependencies]
 crucible-ir.workspace = true
 crucible-codegen-common.workspace = true
-crucible-codegen-infra = { path = "../crucible-codegen-infra" }
+crucible-codegen-infra = { version = "=0.8.0", path = "../crucible-codegen-infra" }
 serde.workspace = true
 serde_json.workspace = true
 
 [dev-dependencies]
-crucible-lang.workspace = true
+crucible-lang = { path = "../crucible-lang" }
 
 [lints]
 workspace = true

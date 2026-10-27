@@ -77,7 +77,7 @@ fn document_cli_probe() {
             bin_name: "initial".into(),
             package_version: "0.1.0".into(),
             endpoint: None,
-            runtime_path: checkout(),
+            runtime_path: Some(checkout()),
         })
         .package("weather-tools")
         .bin_name("weather-admin")
@@ -117,7 +117,7 @@ fn document_cli_probe() {
             bin_name: "advanced-cli".into(),
             package_version: "1.2.3".into(),
             endpoint: None,
-            runtime_path: "runtime".into(),
+            runtime_path: Some("runtime".into()),
         })
         .generate();
     assert!(advanced_relative.path.join("Cargo.toml").is_file());

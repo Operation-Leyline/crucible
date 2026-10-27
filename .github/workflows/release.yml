@@ -22,6 +22,10 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with: { persist-credentials: false, fetch-depth: 0 }
+      # crucible_release.py and package_starter.py need 3.11+ (tomllib); do not
+      # depend on the runner image's python3, which LINUX_RUNNER may change.
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with: { python-version: '3.12' }
       - name: Verify the merged version and unused release tag
         env:
           RELEASE_VERSION: ${{ inputs.version }}
@@ -42,8 +46,33 @@ jobs:
   qualify:
     needs: preflight
     uses: ./.github/workflows/ci.yml
+  cli-artifacts:
+    needs: preflight
+    uses: ./.github/workflows/build-cli.yml
+    with:
+      version: ${{ inputs.version }}
+  # Only this job can request an OIDC token: it runs no repository code, just
+  # downloads the qualified CLI archives and attests them.
+  attest-cli:
+    needs: [preflight, qualify, cli-artifacts]
+    runs-on: ${{ vars.LINUX_RUNNER || 'ubuntu-latest' }}
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
+    steps:
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
+        with:
+          name: crucible-cli-release
+          path: dist/cli
+      # cargo-dist's per-target manifests are build records, not release assets.
+      - run: rm -f dist/cli/*-dist-manifest.json
+      - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4
+        with:
+          subject-path: dist/cli/*
   publish:
-    needs: [preflight, qualify]
+    needs: [preflight, qualify, cli-artifacts, attest-cli]
     runs-on: ${{ vars.LINUX_RUNNER || 'ubuntu-latest' }}
     timeout-minutes: 10
     permissions:
@@ -51,6 +80,8 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with: { persist-credentials: false }
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with: { python-version: '3.12' }
       - uses: ./.github/actions/qualification-tools
       - name: Package the matching starter
         run: |
@@ -63,6 +94,12 @@ jobs:
           pattern: crucible-lsp-*
           path: dist
           merge-multiple: true
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
+        with:
+          name: crucible-cli-release
+          path: dist/cli
+      # Publish exactly what attest-cli attested.
+      - run: rm -f dist/cli/*-dist-manifest.json
       - name: Publish the tested commit as a GitHub tag and release
         env:
           GH_TOKEN: ${{ github.token }}
@@ -76,4 +113,4 @@ jobs:
             --verify-tag --title "Crucible $RELEASE_VERSION" --generate-notes \
             "dist/hello-service-v$RELEASE_VERSION.zip" \
             "dist/hello-client-v$RELEASE_VERSION.zip" \
-            dist/crucible-lsp-*.zip
+            dist/crucible-lsp-*.zip dist/cli/*

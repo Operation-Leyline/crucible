@@ -8,5 +8,7 @@ pub struct Options {
     pub endpoint: Option<String>,
     /// Crucible repository root. Absolute paths make output relocatable within
     /// the machine; relative paths resolve from the generated package.
-    pub runtime_path: PathBuf,
+    /// `None` depends on the published runtimes from crates.io at exactly this
+    /// generator's version.
+    pub runtime_path: Option<PathBuf>,
 }

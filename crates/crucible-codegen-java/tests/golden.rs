@@ -139,11 +139,7 @@ fn reserved_names_are_diagnostics() {
     for name in ["class", "enum"] {
         let service = load_with("weather", |text| text.replace("CitySummary", name));
         let err = emit(&service, &options()).err();
-        assert!(
-            err.is_some(),
-            "Expected error for name {}, but got Ok",
-            name
-        );
+        assert!(err.is_some(), "Expected error for name {name}, but got Ok");
         let diagnostics = err.unwrap().to_string();
         assert!(
             diagnostics.contains("invalid or colliding Java model name")

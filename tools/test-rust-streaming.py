@@ -6,11 +6,14 @@ import tempfile
 from sdk_test_support import run
 
 ROOT = Path(__file__).resolve().parents[1]
+# Keep the private SDK entries in Cargo.lock independent of compiler releases.
+SDK_VERSION = "0.8.0"
 
 
 def qualify(output):
     run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "generate", "rust",
         "tests/consumers/rust-stream-client/model", "--client", "--package-name", "streams-sdk",
+        "--package-version", SDK_VERSION,
         "--runtime-path", str(ROOT / "crates/crucible-client-runtime-rust"), "--out", str(output / "sdk"))
     no_errors_model = output / "no-errors-model"
     shutil.copytree(ROOT / "tests/consumers/rust-stream-client/model", no_errors_model)
@@ -21,6 +24,7 @@ def qualify(output):
     model.write_text(no_errors, encoding="utf-8")
     run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "generate", "rust",
         str(no_errors_model), "--client", "--package-name", "empty-streams-sdk",
+        "--package-version", SDK_VERSION,
         "--runtime-path", str(ROOT / "crates/crucible-client-runtime-rust"), "--out", str(output / "empty-sdk"))
     source = ROOT / "tests/consumers/rust-stream-client"
     consumer = output / "consumer"

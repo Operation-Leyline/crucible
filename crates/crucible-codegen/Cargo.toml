@@ -7,6 +7,11 @@ license.workspace = true
 rust-version.workspace = true
 publish.workspace = true
 repository.workspace = true
+readme.workspace = true
+license-file.workspace = true
+keywords.workspace = true
+categories.workspace = true
+exclude.workspace = true
 
 [features]
 default = ["rust"]
@@ -66,7 +71,7 @@ serde_json.workspace = true
 [dev-dependencies]
 tempfile = "3"
 pulldown-cmark = { version = "0.13", default-features = false }
-crucible-lang.workspace = true
+crucible-lang = { path = "../crucible-lang" }
 
 [lints]
 workspace = true

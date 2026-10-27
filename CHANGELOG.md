@@ -37,6 +37,10 @@ version's section when it is prepared.
   model defaults for omitted reasons. Served release projections retain valid
   reason roles across retypes and member renames. Error wire responses are unchanged.
 
+- The optional `crucible-api` crate re-exports the existing server, Rust client
+  and server authentication crates through `server`, `client` and `auth` features.
+  No features or authentication policy are enabled by default.
+
 - Operation documentation can use conventional `Use when` and `Don't use when`
   Markdown sections. Lowering preserves the original prose and records optional
   `Operation::intent` metadata, also exposed by `crucible.describe/1` and reference
@@ -68,6 +72,11 @@ version's section when it is prepared.
 
 ### Migration
 
+- Upgrade Rust to 1.88 or newer before building Crucible or a generated Rust
+  SDK. The previous 1.85 requirement was inaccurate: runtime let chains require
+  [Rust 1.88](https://blog.rust-lang.org/2025/06/26/Rust-1.88.0/). Workspace and
+  generated package metadata now declare the tested minimum; CI checks it.
+
 - Direct IR `Service` and `ErrorInfo` struct literals initialize the new
   `error_docs_base` and `reason_member` fields to `None`. Struct field additions
   cannot be shimmed for literals. Existing model sources and frozen releases need
@@ -91,6 +100,14 @@ version's section when it is prepared.
 
 ### Changed
 
+- `tools/crucible_release.py prepare` prints each file it changed, one per line,
+  on standard output and its success message on standard error, so the list
+  can be staged as is (docs/releases.md).
+
+- `CliOptions::runtime_path` (the per-language `crucible_codegen_cli::Options`)
+  is now `Option<PathBuf>`: wrap an explicit checkout in `Some`. `None` depends
+  on the published runtimes. `CliOutput::runtime_path(...)` is unchanged.
+
 - Older Rust API versions skip intermediate JSON conversion when their empty
   conversion chains and identical types permit it. Unproven Rust representation
   round trips retain conversion. Frozen strictness, historical operation
@@ -101,6 +118,21 @@ version's section when it is prepared.
 - TypeScript response streams deliver complete CR-terminated events without
   waiting for another byte. Split CRLF delimiters retain their event byte count,
   and extra bytes after the terminal outcome are rejected, including whitespace.
+
+- Release preparation and checking include standalone consumer lockfiles and
+  keep published internal dependency requirements aligned with the workspace
+  version, while preserving registry dependencies and example versions. The
+  exact install snippets in the `crucible-api` README, `docs/explorer.md` and
+  `docs/framework.md` follow the release too.
+- `crucible-build` built from crates.io no longer fails to generate a Rust SDK
+  (`rust_client`) or service CLI (`cli`) for want of Git provenance or a source
+  checkout. The generated manifests depend on the published runtime crates at
+  exactly the generator's version (`=X.Y.Z`). Workspace and Git builds keep
+  their path and revision pins. A vendored copy of a Git dependency is not a
+  published package and still needs an explicit runtime.
+- The packaged server runtime's optional explorer reads shared renderer assets
+  from a leaf package, so it compiles outside the Crucible source workspace.
+
 - Operation-body naming collisions now report errors at both source bodies
   instead of silently replacing another operation's input or output contract.
 - Generator revision provenance follows Git reftable ref updates, including

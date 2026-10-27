@@ -1,0 +1,15 @@
+[package]
+name="api-consumer"
+version="0.0.0"
+edition="2024"
+publish=false
+[workspace]
+[features]
+server=["crucible-api/server", "dep:server-runtime"]
+client=["crucible-api/client", "dep:client-runtime"]
+auth=["crucible-api/auth", "dep:server-auth"]
+[dependencies]
+crucible-api={path="../../../crates/crucible-api"}
+server-runtime={package="crucible-server-runtime-rust",path="../../../crates/crucible-server-runtime-rust",default-features=false,optional=true}
+client-runtime={package="crucible-client-runtime-rust",path="../../../crates/crucible-client-runtime-rust",optional=true}
+server-auth={package="crucible-auth",path="../../../crates/crucible-auth",optional=true}

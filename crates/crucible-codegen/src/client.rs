@@ -145,7 +145,7 @@ impl Client {
             // The whole package is checked, manifest included, but an
             // automatic runtime dependency is resolved to a stand-in: which
             // revision the package pins names nothing a caller calls, and
-            // resolving it needs a verified Git checkout of the generator.
+            // resolving it needs a Git checkout or a packaged generator.
             #[cfg(feature = "rust")]
             Self::Rust(ref options) => {
                 service.require_capabilities(&self.capabilities())?;

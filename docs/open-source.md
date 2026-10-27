@@ -1,148 +1,124 @@
-# Open-source and crates.io publication checklist
+# Publishing Crucible
 
-Work through this list in order. Nothing here is done by merging the PR that
-added it: each box is an owner decision or a follow-up change. The audit that
-produced it is in that PR's description.
+Crucible uses Apache-2.0 with the existing Crucible Contributors attribution
+and generated-code clarification in [LICENSE](../LICENSE). Leyline and Pigeon
+references are retained. Track remaining release and repository setup in
+[issue #199](https://github.com/Operation-Leyline/crucible/issues/199).
 
-Check items off in a tracking issue, not in this file.
+## Library packages
 
-## 1. Decide
+The library crates inherit repository, license, README, keywords and categories.
+Their shared README is [crates/README.md](../crates/README.md), not the root
+one: crates.io resolves relative links against the crate's own directory, so
+its links are absolute. `tools/check_publish_metadata.py` refuses a packaged
+README with relative links.
+Internal package dependencies carry the exact workspace version alongside their
+local path. `crucible-cli` and `crucible-lsp` are explicitly unpublished; the
+example and consumer workspaces also remain unpublished.
+Dev-only workspace dependencies use versionless paths, which Cargo removes
+from published manifests; test-only frontend dependencies do not create
+registry dependency cycles.
 
-- [x] **Licence.** Pick the SPDX expression (`Apache-2.0` recommended;
-      `MIT OR Apache-2.0` is the usual alternative). Add `LICENSE` (and
-      `LICENSE-MIT` if dual) at the repository root.
-- [ ] **Copyright holder** for the licence header and `NOTICE`.
-- [x] **Leyline and Pigeon references.** Decide keep, generalise or remove for
-      each item in the audit's reference table.
-- [x] **History.** Publish the existing history, or start a fresh public
-      repository from a squashed tree. Branches, tags, `refs/pull/*` and
-      closed pull requests are all public once the repository is.
-- [x] **Names and trademark.** Confirm the crate names and whether the name
-      "Crucible" is acceptable (Atlassian ships an unrelated product of that
-      name; the crates.io names `crucible`, `crucible-core` and `crucible-cli`
-      are taken by unrelated projects). Decided: the executable is `crucible`,
-      shipped as prebuilt binaries; `crucible-cli` stays unpublished
-      (`publish = false`); `crucible-api` is a new thin library crate.
+`crucible-api` is an optional application entry point. Enable `server`, `client`
+or `auth` for crate aliases to the existing runtime APIs; its default has no
+features. Client bearer identities remain in `client`; `auth` exposes explicit
+server authenticators. These aliases keep the original type identities.
+Generated bindings still use their declared runtime dependency, and build
+scripts use `crucible-build` separately. See the
+[crate README](../crates/crucible-api/README.md).
 
-## 2. Prepare the repository
+Library and generated Rust SDK consumers need Rust 1.88 or newer. The Linux
+MSRV CI job checks the complete workspace with all features and targets on
+1.88.0. Workspace publication itself uses Cargo 1.90 or newer for
+`cargo publish --workspace`.
 
-- [ ] Add `LICENSE`, `NOTICE`, `SECURITY.md`,
-      `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md`.
-- [x] Replace links to private repositories (`crucible-service-template`, `crucible-actions`) or make those public.
-- [x] Remove or generalise `examples/infra/leyline.bindings.json` and the
-      Leyline/Pigeon prose in `README.md`, `AGENTS.md`, `docs/`.
-- [ ] Remove `.claude`-style or agent scratch files if any appear (none are
-      committed today), and decide whether `AGENTS.md`/`CLAUDE.md` stay.
-- [ ] Enable branch protection on `main`, require review, and restrict who
-      may run the `crates-io` environment.
-- [ ] Settings → Actions → "Require approval for all outside collaborators"
-      (fork pull request workflows), default workflow token permission
-      "read repository contents", and "Allow only selected actions".
-- [ ] Turn on secret scanning with push protection, Dependabot alerts and
-      private vulnerability reporting.
-- [ ] Pin every third-party action by commit SHA (`.github/dependabot.yml`
-      keeps the pins current), and move `sdk-release.yml` to trusted
-      publishing for npm/PyPI.
-
-## 3. Fix the crate manifests
-
-Run the check; it prints what each crate still lacks and the publish order:
+Check the package metadata and publication order:
 
 ```sh
 python tools/check_publish_metadata.py --order
+cargo package --workspace --exclude crucible-cli --exclude crucible-lsp --locked --offline
+cargo publish --workspace --exclude crucible-cli --exclude crucible-lsp --dry-run --locked
 ```
 
-- [ ] Set `publish` back to the default (remove `publish = false` from
-      `[workspace.package]`); keep it on `e2e/` and `vendor/` crates.
-- [ ] Add `license`, `readme`, `keywords` and `categories` (at most five each) to
-      `[workspace.package]` and inherit them in every crate.
-- [ ] Give every workspace dependency in `[workspace.dependencies]` a
-      `version` next to its `path` (`crucible-wire = { version = "0.4.0",
-      path = "crates/crucible-wire" }`).
-- [ ] Keep `crucible-cli` as is and set `publish = false` in its own manifest
-      (`tools/check_publish_metadata.py` and the publish workflow skip it).
-- [ ] Add the new `crucible-api` library crate: it re-exports the runtime
-      crates behind features (`server` → `crucible-server-runtime-rust`,
-      `client` → `crucible-client-runtime-rust`, `auth` → the client auth
-      modules and the server auth work once merged), has no logic of its
-      own, and is published after the crates it re-exports. `crucible-build`
-      stays a separate published crate for `build-dependencies`.
-- [ ] Check package contents and size for each crate with
-      `cargo package --list -p <crate>`; crates.io rejects uploads above
-      10 MiB. Exclude `tests/golden` and large fixtures where tests do not
-      need to ship.
-- [ ] `cargo deny check` passes (`deny.toml`).
+Generators keep their output reproducible from the registry too. Built from a
+source checkout, `crucible-build` pins a generated Rust SDK's runtime to its Git
+revision and points a generated CLI at the checkout's runtime crates. Built
+from crates.io, both depend on the published runtime crates at exactly the
+generator's version (`=X.Y.Z`); see [Build outputs](build-outputs.md).
+`tools/test-consumers.py` generates both from the packaged sources.
 
-## 4. First publication
+The offline package check needs a populated dependency cache. The registry
+dry run may need network access; it builds the packaged sources in dependency
+order without uploading.
+The package manifest excludes repository-only tests and benchmarks while
+retaining generator templates, bundled models, runtimes, README and LICENSE.
+A successful local check does not reserve a registry name or establish a
+successful upload.
 
-crates.io Trusted Publishing cannot be configured for a crate that does not
-exist yet, and a new account may publish only a few new crates before the
-rate limit applies (a burst, then one more every ten minutes at the time of
-writing). Plan for both:
+Prepare the next workspace version through the
+[release procedure](releases.md). `tools/crucible_release.py prepare` updates
+versioned internal path requirements and every standalone consumer lock that
+pins workspace crates, as well as the core and nested Leyline locks, and the
+exact install snippets in the published `crucible-api` README and the docs that
+pin a version. It validates the complete edit set before writing and prints
+each file it changed. `check` refuses version drift.
+Unrelated registry versions, checksums and example package versions stay put.
 
-- [ ] Ask the crates.io team (help@crates.io) to raise the new-crate rate
-      limit before publishing about thirty crates.
-- [ ] Create a scoped, short-lived API token limited to `publish-new` and
-      store it as the `CARGO_REGISTRY_TOKEN` secret of the `crates-io`
-      environment (only reviewers' approval may use it).
-- [ ] Create the `crates-io` environment with required reviewers.
-- [ ] Once a second maintainer exists, enable **Prevent self-review** on the
-      `crates-io` environment so whoever starts a publish cannot approve it.
-- [ ] Run **Publish crates** with `dry_run` on (the default). Fix everything
-      it reports; the dry run packages and compiles each crate against the
-      others in dependency order.
-- [ ] Tag the release (`release.yml` creates `v<version>`), then run
-      **Publish crates** from that tag with `dry_run` off and
-      `auth = bootstrap-token`.
-- [ ] For every published crate, open its crates.io settings → Trusted
-      Publishing and add: owner, repository, workflow `publish-crates.yml`,
-      environment `crates-io`.
-- [ ] Delete the `CARGO_REGISTRY_TOKEN` secret. Later releases use
-      `auth = trusted-publishing`.
-- [ ] Add every crate owner/team on crates.io so no single account is a
-      point of failure.
+## CLI binaries
 
-If a run stops part-way, crates published so far stay published. Re-run only
-after checking what `cargo publish --workspace` will do with already-published
-versions on the current Cargo; if unsure, bump the patch version.
+The executable is `crucible`; the unrelated crates.io package named
+`crucible-cli` is not an installation source for this project.
 
-## 5. The `crucible` executable
+[cargo-dist 0.33.1](https://github.com/axodotdev/cargo-dist/releases/tag/v0.33.1)
+plans and builds the binaries declared in [dist-workspace.toml](../dist-workspace.toml).
+The CI tool installer verifies pinned archive hashes before copying cargo-dist.
+Archives cover Linux x86_64/aarch64 musl, macOS x86_64/aarch64 and Windows x86_64.
+They contain the executable and license/readme material. Shell and PowerShell
+installers select the matching archive; SHA-256 files accompany the assets.
 
-`crucible-cli` builds the `crucible` binary and is not published to
-crates.io; do not run `cargo install crucible-cli` (that name belongs to an
-unrelated crate on crates.io). Ship it as prebuilt binaries on GitHub Releases:
+The existing [Release workflow](../.github/workflows/release.yml) remains the
+only creator of the release tag and GitHub Release. Its full CI qualification
+and the build-only [CLI artifact workflow](../.github/workflows/build-cli.yml)
+must both pass before publication. A separate job, which runs no repository
+code, holds the only OIDC token and attests the CLI archives, installers and
+checksums; publication then attaches exactly those beside the existing starter
+and LSP assets. cargo-dist's build manifests stay in the workflow artifact.
+CLI artifact jobs have read-only repository access and set up Python 3.12
+themselves rather than relying on the runner image.
+They neither create a tag nor upload to a package registry.
 
-- [ ] Adopt [cargo-dist](https://opensource.axo.dev/cargo-dist/) (`dist init`):
-      targets Linux (x86_64/aarch64 gnu or musl), macOS (x86_64/aarch64) and
-      Windows (x86_64), shell and PowerShell installers, checksums.
-      cargo-dist ignores `publish = false` packages unless the package sets
-      `dist = true` under `[package.metadata.dist]`; confirm that on the
-      version you install.
-- [ ] Decide how it joins `release.yml`: that workflow already tags the
-      qualified commit and attaches the starter zips and the IDE plugin. Either
-      call cargo-dist's generated workflow from the tag, or have `release.yml`
-      create the release and cargo-dist upload to it. The generated workflow
-      is regenerated by `dist generate`; keep local edits minimal.
-- [ ] Optional `cargo binstall crucible-cli` support with
-      `[package.metadata.binstall]` (`pkg-url` pointing at the release
-      archive); note binstall resolves the crate name, so it must name the
-      repository explicitly or the unrelated `crucible-cli` on crates.io wins.
-- [ ] Sign or attest the binaries (GitHub artifact attestations) and publish
-      their checksums.
+Run **Build CLI release artifacts** manually with the current workspace version
+to qualify all five platform archives and both installers without creating a
+release. A local host build proves only that host; use the workflow's platform
+results for the complete binary matrix.
 
-## 6. Generated SDK namespaces
+## First registry publication
 
-The generators take the package name from the user's model, so Crucible does
-not own any registry name for generated clients. Reserve the names for the
-SDKs Crucible itself ships (runtime packages, the CDK construct library, the
-weather example) before announcing:
+The manual **Publish crates** workflow defaults to a dry run. A real run must
+select a qualified `v<version>` tag, match the workspace version and pass the
+same package checks. Configure these external steps before turning off the dry
+run:
 
-- [ ] npm scope, PyPI project, NuGet prefix, RubyGems, Packagist, pub.dev,
-      Maven Central `groupId` (verify domain/GitHub-namespace ownership,
-      for example `io.github.<owner>`).
+1. Create the `crates-io` environment with required reviewers.
+2. Confirm current crate-name availability and publisher ownership. The local
+   name audit creates no reservations.
+3. Use the workflow's bootstrap-token mode for crates that cannot yet configure
+   trusted publishing. Store any bootstrap credential only in that protected
+   environment.
+4. After first publication, configure each crate's trusted publisher for this
+   repository, `publish-crates.yml` and the `crates-io` environment; remove the
+   bootstrap token and use trusted-publishing mode for later releases.
 
-## 7. Announce
+Consult the current [crates.io trusted-publishing documentation](https://crates.io/docs/trusted-publishing)
+when configuring the registry. Rate limits and account permissions are external
+state; check them before the first upload. A partial upload remains published,
+so inspect the registry before retrying an interrupted release.
 
-- [ ] Make the repository public only after sections 1 to 3 are complete.
-- [ ] Publish release notes that state the licence, the `.cru` language
-      version and the compatibility promise.
+## Repository setup
+
+The repository is already public. Retain its history and existing project
+references. The repository administrator owns branch protection, outside
+contributor workflow approval, allowed actions, vulnerability reporting and
+publisher-environment reviewer settings. A source PR does not configure those
+settings. Record their verified state and any remaining actions in issue #199;
+keep package publication separate from readiness preparation.
