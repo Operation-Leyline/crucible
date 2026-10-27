@@ -33,6 +33,54 @@ fn options() -> Options {
         endpoint: Some("https://weather.example".into()),
     }
 }
+
+#[test]
+fn response_stream_has_native_async_api_and_owned_runtime() {
+    let service = crucible_lang::load_service(
+        &Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../tests/consumers/rust-stream-client/model"),
+    )
+    .unwrap();
+    let files = emit(&service, &options()).expect("C# response streams are supported");
+    let client = &files
+        .iter()
+        .find(|file| file.path == "StreamsClient.cs")
+        .unwrap()
+        .contents;
+    assert_eq!(
+        fs::read_to_string(
+            Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/golden/streaming/StreamsClient.cs")
+        )
+        .unwrap()
+        .replace("\r\n", "\n"),
+        *client,
+        "streaming client golden"
+    );
+    assert!(client.contains("Task<global::Example.Weather.ResponseStream<global::Example.Weather.Models.@Progress>> @WatchAsync("));
+    assert!(
+        !client.contains(" @Watch("),
+        "stream opening has only an asynchronous API"
+    );
+    assert!(client.contains("runtime.OpenStreamAsync<"));
+    assert!(files.iter().any(|file| file.path == "ResponseStream.cs"));
+    let surface = crucible_codegen_csharp::surface(&service, &options());
+    let watch = &surface.operations["example.streams#Watch"];
+    assert_eq!(watch.method, "WatchAsync");
+    assert_eq!(
+        watch.output.as_ref().unwrap().type_name,
+        "ResponseStream<Progress>"
+    );
+    assert!(
+        watch
+            .snippet
+            .contains("await using var events = await client.WatchAsync()")
+    );
+    assert!(
+        watch
+            .snippet
+            .contains("await foreach (var value in events)")
+    );
+}
 #[test]
 fn weather_matches_goldens() {
     let service = weather();

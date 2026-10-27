@@ -31,6 +31,9 @@ pub fn surface(service: &Service, options: &Options) -> surface::Surface {
     for op in &service.operations {
         let mut entry = Operation::new(identifier(&method_name(op)));
         entry.async_method = Some(identifier(&async_method_name(op)));
+        if op.response_mode == crucible_ir::ir::ResponseMode::ServerStream {
+            entry.method = identifier(&async_method_name(op));
+        }
         entry.paginators = pages_method_name(op).map(|name| vec![identifier(&name)]);
         entry.input = op
             .input
@@ -40,6 +43,13 @@ pub fn surface(service: &Service, options: &Options) -> surface::Surface {
             .output
             .as_ref()
             .map(|id| structure(service, id, ns, "properties"));
+        if op.response_mode == crucible_ir::ir::ResponseMode::ServerStream
+            && let Some(output) = &mut entry.output
+        {
+            output.type_name = format!("ResponseStream<{}>", output.type_name);
+            output.style = "async-iterator".into();
+            output.members.clear();
+        }
         let call = crucible_codegen_common::snippet::call(service, op);
         (entry.snippet, entry.paginated_snippet) =
             crate::snippet::snippets(service, options, &out.middleware, &call);

@@ -56,8 +56,9 @@ await foreach (var page in client.ListCitiesPagesAsync(
 
 ## Transport and cancellation
 
-Every operation has an asynchronous method accepting `CancellationToken` and
-a synchronous wrapper. Synchronous calls dispatch through the thread pool so
+Buffered operations have an asynchronous method accepting `CancellationToken` and
+a synchronous wrapper; streams expose asynchronous opening and iteration.
+Synchronous calls dispatch through the thread pool so
 async authentication and middleware hooks do not capture a caller's UI context.
 Prefer asynchronous methods in servers and interfaces. Token providers and
 middleware run on each attempt; they should honor their cancellation token.
@@ -70,6 +71,53 @@ caller-owned, including its handler, redirect, and timeout policies. Disposing
 the generated client disposes only its own default transport. Credentials
 require HTTPS, except for loopback HTTP. Response bodies without modeled body
 members are not read.
+
+## Response streams
+
+Streaming operations expose an asynchronous opening method returning
+`ResponseStream<T>`. Opening makes HTTP metadata available immediately;
+enumeration pulls one typed event at a time:
+
+```csharp
+await using var events = await client.WatchAsync(cancellationToken);
+Console.WriteLine(events.Metadata.StatusCode);
+await foreach (var value in events) {
+    Console.WriteLine(value);
+}
+```
+
+Use `await using` even when abandoning a stream before its first read. A loop
+`break` disposes the enumerator; `Cancel()` also stops the response. Each stream
+has one consumer and rejects concurrent reads. The opening token, an additional
+enumeration token through `WithCancellation`, and `ClientConfig.Timeout` remain
+active before and between reads. The timeout includes credentials, middleware,
+opening retries, and the entire body. Cancellation takes precedence over
+already buffered events.
+
+Streams reuse ordinary authentication, middleware, and eligible opening retries.
+They never reconnect or replay after successful HTTP headers. Completion requires
+one terminal event followed by EOF. Malformed UTF-8, framing, JSON, or modeled
+values and missing terminals throw `StreamProtocolError`; transport failures throw
+`NetworkError`. Late modeled failures keep their generated exception types and
+document-valued fields, including members normally bound to headers or a payload.
+Configured `DocUrl` values use the same error and reason pages as opening errors.
+
+`ClientConfig.MaxStreamEventBytes` bounds physical events and buffered opening
+errors (default 1 MiB, minimum 256). Reads are demand driven with a fixed 4 KiB
+transport buffer. Streams dispose only their response; a supplied `HttpClient`
+and its other requests remain usable. The SDK-created handler disables response
+draining so abandoning an idle stream closes its connection immediately. A
+supplied handler retains its native response draining policy: the default .NET
+HTTP/1 handler can take up to its two-second `ResponseDrainTimeout` to close an
+idle canceled socket. An outstanding body read is interrupted by its cancellation
+token. See [.NET response draining](https://learn.microsoft.com/en-us/dotnet/api/system.net.http.socketshttphandler.responsedraintimeout?view=net-8.0).
+
+`python tools/test-csharp-streaming.py` packs separate SDKs with and without
+`errorDocs`, installs them into independent .NET 8 consumers, and tests shared
+profile vectors over native TCP plus the Rust HTTP fixture. Socket and producer
+release are observed before fixture cleanup; generated README snippets compile
+against the installed packages. These checks do not establish deployed proxy or
+AWS behavior.
 
 ## Models and errors
 

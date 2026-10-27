@@ -159,3 +159,9 @@ id = 24
 languages = ["ts"]
 kind = "patch"
 summary = "Late response-stream errors decode complete document fields, including base64 blob payloads, without changing ordinary HTTP payload decoding."
+
+[[change]]
+id = 25
+languages = ["csharp"]
+kind = "additive"
+summary = "C# clients expose demand-driven typed response streams with opening metadata, cancellation, total-call deadlines, bounded SSE parsing, opening retries, terminal EOF validation and document-decoded late errors."

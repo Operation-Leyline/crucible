@@ -27,18 +27,20 @@ internal sealed partial class ClientRuntime : IDisposable
             (uri.Scheme != "http" && uri.Scheme != "https") || uri.Host.Length == 0 ||
             uri.UserInfo.Length != 0 || uri.Query.Length != 0 || uri.Fragment.Length != 0)
             throw new ArgumentException("Absolute HTTP(S) endpoint without credentials, query, or fragment required");
-        if (input.MaxAttempts < 1 || input.Timeout <= TimeSpan.Zero || input.Timeout.TotalMilliseconds > uint.MaxValue - 1 ||
+        if (input.MaxStreamEventBytes < 256 || input.MaxAttempts < 1 || input.Timeout <= TimeSpan.Zero || input.Timeout.TotalMilliseconds > uint.MaxValue - 1 ||
             input.BaseDelay < TimeSpan.Zero || input.MaxDelay < TimeSpan.Zero || input.MaxDelay.TotalMilliseconds > int.MaxValue)
             throw new ArgumentException("Invalid attempt limit, timeout, or retry delay");
         config = new ClientConfig {
             Endpoint = endpoint.TrimEnd('/'), Token = input.Token, MaxAttempts = input.MaxAttempts,
-            Timeout = input.Timeout, BaseDelay = input.BaseDelay, MaxDelay = input.MaxDelay,
+            Timeout = input.Timeout, MaxStreamEventBytes = input.MaxStreamEventBytes, BaseDelay = input.BaseDelay, MaxDelay = input.MaxDelay,
             Headers = new(input.Headers, StringComparer.OrdinalIgnoreCase), Middleware = [.. input.Middleware],
             RetryMode = input.RetryMode, Telemetry = input.Telemetry,
             TimeProvider = input.TimeProvider ?? throw new ArgumentException("A TimeProvider is required")
         };
         ownsHttp = input.HttpClient is null;
-        http = input.HttpClient ?? new HttpClient(new SocketsHttpHandler { AllowAutoRedirect = false }) { Timeout = System.Threading.Timeout.InfiniteTimeSpan };
+        // An abandoned stream must release its connection without waiting for an
+        // idle producer. Supplied handlers keep their caller-selected drain policy.
+        http = input.HttpClient ?? new HttpClient(new SocketsHttpHandler { AllowAutoRedirect = false, MaxResponseDrainSize = 0 }) { Timeout = System.Threading.Timeout.InfiniteTimeSpan };
         this.schema = schema; this.types = types;
         InitializePolicy();
     }
