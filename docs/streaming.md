@@ -174,6 +174,81 @@ cannot consume the deferred source before the pipeline finishes. The standard
 idempotency interceptor refuses tokened streams because its replay store holds
 single responses. Keep transactional business deduplication in the service.
 
+### Opt-in deployed AWS qualification
+
+`tools/test-streaming-cloud.py` creates a temporary Lambda function, an
+`AWS_IAM` Function URL in `RESPONSE_STREAM` mode, and a Regional REST API with
+IAM authorization. Its Lambda proxy integrations use `responseTransferMode:
+STREAM` and the `2021-11-15/.../response-streaming-invocations` URI. HTTP APIs
+are not a replacement for this REST integration. See AWS's
+[Lambda streaming configuration](https://docs.aws.amazon.com/lambda/latest/dg/config-rs-invoke-furls.html)
+and [REST streaming integration configuration](https://docs.aws.amazon.com/apigateway/latest/developerguide/response-streaming-lambda-configure.html).
+
+This test supports the commercial `aws` partition and rejects other partitions
+before creating resources. Running it requires Docker, `boto3` in your Python
+environment, and authorization to create temporary AWS resources. Use an
+artifact directory outside the checkout and an explicit profile, region,
+account, and principal:
+
+```sh
+python tools/build-streaming-cloud.py --artifacts /absolute/path/cloud-smoke
+python tools/test-streaming-cloud.py \
+  --profile YOUR_PROFILE --region us-east-1 \
+  --account YOUR_ACCOUNT_ID --principal arn:aws:iam::YOUR_ACCOUNT_ID:user/YOUR_USER \
+  --bootstrap-zip /absolute/path/cloud-smoke/bootstrap.zip \
+  --report-dir /absolute/path/cloud-smoke
+```
+
+The build uses a pinned official Linux Rust image, one Cargo job, isolated
+container-local Cargo caches, and a musl executable with an executable zip
+entry. It installs no host toolchains.
+The container uses the invoking UID/GID on Linux to preserve artifact ownership;
+Windows Docker Desktop uses its host ACL mapping. Build metadata's
+`partial_source_sha256` covers only the fixture, lockfile, and host source; it is
+a focused identity receipt, not a complete compiler-input manifest.
+Older build records used `source_sha256` for the same partial set. Preserve
+those records as written and interpret that legacy field as partial too.
+The fixture uses the ordinary generated operation traits and
+`host::lambda_streaming`; no service-specific behavior is
+added to the framework. Its execution role can write only its own log group.
+It has no business-data permissions.
+
+Both endpoints test GET and POST, an immediate first item and delayed second
+item arriving before the terminal and EOF, zero items, a modeled late error,
+profile and request-id headers,
+deadline failure, and closing the actual client socket after the first item.
+A unary request verifies ordinary output through the same streaming host.
+Requests are signed with botocore SigV4. The receipt records timings and
+nonce-correlated producer drop and terminal logs without credentials or signed
+headers. Unique tagged resources are recorded before and after creation,
+cleaned in `finally`, and checked for absence. Recovery retries reads for up to
+35 seconds after a creation attempt so one stale read cannot silently skip a
+resource. Each intended resource must be deleted with verified absence or
+explicitly verified absent. The final receipt is `passed` only after successful
+HTTP, lifecycle-log, and resource cleanup checks; all checks also run under
+optimized Python. If interrupted outside normal
+Python cleanup, use the receipt's names and ownership tags to recover resources.
+Never run this opt-in cloud test in ordinary credential-free CI.
+
+The fixture-specific frame and payload oracle has credential-free regression
+coverage in `python -m unittest discover -s tools -p test_streaming_cloud.py`.
+These tests execute the runner's actual request parser with a fake socket and
+clock; they do not import the AWS SDK or create an AWS session. The existing
+Rust CI gate's Python unittest discovery includes them.
+
+Client cancellation is a transport observation, not proof that remote work has
+stopped. AWS documents that
+[a disconnected streaming client does not stop Lambda](https://docs.aws.amazon.com/lambda/latest/dg/configuration-response-streaming.html).
+The fixture therefore enforces a five-second Crucible request budget inside a
+fifteen-second Lambda timeout, and checks producer drop and terminal logs before
+cleanup. The receipt's `disconnect_propagated_before_budget` field is a
+conservative early-drop classifier: it is true only for a producer drop below
+four seconds. That threshold is distinct from the five-second deadline; false
+can include a drop between four and five seconds and does not prove the absence
+of cancellation. Consult the actual drop time and lifecycle outcome.
+Set application deadlines below the Lambda hard timeout even when
+clients cancel promptly.
+
 ## Current support
 
 Rust servers, Rust clients and TypeScript web/Node clients implement profile 1. Other clients
