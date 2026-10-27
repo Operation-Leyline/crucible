@@ -2,6 +2,7 @@
 from contextlib import contextmanager
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
+import os
 from pathlib import Path
 import threading
 
@@ -9,8 +10,9 @@ from sdk_test_support import ROOT
 
 
 @contextmanager
-def error_docs_fixture(output):
-    cases = json.loads((ROOT / "tests/conformance/error-docs.json").read_text(encoding="utf-8"))["cases"]
+def error_docs_fixture(output, *, root=None):
+    root = ROOT if root is None else root
+    cases = json.loads((root / "tests/conformance/error-docs.json").read_text(encoding="utf-8"))["cases"]
     # These extend the shared oracle without deriving expected URLs from a runtime.
     cases += [
         dict(name="nul-prefix-future", status=403, identity="Denied",
@@ -52,14 +54,25 @@ def error_docs_fixture(output):
             except Exception as error:
                 failures.append(error)
 
+        def parse_request(self):
+            # Reject before dispatch so every method but GET (HEAD, CONNECT, an invented one) fails
+            # the run rather than getting the server's default answer; send_error omits a HEAD body.
+            if not super().parse_request():
+                return False
+            if self.command == "GET":
+                return True
+            failures.append(AssertionError(f"unexpected request method: {self.command}"))
+            self.send_error(405)
+            return False
+
         def log_message(self, *_args):
             pass
 
-    server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+    server = ThreadingHTTPServer((os.environ.get("SDK_HTTP_BIND", "127.0.0.1"), 0), Handler)
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
     try:
-        yield f"http://127.0.0.1:{server.server_port}", oracle
+        yield f"http://{os.environ.get('SDK_HTTP_HOST', '127.0.0.1')}:{server.server_port}", oracle
         if failures:
             raise AssertionError(f"error-documentation HTTP fixture failed: {failures}")
         if len(completed) != len(cases):

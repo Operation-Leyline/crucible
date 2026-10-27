@@ -10,9 +10,9 @@ for (test in cases) {
   if (!inherits(error, 'TroubleshootingException')) stop(test$name, ': missing service condition')
   if (!identical(error$metadata$doc_url, test$docUrl)) stop(test$name, ': wrong documentation URL')
   if (!is.null(test$typed) && !identical(!is.null(error$model), test$typed)) stop(test$name, ': wrong modeled classification')
-  if (test$name == 'default-known') stopifnot(as.character(error$model$detail) == 'access/needed')
-  if (test$name == 'default-empty') stopifnot(as.character(error$model$detail) == '')
-  if (test$name == 'mapped-member') stopifnot(as.character(error$model$failure_reason) == 'access/needed')
+  if (test$name == 'default-known') stopifnot(identical(as.character(error$model$detail), 'access/needed'))
+  if (test$name == 'default-empty') stopifnot(identical(as.character(error$model$detail), ''))
+  if (test$name == 'mapped-member') stopifnot(identical(as.character(error$model$failure_reason), 'access/needed'))
   if (test$name %in% c('document-empty', 'document-whitespace', 'document-null')) {
     stopifnot(inherits(error$model$data, 'crucible_unset') == (test$name != 'document-null'))
     if (test$name == 'document-null') stopifnot(is.null(error$model$data))

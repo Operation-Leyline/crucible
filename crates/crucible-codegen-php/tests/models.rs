@@ -277,7 +277,7 @@ fn vault_package_matches_golden() {
 }
 
 /// The typed permissions fixture (`tests/fixtures/permissions`) as a client
-/// sees it (docs/permissions.md Â§6.3), hostile documentation included: every
+/// sees it (docs/permissions.md §6.3), hostile documentation included: every
 /// generated file that names a permission, checked in under
 /// `tests/golden/permissions/`. No file names an internal permission, and a
 /// checked-in file no generated one matches any more is reported as stale
