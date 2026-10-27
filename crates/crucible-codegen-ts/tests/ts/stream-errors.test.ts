@@ -23,7 +23,11 @@ test("late errors use document blob conversion and header timestamp formats", as
   }
 });
 
-test("late document schemas propagate through lists, maps and recursive structures", async () => {
+// Nested blobs already decode as base64 through their shared schema: .cru cannot
+// make a nested shape an HTTP blob payload, so a distinct nested document schema
+// arises only from IR front ends and is covered by the Rust golden test
+// late_document_schemas_follow_reused_http_payloads_through_recursive_containers.
+test("late nested blobs decode through lists, maps and recursive structures", async () => {
   const envelope = { data: "AAH/" };
   const fields = { envelope: { ...envelope, next: envelope }, entries: [envelope], mapping: { key: envelope } };
   const stream = await late("NestedProblem", fields).watch();
