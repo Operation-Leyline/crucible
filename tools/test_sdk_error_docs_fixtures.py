@@ -4,6 +4,7 @@ import importlib.util
 import json
 import os
 from pathlib import Path
+import socket
 import tempfile
 import unittest
 from unittest.mock import patch
@@ -47,6 +48,17 @@ class ErrorDocumentationFixtures(unittest.TestCase):
         finally:
             connection.close()
 
+    def raw_head(self, endpoint):
+        # http.client discards any HEAD body, so read the raw bytes the fixture wrote.
+        parsed = urlsplit(endpoint)
+        with socket.create_connection((parsed.hostname, parsed.port), timeout=5) as connection:
+            connection.sendall(f"HEAD /inspect HTTP/1.1\r\nHost: {parsed.netloc}\r\nConnection: close\r\n\r\n".encode())
+            data = b""
+            while chunk := connection.recv(65536):
+                data += chunk
+        head, _separator, body = data.partition(b"\r\n\r\n")
+        return int(head.split(b" ", 2)[1]), body
+
     def test_each_fixture_serves_the_shared_extensions(self):
         required = {"nul-prefix-future", "body-identity", "malformed-default",
                     "malformed-json-known", "malformed-json-unknown"}
@@ -79,11 +91,12 @@ class ErrorDocumentationFixtures(unittest.TestCase):
                                 for index, case in enumerate(cases):
                                     status = self.request(endpoint, "GET", "/inspect", index)[0]
                                     self.assertEqual(status, case["status"])
-                                status, _headers, body = self.request(endpoint, method, "/inspect")
-                                self.assertEqual(status, 405)
-                                # A HEAD answer never carries a body.
                                 if method == "HEAD":
-                                    self.assertEqual(body, b"")
+                                    status, body = self.raw_head(endpoint)
+                                    self.assertEqual(body, b"", "a HEAD answer never carries a body")
+                                else:
+                                    status = self.request(endpoint, method, "/inspect")[0]
+                                self.assertEqual(status, 405)
 
 
 if __name__ == "__main__":
