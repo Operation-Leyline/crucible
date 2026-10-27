@@ -374,6 +374,15 @@ func TestOpeningRetriesAuthMiddlewareUnsafePostAndOversize(t *testing.T) {
 	}
 }
 
+type attemptBytes struct {
+	streams.NopTelemetryHook
+	bytes atomic.Int64
+}
+
+func (h *attemptBytes) AttemptFinished(event streams.AttemptFinishedEvent) {
+	h.bytes.Store(event.ResponseBytes)
+}
+
 func TestOpeningErrorAtAndPastTheLimit(t *testing.T) {
 	// A modelled opening error of exactly MaxStreamEventBytes keeps its fields;
 	// one byte more is oversized, so even a valid JSON prefix is not decoded.
@@ -391,7 +400,8 @@ func TestOpeningErrorAtAndPastTheLimit(t *testing.T) {
 				io.WriteString(w, body)
 			}))
 			defer server.Close()
-			c := client(t, server.URL, func(c *streams.Config) { c.MaxStreamEventBytes = 256 })
+			hook := &attemptBytes{}
+			c := client(t, server.URL, func(c *streams.Config) { c.MaxStreamEventBytes = 256; c.Telemetry = hook })
 			_, err := c.Publish(context.Background(), &streams.PublishInput{Topic: "send"})
 			var service *streams.ServiceError
 			if !errors.As(err, &service) {
@@ -399,6 +409,10 @@ func TestOpeningErrorAtAndPastTheLimit(t *testing.T) {
 			}
 			if (service.Message == "opening") != test.decoded {
 				t.Fatalf("message %q for a %d-byte body", service.Message, test.size)
+			}
+			// Telemetry reports the bytes read even when the body is discarded.
+			if want := int64(test.size); hook.bytes.Load() != want {
+				t.Fatalf("ResponseBytes %d, expected %d", hook.bytes.Load(), want)
 			}
 		})
 	}

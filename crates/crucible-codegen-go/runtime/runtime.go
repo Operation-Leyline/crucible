@@ -1163,10 +1163,11 @@ func (c *clientRuntime) sendMode(ctx context.Context, name string, values map[st
 				// exactly the limit; an oversized prefix is never decoded.
 				if opening != nil { reader = io.LimitReader(reader, int64(c.config.MaxStreamEventBytes)+1) }
 				data, transportErr = io.ReadAll(reader)
-				if opening != nil && len(data) > c.config.MaxStreamEventBytes { data = nil }
 			}
 			response.Body.Close()
 			size = int64(len(data))
+			// Telemetry keeps the bytes read; only the decoder loses the body.
+			if opening != nil && len(data) > c.config.MaxStreamEventBytes { data = nil }
 		}
 		if err := ctx.Err(); err != nil {
 			return interrupted(size, err)
