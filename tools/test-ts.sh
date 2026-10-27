@@ -14,6 +14,8 @@ crucible() {
 dir=crates/crucible-codegen-ts/tests/ts
 crucible generate ts tests/models/server-stream \
   --out "$dir/generated-streams" --package-name @example/streams >/dev/null
+crucible generate ts tests/models/stream-error-document \
+  --out "$dir/generated-stream-errors" --package-name @example/stream-errors >/dev/null
 crucible generate ts tests/models/internal \
   --out "$dir/generated-audience" --package-name @example/audience >/dev/null
 crucible generate ts tests/models/internal \

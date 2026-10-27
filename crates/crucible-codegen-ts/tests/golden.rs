@@ -66,6 +66,46 @@ fn stream_client_matches_golden() {
     );
 }
 
+#[test]
+fn late_document_schemas_follow_reused_http_payloads_through_recursive_containers() {
+    let mut service = load("stream-error-document");
+    let envelope = service
+        .shapes
+        .keys()
+        .find(|id| id.name() == "Envelope")
+        .unwrap()
+        .clone();
+    let payload = service
+        .shapes
+        .values()
+        .find_map(|shape| match shape {
+            crucible_ir::ir::Shape::Structure(shape) => shape.error.as_ref()?.payload.clone(),
+            _ => None,
+        })
+        .unwrap();
+    // The IR also accepts named HTTP structures from front ends other than .cru.
+    let read = service
+        .operations
+        .iter_mut()
+        .find(|op| op.name() == "Read")
+        .unwrap();
+    read.output = Some(envelope);
+    read.response.payload = Some(payload);
+    let files = emit(&service, &options("@example/stream-errors")).unwrap();
+    let schemas = &files
+        .iter()
+        .find(|file| file.path == "src/schemas.ts")
+        .unwrap()
+        .contents;
+    assert!(schemas.contains("S_Envelope: Schema = structure(() => ({ next: S_Envelope })"));
+    assert!(schemas.contains(
+        "S_Envelope_document: Schema = structure(() => ({ data: blob, next: S_Envelope_document })"
+    ));
+    assert!(schemas.contains("S_Envelopes_document: Schema = list(() => S_Envelope_document)"));
+    assert!(schemas.contains("S_EnvelopeMap_document: Schema = map(() => S_Envelope_document)"));
+    assert!(schemas.contains("documentSchema: S_NestedProblem_document"));
+}
+
 use crucible_codegen_ts::{Middleware, Options, emit};
 
 /// The typed permissions fixture, a `.cru` package; `edit` rewrites its

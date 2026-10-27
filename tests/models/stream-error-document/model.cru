@@ -1,0 +1,47 @@
+service StreamErrors {
+    version "1"
+    protocol json
+    errorDocs "https://docs.example.test/errors/"
+    operations [Watch, Read]
+    errors [BlobProblem, NestedProblem]
+}
+
+readonly public operation Watch {
+    http GET "/events"
+    output stream Progress
+}
+
+union Progress { ready: string }
+
+readonly public operation Read {
+    http GET "/read"
+    output {}
+}
+
+structure Envelope {
+    data?: blob
+    next?: Envelope
+}
+
+list Envelopes: Envelope
+map EnvelopeMap: string -> Envelope
+
+error BlobProblem {
+    status 421
+    @errorReason
+    @header("X-Reason")
+    reason: Reason = "needed"
+    @header("X-Time")
+    when?: timestamp
+    @payload
+    data?: blob
+}
+
+enum Reason { Needed = "needed" }
+
+error NestedProblem {
+    status 422
+    envelope?: Envelope
+    entries?: Envelopes
+    mapping?: EnvelopeMap
+}

@@ -111,6 +111,10 @@ version's section when it is prepared.
   waiting for another byte. Split CRLF delimiters retain their event byte count,
   and extra bytes after the terminal outcome are rejected, including whitespace.
 
+- TypeScript late response-stream errors decode blob payloads from their JSON
+  envelope into `Uint8Array`, including empty payloads. Ordinary HTTP error
+  payloads retain their existing raw-byte decoding.
+
 - Release preparation and checking include standalone consumer lockfiles and
   keep published internal dependency requirements aligned with the workspace
   version, while preserving registry dependencies and example versions.
