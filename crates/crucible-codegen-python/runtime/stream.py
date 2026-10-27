@@ -62,24 +62,7 @@ async def read_opening_error(response: httpx.Response, limit: int) -> bytes:
     if encoding not in ("gzip", "deflate"):
         return bytes(data)
     if encoding == "gzip":
-        # RFC 1952 permits concatenated members; decode each from the previous
-        # member's unused input, with one output ceiling shared by all of them.
-        expanded = bytearray()
-        remaining = bytes(data)
-        try:
-            while remaining:
-                if len(expanded) >= limit:
-                    # zlib treats max_length=0 as unbounded; more input here
-                    # means the expanded body exceeds the ceiling.
-                    return b""
-                decoder = zlib.decompressobj(31)
-                expanded += decoder.decompress(remaining, limit - len(expanded))
-                if not decoder.eof:
-                    return b""
-                remaining = decoder.unused_data
-        except zlib.error:
-            return b""
-        return bytes(expanded)
+        return _gunzip_members(memoryview(data), limit)
     for format in (15, -15):
         try:
             decoder = zlib.decompressobj(format)
@@ -88,6 +71,47 @@ async def read_opening_error(response: httpx.Response, limit: int) -> bytes:
         except zlib.error:
             continue
     return b""
+
+
+_GZIP_MAGIC = b"\x1f\x8b"
+# Concatenated members are legal (RFC 1952) but an error body has no reason to
+# carry many; more are treated as malformed, like an oversized body.
+_MAX_GZIP_MEMBERS = 64
+
+
+def _gunzip_members(data: memoryview, limit: int) -> bytes:
+    """Decode concatenated gzip members in linear time under one ceiling.
+
+    Input is fed from an offset in geometrically growing slices, so the copy
+    zlib makes of a finished member's unused input is bounded by that member's
+    own size, never by the rest of the body. Trailing bytes that do not start
+    a gzip member end the body, as HTTPX and the gzip module tolerate padding.
+    """
+    expanded = bytearray()
+    offset = 0
+    members = 0
+    try:
+        while offset < len(data) and data[offset:offset + 2] == _GZIP_MAGIC:
+            members += 1
+            if members > _MAX_GZIP_MEMBERS:
+                return b""
+            decoder = zlib.decompressobj(31)
+            step = 64
+            while not decoder.eof:
+                room = limit - len(expanded)
+                if offset >= len(data) or room <= 0:
+                    # Truncated, or more output than the ceiling (zlib treats
+                    # max_length=0 as unbounded, so it is never passed).
+                    return b""
+                piece = data[offset:offset + step]
+                expanded += decoder.decompress(piece, room)
+                if decoder.unconsumed_tail:
+                    return b""
+                offset += len(piece) - len(decoder.unused_data)
+                step = min(step * 2, 65536)
+    except zlib.error:
+        return b""
+    return bytes(expanded)
 
 
 def _check_start(deadline: float, cancellation: asyncio.Event | threading.Event | None) -> None:
@@ -128,12 +152,17 @@ class _Lifetime:
         failure there is rechecked against the lifetime before it is reported.
         """
         interrupted = self.interrupted
-        if interrupted is not None and interrupted is asyncio.current_task():
+        task = asyncio.current_task()
+        if interrupted is not None and interrupted is task:
             # Our cancel() was consumed here; without uncancel() the caller's
             # task keeps a pending request that breaks later TaskGroup and
             # asyncio.timeout() scopes.
             self.interrupted = None
             interrupted.uncancel()
+        if isinstance(error, asyncio.CancelledError) and task is not None and task.cancelling():
+            # The caller cancelled too: as with asyncio.timeout(), its own
+            # cancellation wins over the lifetime's error.
+            return error
         if self.error is not None:
             return self.error
         if not isinstance(error, Exception):
@@ -348,6 +377,10 @@ class AsyncResponseStream(Generic[T], AsyncIterator[T]):
             raise
         except BaseException as error:
             error = self._lifetime.outcome(error)
+            # From here this read is only cleaning up; no aclose() from another
+            # task or watchdog may interrupt it, since nothing would withdraw
+            # that cancel request (Lifetime.close swallows it at the monitor).
+            self._lifetime.active = None
             if isinstance(error, httpx.TransportError):
                 error = NetworkError(str(error))
             await self._finish(error)
@@ -403,7 +436,9 @@ class AsyncResponseStream(Generic[T], AsyncIterator[T]):
     async def aclose(self) -> None:
         """Release only this response; safe before iteration and idempotent."""
         active = self._lifetime.active
-        if active is not None and active is not asyncio.current_task():
+        # A read that is already finishing (self._closed) releases the
+        # response itself; interrupting it would leave an unconsumed cancel.
+        if active is not None and active is not asyncio.current_task() and not self._closed:
             self._lifetime.error = asyncio.CancelledError("response stream closed")
             self._lifetime.interrupt(active)
         await self._finish(asyncio.CancelledError("response stream closed"))
@@ -429,6 +464,7 @@ async def open_async_stream(client: AsyncClientBase, name: str, input: Any, *, t
         return await client._send(name, input, timeout, lifetime.deadline, trace, lifetime)
     except BaseException as error:
         error = lifetime.outcome(error)
+        lifetime.active = None
         await lifetime.close()
         lifetime.finish(error)
         raise error

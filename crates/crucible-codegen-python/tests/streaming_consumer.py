@@ -415,11 +415,15 @@ class SyncStreams(unittest.TestCase):
     def test_concatenated_gzip_opening_error_members_share_the_ceiling(self):
         body=b'{"__type":"WorkFailed","message":"opening","reason":"broken"}'
         members=gzip.compress(body[:20])+gzip.compress(body[20:40])+gzip.compress(body[40:])
-        with raw(status=503,encoding="gzip",error_body=members) as (url,requests,_), StreamsClient(url,max_stream_event_bytes=256) as client:
-            with self.assertRaises(WorkFailed) as caught: client.publish(PublishInput(topic="send"))
-            self.assertEqual(caught.exception.message,"opening")
-            self.assertEqual(str(caught.exception.reason),"broken")
-            self.assertEqual(len(requests),1)
+        # Bytes after the last member that do not start another one end the
+        # body, as on the unary path (HTTPX) and in the gzip module.
+        for name,wire in (("members",members),("nul-padding",gzip.compress(body)+b"\0"*8),("crlf",gzip.compress(body)+b"\r\n"),
+                          ("members-crlf",members+b"\r\n")):
+            with self.subTest(wire=name), raw(status=503,encoding="gzip",error_body=wire) as (url,requests,_), StreamsClient(url,max_stream_event_bytes=256) as client:
+                with self.assertRaises(WorkFailed) as caught: client.publish(PublishInput(topic="send"))
+                self.assertEqual(caught.exception.message,"opening")
+                self.assertEqual(str(caught.exception.reason),"broken")
+                self.assertEqual(len(requests),1)
         # Each member is under the ceiling, together they exceed it: the body
         # is oversized, so only the HTTP status classifies it (a safe retry).
         large=json.dumps({"__type":"WorkFailed","message":"x"*300}).encode()
@@ -427,6 +431,27 @@ class SyncStreams(unittest.TestCase):
         with raw(statuses=[503,200],encoding="gzip",error_body=members) as (url,requests,_), StreamsClient(url,max_stream_event_bytes=256,base_delay=0) as client:
             with client.watch() as stream: self.assertEqual(len(list(stream)),1)
             self.assertEqual(len(requests),2)
+
+    def test_many_gzip_members_decode_linearly_and_are_bounded(self):
+        # Decoding is synchronous, so neither the watchdog nor the deadline can
+        # interrupt it: it must stay linear in the bounded body size.
+        limit=2*1024*1024
+        members=gzip.compress(b"",mtime=0)*(limit//20)
+        with raw(statuses=[503,200],encoding="gzip",error_body=members) as (url,requests,_), StreamsClient(url,max_stream_event_bytes=limit,base_delay=0,timeout=60) as client:
+            start=time.monotonic()
+            with client.watch() as stream: self.assertEqual(len(list(stream)),1)
+            self.assertLess(time.monotonic()-start,2.0,"many tiny gzip members must not be quadratic")
+            self.assertEqual(len(requests),2)
+        # Beyond 64 members the body is malformed: only its status classifies it.
+        body=b'{"__type":"WorkFailed","message":"opening","reason":"broken"}'
+        for count,decoded in ((64,True),(65,False)):
+            wire=b"".join(gzip.compress(body[i:i+1]) for i in range(count-1))+gzip.compress(body[count-1:])
+            with self.subTest(members=count), raw(status=503,encoding="gzip",error_body=wire) as (url,requests,_), StreamsClient(url) as client:
+                with self.assertRaises(Exception) as caught: client.publish(PublishInput(topic="send"))
+                # Without the errorDocs base an undecoded 503 still maps to
+                # WorkFailed by status, so the decoded message is what differs.
+                self.assertEqual(getattr(caught.exception,"message",None)=="opening",decoded)
+                self.assertEqual(len(requests),1)
 
     def test_opening_error_fixture_reads_separate_post_body_before_response(self):
         class DelayedBody(httpx.AsyncByteStream):
@@ -571,10 +596,48 @@ class AsyncStreams(unittest.IsolatedAsyncioTestCase):
             async with AsyncStreamsClient(f"http://127.0.0.1:{listener.getsockname()[1]}",timeout=.15) as client:
                 with self.assertRaises(TimeoutError): await client.watch()
             self.assertEqual(task.cancelling(),0)
+        # A caller cancel in the same tick as the watchdog's still wins, as
+        # with asyncio.timeout(): the reader ends cancelled, not timed out.
+        interrupt=stream_module._Lifetime.interrupt
+        def with_caller_cancel(lifetime,reader):
+            reader.cancel("caller");interrupt(lifetime,reader)
+        stream_module._Lifetime.interrupt=with_caller_cancel
+        try:
+            with raw(b"",hold=True) as (url,_,_):
+                async with AsyncStreamsClient(url,timeout=.15) as client:
+                    stream=await client.watch()
+                    reader=asyncio.create_task(anext(stream))
+                    with self.assertRaises(asyncio.CancelledError): await reader
+                    self.assertTrue(reader.cancelled())
+                    await stream.aclose()
+        finally:
+            stream_module._Lifetime.interrupt=interrupt
         async with asyncio.timeout(1):
             async with asyncio.TaskGroup() as group:
                 child=group.create_task(asyncio.sleep(.01,"ok"))
         self.assertEqual(child.result(),"ok")
+
+    async def test_cross_task_close_during_failed_read_cleanup(self):
+        # The reader is already releasing the response after a protocol error;
+        # a sibling aclose() then must neither cancel it nor change its error.
+        task=asyncio.current_task()
+        for point in ("finishing","closing-response"):
+            with self.subTest(point=point), raw(b'data: {bad\n\n',hold=True) as (url,_,disconnected):
+                async with AsyncStreamsClient(url) as client:
+                    stream=await client.watch()
+                    def reached():
+                        return stream._closed if point=="finishing" else stream._lifetime._close_task is not None
+                    async def closer():
+                        while not reached(): await asyncio.sleep(0)
+                        await stream.aclose()
+                    sibling=asyncio.create_task(closer())
+                    try:
+                        with self.assertRaises(StreamProtocolError): await anext(stream)
+                        await sibling
+                        self.assertEqual(task.cancelling(),0)
+                    finally:
+                        while task.cancelling(): task.uncancel()
+                    self.assertTrue(await asyncio.to_thread(disconnected.wait,1))
 
     async def test_async_post_and_late_error(self):
         with rust("hold") as (url,counts), self.assertRaises(WorkFailed):
