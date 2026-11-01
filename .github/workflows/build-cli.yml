@@ -63,7 +63,7 @@ jobs:
           echo "EOF" >> "$GITHUB_OUTPUT"
           # Each target's manifest is retained without colliding during download.
           cp dist-manifest.json "target/distrib/$DIST_TARGET-dist-manifest.json"
-      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: cli-local-${{ matrix.target }}
           path: |
@@ -82,7 +82,7 @@ jobs:
       # dist reads Cargo metadata, so do not rely on the image's preinstalled Rust.
       - uses: dtolnay/rust-toolchain@89b12181fb390509a0842a86cc55eeb8eb928c1d # stable
         with: { toolchain: stable }
-      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           pattern: cli-local-*
           path: target/distrib
@@ -94,7 +94,7 @@ jobs:
           RELEASE_VERSION: ${{ inputs.version }}
         run: |
           dist build --artifacts=global --tag "v$RELEASE_VERSION" --output-format=json > target/distrib/global-dist-manifest.json
-      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: crucible-cli-release
           path: |

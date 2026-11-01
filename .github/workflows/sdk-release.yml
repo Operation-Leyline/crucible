@@ -43,7 +43,7 @@ jobs:
           CARGO_BUILD_JOBS: '2'
         run: python tools/sdk_release.py build "$SDK_CONFIG" --version "$SDK_VERSION" --out target/sdk-release
       - run: python tools/sdk_release.py verify target/sdk-release
-      - uses: actions/upload-artifact@v7
+      - uses: actions/upload-artifact@v7.0.2
         with:
           name: sdk-release
           path: target/sdk-release
@@ -63,7 +63,7 @@ jobs:
       - uses: actions/setup-python@v7
         with: { python-version: '3.12' }
       - run: python -m pip install twine
-      - uses: actions/download-artifact@v8
+      - uses: actions/download-artifact@v8.0.2
         with:
           name: sdk-release
           path: target/sdk-release
@@ -73,7 +73,7 @@ jobs:
           TWINE_USERNAME: __token__
           TWINE_PASSWORD: ${{ secrets.PYPI_TOKEN }}
         run: python tools/sdk_release.py publish target/sdk-release --execute
-      - uses: actions/upload-artifact@v7
+      - uses: actions/upload-artifact@v7.0.2
         if: always()
         with:
           name: sdk-publication-journal
