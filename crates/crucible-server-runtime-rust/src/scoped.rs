@@ -14,35 +14,10 @@ pub struct Scoped<T> {
     applies: Predicate,
 }
 
-enum Builtin {
-    Readonly,
-    Idempotent,
-}
-
-/// What `when_trait` makes of an id in the built-in namespaces, which no
-/// operation carries as a trait: the retired `smithy.api` ids and their
-/// `crucible.api` spellings select the fact they name, deprecated, and any
-/// other built-in id selects nothing. Warned about at construction, not per
-/// request. `None` for a model's own trait.
-fn builtin_trait(id: &str) -> Option<Option<Builtin>> {
-    let (namespace, name) = id.split_once('#')?;
-    if namespace != "smithy.api" && namespace != "crucible.api" {
-        return None;
-    }
-    let (builtin, instead) = match name {
-        "readonly" => (Builtin::Readonly, ".when(|op| op.readonly)"),
-        "idempotent" => (Builtin::Idempotent, ".when(|op| op.idempotent)"),
-        _ => {
-            tracing::warn!(
-                "`when_trait(\"{id}\")` selects no operation: `{id}` is built-in vocabulary, not a trait an operation carries; scope with `.when(|op| ..)`"
-            );
-            return Some(None);
-        }
-    };
-    tracing::warn!(
-        "`when_trait(\"{id}\")` is deprecated and goes in the next minor release: use `{instead}`"
-    );
-    Some(Some(builtin))
+/// Whether `id` is in a built-in namespace. That vocabulary is not a trait an
+/// operation carries, so scoping by it would select nothing.
+fn is_builtin_trait(id: &str) -> bool {
+    matches!(id.split_once('#'), Some(("smithy.api" | "crucible.api", _)))
 }
 
 macro_rules! scope_extension {
@@ -61,19 +36,17 @@ macro_rules! scope_extension {
             /// `idempotent` operations, use `.when(|op| op.readonly)` and
             /// `.when(|op| op.idempotent)`.
             ///
-            /// The ids `smithy.api#readonly` and `smithy.api#idempotent`
-            /// (and their `crucible.api` spellings) still select those
-            /// operations, with a deprecation warning, until the next minor
-            /// release: built-in vocabulary is not a trait an operation
-            /// carries (CHANGELOG, *Deprecated*). Any other built-in id
-            /// selects nothing, with a warning.
+            /// # Panics
+            ///
+            /// When `id` is in the `smithy.api` or `crucible.api` namespace:
+            /// that vocabulary is not a trait an operation carries, and an
+            /// extension scoped by it would silently apply to no operation.
             fn when_trait(self, id: &'static str) -> Scoped<Self> {
-                match builtin_trait(id) {
-                    Some(Some(Builtin::Readonly)) => self.when(|op| op.readonly),
-                    Some(Some(Builtin::Idempotent)) => self.when(|op| op.idempotent),
-                    Some(None) => self.when(|_| false),
-                    None => self.when(move |op| op.has_trait(id)),
-                }
+                assert!(
+                    !is_builtin_trait(id),
+                    "`when_trait(\"{id}\")`: `{id}` is built-in vocabulary, not a trait an operation carries; scope with `.when(|op| ..)`, such as `.when(|op| op.readonly)`"
+                );
+                self.when(move |op| op.has_trait(id))
             }
             fn when(
                 self,
@@ -243,22 +216,41 @@ impl<T: Protocol> Protocol for Scoped<T> {
 
 #[cfg(test)]
 mod tests {
-    use super::{Builtin, builtin_trait};
+    use super::{InterceptorExt, is_builtin_trait};
+    use crate::Interceptor;
+
+    struct Noop;
+    impl Interceptor for Noop {}
 
     #[test]
-    fn built_in_ids_select_their_facts_or_nothing() {
-        for id in ["smithy.api#readonly", "crucible.api#readonly"] {
-            assert!(matches!(builtin_trait(id), Some(Some(Builtin::Readonly))));
+    fn only_the_built_in_namespaces_are_built_in() {
+        for id in [
+            "smithy.api#readonly",
+            "smithy.api#idempotent",
+            "crucible.api#readonly",
+            "crucible.api#paginated",
+        ] {
+            assert!(is_builtin_trait(id), "{id}");
         }
-        for id in ["smithy.api#idempotent", "crucible.api#idempotent"] {
-            assert!(matches!(builtin_trait(id), Some(Some(Builtin::Idempotent))));
-        }
-        assert!(matches!(
-            builtin_trait("crucible.api#paginated"),
-            Some(None)
-        ));
         // A model's own trait is matched against the operation's traits.
-        assert!(builtin_trait("acme#operationClass").is_none());
-        assert!(builtin_trait("acme.api#readonly").is_none());
+        assert!(!is_builtin_trait("acme#operationClass"));
+        assert!(!is_builtin_trait("acme.api#readonly"));
+    }
+
+    #[test]
+    fn a_model_trait_builds_a_scope() {
+        let _ = Noop.when_trait("acme#operationClass");
+    }
+
+    #[test]
+    #[should_panic(expected = "built-in vocabulary")]
+    fn a_retired_id_panics_when_the_scope_is_built() {
+        let _ = Noop.when_trait("smithy.api#readonly");
+    }
+
+    #[test]
+    #[should_panic(expected = "built-in vocabulary")]
+    fn any_built_in_id_panics_when_the_scope_is_built() {
+        let _ = Noop.when_trait("crucible.api#paginated");
     }
 }

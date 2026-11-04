@@ -78,7 +78,34 @@ version's section when it is prepared.
   Empty roots remain omitted from snapshots.
   LSP manifest completion and hover document the new key.
 
+- Release builds attach CLI archives for five platforms with shell and PowerShell
+  installers and SHA-256 checksums; `build-cli.yml` qualifies them without
+  creating a tag or release.
+
+### Removed
+
+- `when_trait` no longer accepts `smithy.api` or `crucible.api` ids: the shim
+  deprecated in 0.8.0 is gone, and any such id panics when the scope is built.
+- The `crucible-build` names deprecated since 0.5.0: the `outputs` module,
+  `ModelBuilder`, `RustCodegen`, `model_dependency`, `rust_service`, `service`,
+  `client`, `ServerOutput::from_model` and `ServerOutput::client_from_model`.
+
 ### Migration
+
+- Replace `when_trait` with a built-in id: `.when(|op| op.readonly)` and
+  `.when(|op| op.idempotent)` select what `smithy.api#readonly` and
+  `smithy.api#idempotent` did. A model's own trait id is unchanged.
+
+- Replace the removed `crucible-build` names with `crucible_build::model(..)` and
+  its `.server()` and `.client()`, and `Generator` and the native options from
+  the crate root. For `outputs::File` and `outputs::write`, use
+  `crucible_codegen::File` and `crucible_codegen::write`, adding `crucible-codegen`
+  as a build dependency pinned to the same Git tag as `crucible-build`.
+
+- Models that passed can now fail. Rename one of two operation bodies whose
+  generated names collide. Adding pagination to an existing unpaged operation
+  reports `compatibility.pagination`: keep it unpaged, or record a manifest
+  exception if the break is intended.
 
 - Upgrade Rust to 1.88 or newer before building Crucible or a generated Rust
   SDK. The previous 1.85 requirement was inaccurate: runtime let chains require
@@ -134,8 +161,10 @@ version's section when it is prepared.
 - Release preparation and checking include standalone consumer lockfiles and
   keep published internal dependency requirements aligned with the workspace
   version, while preserving registry dependencies and example versions. The
-  exact install snippets in the `crucible-api` README, `docs/explorer.md` and
-  `docs/framework.md` follow the release too.
+  install snippets in the `crucible-api` README, `docs/explorer.md`,
+  `docs/framework.md` and `docs/json-schema.md`, and the `--tag` commands in `README.md` and
+  `docs/quickstart.md`, follow the release too. Install snippets pin a Git tag:
+  they named crates.io versions that were never published.
 - `crucible-build` built from crates.io no longer fails to generate a Rust SDK
   (`rust_client`) or service CLI (`cli`) for want of Git provenance or a source
   checkout. The generated manifests depend on the published runtime crates at
@@ -2041,6 +2070,10 @@ changes around `FrameworkError`, `Principal`, `OperationMetadata` and
   they named client text: see *Migration*.
 
 ### Migration
+
+- `permissions::Verdict` and `Visibility` are `#[non_exhaustive]`: add a wildcard
+  arm to code that matches them. (Recorded after 0.8.0 shipped; the change is
+  listed under *Fixed*.)
 
 - **An SDK release after an excepted break is a major.** `crucible sdk
   plan` now compares the model each Rust or TypeScript SDK exposes with

@@ -18,18 +18,6 @@ impl Model {
         }
     }
 
-    pub(crate) fn from_package(source: impl AsRef<Path>) -> Self {
-        Self::configured(ModelConfig::new(source.as_ref()))
-    }
-
-    pub(crate) fn from_dependency(links: &str) -> Self {
-        let path = crate::try_published(links).unwrap_or_else(|error| {
-            eprintln!("{error}");
-            std::panic::panic_any(error)
-        });
-        Self::from_package(path)
-    }
-
     pub(crate) fn new(source: &Path) -> Self {
         Self::try_new(source).unwrap_or_else(|error| {
             // Preserve the named error payload while making Cargo's failure actionable.

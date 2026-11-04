@@ -244,7 +244,7 @@ with a [migration](docs/migrating.md) entry and, for most changes, a
 [stability policy](docs/releases.md#stability-policy-for-0x). Pin the runtime
 and `crucible-build` to the same release and upgrade them together.
 
-Crucible's crates are not yet on crates.io; services depend on this repository by git,
+Crucible's crates are not on crates.io; services depend on this repository by git,
 which `crucible new` sets up for you.
 
 ## Contributing

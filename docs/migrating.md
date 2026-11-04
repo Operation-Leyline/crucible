@@ -13,6 +13,7 @@ tag.
 
 | From | To | CHANGELOG | Section |
 |---|---|---|---|
+| 0.8.x | 0.9.0 | [Unreleased](../CHANGELOG.md#unreleased) | [0.8.0 to 0.9.0](#080-to-090) |
 | 0.7.x | 0.8.0 | [0.8.0](../CHANGELOG.md#080---2026-10-18) | [0.7.0 to 0.8.0](#070-to-080) |
 | 0.6.x | 0.7.0 | [0.7.0](../CHANGELOG.md#070---2026-10-12) | [0.6.0 to 0.7.0](#060-to-070) |
 | 0.5.x | 0.6.0 | [0.6.0](../CHANGELOG.md#060---2026-10-12) | [0.5.0 to 0.6.0](#050-to-060) |
@@ -21,7 +22,7 @@ tag.
 | 0.2.x | 0.3.0 | [0.3.0](../CHANGELOG.md#030---2026-10-07) | [0.2.0 to 0.3.0](#020-to-030) |
 | 0.1.x | 0.2.0 | [0.2.0](../CHANGELOG.md#020---2026-10-06) | [0.1.0 to 0.2.0](#010-to-020) |
 
-## Unreleased
+## 0.8.0 to 0.9.0
 
 Upgrade the Rust toolchain to 1.88 or newer. The previous 1.85 metadata did
 not describe a working runtime build: existing Rust 2024 let chains require
@@ -32,7 +33,35 @@ Typed response streams add `Outcome::Stream`, `Resolution::Streaming`, and
 regenerate bindings. No deprecated shim can preserve an exhaustive enum match.
 Unary operations retain their existing signatures. See the
 [streaming guide](streaming.md) for `Result<EventStream<Item>>` handlers and
-`stream_complete` lifecycle hooks.
+`stream_complete` lifecycle hooks. A streaming operation cannot use direct
+invoke, buffered Lambda or a single-response idempotency replay. Existing
+`complete` hooks still observe response readiness; use `stream_complete` for
+termination.
+
+Replace `when_trait` with a built-in id: `.when_trait("smithy.api#readonly")`
+becomes `.when(|op| op.readonly)` and `.when_trait("smithy.api#idempotent")`
+becomes `.when(|op| op.idempotent)`. Any id in the `smithy.api` or `crucible.api`
+namespace now panics when the scope is built. A model's own trait id is unchanged.
+
+The `crucible-build` names deprecated since 0.5.0 are gone: the `outputs` module,
+`ModelBuilder`, `RustCodegen`, `model_dependency`, `rust_service`, `service`,
+`client`, `ServerOutput::from_model` and `ServerOutput::client_from_model`. Use
+`crucible_build::model(..)` with `.server()` or `.client()`, and `Generator` and
+the native options from the crate root. For `outputs::File` and `outputs::write`,
+use `crucible_codegen::File` and `crucible_codegen::write`, adding `crucible-codegen`
+as a build dependency pinned to the same Git tag as `crucible-build`.
+
+Two model checks can fail a model that used to pass. Operation bodies whose
+generated names collide are now errors at both bodies: rename one. Adding
+pagination to an existing unpaged operation now reports
+`compatibility.pagination`: keep the operation unpaged, or record a manifest
+exception if the break is intended.
+
+Code that builds Crucible's IR directly initializes the new fields:
+`Service::error_docs_base`, `ErrorInfo::reason_member` and `Operation::intent`
+to `None`, and `Package::exports` and `Service::export_roots` to an empty vector.
+Prefer `Package::new` for compiler inputs. Existing models and frozen releases
+need no edits.
 
 ## 0.7.0 to 0.8.0
 
@@ -40,7 +69,8 @@ The [CHANGELOG](../CHANGELOG.md#080---2026-10-18) *Migration* section is the
 authority. Code that has to change: code that constructs or exhaustively
 destructures `crucible_auth::Principal` or `OperationMetadata`, code that
 matches `FrameworkError` without a wildcard arm, and code that reads, builds
-or pushes onto `Rejection`'s `violations` field (it is now private). Reading
+or pushes onto `Rejection`'s `violations` field (it is now private), and code
+that matches `permissions::Verdict` or `Visibility` without a wildcard arm. Reading
 the fields of `Principal` and `OperationMetadata` does not need a change.
 Tests or clients that read a rejection's paths may need new expected values,
 and code that reads a `null` document payload as a value sees the member's

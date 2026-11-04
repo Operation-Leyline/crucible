@@ -8,7 +8,7 @@ import unittest
 from unittest.mock import patch
 
 import crucible_release
-from crucible_release import LOCKFILES, VERSIONED_DOCS, changelog_entry, check, prepare, version_tuple
+from crucible_release import COMMAND_DOCS, LOCKFILES, VERSIONED_DOCS, changelog_entry, check, prepare, version_tuple
 
 
 CHANGELOG = """# Changelog
@@ -48,7 +48,10 @@ class ReleaseTests(unittest.TestCase):
         (root / "crates/crucible-wire/Cargo.toml").write_text('[package]\nname = "crucible-wire"\nversion.workspace = true\n')
         for doc in VERSIONED_DOCS:
             (root / doc).parent.mkdir(parents=True, exist_ok=True)
-            (root / doc).write_text('```toml\n[dependencies]\ncrucible-wire = { version = "=0.1.0" }\n```\n')
+            (root / doc).write_text('```toml\n[dependencies]\ncrucible-wire = { git = "https://example.test/c", tag = "v0.1.0" }\n```\n')
+        for doc in COMMAND_DOCS:
+            (root / doc).parent.mkdir(parents=True, exist_ok=True)
+            (root / doc).write_text('cargo install --git https://example.test/c --tag v0.1.0 crucible-cli --locked\n')
         (root / "Cargo.toml").write_text('[workspace]\nmembers = ["crates/*", "tools/extra"]\n\n[workspace.package]\nversion = "0.1.0"\n\n[workspace.dependencies]\nserde = "1"\n')
         (root / "e2e").mkdir()
         (root / "tests/consumers/leyline/leyline-sdk-consumer").mkdir(parents=True)
@@ -89,7 +92,7 @@ version = "0.1.0"
                     patch.object(sys, "argv", ["crucible_release.py", "prepare", "0.2.0"]), \
                     redirect_stdout(out), redirect_stderr(io.StringIO()):
                 crucible_release.main()
-            self.assertEqual(out.getvalue().splitlines(), sorted(["Cargo.toml", *VERSIONED_DOCS, *LOCKFILES]))
+            self.assertEqual(out.getvalue().splitlines(), sorted(["Cargo.toml", *VERSIONED_DOCS, *COMMAND_DOCS, *LOCKFILES]))
 
     def test_prepare_lists_changed_files_with_lf_line_endings(self):
         # Through a real redirected stdout, where Windows would translate to CRLF.
@@ -104,52 +107,73 @@ version = "0.1.0"
                                     cwd=Path(__file__).parent, check=True)
             self.assertNotIn(b"\r", result.stdout)
             self.assertEqual(result.stdout.decode().splitlines(),
-                             sorted(["Cargo.toml", *VERSIONED_DOCS, *LOCKFILES]))
+                             sorted(["Cargo.toml", *VERSIONED_DOCS, *COMMAND_DOCS, *LOCKFILES]))
 
-    def test_published_readme_install_requirement_follows_the_release(self):
+    def test_published_readme_install_pin_follows_the_release(self):
+        git = 'git = "https://example.test/c"'
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             self.fixture(root)
             readme = root / "crates/crucible-api/README.md"
             readme.write_text(
-                'Text that mentions "=0.1.0" stays.\n\n'
-                '```toml\n[dependencies]\ncrucible-wire = { version = "=0.1.0", features = ["x"] }\n'
-                'runtime = { package = "crucible-server-runtime-rust", version = "=0.1.0" }\n'
-                'pinned = { version = "=0.1.0" }\n'
-                'split = { package = "crucible-wire", version = "=0.1.0", features = [\n  "a",\n  "b",\n] }\n```\n\n'
-                '```toml\ncrucible-server-runtime-rust = { version = "=0.1.0", features = ["bare"] }\n```\n\n```toml\n'
-                '[build-dependencies.crucible-wire]\nversion = "=0.1.0"\n\n'
-                "[dev-dependencies.aliased]\npackage = 'crucible-wire'\nversion = '=0.1.0'\n```\n")
+                'Text that mentions "v0.1.0" stays.\n\n'
+                f'```toml\n[dependencies]\ncrucible-wire = {{ {git}, tag = "v0.1.0", features = ["x"] }}\n'
+                f'runtime = {{ package = "crucible-server-runtime-rust", {git}, tag = "v0.1.0" }}\n'
+                f'pinned = {{ {git}, tag = "v0.1.0" }}\n'
+                f'split = {{ package = "crucible-wire", {git}, tag = "v0.1.0", features = [\n  "a",\n  "b",\n] }}\n```\n\n'
+                f'```toml\ncrucible-server-runtime-rust = {{ {git}, tag = "v0.1.0", features = ["bare"] }}\n```\n\n```toml\n'
+                f'[build-dependencies.crucible-wire]\n{git}\ntag = "v0.1.0"\n\n'
+                f"[dev-dependencies.aliased]\npackage = 'crucible-wire'\n{git}\ntag = 'v0.1.0'\n```\n")
             check(root, "0.1.0")
             prepare(root, "0.2.0")
             check(root, "0.2.0")
             text = readme.read_text()
-            self.assertIn('crucible-wire = { version = "=0.2.0", features = ["x"] }', text)
-            self.assertIn('runtime = { package = "crucible-server-runtime-rust", version = "=0.2.0" }', text)
-            self.assertIn('[build-dependencies.crucible-wire]\nversion = "=0.2.0"', text)
-            self.assertIn('split = { package = "crucible-wire", version = "=0.2.0", features = [\n  "a",', text)
-            self.assertIn('crucible-server-runtime-rust = { version = "=0.2.0", features = ["bare"] }', text)
+            self.assertIn(f'crucible-wire = {{ {git}, tag = "v0.2.0", features = ["x"] }}', text)
+            self.assertIn(f'runtime = {{ package = "crucible-server-runtime-rust", {git}, tag = "v0.2.0" }}', text)
+            self.assertIn(f'[build-dependencies.crucible-wire]\n{git}\ntag = "v0.2.0"', text)
+            self.assertIn(f'split = {{ package = "crucible-wire", {git}, tag = "v0.2.0", features = [\n  "a",', text)
+            self.assertIn(f'crucible-server-runtime-rust = {{ {git}, tag = "v0.2.0", features = ["bare"] }}', text)
             # An aliased table, single-quoted as TOML allows.
-            self.assertIn("[dev-dependencies.aliased]\npackage = 'crucible-wire'\nversion = '=0.2.0'", text)
-            # Neither prose nor a registry crate that happens to share the pin moves.
-            self.assertIn('Text that mentions "=0.1.0" stays.', text)
-            self.assertIn('pinned = { version = "=0.1.0" }', text)
+            self.assertIn(f"[dev-dependencies.aliased]\npackage = 'crucible-wire'\n{git}\ntag = 'v0.2.0'", text)
+            # Neither prose nor another project's crate that shares the tag moves.
+            self.assertIn('Text that mentions "v0.1.0" stays.', text)
+            self.assertIn(f'pinned = {{ {git}, tag = "v0.1.0" }}', text)
+            for doc in COMMAND_DOCS:
+                self.assertIn("--tag v0.2.0 crucible-cli", (root / doc).read_text())
             snapshot = (root / "Cargo.toml", *(root / lock for lock in LOCKFILES), readme)
-            # A stale aliased pin, and a table-form pin that is not exact.
+            # A stale aliased pin, a table-form tag without its v, and a registry
+            # requirement, which no release can satisfy.
             for current, stale in (
-                ('package = "crucible-server-runtime-rust", version = "=0.2.0"',
-                 'package = "crucible-server-runtime-rust", version = "=0.1.0"'),
-                ('[build-dependencies.crucible-wire]\nversion = "=0.2.0"',
-                 '[build-dependencies.crucible-wire]\nversion = "0.2.0"'),
+                (f'package = "crucible-server-runtime-rust", {git}, tag = "v0.2.0"',
+                 f'package = "crucible-server-runtime-rust", {git}, tag = "v0.1.0"'),
+                (f'[build-dependencies.crucible-wire]\n{git}\ntag = "v0.2.0"',
+                 f'[build-dependencies.crucible-wire]\n{git}\ntag = "0.2.0"'),
+                (f'crucible-wire = {{ {git}, tag = "v0.2.0", features = ["x"] }}',
+                 'crucible-wire = { version = "=0.2.0", features = ["x"] }'),
+                (f'crucible-wire = {{ {git}, tag = "v0.2.0", features = ["x"] }}',
+                 'crucible-wire = "v0.2.0"'),
             ):
                 with self.subTest(stale=stale):
                     readme.write_text(text.replace(current, stale))
-                    with self.assertRaisesRegex(ValueError, "must require =0.2.0"):
+                    with self.assertRaisesRegex(ValueError, "must pin tag v0.2.0"):
                         check(root, "0.2.0")
                     before = {path: path.read_bytes() for path in snapshot}
-                    with self.assertRaisesRegex(ValueError, "must require =0.2.0"):
+                    with self.assertRaisesRegex(ValueError, "must pin tag v0.2.0"):
                         prepare(root, "0.2.1")
                     self.assertEqual(before, {path: path.read_bytes() for path in before})
+            readme.write_text(text)
+            for doc in COMMAND_DOCS:
+                with self.subTest(doc=doc):
+                    command = root / doc
+                    current = command.read_text()
+                    command.write_text("cargo install --git https://example.test/c --tag v0.1.0 crucible-cli --locked\n")
+                    with self.assertRaisesRegex(ValueError, "must use --tag v0.2.0"):
+                        check(root, "0.2.0")
+                    command.write_text("no install command\n")
+                    with self.assertRaisesRegex(ValueError, "no --tag install command"):
+                        check(root, "0.2.0")
+                    command.write_text(current)
+                    check(root, "0.2.0")
             readme.unlink()
             with self.assertRaisesRegex(ValueError, "is missing"):
                 check(root, "0.2.0")
@@ -162,7 +186,7 @@ version = "0.1.0"
             changed = prepare(root, "0.2.0")
             check(root, "0.2.0")
             # Exactly the files whose content moved, to stage as listed.
-            self.assertEqual(changed, sorted(["Cargo.toml", *VERSIONED_DOCS, *LOCKFILES]))
+            self.assertEqual(changed, sorted(["Cargo.toml", *VERSIONED_DOCS, *COMMAND_DOCS, *LOCKFILES]))
             for path in (root / lock for lock in LOCKFILES):
                 text = path.read_text()
                 self.assertIn('name = "crucible-server-runtime-rust"\nversion = "0.2.0"', text)

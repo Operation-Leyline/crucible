@@ -93,7 +93,10 @@ jobs:
         env:
           RELEASE_VERSION: ${{ inputs.version }}
         run: |
-          dist build --artifacts=global --tag "v$RELEASE_VERSION" --output-format=json > target/distrib/global-dist-manifest.json
+          # dist reads every *-dist-manifest.json in target/distrib, so a redirect
+          # into it would hand dist its own empty output file.
+          dist build --artifacts=global --tag "v$RELEASE_VERSION" --output-format=json > "$RUNNER_TEMP/global-dist-manifest.json"
+          mv "$RUNNER_TEMP/global-dist-manifest.json" target/distrib/global-dist-manifest.json
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: crucible-cli-release

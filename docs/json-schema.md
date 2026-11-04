@@ -73,7 +73,7 @@ Enable the `json-schema` feature of `crucible-build`:
 
 ```toml
 [build-dependencies]
-crucible-build = { version = "0.8", features = ["json-schema"] }
+crucible-build = { git = "https://github.com/Operation-Leyline/crucible", tag = "v0.8.0", features = ["json-schema"] }
 ```
 
 ```rust

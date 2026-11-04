@@ -15,9 +15,6 @@ impl ClientOutput {
     pub(crate) fn new(output: ServerOutput) -> Self {
         Self(output)
     }
-    pub(crate) fn into_legacy(self) -> ServerOutput {
-        self.0
-    }
 
     /// Select the service when the model declares several.
     pub fn named(mut self, id: &str) -> Self {

@@ -222,83 +222,21 @@ pub use crucible_codegen::{CdkOptions, CdkTargets};
 #[cfg(feature = "rust")]
 pub use crucible_codegen::{RuntimeDependency, RustOptions};
 
-#[deprecated(
-    since = "0.5.0",
-    note = "use crucible_build::Generator and native options directly"
-)]
-/// Deprecated generator/options namespace. Audience has one public import path.
-///
-/// ```compile_fail
-/// use crucible_build::outputs::Audience;
-/// ```
-pub mod outputs {
-    #[cfg(feature = "c")]
-    pub use super::COptions;
-    #[cfg(feature = "cli")]
-    pub use super::CliOptions;
-    #[cfg(feature = "cpp")]
-    pub use super::CppOptions;
-    #[cfg(feature = "csharp")]
-    pub use super::CsharpOptions;
-    #[cfg(feature = "dart")]
-    pub use super::DartOptions;
-    #[cfg(feature = "go")]
-    pub use super::GoOptions;
-    #[cfg(feature = "java")]
-    pub use super::JavaOptions;
-    #[cfg(feature = "kotlin")]
-    pub use super::KotlinOptions;
-    #[cfg(feature = "openapi")]
-    pub use super::OpenApiOptions;
-    #[cfg(feature = "php")]
-    pub use super::PhpOptions;
-    #[cfg(any(feature = "cdk", feature = "terraform"))]
-    pub use super::ProvisioningBindings;
-    #[cfg(feature = "python")]
-    pub use super::PythonOptions;
-    #[cfg(feature = "r")]
-    pub use super::ROptions;
-    #[cfg(feature = "ruby")]
-    pub use super::RubyOptions;
-    #[cfg(feature = "rust")]
-    pub use super::RustServerOptions;
-    #[cfg(feature = "swift")]
-    pub use super::SwiftOptions;
-    #[cfg(feature = "terraform")]
-    pub use super::TerraformOptions;
-    #[cfg(feature = "ts")]
-    pub use super::TsMiddleware;
-    #[cfg(feature = "ts")]
-    pub use super::TsOptions;
-    #[cfg(feature = "cdk")]
-    pub use super::cdk;
-    #[cfg(any(feature = "cdk", feature = "terraform"))]
-    pub use super::infra;
-    #[cfg(feature = "cdk")]
-    pub use super::{CdkOptions, CdkTargets};
-    pub use super::{Client, Generator, Server};
-    #[cfg(feature = "rust")]
-    pub use super::{RuntimeDependency, RustOptions};
-    pub use crucible_codegen::{File, write};
-}
-
 #[cfg(feature = "csharp")]
 pub use csharp_sdk::CsharpSdk;
 #[cfg(feature = "dart")]
 pub use dart_sdk::DartSdk;
+#[cfg(feature = "docs")]
+pub use docs_output::DocsOutput;
 #[cfg(feature = "go")]
 pub use go_sdk::GoSdk;
 #[cfg(feature = "java")]
 pub use java_sdk::JavaSdk;
+#[cfg(feature = "json-schema")]
+pub use json_schema_output::JsonSchemaOutput;
 #[cfg(feature = "kotlin")]
 pub use kotlin_sdk::KotlinSdk;
 pub use model::Model;
-#[deprecated(since = "0.5.0", note = "use crucible_build::model(..)")]
-pub type ModelBuilder = Model;
-#[cfg(feature = "docs")]
-pub use docs_output::DocsOutput;
-#[cfg(feature = "json-schema")]
-pub use json_schema_output::JsonSchemaOutput;
 pub use model_package::ModelPackage;
 #[cfg(feature = "openapi")]
 pub use openapi_output::OpenApiOutput;
@@ -320,12 +258,6 @@ pub use terraform_output::TerraformOutput;
 pub use swift_sdk::SwiftSdk;
 #[cfg(feature = "ts")]
 pub use ts_sdk::TsSdk;
-
-/// Generate outputs in a separate package using its model dependency's AST.
-#[deprecated(since = "0.5.0", note = "use crucible_build::model(..)")]
-pub fn model_dependency(links: &str) -> ModelPackage {
-    Model::from_dependency(links).compile()
-}
 
 /// Resolve a named artifact published by a direct model dependency.
 pub fn artifact(links: &str, name: &str) -> Artifact {
@@ -355,22 +287,6 @@ pub fn artifact(links: &str, name: &str) -> Artifact {
 fn publish_path(path: &Path) {
     println!("cargo::rerun-if-changed={}", path.display());
     println!("cargo::metadata=model={}", path.display());
-}
-
-/// From a service package's `build.rs`: generates the server side from the
-/// model published by the dependency whose manifest says `links = "<links>"`.
-#[cfg(feature = "rust")]
-#[deprecated(since = "0.5.0", note = "use crucible_build::model(..).server()")]
-pub fn rust_service(links: &str) -> ServerOutput {
-    Model::from_dependency(links).server()
-}
-
-/// From a client package's `build.rs`: generates a client from the model
-/// published by the dependency whose manifest says `links = "<links>"`.
-#[cfg(feature = "rust")]
-#[deprecated(since = "0.5.0", note = "use crucible_build::model(..).client()")]
-pub fn client(links: &str) -> ServerOutput {
-    Model::from_dependency(links).client().into_legacy()
 }
 
 /// A model dependency is missing Cargo's published AST metadata.
@@ -404,21 +320,6 @@ fn try_published(links: &str) -> Result<PathBuf, MissingModelDependency> {
 /// Select a `.cru` package or a direct model dependency's `links` name.
 pub fn model(source: impl AsRef<Path>) -> Model {
     Model::new(source.as_ref())
-}
-
-/// Deprecated name for the Rust binding builder.
-#[cfg(feature = "rust")]
-#[deprecated(
-    since = "0.5.0",
-    note = "use crucible_build::model(..).server() or .client()"
-)]
-pub type RustCodegen = ServerOutput;
-
-/// Deprecated dependency-based server entry point.
-#[cfg(feature = "rust")]
-#[deprecated(since = "0.5.0", note = "use crucible_build::model(..).server()")]
-pub fn service(links: &str) -> ServerOutput {
-    Model::from_dependency(links).server()
 }
 
 /// What to generate, and from which model.
@@ -466,12 +367,6 @@ impl ServerOutput {
         }
     }
 
-    /// Deprecated direct server constructor.
-    #[deprecated(since = "0.5.0", note = "use crucible_build::model(..).server()")]
-    pub fn from_model(source: impl AsRef<Path>) -> Self {
-        Model::from_package(source).server()
-    }
-
     /// Select client or Explorer visibility. Explorer defaults to Internal;
     /// normal server operations always retain everything.
     pub fn audience(mut self, audience: Audience) -> Self {
@@ -481,12 +376,6 @@ impl ServerOutput {
             self.options.explorer = Some(audience);
         }
         self
-    }
-
-    /// A client, from a model file directly.
-    #[deprecated(since = "0.5.0", note = "use crucible_build::model(..).client()")]
-    pub fn client_from_model(source: impl AsRef<Path>) -> Self {
-        Model::from_package(source).client().into_legacy()
     }
 
     /// The service to generate, when the model defines several.
