@@ -179,7 +179,7 @@ const KEYWORDS: &[Row] = &[
     (
         "internal",
         ANYWHERE,
-        "Hides a shape, member, operation or enum value from the external audience: clients and docs generated for external callers leave it out. The server still serves it.",
+        "Hides a shape, member, operation, resource or enum value from the external audience: clients and docs generated for external callers leave it out. The server still serves it.",
         "structure City {\n    name: string\n    internal shardId?: string\n}",
     ),
     (

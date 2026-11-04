@@ -1,7 +1,7 @@
 schema_version = 1
 
 # Resource entries the compiler refuses (decision 67): an identifier that
-# is no string, and an entry of an internal type.
+# is no string, and an internal type on a public resource's entry.
 [model]
 namespace = "example.refusals"
 language = 1

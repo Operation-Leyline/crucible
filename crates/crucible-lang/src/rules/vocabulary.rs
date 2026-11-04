@@ -184,7 +184,8 @@ pub(super) const FLAGS: &[&str] = &[
 pub(super) fn flag_applies(name: &str, kind: Kind) -> bool {
     match name {
         "documented" => true,
-        "internal" | "sensitive" => kind != Kind::Resource && kind != Kind::Service,
+        "internal" => kind != Kind::Service,
+        "sensitive" => kind != Kind::Resource && kind != Kind::Service,
         "readonly" | "idempotent" | "public" | "paginated" => kind == Kind::Operation,
         "enum" | "referenced" => kind.is_shape(),
         "optional" | "required" | "template" => kind.is_member(),

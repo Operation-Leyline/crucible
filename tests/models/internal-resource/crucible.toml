@@ -1,0 +1,15 @@
+schema_version = 1
+
+# `internal resource` (decision 83): a root and a child of a public resource,
+# internal-typed entries, every role, and shapes only they reach. No external
+# output may name `Bulletin` or `Marginalia`; `tests/models/internal-resource-refusals`
+# holds what the compiler refuses.
+[model]
+namespace = "example.staff"
+language = 1
+sources = ["."]
+imports = []
+
+[model.naming]
+input = "{Operation}Input"
+output = "{Operation}Output"

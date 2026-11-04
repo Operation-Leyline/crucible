@@ -1,0 +1,195 @@
+/// Shelves of books.
+service Library {
+    version "1"
+    protocol json
+    auth bearer
+    notFound NotFound
+    operations [DescribeGrant]
+    resources [Shelf, Bulletin]
+}
+
+error NotFound {
+    status 404
+    message: string
+}
+
+string ShelfId
+
+/// A shelf's name.
+string ShelfName { length 1..100 }
+
+/// A shelf of books.
+resource Shelf {
+    id shelfId: ShelfId
+    property name: ShelfName
+    permission read = "shelf:read"
+    permission write = "shelf:write"
+}
+
+structure ShelfState for Shelf {
+    $shelfId as id
+    $name
+}
+
+operation CreateShelf creates Shelf {
+    http POST "/shelves" -> 200
+    requires write on Shelf(*)
+    input {
+        $name
+    }
+    output {
+        shelf: ShelfState
+    }
+}
+
+operation GetShelf reads Shelf {
+    http GET "/shelves/{shelfId}" -> 200
+    requires read
+    input {
+        $shelfId
+    }
+    output {
+        shelf: ShelfState
+    }
+}
+
+idempotent operation UpdateShelf updates Shelf {
+    http PUT "/shelves/{shelfId}" -> 200
+    requires write
+    input {
+        $shelfId
+        $name
+    }
+    output {
+        shelf: ShelfState
+    }
+}
+
+operation DeleteShelf deletes Shelf {
+    http DELETE "/shelves/{shelfId}" -> 200
+    requires write
+    input {
+        $shelfId
+    }
+}
+
+/// The kinds of resource a grant names.
+@permissionTypes(exclude: [Marginalia])
+enum GrantTarget {
+    shelf = "shelf"
+    internal bulletin = "bulletin"
+}
+
+readonly operation DescribeGrant {
+    http GET "/grant"
+    requires none
+    output {
+        target: GrantTarget
+    }
+}
+
+/// A bulletin's identifier, which only staff tools handle.
+internal string BulletinId
+
+internal enum BulletinTone {
+    calm = "calm"
+    urgent = "urgent"
+}
+
+/// What staff post beside the shelves.
+internal resource Bulletin {
+    id bulletinId: BulletinId
+    property headline: string
+    readonly property tone?: BulletinTone
+    permission read = "bulletin:read"
+    permission write = "bulletin:write"
+}
+
+/// A view of a bulletin. It needs no `internal` of its own: no external
+/// operation reaches it.
+structure BulletinView for Bulletin {
+    $bulletinId
+    $headline
+    $tone?
+}
+
+list BulletinViews: BulletinView
+
+internal operation CreateBulletin creates Bulletin {
+    http POST "/staff/bulletins" -> 201
+    requires write on Bulletin(*)
+    input {
+        $headline
+    }
+    output {
+        bulletin: BulletinView
+    }
+}
+
+internal operation GetBulletin reads Bulletin {
+    http GET "/staff/bulletins/{bulletinId}"
+    requires read
+    input {
+        $bulletinId
+    }
+    output {
+        bulletin: BulletinView
+    }
+}
+
+internal operation ListBulletins lists Bulletin {
+    http GET "/staff/bulletins"
+    filters read on Bulletin
+    output {
+        bulletins: BulletinViews
+    }
+}
+
+internal idempotent operation UpdateBulletin updates Bulletin {
+    http PUT "/staff/bulletins/{bulletinId}"
+    requires write
+    input {
+        $bulletinId
+        $headline
+    }
+}
+
+internal idempotent operation DeleteBulletin deletes Bulletin {
+    http DELETE "/staff/bulletins/{bulletinId}"
+    requires write
+    input {
+        $bulletinId
+    }
+}
+
+internal operation PinBulletin on Bulletin {
+    http POST "/staff/bulletins/{bulletinId}/pin"
+    requires write
+    input {
+        $bulletinId
+    }
+}
+
+internal operation ArchiveBulletins on Bulletin collection {
+    http POST "/staff/bulletins/archive"
+    requires write on Bulletin(*)
+}
+
+/// Staff notes on a public shelf.
+internal resource Marginalia in Shelf {
+    id marginaliaId: string
+    readonly property remark: string
+    permission read = "marginalia:read"
+}
+
+internal operation GetMarginalia reads Marginalia {
+    http GET "/shelves/{shelfId}/marginalia/{marginaliaId}"
+    requires read
+    input {
+        $shelfId
+        $marginaliaId
+    }
+    output {
+        $remark
+    }
+}

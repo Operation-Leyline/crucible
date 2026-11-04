@@ -162,6 +162,7 @@ pub(super) enum Entity<'a> {
     Service(&'a Service),
     Resource {
         documented: bool,
+        internal: bool,
         /// Its identifiers and properties.
         members: Vec<String>,
     },
@@ -301,6 +302,7 @@ impl<'a> World<'a> {
             subjects.push(Subject {
                 entity: Entity::Resource {
                     documented: has_text(item),
+                    internal: item.is_internal(),
                     members: self.resource_members(name, &item.decl),
                 },
                 name: name.clone(),

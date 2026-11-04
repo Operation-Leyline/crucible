@@ -499,7 +499,7 @@ fn an_identifier_is_a_string_and_no_entry_has_an_internal_type() {
         "{refused}"
     );
     assert!(
-        refused.contains("`Secret` is internal, and a resource is part of the external contract: its property `secret` cannot have an internal type"),
+        refused.contains("`Secret` is internal, and `Counter` is part of the external contract: its property `secret` cannot have an internal type"),
         "{refused}"
     );
 }

@@ -444,6 +444,30 @@ impl<'a> Checker<'a> {
             .iter()
             .map(|(id, r)| (r.name.as_str(), id))
             .collect();
+        // An enum clients see lists no internal resource: its value would
+        // name one in every client's permission types. An internal service
+        // has no external contract for it to reach.
+        if let Some(Shape::Enum(e)) = self.service.shape(shape)
+            && !e.internal
+            && !self.service.internal
+        {
+            for value in e.values.iter().filter(|v| !v.internal) {
+                if let Some(id) = names.get(value.value.as_str())
+                    && self.service.resources.get(*id).is_some_and(|r| r.internal)
+                {
+                    self.error(
+                        "permissions.types",
+                        shape,
+                        None,
+                        format!(
+                            "{:?} names `{}`, which is internal, and is part of the external contract: mark the value `internal`",
+                            value.value,
+                            id.name()
+                        ),
+                    );
+                }
+            }
+        }
         for value in &values {
             if !names.contains_key(value) {
                 let known = names.keys().map(|n| format!("`{n}`")).collect::<Vec<_>>();

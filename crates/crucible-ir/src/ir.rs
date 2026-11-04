@@ -345,8 +345,10 @@ impl RetypeBy {
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct Resource {
-    /// Whether the resource is left out of the external contract. A `.cru`
-    /// resource cannot be internal, so the language always writes `false`.
+    /// Whether the resource is left out of the external contract, with its
+    /// operations and permissions: `internal resource` in `.cru`. A snapshot
+    /// without the field froze a public resource.
+    #[serde(default)]
     pub internal: bool,
     pub id: ShapeId,
     pub identifiers: BTreeMap<String, ShapeId>,

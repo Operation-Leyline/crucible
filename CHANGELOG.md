@@ -15,6 +15,28 @@ version's section when it is prepared.
 
 ## [Unreleased]
 
+### Added
+
+- `.cru`: `internal resource X` keeps a whole resource out of the external
+  contract. Its operations keep lifecycle checks, `$` bindings and views; it may
+  hold internal identifier and property types, and it may be a child of a public
+  resource. Every external output (client SDKs, reference, Explorer, OpenAPI,
+  JSON Schema, service CLI, Terraform, CDK) omits it with its operations, the
+  shapes only they reach, and its permissions; a shape something public also
+  reaches stays. Servers and the internal audience keep it whole. A rule may
+  read `internal` on a resource. `sensitive` remains refused on a resource. See
+  [decision 83](docs/idl/decisions.md#internal-resources).
+- `.cru`: new errors keep it out of the external contract: an operation bound to
+  an internal resource, or a resource `in` one, must be `internal` too; an
+  operation that is not `internal` cannot name one in `requires` or `filters`
+  (`permissions.internal-resource`); a public `@permissionTypes` value cannot
+  name one (`permissions.types`).
+
+### Changed
+
+- `.cru`: refusing an internal identifier or property type now names the resource
+  and applies only to one that is not `internal`.
+
 ## [0.9.0] - 2026-11-04
 
 Typed response streams reach Rust, TypeScript, Python, Go and C#; services can

@@ -221,6 +221,7 @@ impl Evaluator<'_, '_> {
             (Entity::Member { member, .. }, "documented") => {
                 member.docs.as_deref().is_some_and(|d| !d.trim().is_empty())
             }
+            (Entity::Resource { internal, .. }, "internal") => *internal,
             (Entity::Operation(op), "internal") => op.internal,
             (Entity::Operation(op), "readonly") => op.readonly,
             (Entity::Operation(op), "idempotent") => op.idempotent,

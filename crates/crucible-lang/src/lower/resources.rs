@@ -10,7 +10,8 @@
 //! The targets of identifiers and properties are not visited here: a type
 //! only a resource names stays out of `Service::shapes`, so lowering
 //! resources leaves the contract's shapes, and every SDK generated from
-//! them, as they were (decision 67).
+//! them, as they were (decision 67). An internal resource is lowered like
+//! any other; the external projection removes it (decision 83).
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -102,7 +103,7 @@ impl<'a> Lowerer<'a> {
                 })
                 .collect();
             let mut lowered = IrResource {
-                internal: false,
+                internal: decl.item.is_internal(),
                 id: id.clone(),
                 identifiers: self.identifier_types(name).into_iter().collect(),
                 properties,

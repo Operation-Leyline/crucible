@@ -162,9 +162,11 @@ trait when a project defines it.
     shape with `date-time`; AWS protocol defaults go with decision 35.
 
 19. **`internal` and `sensitive` are modifiers on shapes, members and
-    operations; `internal` also applies to enum values.** Sensitivity
+    operations; `internal` also applies to enum values and resources
+    (decision 83).** Sensitivity
     belongs to the whole enum: a value's name is public in every generated
-    SDK, so `sensitive` on one value is refused. *Replaces:* `@internal`,
+    SDK, so `sensitive` on one value is refused, and a resource holds no
+    value of its own to redact. *Replaces:* `@internal`,
     `@sensitive`.
     *Why:* audience projection, MCP and log redaction already consume
     these flags from the IR.
@@ -1463,13 +1465,14 @@ these are working choices, changed freely as implementation teaches.
     written since carry the resources; one frozen before has none and
     still reads, and the guard does not compare resources; `crucible
     freeze` can no longer restore the deleted file of such a release, since
-    the snapshot it writes differs from the digest its lock records. Since a resource cannot be `internal`, neither may an
-    identifier or property have an internal type: the compiler refuses it,
-    so the external contract never names a type it leaves out. And since a
-    resource cannot be `internal`, an internal operation in a lifecycle
+    the snapshot it writes differs from the digest its lock records. A public resource's
+    identifier or property may not have an internal type: the compiler refuses it,
+    so the external contract never names a type it leaves out. And an
+    internal operation in a lifecycle
     slot of a public resource fails external projection
     (`audience.resource_lifecycle`), as it did from Smithy; an internal
-    custom action (`on`) is removed with its bindings.
+    custom action (`on`) is removed with its bindings. A whole resource may
+    be internal since decision 83.
 
 ## API versions across releases
 
@@ -1807,6 +1810,48 @@ references are to the code as of the design.
     before a freeze survive it: without it the newer side of the newest
     migration's hooks is the service module's own types, and freezing that
     release renames them.
+
+## Internal resources
+
+83. **A resource may be `internal`, and the external contract then has no
+    trace of it.** `internal resource Notice` lowers to `Resource::internal`
+    and the external projection removes the resource, the operations bound
+    to it, what only they reach, and its permissions. It may hold internal
+    identifier and property types, which a public resource still may not
+    (decision 67), and it may be a child of a public resource, whose
+    `resources` list the projection filters. Servers and the internal
+    audience keep it whole. *Amends:* decisions 19 and 67, which said a
+    resource could not be internal. *Why:* every other declaration could be,
+    so an API meant only for a service's own tools had to be written as
+    standalone operations, without lifecycle checks, `$` bindings or views;
+    nothing recorded a reason for the exception.
+
+    The compiler refuses what would leave an internal resource named in the
+    external contract, each at the declaration that would: an operation bound
+    to one that is not `internal` itself, by a role or `on`; a resource `in` one
+    that is not `internal` itself; and, from an operation that is not `internal`,
+    a `requires` or `filters` naming one (`permissions.internal-resource`),
+    since the 403 or 404 that operation answers would name it, where an
+    `internal permission` of a public resource hides only the permission. A
+    public value of a `@permissionTypes` enum may not name one
+    (`permissions.types`): make the value `internal`, or remove it and exclude
+    the resource. The refusals are errors rather than audience diagnostics so a
+    model that could never generate its public outputs does not compile.
+
+    A view (`structure V for Notice`) needs no `internal` of its own. While
+    only internal operations reach it, the projection leaves it out, as it
+    does any shape only they reach. An external operation that does reach
+    one publishes that shape like any other, under the usual
+    `audience.internal_target` refusal of an internal member type; the `for`
+    is not part of what it publishes.
+
+    `sensitive` stays refused on a resource. A rule may read `internal` on a
+    resource. The snapshot field already existed and takes a default, so an
+    older snapshot reads as public and the format is not bumped. The guard
+    compares full models, where the operations, shapes and permissions of a
+    resource that becomes public are unchanged, so it finds nothing; an SDK
+    release plan compares external views, which only gain, except that a
+    public output enum gaining a value is its usual finding.
 
 ## Settled in the syntax pass
 

@@ -160,7 +160,9 @@ crucible generate ts model --audience internal \
   --out target/internal-ts --package-name @example/internal-api
 ```
 
-External projection refuses contracts that need removed API. It collects every
+External projection removes an `internal resource` with its operations, its
+permissions and the shapes only they reach; the compiler has already refused
+whatever public would name it. It refuses contracts that need removed API. It collects every
 required internal member, external reference to an internal shape, paginator
 reference to a removed member, and removed lifecycle operation
 on a public infrastructure resource. Internal collection elements cannot be
