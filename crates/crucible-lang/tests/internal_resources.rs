@@ -146,6 +146,15 @@ fn every_refusal_lifts_when_the_operation_or_child_is_internal() {
 }
 
 #[test]
+fn the_formatter_keeps_the_modifier() {
+    let source = "internal resource Notice {\n    id noticeId: string\n}\n";
+    assert_eq!(
+        crucible_lang::format(source, &crucible_lang::FormatOptions::default()),
+        source
+    );
+}
+
+#[test]
 fn the_external_view_has_no_trace_of_it() {
     let external = external();
     assert_eq!(names_an_internal_resource(&external), None);
