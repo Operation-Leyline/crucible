@@ -19,7 +19,7 @@ LOCKFILES = (
 VERSION = re.compile(r"(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\Z")
 # Docs whose ```toml install snippets pin the release tag. Crucible is installed
 # by git, not from a registry.
-VERSIONED_DOCS = ("crates/crucible-api/README.md", "docs/explorer.md", "docs/framework.md")
+VERSIONED_DOCS = ("crates/crucible-api/README.md", "docs/explorer.md", "docs/framework.md", "docs/json-schema.md")
 # Docs whose `cargo install --git ... --tag vX.Y.Z` commands name the release tag.
 COMMAND_DOCS = ("README.md", "docs/quickstart.md")
 INSTALL_TAG = re.compile(r"--tag v(\S+)")
@@ -117,7 +117,7 @@ def changelog_entry(root, version):
 def readme_requirements(path, text, packages):
     """(crate, pin) for each workspace crate a ```toml example depends on,
     whatever its form: inline, aliased with `package`, or a dependency table.
-    The pin is a git dependency's tag, otherwise its registry version, which
+    The pin is a git dependency's tag; anything else has none, which
     `versioned_docs` refuses."""
     found = []
     for fence in TOML_FENCE.findall(text):
@@ -134,12 +134,8 @@ def readme_requirements(path, text, packages):
             for alias, dependency in table.items():
                 name = dependency.get("package", alias) if isinstance(dependency, dict) else alias
                 if name in packages:
-                    if not isinstance(dependency, dict):
-                        found.append((name, dependency))
-                    elif "git" in dependency:
-                        found.append((name, dependency.get("tag")))
-                    else:
-                        found.append((name, dependency.get("version")))
+                    is_git = isinstance(dependency, dict) and "git" in dependency
+                    found.append((name, dependency.get("tag") if is_git else None))
     return found
 
 

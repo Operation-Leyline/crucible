@@ -45,10 +45,10 @@ namespace now panics when the scope is built. A model's own trait id is unchange
 
 The `crucible-build` names deprecated since 0.5.0 are gone: the `outputs` module,
 `ModelBuilder`, `RustCodegen`, `model_dependency`, `rust_service`, `service`,
-`client`, and `from_model` and `client_from_model`. Use
+`client`, `ServerOutput::from_model` and `ServerOutput::client_from_model`. Use
 `crucible_build::model(..)` with `.server()` or `.client()`, and `Generator` and
-the native options from the crate root. `outputs::File` and `outputs::write` are
-in `crucible-codegen`.
+the native options from the crate root. For `outputs::File` and `outputs::write`,
+use `crucible_codegen::File` and `crucible_codegen::write`.
 
 Two model checks can fail a model that used to pass. Operation bodies whose
 generated names collide are now errors at both bodies: rename one. Adding

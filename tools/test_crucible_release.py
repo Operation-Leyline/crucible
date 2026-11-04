@@ -150,6 +150,8 @@ version = "0.1.0"
                  f'[build-dependencies.crucible-wire]\n{git}\ntag = "0.2.0"'),
                 (f'crucible-wire = {{ {git}, tag = "v0.2.0", features = ["x"] }}',
                  'crucible-wire = { version = "=0.2.0", features = ["x"] }'),
+                (f'crucible-wire = {{ {git}, tag = "v0.2.0", features = ["x"] }}',
+                 'crucible-wire = "v0.2.0"'),
             ):
                 with self.subTest(stale=stale):
                     readme.write_text(text.replace(current, stale))
@@ -160,14 +162,18 @@ version = "0.1.0"
                         prepare(root, "0.2.1")
                     self.assertEqual(before, {path: path.read_bytes() for path in before})
             readme.write_text(text)
-            command = root / COMMAND_DOCS[0]
-            command.write_text("cargo install --tag v0.1.0 crucible-cli\n")
-            with self.assertRaisesRegex(ValueError, "must use --tag v0.2.0"):
-                check(root, "0.2.0")
-            command.write_text("no install command\n")
-            with self.assertRaisesRegex(ValueError, "no --tag install command"):
-                check(root, "0.2.0")
-            command.write_text("cargo install --tag v0.2.0 crucible-cli\n")
+            for doc in COMMAND_DOCS:
+                with self.subTest(doc=doc):
+                    command = root / doc
+                    current = command.read_text()
+                    command.write_text("cargo install --git https://example.test/c --tag v0.1.0 crucible-cli --locked\n")
+                    with self.assertRaisesRegex(ValueError, "must use --tag v0.2.0"):
+                        check(root, "0.2.0")
+                    command.write_text("no install command\n")
+                    with self.assertRaisesRegex(ValueError, "no --tag install command"):
+                        check(root, "0.2.0")
+                    command.write_text(current)
+                    check(root, "0.2.0")
             readme.unlink()
             with self.assertRaisesRegex(ValueError, "is missing"):
                 check(root, "0.2.0")

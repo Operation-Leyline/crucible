@@ -4,7 +4,8 @@ Crucible versions are released manually as GitHub tags (`vX.Y.Z`) and releases.
 The framework and generators
 share `[workspace.package].version`. Crucible is not distributed through
 crates.io: consumers depend on a release tag by git, and this workflow publishes
-no registry packages.
+no registry packages. `publish-crates.yml` is a separate manual workflow and is
+not part of releasing.
 
 Every release has an entry in the [CHANGELOG](../CHANGELOG.md). Upgrading
 consumers start at [Migrating between releases](migrating.md).
@@ -120,8 +121,8 @@ The preparation helper updates the workspace version, the exact internal
 requirements in member manifests, every lockfile that pins workspace crates
 (the core, e2e and Leyline locks and each standalone consumer under
 `tests/consumers/`), the tag in the install snippets of the docs listed in
-`VERSIONED_DOCS` (the `crucible-api` README, `docs/explorer.md` and
-`docs/framework.md`) and in the `--tag` commands of `COMMAND_DOCS` (`README.md`
+`VERSIONED_DOCS` (the `crucible-api` README, `docs/explorer.md`,
+`docs/framework.md` and `docs/json-schema.md`) and in the `--tag` commands of `COMMAND_DOCS` (`README.md`
 and `docs/quickstart.md`). It prints each file it changed, one per line, and nothing
 else on standard output, so that list is the set to stage and review; do not
 keep a separate list by hand. Staging it first lets `git diff --cached` show

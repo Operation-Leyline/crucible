@@ -98,7 +98,8 @@ version's section when it is prepared.
 
 - Replace the removed `crucible-build` names with `crucible_build::model(..)` and
   its `.server()` and `.client()`, and `Generator` and the native options from
-  the crate root. `outputs::File` and `outputs::write` are in `crucible-codegen`.
+  the crate root. For `outputs::File` and `outputs::write`, use
+  `crucible_codegen::File` and `crucible_codegen::write`.
 
 - Models that passed can now fail. Rename one of two operation bodies whose
   generated names collide. Adding pagination to an existing unpaged operation
@@ -159,8 +160,8 @@ version's section when it is prepared.
 - Release preparation and checking include standalone consumer lockfiles and
   keep published internal dependency requirements aligned with the workspace
   version, while preserving registry dependencies and example versions. The
-  install snippets in the `crucible-api` README, `docs/explorer.md` and
-  `docs/framework.md`, and the `--tag` commands in `README.md` and
+  install snippets in the `crucible-api` README, `docs/explorer.md`,
+  `docs/framework.md` and `docs/json-schema.md`, and the `--tag` commands in `README.md` and
   `docs/quickstart.md`, follow the release too. Install snippets pin a Git tag:
   they named crates.io versions that were never published.
 - `crucible-build` built from crates.io no longer fails to generate a Rust SDK
