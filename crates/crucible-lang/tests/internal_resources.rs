@@ -107,6 +107,31 @@ fn the_compiler_refuses_what_would_reach_the_external_contract() {
     }
 }
 
+/// An internal service has no external contract, so a public value of its
+/// permission types enum cannot name an internal resource to anyone.
+#[test]
+fn only_a_public_service_refuses_a_public_permission_type_naming_an_internal_resource() {
+    let mut service = full();
+    let Some(Shape::Enum(target)) = service.shapes.get_mut(&id("GrantTarget")) else {
+        panic!("GrantTarget is an enum");
+    };
+    target
+        .values
+        .iter_mut()
+        .for_each(|value| value.internal = false);
+    let refusals = |service: &Service| {
+        crucible_ir::validate::permissions_from_ir(service)
+            .iter()
+            .filter(|finding| {
+                finding.code == "permissions.types" && finding.message.contains("`Bulletin`")
+            })
+            .count()
+    };
+    assert_eq!(refusals(&service), 1);
+    service.internal = true;
+    assert_eq!(refusals(&service), 0);
+}
+
 #[test]
 fn every_refusal_lifts_when_the_operation_or_child_is_internal() {
     // The same refusals package, with what each one asked for done.

@@ -1834,14 +1834,14 @@ references are to the code as of the design.
     since the 403 or 404 that operation answers would name it, where an
     `internal permission` of a public resource hides only the permission. A
     public value of a `@permissionTypes` enum may not name one
-    (`permissions.types`): it must be an `internal` value, or the resource
-    excluded. The refusals are errors rather than audience diagnostics so a
+    (`permissions.types`): make the value `internal`, or remove it and exclude
+    the resource. The refusals are errors rather than audience diagnostics so a
     model that could never generate its public outputs does not compile.
 
-    A view (`structure V for Notice`) needs no `internal` of its own: no
-    external operation reaches it, so the projection leaves it out, as it
-    does any shape only internal operations reach. An external operation
-    that does reach one publishes that shape like any other, under the usual
+    A view (`structure V for Notice`) needs no `internal` of its own. While
+    only internal operations reach it, the projection leaves it out, as it
+    does any shape only they reach. An external operation that does reach
+    one publishes that shape like any other, under the usual
     `audience.internal_target` refusal of an internal member type; the `for`
     is not part of what it publishes.
 

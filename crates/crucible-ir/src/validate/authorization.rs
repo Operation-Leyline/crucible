@@ -445,9 +445,11 @@ impl<'a> Checker<'a> {
             .map(|(id, r)| (r.name.as_str(), id))
             .collect();
         // An enum clients see lists no internal resource: its value would
-        // name one in every client's permission types.
+        // name one in every client's permission types. An internal service
+        // has no external contract for it to reach.
         if let Some(Shape::Enum(e)) = self.service.shape(shape)
             && !e.internal
+            && !self.service.internal
         {
             for value in e.values.iter().filter(|v| !v.internal) {
                 if let Some(id) = names.get(value.value.as_str())

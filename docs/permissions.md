@@ -651,8 +651,8 @@ compile checks it.
    every value is the authorization name of a resource with permissions;
    every grantable resource is a value or excluded; an excluded resource
    declares permissions and is not a value. A public value names no
-   `internal` resource: that value is `internal` too, or the resource is
-   excluded.
+   `internal` resource: make the value `internal`, or remove it and exclude
+   the resource.
 
 **Requirements**
 
@@ -991,7 +991,8 @@ permissions were all internal is dropped from `excluded`, and an enum with
 a value naming no resource of the client view, or without a value for a
 grantable resource of the view it does not exclude (one whose value was
 internal), is no longer the view's permission types. An `internal` resource
-leaves the client view with every permission it declares, whatever their tier. A condition never compares a `bigInteger` or
+and every permission it declares, whatever their tier, are absent from the
+client view. A condition never compares a `bigInteger` or
 `bigDecimal` member (test it with `has`), and a compared number must be a
 value of the member's type, so every generator states the comparison in
 that type (`float` as `f32`).

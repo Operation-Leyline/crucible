@@ -339,8 +339,9 @@ language's own checks include:
   the authorization name of a resource with permissions, and every
   resource with grantable permissions is a value or excluded;
   a public value of the enum names no `internal` resource;
-  `requires p on R` names a permission `R` declares, and `R` is not
-  `internal` unless the operation is (`permissions.internal-resource`); a public operation
+  `requires p on R` names a permission `R` declares; only an `internal`
+  operation may name an `internal` `R`, in `requires` or `filters`
+  (`permissions.internal-resource`); a public operation
   declares no requirement, `requires none` and `requires pending` stand
   alone, and a pending reason is nonempty; every identifier of the target
   is bound once, by a member of the identifier's own type (a different

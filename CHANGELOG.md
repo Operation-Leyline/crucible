@@ -21,8 +21,9 @@ version's section when it is prepared.
   contract. Its operations keep lifecycle checks, `$` bindings and views; it may
   hold internal identifier and property types, and it may be a child of a public
   resource. Every external output (client SDKs, reference, Explorer, OpenAPI,
-  JSON Schema, service CLI, Terraform, CDK) omits it with its operations, shapes
-  and permissions; servers and the internal audience keep it whole. A rule may
+  JSON Schema, service CLI, Terraform, CDK) omits it with its operations, the
+  shapes only they reach, and its permissions; a shape something public also
+  reaches stays. Servers and the internal audience keep it whole. A rule may
   read `internal` on a resource. `sensitive` remains refused on a resource. See
   [decision 83](docs/idl/decisions.md#internal-resources).
 - `.cru`: new errors keep it out of the external contract: an operation bound to
