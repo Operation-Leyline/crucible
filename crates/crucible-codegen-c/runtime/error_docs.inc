@@ -8,8 +8,12 @@
                 if (yyjson_is_str(reason)) {
                     string literal = text(reason);
                     const yyjson_val *url = yyjson_obj_getn((yyjson_val *)get(documentation, "reasonUrls"), literal.data, literal.length);
-                    /* Schema strings belong to the client, while results outlive it. */
-                    if (yyjson_is_str(url)) { TRY(crucible_generated_arena_copy(storage, text(url), &result->doc_url, issue)); }
+                    /* Schema strings belong to the client, while results outlive it.
+                       TRY declares its own `code`, which would shadow this one (MSVC C4456). */
+                    if (yyjson_is_str(url)) {
+                        code = crucible_generated_arena_copy(storage, text(url), &result->doc_url, issue);
+                        if (code) return code;
+                    }
                 }
             }
         }
