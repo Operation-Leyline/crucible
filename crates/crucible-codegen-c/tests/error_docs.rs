@@ -31,8 +31,16 @@ fn configured_documentation_uses_projected_static_schema() {
 /// them with MSVC, so catch this shadowing on every platform.
 #[test]
 fn reason_lookup_does_not_shadow_the_status_local() {
-    let reason_lookup = include_str!("../runtime/error_docs.inc");
-    assert!(reason_lookup.contains("code = crucible_generated_arena_copy("));
+    let files = emit(&service(), &options()).unwrap();
+    let bindings = files.iter().find(|f| f.path == "src/bindings.c").unwrap();
+    let (_, rest) = bindings
+        .contents
+        .split_once(r#"get(documentation, "reasonMember")"#)
+        .expect("the reason lookup is in the generated runtime");
+    let (reason_lookup, _) = rest
+        .split_once("else if (code == OOM)")
+        .expect("the reason lookup is followed by the out-of-memory check");
+    assert!(reason_lookup.contains("code = docs_arena_copy("));
     assert!(!reason_lookup.contains("TRY("));
 }
 #[test]
