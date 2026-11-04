@@ -98,15 +98,12 @@ version's section when it is prepared.
 
 - Replace the removed `crucible-build` names with `crucible_build::model(..)` and
   its `.server()` and `.client()`, and `Generator` and the native options from
-  the crate root.
+  the crate root. `outputs::File` and `outputs::write` are in `crucible-codegen`.
 
 - Models that passed can now fail. Rename one of two operation bodies whose
   generated names collide. Adding pagination to an existing unpaged operation
   reports `compatibility.pagination`: keep it unpaged, or record a manifest
   exception if the break is intended.
-
-- `StreamEnd` and `StreamCompletion` are `#[non_exhaustive]`: match `StreamEnd`
-  with a wildcard arm.
 
 - Upgrade Rust to 1.88 or newer before building Crucible or a generated Rust
   SDK. The previous 1.85 requirement was inaccurate: runtime let chains require

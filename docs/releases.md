@@ -181,7 +181,8 @@ for crate in crucible-api crucible-server-runtime-rust crucible-wire crucible-cl
 done
 ```
 
-Replace `v0.4.0` with the previous tag. If you compare two checkouts instead
+Replace `v0.4.0` with the previous tag, and leave out a crate that did not exist
+at that tag (`crucible-api` for the 0.9.0 diff): it has nothing to compare. If you compare two checkouts instead
 (a worktree at the previous tag, `cargo public-api --package <crate>` in
 each, then `diff`), give each worktree its own `CARGO_TARGET_DIR`: two
 worktrees sharing one reuse each other's stale build output and report

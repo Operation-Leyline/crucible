@@ -47,7 +47,8 @@ The `crucible-build` names deprecated since 0.5.0 are gone: the `outputs` module
 `ModelBuilder`, `RustCodegen`, `model_dependency`, `rust_service`, `service`,
 `client`, and `from_model` and `client_from_model`. Use
 `crucible_build::model(..)` with `.server()` or `.client()`, and `Generator` and
-the native options from the crate root.
+the native options from the crate root. `outputs::File` and `outputs::write` are
+in `crucible-codegen`.
 
 Two model checks can fail a model that used to pass. Operation bodies whose
 generated names collide are now errors at both bodies: rename one. Adding
@@ -60,9 +61,6 @@ Code that builds Crucible's IR directly initializes the new fields:
 to `None`, and `Package::exports` and `Service::export_roots` to an empty vector.
 Prefer `Package::new` for compiler inputs. Existing models and frozen releases
 need no edits.
-
-`StreamEnd` and `StreamCompletion` are `#[non_exhaustive]`: match `StreamEnd`
-with a wildcard arm.
 
 ## 0.7.0 to 0.8.0
 
