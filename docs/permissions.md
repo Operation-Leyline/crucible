@@ -650,7 +650,9 @@ compile checks it.
    of the service's own package;
    every value is the authorization name of a resource with permissions;
    every grantable resource is a value or excluded; an excluded resource
-   declares permissions and is not a value.
+   declares permissions and is not a value. A public value names no
+   `internal` resource: that value is `internal` too, or the resource is
+   excluded.
 
 **Requirements**
 
@@ -690,6 +692,11 @@ compile checks it.
     caller that never sends the member could not read them. Make the
     permission `internal`, whose clause the client projection removes, or
     read only what clients send.
+    `permissions.internal-resource`: an operation that is not `internal`
+    names no `internal` resource in `requires` or `filters`. The projection
+    could leave the clause out, but the 403 or 404 the operation answers
+    would still name the resource to its callers. Make the operation
+    `internal`, or require a permission of a public resource.
 16. `permissions.undeclared`: once the service declares any permission, an
     authenticated operation without `requires`, `filters`, `requires none`
     or `requires pending` (§4.7). *Warning*, `permissions.pending`: one per
@@ -983,7 +990,8 @@ keeps `@permissionTypes` consistent: an excluded resource whose
 permissions were all internal is dropped from `excluded`, and an enum with
 a value naming no resource of the client view, or without a value for a
 grantable resource of the view it does not exclude (one whose value was
-internal), is no longer the view's permission types. A condition never compares a `bigInteger` or
+internal), is no longer the view's permission types. An `internal` resource
+leaves the client view with every permission it declares, whatever their tier. A condition never compares a `bigInteger` or
 `bigDecimal` member (test it with `has`), and a compared number must be a
 value of the member's type, so every generator states the comparison in
 that type (`float` as `f32`).

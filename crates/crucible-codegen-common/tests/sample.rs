@@ -26,6 +26,7 @@ const REFUSED: &[&str] = &[
     "error-docs-invalid",
     "example-range-refusals",
     "external-docs-refusals",
+    "internal-resource-refusals",
     "number-literal-refusals",
     "patterns-unsupported",
     "recursive-output",

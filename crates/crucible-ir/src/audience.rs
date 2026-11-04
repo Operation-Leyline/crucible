@@ -210,7 +210,8 @@ fn external(service: &Service, lenient: bool) -> Result<Service, Diagnostics> {
         .collect();
     // A resource names its entries' types without reaching them: the
     // audience's shapes are what its operations and explicit exports reach.
-    // The compiler refuses an entry of an internal type (decision 67).
+    // The compiler refuses an internal entry type on a public resource
+    // (decision 67), and an internal resource is not in this audience.
     for op in &result.operations {
         for target in op.input.iter().chain(&op.output) {
             check_target(service, &op.id, target, &mut diagnostics);
@@ -279,6 +280,13 @@ fn external(service: &Service, lenient: bool) -> Result<Service, Diagnostics> {
             _ => {}
         }
     }
+    // A resource the audience does not have takes its permissions with it,
+    // and no clause a client sees names one (the compiler refuses that). A
+    // service frozen before resources were lowered has permissions and no
+    // resources, and keeps them.
+    result
+        .permissions
+        .retain(|id, _| !service.resources.contains_key(id) || resources.contains(id));
     project_permissions(&mut result);
     // A binding whose path ran through a removed internal member goes with it.
     let roots: BTreeMap<ShapeId, (Option<ShapeId>, Option<ShapeId>)> = result

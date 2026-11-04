@@ -965,7 +965,8 @@ impl<'a> Lowerer<'a> {
                 continue;
             };
             let file = decl.file;
-            self.modifiers(file, decl.item, &[]);
+            self.modifiers(file, decl.item, &["internal"]);
+            let internal = decl.item.is_internal();
             if let Some(annotation) = decl.item.annotations.iter().find(|a| {
                 !permissions::resource_annotation(a) && !DOC_NOTES.contains(&a.name.name.as_str())
             }) {
@@ -990,8 +991,21 @@ impl<'a> Lowerer<'a> {
                 .insert(resource.name.name.clone(), notes);
             self.declare_permissions(*decl, resource);
             if let Some(parent) = &resource.parent {
-                match self.decl(&parent.name).map(|d| &d.item.decl) {
-                    Some(Decl::Resource(_)) => {}
+                match self.decl(&parent.name).map(|d| d.item) {
+                    // Only the direct parent need be checked: a public parent
+                    // has public ancestors, by this check on it.
+                    Some(item) if matches!(item.decl, Decl::Resource(_)) => {
+                        if item.is_internal() && !internal {
+                            self.error(
+                                file,
+                                parent.span,
+                                format!(
+                                    "`{}` is internal, and `{}` is part of the external contract: a resource in an internal resource must be `internal` too",
+                                    parent.name, resource.name.name
+                                ),
+                            );
+                        }
+                    }
                     _ => self.error(
                         file,
                         parent.span,
@@ -1061,12 +1075,13 @@ impl<'a> Lowerer<'a> {
                     continue;
                 };
                 self.named_types.insert(target.clone());
-                // A resource is never internal, so neither is what it holds
+                // What a public resource holds is not internal either
                 // (decision 67): the external contract would name a type it
-                // leaves out.
-                if self
-                    .decl(target.name())
-                    .is_some_and(|d| d.item.modifiers.iter().any(|m| m.name == "internal"))
+                // leaves out. An internal resource leaves with its types.
+                if !internal
+                    && self
+                        .decl(target.name())
+                        .is_some_and(|d| d.item.is_internal())
                 {
                     let what = match entry.kind {
                         ResourceEntryKind::Id => "identifier",
@@ -1076,8 +1091,8 @@ impl<'a> Lowerer<'a> {
                         file,
                         entry.ty.span,
                         format!(
-                            "`{}` is internal, and a resource is part of the external contract: its {what} `{}` cannot have an internal type",
-                            entry.ty.name.name, entry.name.name
+                            "`{}` is internal, and `{}` is part of the external contract: its {what} `{}` cannot have an internal type",
+                            entry.ty.name.name, resource.name.name, entry.name.name
                         ),
                     );
                 }
@@ -1107,6 +1122,20 @@ impl<'a> Lowerer<'a> {
             let Some(attachment) = &operation.attachment else {
                 continue;
             };
+            if !decl.item.is_internal()
+                && self.decl(&attachment.resource.name).is_some_and(|d| {
+                    matches!(d.item.decl, Decl::Resource(_)) && d.item.is_internal()
+                })
+            {
+                self.error(
+                    decl.file,
+                    attachment.span,
+                    format!(
+                        "`{}` is internal, and `{}` is part of the external contract: an operation bound to an internal resource must be `internal` too",
+                        attachment.resource.name, operation.name.name
+                    ),
+                );
+            }
             let role = attachment.role.name.as_str();
             if !LIFECYCLE.contains(&role) {
                 continue;

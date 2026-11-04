@@ -573,7 +573,25 @@ impl<'a> Lowerer<'a> {
                 _ => unreachable!("standalone clauses returned above"),
             };
             let resource = match (resource_name, &operation.attachment) {
-                (Some(name), _) => self.ref_id(&name.name),
+                (Some(name), _) => {
+                    // The refusal is what a caller of the operation reads: a
+                    // 403 names the resource type and a 404 the resource.
+                    if self.decl(id.name()).is_some_and(|d| !d.item.is_internal())
+                        && self.decl(&name.name).is_some_and(|d| {
+                            matches!(d.item.decl, Decl::Resource(_)) && d.item.is_internal()
+                        })
+                    {
+                        self.error(
+                            file,
+                            clause.span,
+                            format!(
+                                "permissions.internal-resource: `{}` is internal, and `{}` is part of the external contract: its requirement would name an internal resource to its callers; make the operation `internal`",
+                                name.name, operation.name.name
+                            ),
+                        );
+                    }
+                    self.ref_id(&name.name)
+                }
                 (None, Some(attachment)) => {
                     let collection = matches!(attachment.role.name.as_str(), "creates" | "lists")
                         || attachment.collection;

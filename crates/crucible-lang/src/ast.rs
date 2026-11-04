@@ -19,6 +19,13 @@ pub struct Item {
     pub span: Span,
 }
 
+impl Item {
+    /// Whether the declaration carries the `internal` modifier.
+    pub fn is_internal(&self) -> bool {
+        self.modifiers.iter().any(|m| m.name == "internal")
+    }
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct Doc {
     /// The Markdown text: `///` and one following space removed per line.

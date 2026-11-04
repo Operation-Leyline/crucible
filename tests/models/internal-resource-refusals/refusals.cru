@@ -1,0 +1,87 @@
+service Refusals {
+    version "1"
+    protocol json
+    auth bearer
+    notFound NotFound
+    operations [CheckedAgainstHidden, ReadsGrantable]
+    resources [Hidden, Open]
+}
+
+error NotFound {
+    status 404
+    message: string
+}
+
+string OpenId
+
+resource Open {
+    id openId: OpenId
+    permission read = "open:read"
+}
+
+readonly operation GetOpen reads Open {
+    http GET "/open/{openId}"
+    requires read
+    input {
+        $openId
+    }
+}
+
+string HiddenId
+
+internal resource Hidden {
+    id hiddenId: HiddenId
+    permission read = "hidden:read"
+}
+
+/// Bound to an internal resource, as a lifecycle role and as an action,
+/// and not `internal`.
+readonly operation GetHidden reads Hidden {
+    http GET "/hidden/{hiddenId}"
+    requires read
+    input {
+        $hiddenId
+    }
+}
+
+operation PokeHidden on Hidden {
+    http POST "/hidden/{hiddenId}/poke"
+    requires read
+    input {
+        $hiddenId
+    }
+}
+
+/// A public resource cannot be in an internal one.
+resource Exposed in Hidden {
+    id exposedId: string
+    permission read = "exposed:read"
+}
+
+readonly operation CheckedAgainstHidden {
+    http GET "/checked/{hiddenId}"
+    requires read on Hidden(hiddenId)
+    input {
+        hiddenId: HiddenId
+    }
+}
+
+/// `sensitive` applies to no resource, internal or not.
+sensitive resource Redacted {
+    id redactedId: string
+}
+
+@permissionTypes
+enum Grantable {
+    open = "open"
+    hidden = "hidden"
+    exposed = "exposed"
+}
+
+readonly operation ReadsGrantable {
+    http GET "/grantable"
+    requires none
+    output {
+        target: Grantable
+    }
+}

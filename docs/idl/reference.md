@@ -138,8 +138,9 @@ protocol    = "protocol" ident "{" { clause } "}" ;
 clause      = ident ( "(" args ")" | "{" { clause } "}" | value ) ;
 
 resource    = "resource" ident [ "in" ident ] "{" { resource_entry } "}" ;
-                 (* annotations on a resource: @authorizationName("name") and the
-                    documentation notes @deprecated, @since, @unstable, @externalDocs *)
+                 (* modifier: internal. Annotations on a resource:
+                    @authorizationName("name") and the documentation notes
+                    @deprecated, @since, @unstable, @externalDocs *)
 resource_entry = [ doc ] { annotation } { entry_modifier } ( "id" | "property" )
                  ident [ "?" ] ":" type_ref [ "as" ident ]
                | permission_entry ;
@@ -298,6 +299,10 @@ language's own checks include:
   `readonly`, `immutable`, `writeonly` and `immutable writeonly` apply to a
   property, and an identifier's `as` spelling is unique among the names the
   resource's own views show;
+- internal resources (decision 83): `internal` is the one modifier a resource
+  takes. A resource that is not `internal` has no entry of an internal type
+  and no `internal` parent, and an operation that is not `internal` is bound
+  to no `internal` resource;
 - `$name` names one of the resource's own identifiers or properties, or an
   inherited identifier; an ancestor's properties are not inherited;
 - a view `for A, B` is lowered against `A`, and each `$name` again against `B`:
@@ -333,7 +338,9 @@ language's own checks include:
   service's own package, every value is
   the authorization name of a resource with permissions, and every
   resource with grantable permissions is a value or excluded;
-  `requires p on R` names a permission `R` declares; a public operation
+  a public value of the enum names no `internal` resource;
+  `requires p on R` names a permission `R` declares, and `R` is not
+  `internal` unless the operation is (`permissions.internal-resource`); a public operation
   declares no requirement, `requires none` and `requires pending` stand
   alone, and a pending reason is nonempty; every identifier of the target
   is bound once, by a member of the identifier's own type (a different
@@ -651,7 +658,8 @@ has the ones that apply to it, and a rule that uses another is an error.
 | Condition | On | Meaning |
 |---|---|---|
 | `documented` | every kind | has non-blank `///` documentation |
-| `internal`, `sensitive` | shapes, operations, members | the modifier is present |
+| `internal` | shapes, operations, members, resources | the modifier is present |
+| `sensitive` | shapes, operations, members | the modifier is present |
 | `readonly`, `idempotent`, `public`, `paginated` | operation | the modifier or clause is present |
 | `enum`, `referenced` | shapes | an enum; something reaches it (an operation, a resource entry, metadata, `include`) |
 | `optional`, `required`, `template` | members | the member is optional, required, or came from a role template |
