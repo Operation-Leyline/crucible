@@ -27,6 +27,14 @@ fn configured_documentation_uses_projected_static_schema() {
     assert!(!output.contains("reason-secret"));
     assert!(output.contains("doc_url"));
 }
+/// Generated packages build with `/W4 /WX`, and only the release matrix builds
+/// them with MSVC, so catch this shadowing on every platform.
+#[test]
+fn reason_lookup_does_not_shadow_the_status_local() {
+    let reason_lookup = include_str!("../runtime/error_docs.inc");
+    assert!(reason_lookup.contains("code = crucible_generated_arena_copy("));
+    assert!(!reason_lookup.contains("TRY("));
+}
 #[test]
 fn no_base_runtime_is_unchanged() {
     let mut service = service();
