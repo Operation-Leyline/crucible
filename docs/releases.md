@@ -4,8 +4,7 @@ Crucible versions are released manually as GitHub tags (`vX.Y.Z`) and releases.
 The framework and generators
 share `[workspace.package].version`. Crucible is not distributed through
 crates.io: consumers depend on a release tag by git, and this workflow publishes
-no registry packages. `publish-crates.yml` is a separate manual workflow and is
-not part of releasing.
+no registry packages.
 
 Every release has an entry in the [CHANGELOG](../CHANGELOG.md). Upgrading
 consumers start at [Migrating between releases](migrating.md).

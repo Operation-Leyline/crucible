@@ -84,6 +84,8 @@ version's section when it is prepared.
 
 ### Removed
 
+- The manual `publish-crates.yml` workflow, which never ran: Crucible is not
+  published to crates.io.
 - `when_trait` no longer accepts `smithy.api` or `crucible.api` ids: the shim
   deprecated in 0.8.0 is gone, and any such id panics when the scope is built.
 - The `crucible-build` names deprecated since 0.5.0: the `outputs` module,
