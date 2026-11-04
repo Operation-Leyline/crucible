@@ -69,8 +69,9 @@ an application workspace.
 
 Use the same pinned Crucible revision for the CLI, build helpers, framework,
 and Rust runtime. The generated Cargo manifest pins its runtime automatically to
-the generator's Crucible revision, or, for a generator built from crates.io, to
-the published runtime at exactly the generator's version. The [service example](https://github.com/Operation-Leyline/crucible-service-example)
+the generator's Crucible revision. Only a generator built from a packaged crate,
+which Crucible does not distribute, has no revision; it pins the runtime at
+exactly its own version. The [service example](https://github.com/Operation-Leyline/crucible-service-example)
 demonstrates a model producer, complete Rust and Java SDK packages, and server
 bindings generated directly inside the service crate.
 
@@ -328,9 +329,9 @@ existing document. The CLI exports a standalone Cargo package. Its runtime
 paths default to the build helper's matching Crucible source checkout (a
 workspace path or Cargo Git dependency); use `.runtime_path(...)` to select
 another local checkout, and generation verifies that both Rust client and CLI
-runtime manifests exist there. A build helper downloaded from crates.io has no
+runtime manifests exist there. A build helper built from a packaged crate has no
 checkout: its CLI depends on `crucible-client-runtime-rust` and
-`crucible-cli-runtime` from crates.io at exactly its own version (`=X.Y.Z`). The CLI target uses the Rust
+`crucible-cli-runtime` by registry at exactly its own version (`=X.Y.Z`). The CLI target uses the Rust
 emitter even when the build helper's `rust` feature is disabled. Like the
 SDKs, the CLI has no command for a sender-signed operation (`@sender`,
 decision 81), which a third party calls.
@@ -490,9 +491,10 @@ selects its Git source and Cargo version requirement. `.runtime_path(path)`
 reads the local runtime package's effective version, including workspace
 inheritance. Both retain a registry version for publishing the generated SDK.
 The default uses the generator's matching Crucible revision automatically.
-A generator built from crates.io carries no Git revision; its default depends
-on `crucible-client-runtime-rust` from crates.io at exactly the generator's
-version (`=X.Y.Z`). A source checkout whose Git revision cannot be read has
+A generator built from a packaged crate carries no Git revision; its default
+depends on `crucible-client-runtime-rust` by registry at exactly the generator's
+version (`=X.Y.Z`). Crucible publishes no such crate, so a Git or workspace build
+never takes this path. A source checkout whose Git revision cannot be read has
 neither and requires `.runtime_git(...)` or `.runtime_path(...)`.
 
 Generate server bindings directly inside the server crate. Its manifest depends

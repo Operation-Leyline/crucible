@@ -743,8 +743,8 @@ pointing here.
    source-commit fallback; the always-on model check; change-log entries
    from 0.6.0; configuration signals; `cargo-semver-checks` for Rust.
 3. **More channels and languages:** Python and PyPI, removing
-   `tools/sdk_release.py`; the Cargo registry channel once the runtime
-   crates are published (`tools/check_publish_metadata.py`; until then
+   `tools/sdk_release.py`; the Cargo registry channel, which needs the
+   runtime crates on a registry (Crucible does not publish them, so
    Rust SDKs use git channels); the other languages' metadata, and
    `model.sdks`. Leyline and the template migrate.
 4. **Later:** Maven, NuGet, pub.dev, RubyGems, CRAN, C and C++ archives;
