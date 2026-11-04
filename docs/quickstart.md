@@ -4,7 +4,7 @@ Create the starter with the `crucible` CLI. It is not on crates.io, so install
 it from a release tag:
 
 ```sh
-cargo install --git https://github.com/Operation-Leyline/crucible --tag v0.8.0 crucible-cli --locked
+cargo install --git https://github.com/Operation-Leyline/crucible --tag v0.9.0 crucible-cli --locked
 crucible new hello-service
 ```
 

@@ -4,7 +4,7 @@ Opt in to Crucible's existing server, Rust client and server authentication APIs
 
 ```toml
 [dependencies]
-crucible-api = { git = "https://github.com/Operation-Leyline/crucible", tag = "v0.8.0", features = ["server", "client", "auth"] }
+crucible-api = { git = "https://github.com/Operation-Leyline/crucible", tag = "v0.9.0", features = ["server", "client", "auth"] }
 ```
 
 ```rust

@@ -15,6 +15,15 @@ version's section when it is prepared.
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-11-04
+
+Typed response streams reach Rust, TypeScript, Python, Go and C#; services can
+document their errors and export named shapes as JSON Schema; and releases ship
+CLI archives and installers. Crucible stays installed by git from a release tag:
+install snippets now say so. Removes the `when_trait` shim and the `crucible-build`
+names deprecated since 0.5.0. Upgrade with
+[0.8.0 to 0.9.0](docs/migrating.md#080-to-090).
+
 ### Added
 
 - C# clients expose typed `ResponseStream<T>` iteration with `await foreach`,

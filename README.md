@@ -139,7 +139,7 @@ and generates non-Rust clients. It is not on crates.io (`crucible-cli` there is
 an unrelated crate), so install it from a release tag:
 
 ```sh
-cargo install --git https://github.com/Operation-Leyline/crucible --tag v0.8.0 crucible-cli --locked
+cargo install --git https://github.com/Operation-Leyline/crucible --tag v0.9.0 crucible-cli --locked
 
 crucible new hello-service           # a single-crate Rust service
 crucible new my-client --client      # a Rust client library
