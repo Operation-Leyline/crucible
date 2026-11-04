@@ -48,7 +48,8 @@ The `crucible-build` names deprecated since 0.5.0 are gone: the `outputs` module
 `client`, `ServerOutput::from_model` and `ServerOutput::client_from_model`. Use
 `crucible_build::model(..)` with `.server()` or `.client()`, and `Generator` and
 the native options from the crate root. For `outputs::File` and `outputs::write`,
-use `crucible_codegen::File` and `crucible_codegen::write`.
+use `crucible_codegen::File` and `crucible_codegen::write`, adding `crucible-codegen`
+as a build dependency pinned to the same Git tag as `crucible-build`.
 
 Two model checks can fail a model that used to pass. Operation bodies whose
 generated names collide are now errors at both bodies: rename one. Adding

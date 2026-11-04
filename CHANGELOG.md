@@ -99,7 +99,8 @@ version's section when it is prepared.
 - Replace the removed `crucible-build` names with `crucible_build::model(..)` and
   its `.server()` and `.client()`, and `Generator` and the native options from
   the crate root. For `outputs::File` and `outputs::write`, use
-  `crucible_codegen::File` and `crucible_codegen::write`.
+  `crucible_codegen::File` and `crucible_codegen::write`, adding `crucible-codegen`
+  as a build dependency pinned to the same Git tag as `crucible-build`.
 
 - Models that passed can now fail. Rename one of two operation bodies whose
   generated names collide. Adding pagination to an existing unpaged operation
