@@ -8,7 +8,7 @@ from the same contract.
 This crate is one of the packages that make up
 [Crucible](https://github.com/Operation-Leyline/crucible). Its description
 says what it does; its API documentation is on docs.rs. This README is the
-one every Crucible crate ships to crates.io, so its links are absolute.
+one every Crucible crate shares, so its links are absolute.
 
 ## Which crates to depend on
 

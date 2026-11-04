@@ -10,8 +10,8 @@ edition = "2024"
 rust-version = "1.88"
 license = "Apache-2.0"
 publish = true
-# crates.io renders a README relative to the crate, not the repository root, so
-# published crates share one whose links are absolute.
+# A packaged crate's README renders relative to the crate, not the repository
+# root, so the crates share one whose links are absolute.
 readme = "crates/README.md"
 # Both on purpose, despite Cargo's "only one is necessary" warning: `license`
 # is the SPDX id registries and cargo-deny read, and `license-file` is the only

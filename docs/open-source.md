@@ -2,8 +2,7 @@
 
 Crucible uses Apache-2.0 with the existing Crucible Contributors attribution
 and generated-code clarification in [LICENSE](../LICENSE). Leyline and Pigeon
-references are retained. Track remaining release and repository setup in
-[issue #199](https://github.com/Operation-Leyline/crucible/issues/199).
+references are retained.
 
 Crucible is not published to crates.io. Consumers depend on a release tag by
 git, and the release itself is a GitHub tag and release; see
@@ -35,8 +34,9 @@ MSRV CI job checks the complete workspace with all features and targets on
 
 Built from a source checkout, `crucible-build` pins a generated Rust SDK's runtime to its Git
 revision and points a generated CLI at the checkout's runtime crates. Built
-from packaged sources with no Git provenance, both depend on the runtime crates
-at exactly the generator's version (`=X.Y.Z`); see [Build outputs](build-outputs.md).
+from a packaged crate, which Crucible does not distribute, both would depend on the
+runtime crates by registry at exactly the generator's version (`=X.Y.Z`); see
+[Build outputs](build-outputs.md). A Git dependency always carries a revision.
 `tools/test-consumers.py` generates both from the packaged sources.
 
 Prepare the next workspace version through the
@@ -82,4 +82,4 @@ The repository is already public. Retain its history and existing project
 references. The repository administrator owns branch protection, outside
 contributor workflow approval, allowed actions and vulnerability reporting. A
 source PR does not configure those
-settings. Record their verified state and any remaining actions in issue #199.
+settings.
