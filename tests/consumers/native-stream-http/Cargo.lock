@@ -294,7 +294,7 @@ dependencies = [
 
 [[package]]
 name = "crucible-build"
-version = "0.8.0"
+version = "0.9.0"
 dependencies = [
  "crucible-codegen",
  "crucible-codegen-rust",
@@ -308,7 +308,7 @@ dependencies = [
 
 [[package]]
 name = "crucible-codegen"
-version = "0.8.0"
+version = "0.9.0"
 dependencies = [
  "crucible-codegen-common",
  "crucible-codegen-rust",
@@ -322,7 +322,7 @@ dependencies = [
 
 [[package]]
 name = "crucible-codegen-common"
-version = "0.8.0"
+version = "0.9.0"
 dependencies = [
  "base64",
  "crucible-ir",
@@ -336,7 +336,7 @@ dependencies = [
 
 [[package]]
 name = "crucible-codegen-rust"
-version = "0.8.0"
+version = "0.9.0"
 dependencies = [
  "crucible-codegen-common",
  "crucible-ir",
@@ -349,7 +349,7 @@ dependencies = [
 
 [[package]]
 name = "crucible-ir"
-version = "0.8.0"
+version = "0.9.0"
 dependencies = [
  "base64",
  "bigdecimal",
@@ -364,7 +364,7 @@ dependencies = [
 
 [[package]]
 name = "crucible-lang"
-version = "0.8.0"
+version = "0.9.0"
 dependencies = [
  "crucible-ir",
  "crucible-policy",
@@ -377,7 +377,7 @@ dependencies = [
 
 [[package]]
 name = "crucible-policy"
-version = "0.8.0"
+version = "0.9.0"
 dependencies = [
  "crucible-ir",
  "regex",
@@ -388,11 +388,11 @@ dependencies = [
 
 [[package]]
 name = "crucible-revision"
-version = "0.8.0"
+version = "0.9.0"
 
 [[package]]
 name = "crucible-server-runtime-rust"
-version = "0.8.0"
+version = "0.9.0"
 dependencies = [
  "async-trait",
  "axum",
@@ -417,7 +417,7 @@ dependencies = [
 
 [[package]]
 name = "crucible-wire"
-version = "0.8.0"
+version = "0.9.0"
 dependencies = [
  "base64",
  "bigdecimal",

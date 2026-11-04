@@ -15,6 +15,15 @@ version's section when it is prepared.
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-11-04
+
+Typed response streams reach Rust, TypeScript, Python, Go and C#; services can
+document their errors and export named shapes as JSON Schema; and releases ship
+CLI archives and installers. Crucible stays installed by git from a release tag:
+install snippets now say so. Removes the `when_trait` shim and the `crucible-build`
+names deprecated since 0.5.0. Upgrade with
+[0.8.0 to 0.9.0](docs/migrating.md#080-to-090).
+
 ### Added
 
 - C# clients expose typed `ResponseStream<T>` iteration with `await foreach`,
@@ -143,7 +152,7 @@ version's section when it is prepared.
 
 - `CliOptions::runtime_path` (the per-language `crucible_codegen_cli::Options`)
   is now `Option<PathBuf>`: wrap an explicit checkout in `Some`. `None` depends
-  on the published runtimes. `CliOutput::runtime_path(...)` is unchanged.
+  on the runtimes by registry version. `CliOutput::runtime_path(...)` is unchanged.
 
 - Older Rust API versions skip intermediate JSON conversion when their empty
   conversion chains and identical types permit it. Unproven Rust representation
@@ -167,10 +176,10 @@ version's section when it is prepared.
   `docs/framework.md` and `docs/json-schema.md`, and the `--tag` commands in `README.md` and
   `docs/quickstart.md`, follow the release too. Install snippets pin a Git tag:
   they named crates.io versions that were never published.
-- `crucible-build` built from crates.io no longer fails to generate a Rust SDK
-  (`rust_client`) or service CLI (`cli`) for want of Git provenance or a source
-  checkout. The generated manifests depend on the published runtime crates at
-  exactly the generator's version (`=X.Y.Z`). Workspace and Git builds keep
+- `crucible-build` built from a packaged crate no longer fails to generate a Rust
+  SDK (`rust_client`) or service CLI (`cli`) for want of Git provenance or a source
+  checkout. The generated manifests depend on the runtime crates by registry at
+  exactly the generator's version (`=X.Y.Z`). Crucible publishes no such crate. Workspace and Git builds keep
   their path and revision pins. A vendored copy of a Git dependency is not a
   published package and still needs an explicit runtime.
 - The packaged server runtime's optional explorer reads shared renderer assets

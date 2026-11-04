@@ -22,7 +22,7 @@ auth = ["dep:crucible-auth"]
 [dependencies]
 crucible-server-runtime-rust = { workspace = true, optional = true }
 crucible-client-runtime-rust = { workspace = true, optional = true }
-crucible-auth = { version = "=0.8.0", path = "../crucible-auth", optional = true }
+crucible-auth = { version = "=0.9.0", path = "../crucible-auth", optional = true }
 
 [lints]
 workspace = true

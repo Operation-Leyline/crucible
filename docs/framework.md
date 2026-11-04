@@ -701,7 +701,7 @@ replayed against another listing or caller, or kept forever. The
 call: a token is checked by opening it.
 
 ```toml
-crucible-server-runtime-rust = { git = "https://github.com/Operation-Leyline/crucible", tag = "v0.8.0", features = ["page-tokens"] }
+crucible-server-runtime-rust = { git = "https://github.com/Operation-Leyline/crucible", tag = "v0.9.0", features = ["page-tokens"] }
 ```
 
 ```rust
@@ -835,7 +835,7 @@ server keep that promise: a retry gets the first success, and does not run
 the operation a second time.
 
 ```toml
-crucible-server-runtime-rust = { git = "https://github.com/Operation-Leyline/crucible", tag = "v0.8.0", features = ["idempotency"] }
+crucible-server-runtime-rust = { git = "https://github.com/Operation-Leyline/crucible", tag = "v0.9.0", features = ["idempotency"] }
 ```
 
 ```rust
@@ -1120,7 +1120,7 @@ function that binds each applicable clause to the decoded input as a
 enforces them through the service's `Authorizer`, which alone decides:
 
 ```toml
-crucible-server-runtime-rust = { git = "https://github.com/Operation-Leyline/crucible", tag = "v0.8.0", features = ["permissions"] }
+crucible-server-runtime-rust = { git = "https://github.com/Operation-Leyline/crucible", tag = "v0.9.0", features = ["permissions"] }
 ```
 
 **What the bindings generate.** For a model with permissions, the server
