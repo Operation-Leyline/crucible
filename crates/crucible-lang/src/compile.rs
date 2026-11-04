@@ -193,7 +193,7 @@ pub(crate) fn namespace_problem(namespace: &str) -> Option<String> {
     }
     // `smithy.api` was the prelude's namespace: older release snapshots
     // and bindings still spell built-ins in it, and the server runtime's
-    // `when_trait` reads two of its ids, so no package may define it.
+    // `when_trait` refuses its ids, so no package may define it.
     if namespace == "smithy.api" {
         return Some(format!(
             "the namespace `{namespace}` is reserved: it was the prelude's, which `crucible.api` now is"

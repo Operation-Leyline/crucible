@@ -2,8 +2,9 @@
 
 Crucible versions are released manually as GitHub tags (`vX.Y.Z`) and releases.
 The framework and generators
-share `[workspace.package].version`. Package
-registry publication is separate; this workflow publishes no registry packages.
+share `[workspace.package].version`. Crucible is not distributed through
+crates.io: consumers depend on a release tag by git, and this workflow publishes
+no registry packages.
 
 Every release has an entry in the [CHANGELOG](../CHANGELOG.md). Upgrading
 consumers start at [Migrating between releases](migrating.md).
@@ -118,9 +119,10 @@ python tools/crucible_release.py check 0.2.1
 The preparation helper updates the workspace version, the exact internal
 requirements in member manifests, every lockfile that pins workspace crates
 (the core, e2e and Leyline locks and each standalone consumer under
-`tests/consumers/`), and the `=X.Y.Z` install snippets in the docs listed in
+`tests/consumers/`), the tag in the install snippets of the docs listed in
 `VERSIONED_DOCS` (the `crucible-api` README, `docs/explorer.md` and
-`docs/framework.md`). It prints each file it changed, one per line, and nothing
+`docs/framework.md`) and in the `--tag` commands of `COMMAND_DOCS` (`README.md`
+and `docs/quickstart.md`). It prints each file it changed, one per line, and nothing
 else on standard output, so that list is the set to stage and review; do not
 keep a separate list by hand. Staging it first lets `git diff --cached` show
 exactly those files (`git diff` has no `--pathspec-from-file`), and reading the
@@ -138,13 +140,14 @@ CRUCIBLE_BLESS=1 cargo test --locked
 git diff -- crates
 ```
 
-`prepare` already moves the pinned install snippets in the `VERSIONED_DOCS`
-files, and `check` refuses a stale one. A new doc that pins an exact Crucible
-version belongs in that list; this search should find nothing outside it:
+`prepare` already moves the pinned install snippets and commands in those
+files, and `check` refuses a stale one. A new doc that pins a Crucible release
+belongs in one of those lists; this search should find nothing outside them
+except history in the migration guide:
 
 ```sh
 PREVIOUS=0.2.0   # the version being replaced
-git grep -n -F -e "=$PREVIOUS" -- docs crates/*/README.md README.md
+git grep -n -F -e "v$PREVIOUS" -- docs crates/*/README.md README.md
 ```
 
 Commit the version bump and reviewed golden changes together, then open a PR:
@@ -173,7 +176,7 @@ patch, which must show no removals):
 ```sh
 rustup toolchain install nightly --profile minimal
 cargo install cargo-public-api --locked
-for crate in crucible-server-runtime-rust crucible-wire crucible-client-runtime-rust crucible-auth crucible-build; do
+for crate in crucible-api crucible-server-runtime-rust crucible-wire crucible-client-runtime-rust crucible-auth crucible-build; do
   cargo public-api --package "$crate" diff v0.4.0..HEAD
 done
 ```
@@ -213,7 +216,8 @@ the exact commit selected when the run starts, including the `consumers` job
 (see [Consumer compatibility](#consumer-compatibility)); the `ci` aggregate and
 the publish job both require it, so a tag is never created for a commit whose
 starter, example service or Leyline-shaped fixture fails to build. After it passes, publication creates that commit's tag atomically and
-adds a GitHub release with generated notes and source archives. Later merges
+adds a GitHub release with generated notes, source archives, the CLI archives
+with their installers and checksums, the LSP binaries and the starter. Later merges
 do not change the selected commit. A run starting or completing qualification
 does not prove publication; check the publish job and GitHub release.
 

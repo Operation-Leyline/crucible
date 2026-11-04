@@ -1,5 +1,4 @@
 #![cfg(feature = "rust")]
-#![allow(deprecated)]
 
 mod common;
 
@@ -16,30 +15,16 @@ fn vocabulary_probe() {
     match mode.as_str() {
         "json" => {
             let m = crucible_build::model("weather");
-            let server = m.server().strict_inputs().render().unwrap();
-            let legacy: crucible_build::RustCodegen =
-                crucible_build::RustCodegen::from_model("weather");
-            assert_eq!(server, legacy.strict_inputs().render().unwrap());
-            assert_eq!(
-                m.client().render().unwrap(),
-                crucible_build::RustCodegen::client_from_model("weather")
-                    .render()
-                    .unwrap()
-            );
-            assert_eq!(
-                m.server().mcp().render().unwrap(),
-                crucible_build::RustCodegen::from_model("weather")
-                    .mcp()
-                    .render()
-                    .unwrap()
-            );
+            m.server().strict_inputs().render().unwrap();
+            m.server().mcp().render().unwrap();
             common::copy_package(
                 &common::shared_package("weather"),
                 Path::new("weather-copy"),
             );
             assert_eq!(
                 m.server().render().unwrap(),
-                crucible_build::RustCodegen::from_model("weather-copy")
+                crucible_build::model("weather-copy")
+                    .server()
                     .render()
                     .unwrap()
             );
@@ -68,41 +53,10 @@ fn vocabulary_probe() {
         }
         "links" => {
             let m = crucible_build::model("fixture_model");
-            assert_eq!(
-                m.server().render().unwrap(),
-                crucible_build::service("fixture_model").render().unwrap()
-            );
-            assert_eq!(
-                m.server().render().unwrap(),
-                crucible_build::rust_service("fixture_model")
-                    .render()
-                    .unwrap()
-            );
-            assert_eq!(
-                m.client().render().unwrap(),
-                crucible_build::client("fixture_model").render().unwrap()
-            );
-            let old = crucible_build::model_dependency("fixture_model");
-            assert_eq!(old.model_path(), m.model_path());
-            let new = m.rust_client("new").package("fixture-sdk").generate();
-            let old = old
-                .output(
-                    "old",
-                    crucible_build::outputs::Generator::Client(crucible_build::Client::Rust(
-                        crucible_build::RustOptions {
-                            package_name: Some("fixture-sdk".into()),
-                            ..Default::default()
-                        },
-                    )),
-                )
-                .generate();
-            for file in &new.files {
-                assert_eq!(
-                    fs::read(new.path.join(file)).unwrap(),
-                    fs::read(old.path.join(file)).unwrap(),
-                    "{file}"
-                );
-            }
+            m.server().render().unwrap();
+            m.client().render().unwrap();
+            let sdk = m.rust_client("new").package("fixture-sdk").generate();
+            assert!(!sdk.files.is_empty());
         }
         "publish-new" => crucible_build::model("weather").publish(),
         other => panic!("unknown probe {other}"),
@@ -110,7 +64,7 @@ fn vocabulary_probe() {
 }
 
 #[test]
-fn deprecated_shims_match_the_model_vocabulary() {
+fn the_model_vocabulary_resolves_packages_and_links() {
     let dir = tempfile::tempdir().unwrap();
     let out = dir.path().join("out");
     fs::create_dir(&out).unwrap();

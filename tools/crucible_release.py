@@ -17,8 +17,12 @@ LOCKFILES = (
     "tests/consumers/leyline/leyline-sdk-consumer/Cargo.lock",
 )
 VERSION = re.compile(r"(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\Z")
-# Docs whose ```toml install snippets pin the exact workspace version.
+# Docs whose ```toml install snippets pin the release tag. Crucible is installed
+# by git, not from a registry.
 VERSIONED_DOCS = ("crates/crucible-api/README.md", "docs/explorer.md", "docs/framework.md")
+# Docs whose `cargo install --git ... --tag vX.Y.Z` commands name the release tag.
+COMMAND_DOCS = ("README.md", "docs/quickstart.md")
+INSTALL_TAG = re.compile(r"--tag v(\S+)")
 TOML_FENCE = re.compile(r"```toml\n(.*?)```", re.DOTALL)
 
 
@@ -111,8 +115,10 @@ def changelog_entry(root, version):
 
 
 def readme_requirements(path, text, packages):
-    """(crate, version) for each workspace crate a ```toml example depends on,
-    whatever its form: inline, aliased with `package`, or a dependency table."""
+    """(crate, pin) for each workspace crate a ```toml example depends on,
+    whatever its form: inline, aliased with `package`, or a dependency table.
+    The pin is a git dependency's tag, otherwise its registry version, which
+    `versioned_docs` refuses."""
     found = []
     for fence in TOML_FENCE.findall(text):
         try:
@@ -128,13 +134,17 @@ def readme_requirements(path, text, packages):
             for alias, dependency in table.items():
                 name = dependency.get("package", alias) if isinstance(dependency, dict) else alias
                 if name in packages:
-                    version = dependency.get("version") if isinstance(dependency, dict) else dependency
-                    found.append((name, version))
+                    if not isinstance(dependency, dict):
+                        found.append((name, dependency))
+                    elif "git" in dependency:
+                        found.append((name, dependency.get("tag")))
+                    else:
+                        found.append((name, dependency.get("version")))
     return found
 
 
 def bump_fence(fence, packages, current, replacement):
-    """Rewrite `"=current"` only in statements that declare a workspace crate."""
+    """Rewrite `"vcurrent"` only in statements that declare a workspace crate."""
     lines = fence.splitlines(keepends=True)
     out, table, index = [], None, 0
     while index < len(lines):
@@ -165,20 +175,20 @@ def bump_fence(fence, packages, current, replacement):
             end = candidate
             break
         statement = "".join(lines[index:end])
-        declares = (table in packages and re.match(r"version\s*=", stripped) is not None) or any(
+        declares = (table in packages and re.match(r"tag\s*=", stripped) is not None) or any(
             (dependency.get("package", alias) if isinstance(dependency, dict) else alias) in packages
             for alias, dependency in entry.items())
         if declares:
             # TOML allows either quote; keep the snippet's own.
-            statement = statement.replace(f'"={current}"', f'"={replacement}"').replace(
-                f"'={current}'", f"'={replacement}'")
+            statement = statement.replace(f'"v{current}"', f'"v{replacement}"').replace(
+                f"'v{current}'", f"'v{replacement}'")
         out.append(statement)
         index = end
     return "".join(out)
 
 
 def versioned_docs(root, packages, current, replacement=None):
-    """Check/update the `=X.Y.Z` install requirements in published READMEs."""
+    """Check/update the `vX.Y.Z` install pins in the docs that name a release."""
     edits = {}
     for relative in VERSIONED_DOCS:
         path = root / relative
@@ -189,15 +199,28 @@ def versioned_docs(root, packages, current, replacement=None):
         if not requirements:
             raise ValueError(f"{path} has no workspace crate requirement")
         for name, version in requirements:
-            if version != f"={current}":
-                raise ValueError(f"{path}: {name} must require ={current}")
+            if version != f"v{current}":
+                raise ValueError(f"{path}: {name} must pin tag v{current}")
         if replacement is not None:
             content = TOML_FENCE.sub(
                 lambda match: match.group(0).replace(
                     match.group(1), bump_fence(match.group(1), packages, current, replacement)),
                 content)
-            if any(version != f"={replacement}" for _, version in readme_requirements(path, content, packages)):
+            if any(version != f"v{replacement}" for _, version in readme_requirements(path, content, packages)):
                 raise ValueError(f"Cannot update every install requirement in {path}")
+        edits[path] = content
+    for relative in COMMAND_DOCS:
+        path = root / relative
+        if not path.is_file():
+            raise ValueError(f"{path} is missing; it documents the CLI install command")
+        content = path.read_text(encoding="utf-8")
+        tags = INSTALL_TAG.findall(content)
+        if not tags:
+            raise ValueError(f"{path} has no --tag install command")
+        if any(tag != current for tag in tags):
+            raise ValueError(f"{path}: the install command must use --tag v{current}")
+        if replacement is not None:
+            content = INSTALL_TAG.sub(f"--tag v{replacement}", content)
         edits[path] = content
     return edits
 
