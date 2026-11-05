@@ -51,4 +51,5 @@ Use this index to find the guide for your task. Start with the
 - [Design and wire protocol](design.md): the model-to-IR pipeline and Crucible JSON rules.
 - [Language design decisions](idl/decisions.md): the rationale behind language and IR behavior.
 - [Language construct inventory](idl/inventory.md): implementation coverage for language constructs.
+- [IDL design research report](<idl/reports/IDL design sentiment and languages.md>): cross-language research synthesis and recommendations.
 - [Language research](idl/research_notes/): background research and source notes.
