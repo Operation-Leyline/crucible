@@ -290,16 +290,15 @@ fn descriptor(service: &Service, resource: &Resource, errors: &mut Diagnostics) 
             }
         }
         if let Some(shape) = &op.input {
-            check_required_inputs(
+            let paths = input.values().cloned().collect::<Vec<_>>();
+            RequiredInputCheck {
                 service,
-                shape,
-                &[],
-                &input.values().cloned().collect::<Vec<_>>(),
-                op.idempotency_token.as_deref(),
-                &mut BTreeSet::new(),
-                id,
+                paths: &paths,
+                token: op.idempotency_token.as_deref(),
+                operation: id,
                 errors,
-            );
+            }
+            .check(shape);
         }
         for (is_input, root, paths) in [
             (true, op.input.as_ref(), &input),
@@ -365,53 +364,48 @@ fn descriptor(service: &Service, resource: &Resource, errors: &mut Diagnostics) 
     )
 }
 
-#[allow(clippy::too_many_arguments)]
-fn check_required_inputs(
-    service: &Service,
-    shape: &ShapeId,
-    prefix: &[String],
-    paths: &[Vec<String>],
-    token: Option<&str>,
-    seen: &mut BTreeSet<ShapeId>,
-    operation: &ShapeId,
-    errors: &mut Diagnostics,
-) {
-    if !seen.insert(shape.clone()) {
-        return;
+struct RequiredInputCheck<'a> {
+    service: &'a Service,
+    paths: &'a [Vec<String>],
+    token: Option<&'a str>,
+    operation: &'a ShapeId,
+    errors: &'a mut Diagnostics,
+}
+
+impl RequiredInputCheck<'_> {
+    fn check(mut self, shape: &ShapeId) {
+        self.check_nested(shape, &[], &mut BTreeSet::new());
     }
-    if let Some(Shape::Structure(s)) = service.shape(shape) {
-        for member in &s.members {
-            let mut path = prefix.to_vec();
-            path.push(member.name.clone());
-            let covered = paths.iter().any(|p| p == &path);
-            let descendant = paths.iter().any(|p| p.starts_with(&path));
-            if prefix.is_empty() && token == Some(member.name.as_str()) {
-                continue;
-            }
-            if member.required && !covered && !descendant {
-                errors.push(
-                    operation,
-                    format!(
-                        "Terraform lifecycle has unmapped required input `{}`",
-                        path.join(".")
-                    ),
-                );
-            }
-            if descendant && !covered {
-                check_required_inputs(
-                    service,
-                    &member.target,
-                    &path,
-                    paths,
-                    None,
-                    seen,
-                    operation,
-                    errors,
-                );
+
+    fn check_nested(&mut self, shape: &ShapeId, prefix: &[String], seen: &mut BTreeSet<ShapeId>) {
+        if !seen.insert(shape.clone()) {
+            return;
+        }
+        if let Some(Shape::Structure(s)) = self.service.shape(shape) {
+            for member in &s.members {
+                let mut path = prefix.to_vec();
+                path.push(member.name.clone());
+                let covered = self.paths.iter().any(|p| p == &path);
+                let descendant = self.paths.iter().any(|p| p.starts_with(&path));
+                if prefix.is_empty() && self.token == Some(member.name.as_str()) {
+                    continue;
+                }
+                if member.required && !covered && !descendant {
+                    self.errors.push(
+                        self.operation,
+                        format!(
+                            "Terraform lifecycle has unmapped required input `{}`",
+                            path.join(".")
+                        ),
+                    );
+                }
+                if descendant && !covered {
+                    self.check_nested(&member.target, &path, seen);
+                }
             }
         }
+        seen.remove(shape);
     }
-    seen.remove(shape);
 }
 
 pub fn emit(service: &Service, plan: &Plan, options: &Options) -> Result<Vec<File>, Diagnostics> {

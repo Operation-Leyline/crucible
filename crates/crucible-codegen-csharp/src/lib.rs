@@ -309,7 +309,6 @@ fn code(text: &str) -> String {
     text.to_string()
 }
 
-#[allow(clippy::too_many_arguments)]
 fn operation_xmldoc(
     links: &Links<'_>,
     op: &Operation,
