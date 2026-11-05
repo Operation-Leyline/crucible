@@ -282,6 +282,13 @@ impl Iterator for Segments<'_> {
     }
 }
 
+struct RouteCandidate<'a> {
+    operation: &'a OperationInfo,
+    route: Route,
+    violations: Vec<Violation>,
+    query_matches: bool,
+}
+
 /// The most specific operation serving the request. With `allowed`, it
 /// also collects the methods every operation at the path accepts.
 fn best_route(
@@ -293,9 +300,7 @@ fn best_route(
     mut allowed: Option<&mut Vec<&'static str>>,
 ) -> Option<Route> {
     let segments = Segments::new(rest).count();
-    // The best candidate, its labels' violations (one at most per label, so
-    // few), and whether its literal query matched.
-    let mut best: Option<(&OperationInfo, Route, Vec<Violation>, bool)> = None;
+    let mut best: Option<RouteCandidate<'_>> = None;
     for &op in operations
         .routes(segments)
         .iter()
@@ -373,35 +378,39 @@ fn best_route(
         if !method_matches {
             continue;
         }
-        if best
-            .as_ref()
-            .is_none_or(|(most, _, _, most_query_matches)| {
-                let previous_exact = most.method == request.method.as_str();
-                (exact_method && !previous_exact)
-                    || (exact_method == previous_exact
-                        && more_specific(op, most, query_matches, *most_query_matches))
-            })
-        {
-            best = Some((
-                op,
-                Route {
+        if best.as_ref().is_none_or(|most| {
+            let previous_exact = most.operation.method == request.method.as_str();
+            (exact_method && !previous_exact)
+                || (exact_method == previous_exact
+                    && more_specific(op, most.operation, query_matches, most.query_matches))
+        }) {
+            best = Some(RouteCandidate {
+                operation: op,
+                route: Route {
                     operation: op.name,
                     labels,
                     rejection: None,
                 },
                 violations,
                 query_matches,
-            ));
+            });
         }
     }
     // The query is the same for every candidate: it is checked once, for
     // the operation chosen, which also says what its parameters are called.
-    best.map(|(op, mut route, labels, _)| {
-        let mut violations = query_violations(query, op);
-        violations.extend(labels);
-        route.rejection = violations.into_rejection();
-        route
-    })
+    best.map(
+        |RouteCandidate {
+             operation,
+             mut route,
+             violations: path_violations,
+             ..
+         }| {
+            let mut violations = query_violations(query, operation);
+            violations.extend(path_violations);
+            route.rejection = violations.into_rejection();
+            route
+        },
+    )
 }
 
 // Decode within a segment so an encoded separator never changes path structure.

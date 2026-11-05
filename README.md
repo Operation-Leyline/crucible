@@ -220,6 +220,9 @@ producing several named SDKs from one workspace, and
 
 ## Documentation
 
+Browse the [documentation index](docs/README.md) for all guides, references, and
+design notes.
+
 | Start here | |
 |---|---|
 | [Quick start](docs/quickstart.md) | Your first service, end to end |

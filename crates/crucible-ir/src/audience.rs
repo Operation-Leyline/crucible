@@ -567,16 +567,7 @@ pub(crate) fn retain_resource_bindings(
     let resolves = |path: &[String]| {
         let mut target = root.cloned();
         for name in path {
-            let next = target
-                .as_ref()
-                .and_then(|id| shapes.get(id))
-                .and_then(|shape| {
-                    shape
-                        .members()
-                        .into_iter()
-                        .find(|m| &m.name == name)
-                        .map(|m| m.target.clone())
-                });
+            let next = member_target(shapes, target.as_ref(), name);
             let Some(next) = next else {
                 return false;
             };
@@ -587,16 +578,8 @@ pub(crate) fn retain_resource_bindings(
     bindings.identifiers.retain(|_, path| resolves(path));
     bindings.properties.retain(|_, path| resolves(path));
     bindings.collections.retain(|name, inner| {
-        let element = root
-            .and_then(|id| shapes.get(id))
-            .and_then(|shape| {
-                shape
-                    .members()
-                    .into_iter()
-                    .find(|m| &m.name == name)
-                    .map(|m| m.target.clone())
-            })
-            .and_then(|target| match shapes.get(&target) {
+        let element =
+            member_target(shapes, root, name).and_then(|target| match shapes.get(&target) {
                 Some(Shape::List(list)) => Some(list.member.target.clone()),
                 Some(Shape::Map(map)) => Some(map.value.target.clone()),
                 _ => None,
@@ -609,9 +592,23 @@ pub(crate) fn retain_resource_bindings(
     });
 }
 
-fn member_exists(shapes: &BTreeMap<ShapeId, Shape>, id: Option<&ShapeId>, name: &str) -> bool {
+fn member_target(
+    shapes: &BTreeMap<ShapeId, Shape>,
+    id: Option<&ShapeId>,
+    name: &str,
+) -> Option<ShapeId> {
     id.and_then(|id| shapes.get(id))
-        .is_some_and(|s| s.members().iter().any(|m| m.name == name))
+        .and_then(|shape| {
+            shape
+                .members()
+                .into_iter()
+                .find(|member| member.name == name)
+        })
+        .map(|member| member.target.clone())
+}
+
+fn member_exists(shapes: &BTreeMap<ShapeId, Shape>, id: Option<&ShapeId>, name: &str) -> bool {
+    member_target(shapes, id, name).is_some()
 }
 
 fn retain_bindings(

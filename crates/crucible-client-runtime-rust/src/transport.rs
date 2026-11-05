@@ -305,7 +305,11 @@ impl Transport {
                 "transport response mode does not match the operation".into(),
             ));
         }
-        let (url, mut bound_headers, body) = self.prepare_at(info, input, &self.config.endpoint)?;
+        let PreparedRequest {
+            url,
+            headers: mut bound_headers,
+            body,
+        } = self.prepare_at(info, input, &self.config.endpoint)?;
         // The release this client was generated for (docs/api-versions-clients.md).
         if let Some(version) = O::API_VERSION
             && let Ok(value) = HeaderValue::from_str(version)
@@ -407,56 +411,16 @@ impl Transport {
 
     /// URL, bound headers and body (with its content type), once: every
     /// attempt resends them.
-    #[allow(clippy::type_complexity)]
     fn prepare_at<E, I: serde::Serialize>(
         &self,
         info: &'static crucible_wire::operation::OperationInfo,
         input: &I,
         endpoint: &str,
-    ) -> Result<(String, HeaderMap, Option<Body>), Error<E>> {
+    ) -> Result<PreparedRequest, Error<E>> {
         let mut body = Vec::with_capacity(128);
         let bound = split::write_bound(input, info.input, &mut body)
             .map_err(|error| Error::Invalid(error.to_string()))?;
-        let mut url = endpoint.trim_end_matches('/').to_owned();
-        for segment in info.path {
-            url.push('/');
-            match segment {
-                Segment::Literal(text) => url.push_str(text),
-                Segment::Label(name) | Segment::GreedyLabel(name) => {
-                    let value = bound
-                        .iter()
-                        .find(|(member, _)| member.name == *name)
-                        .map(|(member, value)| text(value, member.scalar))
-                        .ok_or_else(|| Error::Invalid(format!("`{name}` is required")))?
-                        .map_err(Error::Invalid)?;
-                    if value.is_empty() {
-                        return Err(Error::Invalid(format!("`{name}` is required")));
-                    }
-                    let greedy = matches!(segment, Segment::GreedyLabel(_));
-                    if (greedy && value.split('/').any(|s| matches!(s, "." | "..")))
-                        || matches!(value.as_str(), "." | "..")
-                    {
-                        return Err(Error::Invalid(format!(
-                            "`{name}` cannot be a dot-only path segment"
-                        )));
-                    }
-                    if greedy {
-                        for (index, part) in value.split('/').enumerate() {
-                            if index > 0 {
-                                url.push('/');
-                            }
-                            encode(&mut url, part);
-                        }
-                    } else {
-                        encode(&mut url, &value);
-                    }
-                }
-                _ => return Err(Error::Invalid("unsupported path segment".into())),
-            }
-        }
-        if info.path.is_empty() {
-            url.push('/');
-        }
+        let mut url = request_path(info, endpoint, &bound)?;
         let mut separator = '?';
         for (name, value) in info.literal_query {
             url.push(separator);
@@ -515,7 +479,7 @@ impl Transport {
                 .any(|member| member.location == Location::Body)
                 .then(|| (JSON, Bytes::from(body))),
         };
-        Ok((url, headers, body))
+        Ok(PreparedRequest { url, headers, body })
     }
 
     async fn request<E>(
@@ -601,6 +565,60 @@ async fn response_bytes<E>(
 
 /// A request body: its content type and bytes.
 type Body = (&'static str, Bytes);
+
+struct PreparedRequest {
+    url: String,
+    headers: HeaderMap,
+    body: Option<Body>,
+}
+
+fn request_path<E>(
+    info: &'static crucible_wire::operation::OperationInfo,
+    endpoint: &str,
+    bound: &[(&'static MemberInfo, Value)],
+) -> Result<String, Error<E>> {
+    let mut url = endpoint.trim_end_matches('/').to_owned();
+    for segment in info.path {
+        url.push('/');
+        match segment {
+            Segment::Literal(text) => url.push_str(text),
+            Segment::Label(name) | Segment::GreedyLabel(name) => {
+                let value = bound
+                    .iter()
+                    .find(|(member, _)| member.name == *name)
+                    .map(|(member, value)| text(value, member.scalar))
+                    .ok_or_else(|| Error::Invalid(format!("`{name}` is required")))?
+                    .map_err(Error::Invalid)?;
+                if value.is_empty() {
+                    return Err(Error::Invalid(format!("`{name}` is required")));
+                }
+                let greedy = matches!(segment, Segment::GreedyLabel(_));
+                if (greedy && value.split('/').any(|s| matches!(s, "." | "..")))
+                    || matches!(value.as_str(), "." | "..")
+                {
+                    return Err(Error::Invalid(format!(
+                        "`{name}` cannot be a dot-only path segment"
+                    )));
+                }
+                if greedy {
+                    for (index, part) in value.split('/').enumerate() {
+                        if index > 0 {
+                            url.push('/');
+                        }
+                        encode(&mut url, part);
+                    }
+                } else {
+                    encode(&mut url, &value);
+                }
+            }
+            _ => return Err(Error::Invalid("unsupported path segment".into())),
+        }
+    }
+    if info.path.is_empty() {
+        url.push('/');
+    }
+    Ok(url)
+}
 
 const JSON: &str = "application/json";
 
