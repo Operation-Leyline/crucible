@@ -153,8 +153,8 @@ into the release record.
 **One compiler for SDKs and server** *(built)*. When the service's `Cargo.lock`
 resolves `crucible-build` or `crucible-server-runtime-rust` from Git,
 `crucible sdk` refuses to run at any other revision, and names the one to
-install. A workflow step reads that revision from the lock and passes it
-to `setup-crucible` as `crucible-ref` (section 5). This
+install. `setup-crucible` reads that revision from the lock automatically
+(section 5). This
 replaces `codegen.sh`'s install-per-revision.
 
 **Build scripts (phase 3).** `model.sdks("../crucible-sdk.toml")` writes
@@ -595,69 +595,57 @@ records a credential.
 **CI builds once, tests, then publishes those bytes**, after the deploy.
 A client ahead of its API breaks everyone who installs it, and an older
 server refuses an unknown release ([api-versions-clients.md](api-versions-clients.md)).
-`setup-crucible` comes from
-[crucible-actions](https://github.com/Operation-Leyline/crucible-actions).
-Workflows can resolve it directly:
-`uses: Operation-Leyline/crucible-actions/setup-crucible@<pinned sha>`
+
+The shared [setup action](https://github.com/Operation-Leyline/crucible-actions)
+reads the service's `Cargo.lock`, installs and caches the matching CLI, and
+adds `crucible` to PATH. Public Crucible tooling needs no App credentials.
+Channel credentials are still needed for private SDK packages.
+
+Add these SDK jobs alongside your existing deployment job. Make deployment
+depend on `sdk`, and make `sdk-publish` depend on both `sdk` and that deployment
+job (named `deploy` below). The deployment itself is service-specific and is
+not shown:
 
 ```yaml
 concurrency: { group: sdk-release, cancel-in-progress: false }
 jobs:
   sdk:
-    # Planning reads every channel, so the build job needs read access too:
-    # packages: read for GitHub Packages, a read-only deploy key for a git channel.
+    runs-on: ubuntu-24.04
+    # Planning reads the channels: package read access and a git-channel key.
     permissions: { contents: read, packages: read }
-    outputs: { crucible-ref: '${{ steps.pin.outputs.rev }}' }
+    outputs: { crucible-ref: '${{ steps.crucible.outputs.revision }}' }
     steps:
       - uses: actions/checkout@v4
         with: { ref: '${{ github.event.workflow_run.head_sha || github.sha }}' }
-      - uses: Operation-Leyline/crucible-actions/setup-crucible@<pinned sha>
-        with:
-          crucible-ref: '${{ steps.pin.outputs.rev }}'
-      # The revision Cargo.lock pins; `crucible sdk` refuses to run at any other.
-      - id: pin
-        shell: bash
-        run: |
-          rev=$(awk -F'"' '/^name = /{n=$2} /^source = "git\+/ && (n=="crucible-build" || n=="crucible-server-runtime-rust") {sub(/.*#/, "", $2); print $2; exit}' Cargo.lock)
-          [[ "$rev" =~ ^[0-9a-f]{40}$ ]] || { echo "::error::no Crucible revision in Cargo.lock"; exit 1; }
-          echo "rev=$rev" >> "$GITHUB_OUTPUT"
-      # Builds the CLI (a debug build) and names it in its `cli` output; it
-      # is not put on PATH.
       - id: crucible
-        uses: ./crucible-actions/setup-crucible
-        with: { crucible-ref: '${{ steps.pin.outputs.rev }}', token: '${{ steps.token.outputs.token }}' }
-      - uses: ./.github/actions/crucible-access            # private Crucible, for the consumer's cargo test
+        uses: Operation-Leyline/crucible-actions/setup-crucible@4e2aa84e2f91beb18821932e7a1a2cc125823a98
       - uses: actions/setup-node@v4
         with: { node-version: '22', registry-url: 'https://npm.pkg.github.com' }
       - uses: webfactory/ssh-agent@<pinned sha>
-        with: { ssh-private-key: '${{ secrets.SDK_READ_KEY }}' }          # reads the git channel
-      # Plans, builds, runs the consumers' tests.
-      - run: '"${{ steps.crucible.outputs.cli }}" sdk build --out target/sdk-release'
+        with: { ssh-private-key: '${{ secrets.SDK_READ_KEY }}' }
+      # Install the language toolchains required by your declared consumer tests.
+      - run: crucible sdk build --out target/sdk-release
         env: { NODE_AUTH_TOKEN: '${{ secrets.GITHUB_TOKEN }}' }
       - uses: actions/upload-artifact@v4
         with: { name: sdk-release, path: target/sdk-release }
-  deploy:
-    needs: sdk
   sdk-publish:
     needs: [sdk, deploy]
+    runs-on: ubuntu-24.04
     environment: sdk-publish
     permissions: { contents: read, packages: write }
     steps:
       - uses: actions/download-artifact@v4
         with: { name: sdk-release, path: target/sdk-release }
-      - id: crucible
-        uses: Operation-Leyline/crucible-actions/setup-crucible@<pinned sha>
+      - uses: Operation-Leyline/crucible-actions/setup-crucible@4e2aa84e2f91beb18821932e7a1a2cc125823a98
         with: { crucible-ref: '${{ needs.sdk.outputs.crucible-ref }}' }
       - uses: actions/setup-node@v4
         with: { node-version: '22', registry-url: 'https://npm.pkg.github.com' }
       - uses: webfactory/ssh-agent@<pinned sha>
         with: { ssh-private-key: '${{ secrets.SDK_PUBLISH_KEY }}' }
-      - run: '"${{ steps.crucible.outputs.cli }}" sdk verify target/sdk-release'
-      - run: '"${{ steps.crucible.outputs.cli }}" sdk publish target/sdk-release --execute'
+      - run: crucible sdk verify target/sdk-release
+      - run: crucible sdk publish target/sdk-release --execute
         env:
           NODE_AUTH_TOKEN: '${{ secrets.GITHUB_TOKEN }}'
-          # Who git-channel release commits name; unset, they are
-          # `Crucible <crucible@noreply.invalid>`.
           GIT_AUTHOR_NAME: sdk-release
           GIT_AUTHOR_EMAIL: 41898282+github-actions[bot]@users.noreply.github.com
           GIT_COMMITTER_NAME: sdk-release
@@ -666,8 +654,8 @@ jobs:
 
 No history is fetched: the baseline is the last release's own snapshot,
 and only the fallback for older releases fetches one commit. The publish
-job needs no build toolchain, only Crucible and each channel's uploader
-(`npm`, `git`, `cargo`). A reusable form of these jobs belongs in
+job installs the matching CLI and each channel's uploader (`npm`, `git`,
+`cargo`); it does not rebuild the SDK artifacts. A reusable form of these jobs belongs in
 `crucible-actions`.
 
 **`tools/sdk_release.py` graduates in phase 3,** with the Python channel.

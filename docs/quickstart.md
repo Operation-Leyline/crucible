@@ -1,17 +1,30 @@
 # Your first Rust service
 
-Create the starter with the `crucible` CLI. It is not on crates.io, so install
-it from a release tag:
+You need Rust 1.88 or newer. Install the prebuilt `crucible` CLI on macOS or
+Linux:
 
 ```sh
-cargo install --git https://github.com/Operation-Leyline/crucible --tag v0.9.0 crucible-cli --locked
+curl --proto '=https' --tlsv1.2 -LsSf https://github.com/Operation-Leyline/crucible/releases/download/v0.9.0/crucible-cli-installer.sh | sh
+```
+
+On Windows, run in PowerShell:
+
+```powershell
+Invoke-RestMethod https://github.com/Operation-Leyline/crucible/releases/download/v0.9.0/crucible-cli-installer.ps1 | Invoke-Expression
+```
+
+Create and run the starter:
+
+```sh
 crucible new hello-service
+cd hello-service
+cargo run
 ```
 
 Each release also attaches the same starter as `hello-service-v<version>.zip`.
-Open `hello-service` in RustRover. Let Cargo finish loading, then run
-`src/main.rs`. The server prints `Listening on http://127.0.0.1:8080`. You need
-only Rust; Cargo fetches Crucible. A terminal can run `cargo run` too.
+You can open it in RustRover and run `src/main.rs` instead. The server prints
+its address; open `/explorer/` there for the interactive API reference. Cargo fetches Crucible.
+If `crucible` is not found after installation, reopen your terminal.
 
 Open `hello.http` and send the first request. The result is HTTP 200:
 
@@ -39,11 +52,8 @@ src/operations/service/say_hello.rs    the Hello implementation
 hello.http                            requests you can run in RustRover
 ```
 
-The build helper compiles the `.cru` package, which imports Crucible's standard
-errors, and passes the compiled model through Crucible's shared model layer and
-Rust generator. All generated files stay under Cargo's `OUT_DIR`. Model errors
-stop the build with the compiler's diagnostics. A missing rejection error is
-diagnosed during generation with the declaration needed to fix it.
+The build helper compiles the `.cru` package and generates bindings under
+Cargo's `OUT_DIR`. Model errors stop the build with file and line diagnostics.
 
 Separate model and service packages are useful when several packages share a
 contract. You can adopt that layout later; see [model packages](framework.md#model-packages).
@@ -67,6 +77,28 @@ verified source revision. A CLI without embedded source provenance falls back
 to its matching release tag. Commit `Cargo.lock` and change the Crucible
 revision deliberately to upgrade this set. `--crucible-rev` overrides the
 default.
+
+## CI
+
+Commit `Cargo.lock`. The shared action selects the same Crucible commit and
+adds the CLI to PATH; no App credentials or version-parsing script is needed:
+
+```yaml
+steps:
+  - uses: actions/checkout@v4
+  - uses: Operation-Leyline/crucible-actions/setup-crucible@4e2aa84e2f91beb18821932e7a1a2cc125823a98
+  - run: crucible check model
+```
+
+Keep Cargo tests in your workflow. Packages with frozen baselines check
+compatibility during builds; no separate API diff job is required.
+
+To build the CLI from source, use the release tag. `crucible-cli` on crates.io
+is an unrelated package:
+
+```sh
+cargo install --git https://github.com/Operation-Leyline/crucible --tag v0.9.0 crucible-cli --locked
+```
 
 ## Editor support
 

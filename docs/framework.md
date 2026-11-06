@@ -196,8 +196,9 @@ behavior.
 
 Services and clients can select `crucible.toml` with `.policy("crucible.toml")`
 on the build helper. API conventions run after model lowering and before
-generation. Config changes trigger another Cargo build check. Compatibility is
-a separate old/new contract comparison in CI. See
+generation. Config changes trigger another Cargo build check. Packages with a
+frozen release baseline also check compatibility during each build. A separate
+old/new comparison in CI is optional. See
 [API policy and compatibility](api-policy.md).
 
 A model package is a Cargo crate with `links = "<name>"` holding shared `.cru`
