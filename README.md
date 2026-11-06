@@ -182,7 +182,7 @@ CLI, and adds it to PATH. Public tooling needs no App credentials:
 ```yaml
 steps:
   - uses: actions/checkout@v4
-  - uses: Operation-Leyline/crucible-actions/setup-crucible@4e2aa84e2f91beb18821932e7a1a2cc125823a98
+  - uses: Operation-Leyline/crucible-actions/setup-crucible@4d0ee1e011a0c42f2d36de4c0abbb23501c38f39
   - run: crucible check model
 ```
 
