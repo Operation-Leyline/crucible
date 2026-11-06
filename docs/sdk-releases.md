@@ -361,13 +361,12 @@ version, or a latest release that is no longer the plan's baseline, stop
 that SDK and ask for a new plan. Every SDK is attempted, and every failure
 reported.
 
-In CI, build once and publish those bytes after deployment. Use the shared
-setup action to select the service's compiler from `Cargo.lock` and put it on
-PATH:
+Use the shared setup action to select the service's compiler from `Cargo.lock`
+and put it on PATH. For development SDK generation in CI:
 
 ```yaml
 - uses: actions/checkout@v4
-- uses: Operation-Leyline/crucible-actions/setup-crucible@4d0ee1e011a0c42f2d36de4c0abbb23501c38f39
+- uses: Operation-Leyline/crucible-actions/setup-crucible@10e6a2ae1ece1291f80498cc297ac2b429084dc8
 - run: crucible sdk generate
 ```
 
@@ -378,6 +377,8 @@ channels, supply their read/publish credentials to the relevant jobs.
 The [SDK release CI example](sdk-packaging.md#5-releasing-crucible-sdk-built-for-npm-and-git-channels)
 shows how to build once, pass the selected compiler revision and release
 artifact to a later job, and publish only after the service's deployment.
+`generate` alone writes development exports; release CI uses `sdk build`,
+then `sdk verify` and `sdk publish` on that release artifact.
 
 ## Release with `tools/sdk_release.py`
 

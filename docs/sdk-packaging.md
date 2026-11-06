@@ -618,7 +618,7 @@ jobs:
       - uses: actions/checkout@v4
         with: { ref: '${{ github.event.workflow_run.head_sha || github.sha }}' }
       - id: crucible
-        uses: Operation-Leyline/crucible-actions/setup-crucible@4d0ee1e011a0c42f2d36de4c0abbb23501c38f39
+        uses: Operation-Leyline/crucible-actions/setup-crucible@10e6a2ae1ece1291f80498cc297ac2b429084dc8
       - uses: actions/setup-node@v4
         with: { node-version: '22', registry-url: 'https://npm.pkg.github.com' }
       - uses: webfactory/ssh-agent@<pinned sha>
@@ -636,7 +636,7 @@ jobs:
     steps:
       - uses: actions/download-artifact@v4
         with: { name: sdk-release, path: target/sdk-release }
-      - uses: Operation-Leyline/crucible-actions/setup-crucible@4d0ee1e011a0c42f2d36de4c0abbb23501c38f39
+      - uses: Operation-Leyline/crucible-actions/setup-crucible@10e6a2ae1ece1291f80498cc297ac2b429084dc8
         with: { crucible-ref: '${{ needs.sdk.outputs.crucible-ref }}' }
       - uses: actions/setup-node@v4
         with: { node-version: '22', registry-url: 'https://npm.pkg.github.com' }

@@ -86,7 +86,7 @@ adds the CLI to PATH; no App credentials or version-parsing script is needed:
 ```yaml
 steps:
   - uses: actions/checkout@v4
-  - uses: Operation-Leyline/crucible-actions/setup-crucible@4d0ee1e011a0c42f2d36de4c0abbb23501c38f39
+  - uses: Operation-Leyline/crucible-actions/setup-crucible@10e6a2ae1ece1291f80498cc297ac2b429084dc8
   - run: crucible check model
 ```
 
