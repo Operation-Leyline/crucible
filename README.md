@@ -134,17 +134,30 @@ project with frozen API releases, migrations, and generated Rust and Java SDKs
 with consumer apps, see the
 [service example](https://github.com/Operation-Leyline/crucible-service-example).
 
-**Start smaller with the CLI.** The `crucible` executable scaffolds packages
-and generates non-Rust clients. It is not on crates.io (`crucible-cli` there is
-an unrelated crate), so install it from a release tag:
+**Start smaller with the CLI.** Install a prebuilt CLI for macOS or Linux:
 
 ```sh
-cargo install --git https://github.com/Operation-Leyline/crucible --tag v0.9.0 crucible-cli --locked
-
-crucible new hello-service           # a single-crate Rust service
-crucible new my-client --client      # a Rust client library
-crucible check model                 # compile and check a model package
+curl --proto '=https' --tlsv1.2 -LsSf https://github.com/Operation-Leyline/crucible/releases/download/v0.9.0/crucible-cli-installer.sh | sh
 ```
+
+On Windows, run in PowerShell:
+
+```powershell
+Invoke-RestMethod https://github.com/Operation-Leyline/crucible/releases/download/v0.9.0/crucible-cli-installer.ps1 | Invoke-Expression
+```
+
+Then create and run a service:
+
+```sh
+crucible new hello-service
+cd hello-service
+cargo run
+```
+
+Open `hello.http` for sample requests, or visit `http://127.0.0.1:8080/explorer/`.
+`crucible new my-client --client` creates a Rust client library.
+If your terminal cannot find `crucible`, reopen it after installation.
+The [quick start](docs/quickstart.md) includes the source-build alternative.
 
 `crucible new` pins the generated project to the commit the CLI was built
 from. The service is one crate, and its whole build script is:
@@ -159,9 +172,24 @@ fn main() {
 }
 ```
 
-`cd hello-service && cargo run`, then send the requests in `hello.http`. The
-[quick start](docs/quickstart.md) walks through the project, changing the
-model and adding an operation.
+The [quick start](docs/quickstart.md) walks through changing the model and
+adding an operation.
+
+**Use the same compiler in CI.** Commit `Cargo.lock`, then add the shared
+setup action. It selects the resolved Crucible commit, caches the matching
+CLI, and adds it to PATH. Public tooling needs no App credentials:
+
+```yaml
+steps:
+  - uses: actions/checkout@v4
+  - uses: Operation-Leyline/crucible-actions/setup-crucible@10e6a2ae1ece1291f80498cc297ac2b429084dc8
+  - run: crucible check model
+```
+
+Keep ordinary Cargo build/test steps for your service. If you declare SDKs
+in `crucible-sdk.toml`, add `crucible sdk generate`. See
+[shared setup inputs](https://github.com/Operation-Leyline/crucible-actions#inputs-and-outputs)
+for nested workspaces and explicit compiler overrides.
 
 ## Clients
 

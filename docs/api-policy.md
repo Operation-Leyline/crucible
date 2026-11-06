@@ -419,12 +419,18 @@ An exception does not suppress model validity errors.
 
 The [crucible-actions repository](https://github.com/Operation-Leyline/crucible-actions)
 contains `setup-crucible`, the `api-diff` composite action, a reusable workflow,
-and a caller template. Pin both the action and checker to reviewed commits.
+and a caller template. Setup reads the service's `Cargo.lock`, installs the
+matching CLI, and adds `crucible` to PATH. Pin the action to a reviewed commit;
+the lockfile selects the compiler. Public tooling needs no App credentials.
+
+Packages with a frozen baseline already check compatibility during builds and
+`crucible check`; the shared comparison workflow is optional reporting.
 Select the PR base revision for regression checks or a released tag to preserve
 compatibility with the published contract. No baseline means a failed check.
 
 Pass `before` and `after` as `.cru` package directories relative to the runner
-workspace, plus `config` pointing to the proposed policy file. The action
+workspace. The policy defaults to the proposed package's `crucible.toml`;
+set `config` only to select another workspace-relative policy file. The action
 compiles and compares those directories; it does not run service builds or
 require an export script.
 
