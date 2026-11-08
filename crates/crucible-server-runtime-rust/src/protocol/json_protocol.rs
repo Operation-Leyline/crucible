@@ -201,9 +201,7 @@ fn check_content_type(job: &Job) -> Result<()> {
     // The document media type also applies to inputs whose members are all
     // HTTP-bound: clients may still send an empty JSON object for those inputs.
     let expected = payload.map_or("application/json", |(_, media_type)| media_type);
-    if job.request().headers.get_all("content-type").iter().count() != 1
-        || !super::content_type(job.request(), expected)
-    {
+    if !super::content_type(job.request(), expected) {
         return Err(FrameworkError::UnsupportedMediaType.into());
     }
     Ok(())

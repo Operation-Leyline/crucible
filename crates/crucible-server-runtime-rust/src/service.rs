@@ -8,7 +8,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use axum::body::{Body, Bytes, HttpBody};
-use axum::http::{HeaderValue, Request};
+use axum::http::{HeaderName, HeaderValue, Request};
 use axum::response::Response;
 use futures_util::FutureExt;
 use tower::util::BoxCloneSyncService;
@@ -47,6 +47,8 @@ pub type RequestIdSource = fn(&axum::http::request::Parts) -> Option<HeaderValue
 
 /// The longest request id taken from outside; a longer one is replaced.
 const MAX_REQUEST_ID: usize = 128;
+const REQUEST_ID: HeaderName = HeaderName::from_static("x-request-id");
+const VERSION: HeaderName = HeaderName::from_static(versioning::VERSION_HEADER);
 
 fn panic_error(payload: Box<dyn std::any::Any + Send>) -> Error {
     let message = payload
@@ -496,11 +498,10 @@ impl Crucible {
                 HeaderValue::from_static("no-store"),
             );
         }
-        if !response.headers().contains_key("x-request-id") {
-            response
-                .headers_mut()
-                .insert("x-request-id", job.context.request_id_header().clone());
-        }
+        response
+            .headers_mut()
+            .entry(REQUEST_ID)
+            .or_insert_with(|| job.context.request_id_header().clone());
     }
 
     fn write(&self, job: &mut Job, selected: usize, answers: &Answers<'_>) -> Response {
@@ -559,8 +560,7 @@ impl Crucible {
             .any(|protocol| protocol.current_version_only(job.request()))
         {
             job.context.select_api_version(current);
-            job.response_headers
-                .insert(versioning::VERSION_HEADER, current.header());
+            job.response_headers.insert(VERSION, current.header());
             return Ok(operations);
         }
         // `None` is the current version.
@@ -578,7 +578,7 @@ impl Crucible {
         let header = job
             .request()
             .headers
-            .get(versioning::VERSION_HEADER)
+            .get(VERSION)
             .map(|value| value.to_str().unwrap_or_default().trim());
         let older = match header {
             Some(name) => pick(name)?,
@@ -617,8 +617,7 @@ impl Crucible {
             None => (current, operations),
         };
         job.context.select_api_version(version);
-        job.response_headers
-            .insert(versioning::VERSION_HEADER, version.header());
+        job.response_headers.insert(VERSION, version.header());
         // A cache keeps one response per version.
         job.response_headers.append(
             axum::http::header::VARY,

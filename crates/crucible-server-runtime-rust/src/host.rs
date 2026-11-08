@@ -96,8 +96,7 @@ pub async fn http_on_until(
 #[cfg(feature = "http")]
 mod http_server {
     use std::convert::Infallible;
-    use std::net::SocketAddr;
-    use std::pin::{Pin, pin};
+    use std::pin::pin;
     use std::sync::Arc;
     use std::time::Duration;
 
@@ -111,31 +110,12 @@ mod http_server {
 
     use crate::service::Crucible;
 
-    /// One `Arc` clone per request; the service itself is cloned per
-    /// connection only.
-    #[derive(Clone)]
-    struct Handler(Arc<Crucible>, Option<SocketAddr>);
-
-    impl hyper::service::Service<Request<Incoming>> for Handler {
-        type Response = Response;
-        type Error = Infallible;
-        type Future = Pin<Box<dyn Future<Output = Result<Response, Infallible>> + Send>>;
-
-        fn call(&self, mut request: Request<Incoming>) -> Self::Future {
-            if let Some(peer) = self.1 {
-                request.extensions_mut().insert(peer);
-            }
-            let service = self.0.clone();
-            Box::pin(async move { Ok(service.handle(request.map(Body::new)).await) })
-        }
-    }
-
     pub(super) async fn serve(
         service: Crucible,
         listener: TcpListener,
         signal: impl Future<Output = ()> + Send,
     ) {
-        let handler = Handler(Arc::new(service), None);
+        let service = Arc::new(service);
         // Connections watch `stop` to start closing; the server waits on
         // `open` until every connection task has dropped its receiver.
         let (stop, _) = watch::channel(());
@@ -146,8 +126,17 @@ mod http_server {
                 stream = accept(&listener) => stream,
                 () = &mut signal => break,
             };
-            let mut handler = handler.clone();
-            handler.1 = stream.peer_addr().ok();
+            let service = service.clone();
+            let peer = stream.peer_addr().ok();
+            // Keep the request future concrete: boxing it here would allocate
+            // and copy the pipeline's async state for every keep-alive request.
+            let handler = hyper::service::service_fn(move |mut request: Request<Incoming>| {
+                if let Some(peer) = peer {
+                    request.extensions_mut().insert(peer);
+                }
+                let service = service.clone();
+                async move { Ok::<Response, Infallible>(service.handle(request.map(Body::new)).await) }
+            });
             let mut stopping = stop.subscribe();
             let open = open.clone();
             tokio::spawn(async move {
