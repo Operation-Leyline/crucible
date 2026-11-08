@@ -34,6 +34,9 @@ version's section when it is prepared.
 
 ### Changed
 
+- Rust HTTP hosting keeps request futures concrete instead of boxing each one.
+  Request/version header names are retained as static names, and content-type
+  validation and request-id insertion avoid duplicate header lookups.
 - `.cru`: refusing an internal identifier or property type now names the resource
   and applies only to one that is not `internal`.
 

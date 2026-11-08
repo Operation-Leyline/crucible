@@ -21,7 +21,10 @@ use crate::{Hook, Job, Prepare, Result};
 /// Whether the request's `content-type` is `expected`, ignoring case and
 /// parameters.
 pub(super) fn content_type(request: &Parts, expected: &str) -> bool {
-    let mut values = request.headers.get_all("content-type").iter();
+    let mut values = request
+        .headers
+        .get_all(axum::http::header::CONTENT_TYPE)
+        .iter();
     // Exactly one field: a repeated `Content-Type` is ambiguous, not a match.
     let (Some(value), None) = (values.next(), values.next()) else {
         return false;
@@ -249,6 +252,13 @@ mod tests {
             );
         }
         let (parts, _) = Request::post("/").body(()).unwrap().into_parts();
+        assert!(!super::content_type(&parts, "application/json"));
+        let (parts, _) = Request::post("/")
+            .header("content-type", "application/json")
+            .header("content-type", "application/json")
+            .body(())
+            .unwrap()
+            .into_parts();
         assert!(!super::content_type(&parts, "application/json"));
     }
 }
