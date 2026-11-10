@@ -410,10 +410,7 @@ static status read_header(arena *storage, yyjson_mut_doc *doc, const yyjson_val 
         }
         return timestamp_render(time, depth ? (named(get(member, "format"), "http-date") ? VIEW("http-date") : VIEW("date-time")) : format, doc, out, issue);
     }
-    if ((named(kind, "float") || named(kind, "double")) && (crucible_generated_string_equal(value, VIEW("NaN")) || crucible_generated_string_equal(value, VIEW("Infinity")) || crucible_generated_string_equal(value, VIEW("-Infinity")))) {
-        /* JSON has no non-finite numbers; the codec reads these strings back as floats. */
-        *out = yyjson_mut_strncpy(doc, value.data, value.length);
-    } else if (named(kind, "byte") || named(kind, "short") || named(kind, "integer") || named(kind, "long") || named(kind, "float") || named(kind, "double") || named(kind, "bigInteger") || named(kind, "bigDecimal") || named(kind, "intEnum") || named(kind, "boolean") || (named(kind, "timestamp") && named(get(member, "format"), "epoch-seconds"))) {
+    if (named(kind, "byte") || named(kind, "short") || named(kind, "integer") || named(kind, "long") || named(kind, "float") || named(kind, "double") || named(kind, "bigInteger") || named(kind, "bigDecimal") || named(kind, "intEnum") || named(kind, "boolean") || (named(kind, "timestamp") && named(get(member, "format"), "epoch-seconds"))) {
         const yyjson_val *parsed;
         TRY(crucible_generated_json_parse(storage, value, &parsed, issue));
         *out = yyjson_val_mut_copy(doc, parsed);

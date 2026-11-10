@@ -42,8 +42,6 @@ struct Writer<'a> {
     options: &'a Options,
     layout: &'a Layout<'a>,
     prefix: String,
-    /// The program needs `<limits>`: a non-finite float.
-    limits: bool,
 }
 
 impl Writer<'_> {
@@ -189,22 +187,6 @@ impl Writer<'_> {
             SimpleKind::BigInteger => format!("{}({})", self.runtime("BigInteger"), literal(text)),
             SimpleKind::BigDecimal => format!("{}({})", self.runtime("BigDecimal"), literal(text)),
             SimpleKind::Float | SimpleKind::Double => {
-                let ty = if kind == SimpleKind::Float {
-                    "float"
-                } else {
-                    "double"
-                };
-                let special = match text {
-                    "NaN" => Some("quiet_NaN()"),
-                    "Infinity" => Some("infinity()"),
-                    "-Infinity" => Some("infinity()"),
-                    _ => None,
-                };
-                if let Some(special) = special {
-                    self.limits = true;
-                    let sign = if text.starts_with('-') { "-" } else { "" };
-                    return format!("{sign}std::numeric_limits<{ty}>::{special}");
-                }
                 // An integer's text would be an integer literal, which may
                 // overflow before it converts.
                 let mut out = text.to_owned();
@@ -439,13 +421,7 @@ fn indented(text: &str) -> String {
 
 /// The program around `body`: the package's header, the standard headers
 /// the body uses, the alias, and `main` constructing the client.
-fn program(
-    service: &Service,
-    options: &Options,
-    middleware: &[Middleware],
-    limits: bool,
-    body: &str,
-) -> String {
+fn program(service: &Service, options: &Options, middleware: &[Middleware], body: &str) -> String {
     let (prefix, alias) = prefix(options);
     let construct = construct_statements(service, options, &prefix);
     let mut out = format!("#include \"{}/client.hpp\"\n\n", options.package_name);
@@ -458,9 +434,6 @@ fn program(
     }
     if construct.contains("std::optional") {
         headers.extend(["<optional>", "<string>"]);
-    }
-    if limits {
-        headers.push("<limits>");
     }
     headers.sort_unstable();
     for header in headers {
@@ -499,7 +472,6 @@ pub(crate) fn snippets(
         options,
         layout,
         prefix,
-        limits: false,
     };
     let input = |writer: &mut Writer<'_>, node: &Node<'_>| -> String {
         let ty = writer.model(node.target);
@@ -560,10 +532,9 @@ pub(crate) fn snippets(
         (writer.model(case.id), name.to_owned(), message)
     });
     body.push_str(&guarded(&lines, handler.as_ref()));
-    let snippet = program(service, options, middleware, writer.limits, &body);
+    let snippet = program(service, options, middleware, &body);
 
     let paginated = paginator.zip(call.pages).map(|(paginator, pages)| {
-        writer.limits = false;
         let mut body = String::new();
         let argument = match &call.input {
             Some(node) => {
@@ -593,7 +564,7 @@ pub(crate) fn snippets(
             "}".to_owned(),
         ];
         body.push_str(&guarded(&lines, handler.as_ref()));
-        program(service, options, middleware, writer.limits, &body)
+        program(service, options, middleware, &body)
     });
     (snippet, paginated)
 }
