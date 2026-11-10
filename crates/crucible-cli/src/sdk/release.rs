@@ -10,7 +10,8 @@ use std::process::Command;
 use clap::Args;
 use crucible_codegen::File;
 use crucible_codegen::provenance::{Source, Stamp, files_digest, generator_changes};
-use crucible_codegen::sdk::{self, Channel, Language, Sdk, SdkFile};
+use crucible_codegen::sdk::{self, Channel, Docs, Language, Sdk, SdkFile};
+use crucible_codegen::sdks::Versions;
 use crucible_ir::ir::Service;
 use crucible_sdk_release::archive::{sha256_file, write_tree_archive};
 use crucible_sdk_release::record::{
@@ -68,6 +69,17 @@ impl PlanArgs {
             .map(|name| ("--first-release", name))
             .chain(bump.keys().map(|name| ("--bump", name)))
         {
+            let selected = self.sdks.is_empty() || self.sdks.contains(name);
+            if let (Docs::NAME, Some(docs)) = (name.as_str(), &file.docs) {
+                if docs.channel.is_none() {
+                    errors.push(format!(
+                        "{flag} {name}: [docs] has no channel, so it is not versioned"
+                    ));
+                } else if !selected {
+                    errors.push(format!("{flag} {name}: [docs] is not selected by --sdk"));
+                }
+                continue;
+            }
             match file.sdks.get(name) {
                 None => errors.push(format!(
                     "{flag} {name}: {} declares no SDK {name:?}",
@@ -314,7 +326,7 @@ fn plan_all<'a>(
     let cru = crate::is_cru_package(&file.join(&file.model));
     let mut planned = Vec::new();
     let mut errors = Vec::new();
-    for sdk in file.select(&options.sdks)? {
+    for sdk in file.selection(&options.sdks)?.0 {
         match plan_one(file, sdk, options, full, cru) {
             Ok(plan) => planned.push((sdk, plan)),
             Err(error) => errors.push(error),
@@ -327,7 +339,178 @@ fn plan_all<'a>(
     }
 }
 
-fn record(file: &SdkFile, planned: &[(&Sdk, SdkPlan)]) -> PlanRecord {
+/// The npm channel `[docs]` is released to.
+fn docs_channel(docs: &Docs) -> Result<Option<ChannelConfig>, String> {
+    Ok(match &docs.channel {
+        Some(Channel::Npm {
+            url,
+            access,
+            dist_tag,
+        }) => Some(ChannelConfig::Npm(NpmChannelConfig {
+            registry: url.clone(),
+            package: docs.package.clone(),
+            access: access
+                .as_deref()
+                .map(|access| {
+                    NpmAccess::parse(access).ok_or_else(|| format!("docs: access {access:?}"))
+                })
+                .transpose()?,
+            dist_tag: dist_tag.clone(),
+        })),
+        // The file refuses any other channel for the reference.
+        _ => None,
+    })
+}
+
+/// The version of each SDK the reference describes, for its install
+/// steps: the one this plan releases, else the last one on its channel. An
+/// SDK without a channel, or with nothing released yet, has none, and the
+/// reference describes it as a development package. An SDK this run does
+/// not plan (`--sdk`) has its channel read here.
+fn described_versions(
+    file: &SdkFile,
+    docs: &Docs,
+    planned: &[(&Sdk, SdkPlan)],
+) -> Result<Versions, String> {
+    let mut versions = Versions::new();
+    for sdk in crucible_codegen::sdks::visible_in(file, docs.audience) {
+        let version = match planned.iter().find(|(other, _)| other.name == sdk.name) {
+            Some((_, plan)) => plan
+                .version
+                .clone()
+                .filter(|_| plan.channel.is_some())
+                .or_else(|| plan.last.as_ref().map(|last| last.version.to_string())),
+            None => match channel_config(sdk)? {
+                Some(config) => crucible_sdk_release::open(&config, file.root())
+                    .and_then(|channel| channel.read_last())
+                    .map_err(|error| format!("docs: sdk.{}: {error}", sdk.name))?
+                    .last()
+                    .map(|last| last.version.to_string()),
+                None => None,
+            },
+        };
+        if let Some(version) = version {
+            versions.insert(sdk.name.clone(), version);
+        }
+    }
+    Ok(versions)
+}
+
+/// The reference package's files at `version`, stamped.
+fn emit_docs(
+    file: &SdkFile,
+    docs: &Docs,
+    full: &Service,
+    version: Option<&str>,
+    versions: &Versions,
+    source: Option<Source>,
+) -> Result<Vec<File>, String> {
+    let stamp = Stamp {
+        config_sha256: Some(docs.config_sha256(file)),
+        source,
+    };
+    sdk::docs_package(file, docs, full, version, versions, &stamp)
+}
+
+/// Plans `[docs]` after the SDKs it describes, as an SDK is planned:
+/// unchanged when the reference generated at its last version, describing
+/// the SDKs at the versions this plan gives them, digests the same as that
+/// release. So an SDK release is a reference release too, and a model
+/// change that reaches no SDK still is one.
+fn plan_docs(
+    file: &SdkFile,
+    docs: &Docs,
+    options: &Options,
+    full: &Service,
+    versions: &Versions,
+) -> Result<SdkPlan, String> {
+    let name = Docs::NAME;
+    let floor = docs
+        .version
+        .as_deref()
+        .map(|floor| {
+            Version::parse(floor)
+                .map_err(|error| format!("docs.version: {floor:?} is not x.y.z: {error}"))
+        })
+        .transpose()?;
+    let config = docs_channel(docs)?;
+    let mut plan = SdkPlan {
+        language: Docs::LANGUAGE.to_owned(),
+        package: Some(docs.package.clone()),
+        config: docs.effective(file),
+        config_sha256: docs.config_sha256(file),
+        channel: config.clone(),
+        channel_description: None,
+        last: None,
+        compared_digest: None,
+        decision: None,
+        version: None,
+        source_commit: None,
+        content_digest: None,
+        tools: BTreeMap::new(),
+        artifact: None,
+    };
+    let Some(config) = config else {
+        // Built, never versioned against anything.
+        plan.version = Some(
+            docs.version
+                .clone()
+                .unwrap_or_else(|| Docs::DEVELOPMENT_VERSION.to_owned()),
+        );
+        return Ok(plan);
+    };
+    let channel = crucible_sdk_release::open(&config, file.root())
+        .map_err(|error| format!("{name}: {error}"))?;
+    plan.channel_description = Some(channel.describe());
+    let read = channel
+        .read_last()
+        .map_err(|error| format!("{name}: {error}"))?;
+    let current = match read.last() {
+        Some(last) => Some(
+            files_digest(&emit_docs(
+                file,
+                docs,
+                full,
+                Some(&last.version.to_string()),
+                versions,
+                None,
+            )?)
+            .map_err(|error| format!("{name}: {error}"))?,
+        ),
+        None => None,
+    };
+    // A reference breaks no caller: its version says only that it changed,
+    // so it never asks for a bump on a model break or a new service version.
+    let decision = choose(&Inputs {
+        sdk: name,
+        read: &read,
+        current_digest: current.as_deref(),
+        floor: floor.as_ref(),
+        change: ChangeKind::Patch,
+        bump: options.bump.get(name).copied(),
+        first_release: options.first_release.contains(name),
+        cru_service_version: None,
+        model_breaks: &[],
+        unjudged: None,
+    })
+    .map_err(|error| error.to_string())?;
+    plan.last = LastSummary::of(&read);
+    plan.compared_digest = current;
+    plan.version = decision.version.as_ref().map(ToString::to_string);
+    plan.decision = Some(decision);
+    Ok(plan)
+}
+
+/// How messages name a planned unit: `sdk.<name>`, or `docs`.
+fn label(name: &str, plan: &SdkPlan) -> String {
+    if plan.language == Docs::LANGUAGE {
+        Docs::NAME.to_owned()
+    } else {
+        format!("sdk.{name}")
+    }
+}
+
+fn record(file: &SdkFile, planned: &[(&Sdk, SdkPlan)], docs: Option<&SdkPlan>) -> PlanRecord {
     PlanRecord {
         schema_version: RECORD_SCHEMA,
         sdk_file: file.path.file_name().map_or_else(
@@ -343,6 +526,7 @@ fn record(file: &SdkFile, planned: &[(&Sdk, SdkPlan)]) -> PlanRecord {
         sdks: planned
             .iter()
             .map(|(sdk, plan)| (sdk.name.clone(), plan.clone()))
+            .chain(docs.map(|plan| (Docs::NAME.to_owned(), plan.clone())))
             .collect(),
     }
 }
@@ -359,7 +543,14 @@ pub(crate) fn plan(file: &SdkFile, args: &PlanArgs, json: bool) -> Result<(), St
     let options = args.options(file)?;
     let full = lower(file)?;
     let planned = plan_all(file, &options, &full)?;
-    let record = record(file, &planned);
+    let docs = match file.selection(&options.sdks)?.1 {
+        Some(docs) => {
+            let versions = described_versions(file, docs, &planned)?;
+            Some(plan_docs(file, docs, &options, &full, &versions)?)
+        }
+        None => None,
+    };
+    let record = record(file, &planned, docs.as_ref());
     if json {
         println!(
             "{}",
@@ -382,14 +573,15 @@ fn warn(record: &PlanRecord) {
 
 fn print_plan(record: &PlanRecord) {
     for (name, plan) in &record.sdks {
+        let name = label(name, plan);
         let Some(channel) = &plan.channel_description else {
             println!(
-                "sdk.{name}: no channel; built at {}, not released",
+                "{name}: no channel; built at {}, not released",
                 plan.version.as_deref().unwrap_or("no version")
             );
             continue;
         };
-        println!("sdk.{name}  {channel}");
+        println!("{name}  {channel}");
         match &plan.last {
             Some(last) => println!(
                 "  last  {} ({})",
@@ -473,7 +665,29 @@ pub(crate) fn build(
         let files = package(file, sdk, plan, &full, &out, allow_dirty)?;
         built.push((sdk, files));
     }
-    let record = record(file, &planned);
+    // The reference last: it describes the SDKs at the versions planned.
+    let mut docs = match file.selection(&options.sdks)?.1 {
+        Some(docs) => {
+            let versions = described_versions(file, docs, &planned)?;
+            let mut plan = plan_docs(file, docs, &options, &full, &versions)?;
+            let files = if builds(&plan) {
+                Some(package_docs(
+                    file,
+                    docs,
+                    &mut plan,
+                    &full,
+                    &versions,
+                    &out,
+                    allow_dirty,
+                )?)
+            } else {
+                None
+            };
+            Some((docs, plan, files))
+        }
+        None => None,
+    };
+    let record = record(file, &planned, docs.as_ref().map(|(_, plan, _)| plan));
     let plan_path = out.join(PLAN_FILE);
     write_json(&plan_path, &record)
         .map_err(|error| format!("cannot write {PLAN_FILE}: {error}"))?;
@@ -500,7 +714,7 @@ pub(crate) fn build(
                 pre_crucible_hint(&error.to_string(), &sdk.out)
             )
         })?;
-        only_release_files(sdk, &target)?;
+        only_release_files(&format!("sdk.{}", sdk.name), &sdk.out, &target)?;
         test(file, sdk, plan, files, &out)?;
         let artifact = plan.artifact.clone().expect("built above");
         release.sdks.insert(
@@ -517,6 +731,29 @@ pub(crate) fn build(
                 config_sha256: plan.config_sha256.clone(),
                 content_digest: plan.content_digest.clone(),
                 artifact,
+            },
+        );
+    }
+    if let Some((docs, plan, Some(files))) = docs.take() {
+        let target = file.join(&docs.out);
+        file.check_outs()?;
+        crucible_codegen::write(&target, &files)
+            .map_err(|error| format!("docs: cannot write {}: {error}", docs.out))?;
+        only_release_files(Docs::NAME, &docs.out, &target)?;
+        release.sdks.insert(
+            Docs::NAME.to_owned(),
+            SdkRelease {
+                version: plan.version.clone(),
+                channel: plan.channel.is_some(),
+                reasons: plan
+                    .decision
+                    .iter()
+                    .flat_map(|decision| &decision.reasons)
+                    .map(ToString::to_string)
+                    .collect(),
+                config_sha256: plan.config_sha256.clone(),
+                content_digest: plan.content_digest.clone(),
+                artifact: plan.artifact.clone().expect("built above"),
             },
         );
     }
@@ -567,15 +804,11 @@ const NATIVE: &[&str] = &[
 
 /// Refuses a file in `out` the release does not own: the consumer tests
 /// would build it, but the release would not ship it.
-fn only_release_files(sdk: &Sdk, out: &Path) -> Result<(), String> {
-    let manifest = fs::read_to_string(out.join(".crucible")).map_err(|error| {
-        format!(
-            "sdk.{}: cannot read {}/.crucible: {error}",
-            sdk.name, sdk.out
-        )
-    })?;
+fn only_release_files(label: &str, declared: &str, out: &Path) -> Result<(), String> {
+    let manifest = fs::read_to_string(out.join(".crucible"))
+        .map_err(|error| format!("{label}: cannot read {declared}/.crucible: {error}"))?;
     let owned: BTreeSet<String> = serde_json::from_str(&manifest)
-        .map_err(|error| format!("sdk.{}: {}/.crucible: {error}", sdk.name, sdk.out))?;
+        .map_err(|error| format!("{label}: {declared}/.crucible: {error}"))?;
     let mut stray = Vec::new();
     let mut pending = vec![(out.to_owned(), String::new())];
     while let Some((dir, prefix)) = pending.pop() {
@@ -601,11 +834,47 @@ fn only_release_files(sdk: &Sdk, out: &Path) -> Result<(), String> {
     }
     stray.sort();
     Err(format!(
-        "sdk.{}: {} holds files the release does not ship, which its tests would build: {}; remove them",
-        sdk.name,
-        sdk.out,
+        "{label}: {declared} holds files the release does not ship, which its tests would build: {}; remove them",
         stray.join(", ")
     ))
+}
+
+/// Generates the reference at its version into `<out>/docs/package` with
+/// its source stamped, and packs it. There is nothing to compile.
+fn package_docs(
+    file: &SdkFile,
+    docs: &Docs,
+    plan: &mut SdkPlan,
+    full: &Service,
+    versions: &Versions,
+    out: &Path,
+    allow_dirty: bool,
+) -> Result<Vec<File>, String> {
+    let source = sdk::docs_source(file, allow_dirty)?;
+    plan.source_commit = Some(source.commit.clone());
+    let files = emit_docs(
+        file,
+        docs,
+        full,
+        plan.version.as_deref(),
+        versions,
+        Some(source),
+    )?;
+    plan.content_digest = Some(files_digest(&files).map_err(|error| format!("docs: {error}"))?);
+    let dir = out.join(Docs::NAME);
+    let package = dir.join("package");
+    crucible_codegen::write(&package, &files)
+        .map_err(|error| format!("cannot write {}: {error}", shown(&package)))?;
+    let artifact = npm_pack(&package, &dir, &mut plan.tools, false)?;
+    let record = ArtifactRecord::of(out, &artifact)
+        .map_err(|error| format!("cannot hash {}: {error}", shown(&artifact)))?;
+    println!(
+        "docs: built {} at {}",
+        record.path,
+        plan.version.as_deref().unwrap_or("no version")
+    );
+    plan.artifact = Some(record);
+    Ok(files)
 }
 
 /// Generates the SDK at its version into `<out>/<name>/package` with its
@@ -634,7 +903,7 @@ fn package(
         .map_err(|error| format!("cannot write {}: {error}", shown(&package)))?;
     let artifact = match (&plan.channel, sdk.language) {
         (Some(ChannelConfig::Npm(_)), _) | (None, Language::Ts) => {
-            npm_pack(&package, &dir, &mut plan.tools)?
+            npm_pack(&package, &dir, &mut plan.tools, true)?
         }
         // A git channel publishes the package tree itself.
         _ => {
@@ -660,11 +929,13 @@ fn package(
 /// build`, `npm pack --ignore-scripts`. The compiler is the package's only
 /// dependency and is installed exactly, so no lockfile is written. The
 /// installed `node_modules` is removed afterwards: the release directory
-/// is uploaded between jobs.
+/// is uploaded between jobs. Without `compile` (the reference, which is
+/// data) the package is packed as it is generated.
 fn npm_pack(
     package: &Path,
     dir: &Path,
     tools: &mut BTreeMap<String, String>,
+    compile: bool,
 ) -> Result<PathBuf, String> {
     let npm = program("npm");
     let run = |program: &Path, args: &[&str]| -> Result<String, String> {
@@ -687,30 +958,9 @@ fn npm_pack(
     };
     tools.insert("node".into(), run(&program("node"), &["--version"])?);
     tools.insert("npm".into(), run(&npm, &["--version"])?);
-    run(
-        &npm,
-        &[
-            "install",
-            "--ignore-scripts",
-            "--no-audit",
-            "--no-fund",
-            "--no-save",
-            &format!("typescript@{TYPESCRIPT}"),
-        ],
-    )?;
-    // The compiler that ran, not the one asked for.
-    let installed = fs::read_to_string(package.join("node_modules/typescript/package.json"))
-        .ok()
-        .and_then(|text| serde_json::from_str::<serde_json::Value>(&text).ok())
-        .and_then(|manifest| manifest["version"].as_str().map(str::to_owned))
-        .ok_or("npm installed no TypeScript compiler")?;
-    if installed != TYPESCRIPT {
-        return Err(format!(
-            "npm installed TypeScript {installed}, not the pinned {TYPESCRIPT}"
-        ));
+    if compile {
+        npm_compile(package, &npm, &run, tools)?;
     }
-    tools.insert("typescript".into(), installed);
-    run(&npm, &["run", "build"])?;
     let packed = run(
         &npm,
         &[
@@ -735,6 +985,44 @@ fn npm_pack(
             .map_err(|error| format!("cannot remove {}: {error}", shown(&modules)))?;
     }
     Ok(dir.join(name))
+}
+
+/// Runs a program with arguments in the package directory, returning its
+/// trimmed standard output.
+type Run<'a> = dyn Fn(&Path, &[&str]) -> Result<String, String> + 'a;
+
+/// Installs the pinned TypeScript compiler and builds the package.
+fn npm_compile(
+    package: &Path,
+    npm: &Path,
+    run: &Run<'_>,
+    tools: &mut BTreeMap<String, String>,
+) -> Result<(), String> {
+    run(
+        npm,
+        &[
+            "install",
+            "--ignore-scripts",
+            "--no-audit",
+            "--no-fund",
+            "--no-save",
+            &format!("typescript@{TYPESCRIPT}"),
+        ],
+    )?;
+    // The compiler that ran, not the one asked for.
+    let installed = fs::read_to_string(package.join("node_modules/typescript/package.json"))
+        .ok()
+        .and_then(|text| serde_json::from_str::<serde_json::Value>(&text).ok())
+        .and_then(|manifest| manifest["version"].as_str().map(str::to_owned))
+        .ok_or("npm installed no TypeScript compiler")?;
+    if installed != TYPESCRIPT {
+        return Err(format!(
+            "npm installed TypeScript {installed}, not the pinned {TYPESCRIPT}"
+        ));
+    }
+    tools.insert("typescript".into(), installed);
+    run(npm, &["run", "build"])?;
+    Ok(())
 }
 
 /// Runs the SDK's consumer tests against the release, with its lockfiles

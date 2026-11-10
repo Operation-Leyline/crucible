@@ -4,6 +4,8 @@
 //! read it here, so they cannot disagree about what the file means.
 
 mod client;
+#[cfg(feature = "docs")]
+mod docs;
 mod language;
 mod parse;
 mod revision;
@@ -16,9 +18,11 @@ use std::path::{Path, PathBuf};
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 
+#[cfg(feature = "docs")]
+pub use docs::package as docs_package;
 pub use language::Language;
 pub use revision::{Pin, check_revision, pinned_revisions};
-pub use source::source;
+pub use source::{docs_source, source};
 
 /// The SDK file's name, found in a directory or its nearest parent.
 pub const FILE_NAME: &str = "crucible-sdk.toml";
@@ -37,6 +41,116 @@ pub struct SdkFile {
     pub service: Option<String>,
     /// Each `[sdk.<name>]`, by name.
     pub sdks: BTreeMap<String, Sdk>,
+    /// `[docs]`: the API reference package released beside the SDKs.
+    pub docs: Option<Docs>,
+}
+
+/// `[docs]`: the service's API reference as a package (docs/sdk-releases.md,
+/// "Release the API reference"). It holds what `crucible generate docs
+/// --sdks` writes, described at the versions the SDKs are released at, so
+/// a documentation site installs one version of it instead of regenerating
+/// the reference from the model.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Docs {
+    /// The npm package name, `@scope/name` or `name`.
+    pub package: String,
+    pub audience: crucible_ir::Audience,
+    /// Where `describe.json` carries the operations' JSON Schemas.
+    pub schemas: DocsSchemas,
+    /// Where `crucible sdk generate` writes the development export.
+    pub out: String,
+    /// The version floor, as an SDK's.
+    pub version: Option<String>,
+    pub description: Option<String>,
+    pub repository: Option<String>,
+    pub homepage: Option<String>,
+    pub license: Option<String>,
+    pub private: bool,
+    /// An npm channel; the reference is released nowhere without one.
+    pub channel: Option<Channel>,
+}
+
+/// `schemas` of `[docs]`: `crucible generate docs --schemas`.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum DocsSchemas {
+    #[default]
+    Inline,
+    Shared,
+    Omit,
+}
+
+impl DocsSchemas {
+    pub fn name(self) -> &'static str {
+        match self {
+            Self::Inline => "inline",
+            Self::Shared => "shared",
+            Self::Omit => "omit",
+        }
+    }
+}
+
+impl Docs {
+    /// The name `[docs]` takes in a release's records, messages and
+    /// `--sdk`, `--bump` and `--first-release`: no SDK may be called it.
+    pub const NAME: &'static str = "docs";
+
+    /// What a release's `crucible.json` and records name as its language.
+    pub const LANGUAGE: &'static str = "docs";
+
+    /// The version a development export carries.
+    pub const DEVELOPMENT_VERSION: &'static str = "0.0.0-dev";
+
+    /// Everything that decides what is generated and released, as
+    /// [`Sdk::effective`] gives it for an SDK.
+    pub fn effective(&self, file: &SdkFile) -> Value {
+        let mut map = serde_json::Map::new();
+        map.insert("model".into(), json!(file.model));
+        map.insert("service".into(), json!(file.service));
+        map.insert("package".into(), json!(self.package));
+        map.insert(
+            "audience".into(),
+            json!(match self.audience {
+                crucible_ir::Audience::External => "external",
+                crucible_ir::Audience::Internal => "internal",
+            }),
+        );
+        map.insert("schemas".into(), json!(self.schemas.name()));
+        map.insert("out".into(), json!(self.out));
+        map.insert("version".into(), json!(self.version));
+        map.insert("description".into(), json!(self.description));
+        map.insert("repository".into(), json!(self.repository));
+        map.insert("homepage".into(), json!(self.homepage));
+        map.insert("license".into(), json!(self.license));
+        map.insert("private".into(), json!(self.private));
+        map.insert(
+            "channel".into(),
+            match &self.channel {
+                Some(Channel::Npm {
+                    url,
+                    access,
+                    dist_tag,
+                }) => json!({"npm": url, "access": access, "dist_tag": dist_tag}),
+                _ => Value::Null,
+            },
+        );
+        // The SDKs the reference describes decide its sdks.json.
+        map.insert(
+            "sdks".into(),
+            json!(
+                crate::sdks::visible_in(file, self.audience)
+                    .iter()
+                    .map(|sdk| (sdk.name.clone(), sdk.config_sha256(file)))
+                    .collect::<BTreeMap<_, _>>()
+            ),
+        );
+        canonical(&Value::Object(map))
+    }
+
+    /// The SHA-256 of [`Docs::effective`], as [`Sdk::config_sha256`].
+    pub fn config_sha256(&self, file: &SdkFile) -> String {
+        let text = serde_json::to_string(&self.effective(file)).expect("JSON serializes");
+        crate::provenance::hex(&Sha256::digest(text.as_bytes()))
+    }
 }
 
 /// One declared SDK, with `[defaults]` applied.
@@ -268,7 +382,9 @@ impl SdkFile {
         let resolved: Vec<(&str, PathBuf)> = self
             .sdks
             .values()
-            .map(|sdk| (sdk.name.as_str(), resolve_existing(&self.join(&sdk.out))))
+            .map(|sdk| (sdk.name.as_str(), sdk.out.as_str()))
+            .chain(self.docs.iter().map(|docs| (Docs::NAME, docs.out.as_str())))
+            .map(|(name, out)| (name, resolve_existing(&self.join(out))))
             .collect();
         let key = |path: &Path| {
             path.components()
@@ -340,6 +456,30 @@ impl SdkFile {
             .collect()
     }
 
+    /// What `names` select of the file's SDKs and its `[docs]` reference
+    /// ([`Docs::NAME`]): everything when `names` is empty. With `[docs]`
+    /// declared, `docs` alone selects the reference and no SDK.
+    pub fn selection(&self, names: &[String]) -> Result<(Vec<&Sdk>, Option<&Docs>), String> {
+        let Some(docs) = &self.docs else {
+            return Ok((self.select(names)?, None));
+        };
+        if names.is_empty() {
+            return Ok((self.select(names)?, Some(docs)));
+        }
+        let sdks: Vec<String> = names
+            .iter()
+            .filter(|name| *name != Docs::NAME)
+            .cloned()
+            .collect();
+        let selected = names.len() != sdks.len();
+        let sdks = if sdks.is_empty() {
+            Vec::new()
+        } else {
+            self.select(&sdks)?
+        };
+        Ok((sdks, selected.then_some(docs)))
+    }
+
     /// The whole file's effective configuration, as `crucible sdk config
     /// --json` prints it: every SDK's, with its digest.
     pub fn to_json(&self) -> Value {
@@ -361,6 +501,14 @@ impl SdkFile {
             "model": self.model,
             "service": self.service,
             "sdks": sdks,
+            "docs": self.docs.as_ref().map(|docs| {
+                let mut effective = docs.effective(self);
+                effective
+                    .as_object_mut()
+                    .expect("the reference's configuration is an object")
+                    .insert("config_sha256".into(), json!(docs.config_sha256(self)));
+                effective
+            }),
         })
     }
 }

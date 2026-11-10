@@ -132,9 +132,14 @@ fn sdk_file(file: Option<PathBuf>, names: &[String]) -> Result<SdkFile, String> 
     let path = sdk_path(file)?;
     // The whole file is checked; only the selected SDKs' environment is read.
     let mut file = sdk::load(&path).map_err(|errors| errors.to_string())?;
-    file.select(names)?;
-    file.resolve_endpoints(names, |name| std::env::var(name).ok())
-        .map_err(|errors| errors.to_string())?;
+    let (selected, _) = file.selection(names)?;
+    // The reference names an endpoint's variable and never reads it, so
+    // `docs` alone reads no environment.
+    let selected: Vec<String> = selected.iter().map(|sdk| sdk.name.clone()).collect();
+    if names.is_empty() || !selected.is_empty() {
+        file.resolve_endpoints(&selected, |name| std::env::var(name).ok())
+            .map_err(|errors| errors.to_string())?;
+    }
     Ok(file)
 }
 
@@ -179,14 +184,17 @@ fn sdk_path(file: Option<PathBuf>) -> Result<PathBuf, String> {
 }
 
 fn config(file: &SdkFile, names: &[String], json: bool) -> Result<(), String> {
-    let selected = file.select(names)?;
+    let (selected, docs) = file.selection(names)?;
     if json {
         let mut value = file.to_json();
         if !names.is_empty() {
             let sdks = value["sdks"]
                 .as_object_mut()
                 .expect("the configuration lists its SDKs");
-            sdks.retain(|name, _| names.contains(name));
+            sdks.retain(|name, _| selected.iter().any(|sdk| sdk.name == *name));
+            if docs.is_none() {
+                value["docs"] = serde_json::Value::Null;
+            }
         }
         println!(
             "{}",
@@ -223,6 +231,26 @@ fn config(file: &SdkFile, names: &[String], json: bool) -> Result<(), String> {
             }
         }
         rows.insert("config_sha256".into(), sdk.config_sha256(file));
+        let width = rows.keys().map(|key| key.len()).max().unwrap_or(0);
+        for (key, value) in rows {
+            println!("  {key:width$}  {value}");
+        }
+    }
+    if let Some(docs) = docs {
+        println!();
+        println!("[docs] API reference");
+        let mut rows: BTreeMap<String, String> = BTreeMap::new();
+        for (key, value) in docs.effective(file).as_object().expect("an object") {
+            let text = match value {
+                serde_json::Value::String(text) => text.clone(),
+                serde_json::Value::Null => continue,
+                other => other.to_string(),
+            };
+            if !matches!(key.as_str(), "model" | "service") {
+                rows.insert(key.clone(), text);
+            }
+        }
+        rows.insert("config_sha256".into(), docs.config_sha256(file));
         let width = rows.keys().map(|key| key.len()).max().unwrap_or(0);
         for (key, value) in rows {
             println!("  {key:width$}  {value}");
@@ -269,7 +297,7 @@ fn describe(file: &SdkFile, names: &[String], out: Option<&Path>) -> Result<(), 
 }
 
 fn generate(file: &SdkFile, names: &[String]) -> Result<(), String> {
-    let selected = file.select(names)?;
+    let (selected, docs) = file.selection(names)?;
     let full = lower(file)?;
     for sdk in selected {
         if !sdk.takes_metadata() && has_common_keys(sdk) {
@@ -304,6 +332,27 @@ fn generate(file: &SdkFile, names: &[String]) -> Result<(), String> {
             files.len(),
             sdk.out
         );
+    }
+    if let Some(docs) = docs {
+        // A development export names no SDK release: versions are a
+        // release's to choose.
+        let stamp = crucible_codegen::provenance::Stamp {
+            config_sha256: Some(docs.config_sha256(file)),
+            source: None,
+        };
+        let files = sdk::docs_package(
+            file,
+            docs,
+            &full,
+            None,
+            &crucible_codegen::sdks::Versions::new(),
+            &stamp,
+        )?;
+        file.check_outs()?;
+        let out = file.join(&docs.out);
+        crucible_codegen::write(&out, &files)
+            .map_err(|error| format!("cannot write {}: {error}", out.display()))?;
+        println!("docs: wrote {} files to {}", files.len(), docs.out);
     }
     Ok(())
 }

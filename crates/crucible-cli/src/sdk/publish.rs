@@ -62,7 +62,8 @@ fn records(release: &Path) -> Result<(PlanRecord, ReleaseRecord), String> {
 /// `crucible sdk verify`: checks `plan.json` and re-hashes every artifact
 /// against `release.json`.
 pub(crate) fn verify(release: &Path) -> Result<(), String> {
-    let (_, record) = records(release)?;
+    let (plan, record) = records(release)?;
+    let label = |name: &String| label(name, plan.sdks.get(name));
     let problems: Vec<String> = record
         .sdks
         .iter()
@@ -71,7 +72,7 @@ pub(crate) fn verify(release: &Path) -> Result<(), String> {
                 .artifact
                 .verify(release)
                 .err()
-                .map(|error| format!("sdk.{name}: {error}"))
+                .map(|error| format!("{}: {error}", label(name)))
         })
         .collect();
     if !problems.is_empty() {
@@ -79,7 +80,8 @@ pub(crate) fn verify(release: &Path) -> Result<(), String> {
     }
     for (name, built) in &record.sdks {
         println!(
-            "sdk.{name} {}: {} ({} bytes, sha256 {})",
+            "{} {}: {} ({} bytes, sha256 {})",
+            label(name),
             built.version.as_deref().unwrap_or("unversioned"),
             built.artifact.path,
             built.artifact.size,
@@ -88,6 +90,31 @@ pub(crate) fn verify(release: &Path) -> Result<(), String> {
     }
     println!("verified {PLAN_FILE} and {} artifact(s)", record.sdks.len());
     Ok(())
+}
+
+/// `language` of the `[docs]` release in `plan.json`: the API reference.
+const DOCS_LANGUAGE: &str = "docs";
+
+/// The order a release is published in: each SDK by name, then the
+/// reference, whose install steps name the SDK versions before it.
+fn publish_order<'a>(plan: &PlanRecord, record: &'a ReleaseRecord) -> Vec<&'a String> {
+    let is_docs = |name: &&String| {
+        plan.sdks
+            .get(*name)
+            .is_some_and(|plan| plan.language == DOCS_LANGUAGE)
+    };
+    let (docs, sdks): (Vec<_>, Vec<_>) = record.sdks.keys().partition(is_docs);
+    sdks.into_iter().chain(docs).collect()
+}
+
+/// How messages name a released unit: `sdk.<name>`, or `docs` for the
+/// reference.
+fn label(name: &str, plan: Option<&SdkPlan>) -> String {
+    if plan.is_some_and(|plan| plan.language == DOCS_LANGUAGE) {
+        name.to_owned()
+    } else {
+        format!("sdk.{name}")
+    }
 }
 
 /// `crucible sdk publish`: for each released SDK, checks the channel,
@@ -107,11 +134,25 @@ pub(crate) fn publish(release: &Path, names: &[String], execute: bool) -> Result
     let mut journal = Journal::load(&release).map_err(|error| error.to_string())?;
     let mut released = 0;
     let mut errors = Vec::new();
-    for (name, built) in &record.sdks {
+    // The reference (`[docs]`) goes last: its install steps name the SDK
+    // versions this release publishes, so it must not be on its channel
+    // before they are.
+    let is_docs = |name: &String| plan.sdks[name].language == DOCS_LANGUAGE;
+    for name in publish_order(&plan, &record) {
+        let built = &record.sdks[name];
         if !names.is_empty() && !names.contains(name) {
             continue;
         }
         let planned = &plan.sdks[name];
+        if is_docs(name) && !errors.is_empty() {
+            let error = format!(
+                "{name}: not published: it describes the SDK releases above, and {} failed; publish again once they are on their channels",
+                errors.len()
+            );
+            eprintln!("error: {error}");
+            errors.push(error);
+            continue;
+        }
         match publish_sdk(name, planned, built, &release, &project, &mut journal, mode) {
             Ok(true) => released += 1,
             Ok(false) => {}
@@ -147,17 +188,19 @@ fn publish_sdk(
     journal: &mut Journal,
     mode: Mode,
 ) -> Result<bool, String> {
+    // What messages call it; the journal and records keep its name.
+    let unit = label(name, Some(planned));
     let (Some(config), true) = (&planned.channel, planned.releases()) else {
-        println!("sdk.{name}: no channel; built and tested only");
+        println!("{unit}: no channel; built and tested only");
         return Ok(false);
     };
     let text = built
         .version
         .as_deref()
-        .ok_or_else(|| format!("sdk.{name}: a released SDK has no version"))?;
-    let version = Version::parse(text).map_err(|error| format!("sdk.{name}: {text:?}: {error}"))?;
-    let channel = crucible_sdk_release::open(config, project)
-        .map_err(|error| format!("sdk.{name}: {error}"))?;
+        .ok_or_else(|| format!("{unit}: a released SDK has no version"))?;
+    let version = Version::parse(text).map_err(|error| format!("{unit}: {text:?}: {error}"))?;
+    let channel =
+        crucible_sdk_release::open(config, project).map_err(|error| format!("{unit}: {error}"))?;
     let item = PublishItem {
         sdk: name.to_owned(),
         version,
@@ -168,7 +211,7 @@ fn publish_sdk(
         artifact: built
             .artifact
             .locate(release)
-            .map_err(|error| format!("sdk.{name}: {error}"))?,
+            .map_err(|error| format!("{unit}: {error}"))?,
         artifact_sha256: Some(built.artifact.sha256.clone()),
         source_commit: planned.source_commit.clone(),
         package: planned.package.clone(),
@@ -176,20 +219,20 @@ fn publish_sdk(
     let step =
         publish_one(&*channel, &item, release, journal, mode).map_err(|error| match error {
             // The other errors name their SDK already.
-            PublishError::Channel(error) => format!("sdk.{name}: {error}"),
+            PublishError::Channel(error) => format!("{unit}: {error}"),
             other => other.to_string(),
         })?;
     Ok(match step {
         Step::Journaled(upload) => {
             println!(
-                "sdk.{name} {}: already done ({})",
+                "{unit} {}: already done ({})",
                 upload.version, upload.detail
             );
             false
         }
         Step::AlreadyPublished { notes } => {
             println!(
-                "sdk.{name} {}: already on {} with the same bytes",
+                "{unit} {}: already on {} with the same bytes",
                 item.version,
                 channel.describe()
             );
@@ -199,15 +242,44 @@ fn publish_sdk(
             false
         }
         Step::Published(outcome) => {
-            println!("sdk.{name} {}: {}", item.version, outcome.detail);
+            println!("{unit} {}: {}", item.version, outcome.detail);
             true
         }
         Step::WouldPublish(lines) => {
-            println!("sdk.{name} {} to {}:", item.version, channel.describe());
+            println!("{unit} {} to {}:", item.version, channel.describe());
             for line in lines {
                 println!("  {line}");
             }
             false
         }
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use crucible_sdk_release::record::{PlanRecord, ReleaseRecord};
+    use serde_json::json;
+
+    use super::publish_order;
+
+    /// The reference names the SDK versions a release publishes, so it is
+    /// uploaded after every SDK, wherever its name sorts.
+    #[test]
+    fn the_reference_is_published_after_every_sdk() {
+        let plan = |language: &str| json!({"language": language, "config": {}, "configSha256": ""});
+        let built = json!({"channel": true, "reasons": [], "configSha256": "",
+            "artifact": {"path": "x", "sha256": "", "size": 0}});
+        let plan: PlanRecord = serde_json::from_value(json!({
+            "schemaVersion": 1, "sdkFile": "crucible-sdk.toml",
+            "generator": {"version": "0", "changes": 0},
+            "sdks": {"docs": plan("docs"), "a": plan("ts"), "rust": plan("rust")},
+        }))
+        .unwrap();
+        let record: ReleaseRecord = serde_json::from_value(json!({
+            "schemaVersion": 1,
+            "sdks": {"docs": built, "a": built, "rust": built},
+        }))
+        .unwrap();
+        assert_eq!(publish_order(&plan, &record), ["a", "rust", "docs"]);
+    }
 }

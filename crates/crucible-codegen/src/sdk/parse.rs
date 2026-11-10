@@ -9,11 +9,33 @@ use toml::{Table, Value};
 
 use super::language::LANGUAGE_KEYS;
 use super::{
-    Channel, Endpoint, Errors, Language, LanguageOptions, Metadata, Provenance, Runtime, Sdk,
-    SdkFile,
+    Channel, Docs, DocsSchemas, Endpoint, Errors, Language, LanguageOptions, Metadata, Provenance,
+    Runtime, Sdk, SdkFile,
 };
 
-const TOP_KEYS: &[&str] = &["schema_version", "model", "service", "defaults", "sdk"];
+const TOP_KEYS: &[&str] = &[
+    "schema_version",
+    "model",
+    "service",
+    "defaults",
+    "sdk",
+    "docs",
+];
+
+/// `[docs]`'s own keys; of the common keys it takes [`DOCS_COMMON_KEYS`].
+const DOCS_KEYS: &[&str] = &[
+    "package", "audience", "schemas", "out", "version", "channel",
+];
+
+/// The common keys a reference package has a use for. The others describe
+/// a client package (a README it ships, its authors, its keywords).
+const DOCS_COMMON_KEYS: &[&str] = &[
+    "description",
+    "repository",
+    "homepage",
+    "license",
+    "private",
+];
 
 /// The common keys: `[defaults]` holds only these, and every SDK takes them.
 pub(crate) const COMMON_KEYS: &[&str] = &[
@@ -190,23 +212,46 @@ pub(super) fn parse(path: &Path, text: &str) -> Result<SdkFile, Errors> {
         Some(_) => context.error("sdk", "must hold [sdk.<name>] tables"),
         None => {}
     }
-    // Two SDKs writing one directory, or one inside the other, would fight
-    // over its files: refused before anything is written.
-    let outs: Vec<(String, &str)> = sdks
+    let docs = match table.get("docs") {
+        Some(Value::Table(table)) => docs(&mut context, table, &defaults),
+        Some(_) => {
+            context.error("docs", "must be a table");
+            None
+        }
+        None => None,
+    };
+    // A release records the reference under this name, beside the SDKs.
+    if table.contains_key("docs") && sdks.contains_key(Docs::NAME) {
+        context.error(
+            "sdk.docs",
+            "`docs` names the [docs] release; call this SDK something else",
+        );
+    }
+    // Two outputs writing one directory, or one inside the other, would
+    // fight over its files: refused before anything is written.
+    let outs: Vec<(String, String, &str)> = sdks
         .iter()
-        .map(|(name, sdk)| (out_key(&sdk.out), name.as_str()))
+        .map(|(name, sdk)| (out_key(&sdk.out), format!("sdk.{name}"), sdk.out.as_str()))
+        .chain(
+            docs.iter()
+                .map(|docs| (out_key(&docs.out), Docs::NAME.to_owned(), docs.out.as_str())),
+        )
         .collect();
-    for (index, (key, name)) in outs.iter().enumerate() {
-        for (other_key, other) in &outs[..index] {
+    for (index, (key, name, out)) in outs.iter().enumerate() {
+        for (other_key, other, other_out) in &outs[..index] {
             let nested = |outer: &str, inner: &str| {
                 inner == outer || inner.starts_with(&format!("{outer}/"))
             };
             if nested(key, other_key) || nested(other_key, key) {
+                let each = if name == Docs::NAME || other == Docs::NAME {
+                    "each"
+                } else {
+                    "each SDK"
+                };
                 context.error(
-                    &format!("sdk.{name}.out"),
+                    &format!("{name}.out"),
                     format!(
-                        "{:?} overlaps sdk.{other}'s out {:?}; each SDK needs its own directory",
-                        sdks[*name].out, sdks[*other].out
+                        "{out:?} overlaps {other}'s out {other_out:?}; {each} needs its own directory"
                     ),
                 );
             }
@@ -220,7 +265,176 @@ pub(super) fn parse(path: &Path, text: &str) -> Result<SdkFile, Errors> {
         model: model.expect("checked"),
         service,
         sdks,
+        docs,
     })
+}
+
+/// `[docs]`: the API reference package (docs/sdk-releases.md, "Release the
+/// API reference").
+fn docs(context: &mut Context<'_>, table: &Table, defaults: &Common) -> Option<Docs> {
+    let at = |key: &str| format!("docs.{key}");
+    for key in table.keys() {
+        let key = key.as_str();
+        if COMMON_KEYS.contains(&key) && !DOCS_COMMON_KEYS.contains(&key) {
+            context.error(
+                &at(key),
+                format!("the reference package takes no `{key}`; it describes a client package"),
+            );
+        } else if !DOCS_KEYS.contains(&key) && !DOCS_COMMON_KEYS.contains(&key) {
+            context.error(&at(key), "unknown key");
+        }
+    }
+    let package = match table.get("package") {
+        Some(value) => string(context, &at("package"), value).filter(|name| {
+            let valid = npm_name(name);
+            if !valid {
+                context.error(
+                    &at("package"),
+                    format!("{name:?} is not an npm package name such as \"@scope/api-reference\""),
+                );
+            }
+            valid
+        }),
+        None => {
+            context.error(
+                "docs",
+                "set `package`: the npm package the reference is released as",
+            );
+            None
+        }
+    };
+    let audience = match table.get("audience") {
+        None => crucible_ir::Audience::External,
+        Some(value) => match string(context, &at("audience"), value).as_deref() {
+            Some("internal") => crucible_ir::Audience::Internal,
+            Some("external") | None => crucible_ir::Audience::External,
+            Some(other) => {
+                context.error(
+                    &at("audience"),
+                    format!("{other:?} is not \"external\" or \"internal\""),
+                );
+                crucible_ir::Audience::External
+            }
+        },
+    };
+    let schemas = match table.get("schemas") {
+        None => DocsSchemas::Inline,
+        Some(value) => match string(context, &at("schemas"), value).as_deref() {
+            Some("shared") => DocsSchemas::Shared,
+            Some("omit") => DocsSchemas::Omit,
+            Some("inline") | None => DocsSchemas::Inline,
+            Some(other) => {
+                context.error(
+                    &at("schemas"),
+                    format!("{other:?} is not \"inline\", \"shared\" or \"omit\""),
+                );
+                DocsSchemas::Inline
+            }
+        },
+    };
+    let out = match table.get("out") {
+        Some(value) => path_value(context, &at("out"), value),
+        None => {
+            context.error(
+                "docs",
+                "set `out`: where `crucible sdk generate` writes the package",
+            );
+            None
+        }
+    };
+    let version = table
+        .get("version")
+        .and_then(|value| string(context, &at("version"), value))
+        .filter(|version| {
+            let plain = version.split('.').count() == 3
+                && version
+                    .split('.')
+                    .all(|part| !part.is_empty() && part.bytes().all(|c| c.is_ascii_digit()));
+            if !plain {
+                context.error(
+                    &at("version"),
+                    format!("{version:?} is not a version floor such as \"0.2.0\""),
+                );
+            }
+            plain
+        });
+    let channel = table
+        .get("channel")
+        .and_then(|value| channel(context, &at("channel"), value, None))
+        .filter(|channel| {
+            let npm = matches!(channel, Channel::Npm { .. });
+            if !npm {
+                context.error(
+                    &at("channel"),
+                    "the reference is released as an npm package: name an `npm` registry",
+                );
+            }
+            npm
+        });
+    let metadata = merge(common(context, "docs", table), defaults.clone());
+    // As for an SDK: private or internal content never defaults to, or
+    // reaches, a public registry.
+    if metadata.private {
+        match &channel {
+            None if !table.contains_key("channel") => context.error(
+                &at("channel"),
+                "a private reference names its channel, so it never reaches a public registry by default",
+            ),
+            Some(channel) if channel.is_public() => context.error(
+                &at("channel"),
+                "a private reference never goes to a public registry",
+            ),
+            Some(Channel::Npm {
+                access: Some(access),
+                ..
+            }) if access == "public" => context.error(
+                &at("channel.access"),
+                "a private reference is never published with npm access \"public\"",
+            ),
+            _ => {}
+        }
+    }
+    if audience == crucible_ir::Audience::Internal
+        && channel.as_ref().is_some_and(Channel::is_public)
+    {
+        context.error(
+            &at("channel"),
+            "an internal-audience reference never goes to a public registry",
+        );
+    }
+    Some(Docs {
+        package: package?,
+        audience,
+        schemas,
+        out: out?,
+        version,
+        description: metadata.description,
+        repository: metadata.repository,
+        homepage: metadata.homepage,
+        license: metadata.license,
+        private: metadata.private,
+        channel,
+    })
+}
+
+/// An npm package name: `name` or `@scope/name`, each part lowercase
+/// letters, digits, `-`, `.` and `_`, starting with a letter or digit.
+fn npm_name(name: &str) -> bool {
+    let part = |part: &str| {
+        part.bytes()
+            .next()
+            .is_some_and(|first| first.is_ascii_lowercase() || first.is_ascii_digit())
+            && part.bytes().all(|byte| {
+                byte.is_ascii_lowercase() || byte.is_ascii_digit() || b"-._".contains(&byte)
+            })
+    };
+    name.len() <= 214
+        && match name.strip_prefix('@') {
+            Some(scoped) => scoped
+                .split_once('/')
+                .is_some_and(|(scope, name)| part(scope) && part(name)),
+            None => part(name),
+        }
 }
 
 fn sdk(context: &mut Context<'_>, name: &str, table: &Table, defaults: &Common) -> Option<Sdk> {

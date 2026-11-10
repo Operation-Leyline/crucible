@@ -114,6 +114,8 @@ channel = { git = "git@github.com:Operation-Pigeon/mailpigeon-rs.git", tag = "v{
   trailing dot).
 - **`out`** directories are distinct: two SDKs whose `out`s are the same
   directory, in any letter case, or one inside the other, are refused.
+- **`[docs]`** declares the API reference as a package released beside
+  the SDKs ([Release the API reference](#release-the-api-reference-docs)).
 
 Every error in the file is reported in one run, at its key.
 
@@ -379,6 +381,66 @@ shows how to build once, pass the selected compiler revision and release
 artifact to a later job, and publish only after the service's deployment.
 `generate` alone writes development exports; release CI uses `sdk build`,
 then `sdk verify` and `sdk publish` on that release artifact.
+
+## Release the API reference: `[docs]`
+
+A documentation site should not regenerate the reference from the model:
+it would need the model, the SDK file and the service's Crucible, and it
+could not know which SDK versions a release published. Declare the
+reference in the SDK file instead, and the release commands version and
+publish it as an npm package beside the SDKs:
+
+```toml
+[docs]
+package = "@example/weather-reference"
+schemas = "shared"
+out = "generated/docs"
+channel = { npm = "https://npm.pkg.github.com", access = "restricted" }
+```
+
+| Key | Meaning |
+|---|---|
+| `package` | The npm package name. Required |
+| `out` | Where `crucible sdk generate` writes the development export, distinct from every SDK's. Required |
+| `audience` | `external` (default) or `internal`: the reference's audience, and which SDKs it describes |
+| `schemas` | `inline` (default), `shared` or `omit`: `crucible generate docs --schemas` |
+| `version` | A floor, as an SDK's |
+| `channel` | `{ npm = "<registry>", access, dist_tag }`. Without one the reference is built and never released |
+| `description`, `repository`, `homepage`, `license`, `private` | The common keys a reference has a use for, inherited from `[defaults]`. The others describe a client package and are refused |
+
+A private reference names a channel that is not the public registry, and
+an internal one never names it, as for an SDK. With `[docs]` declared,
+`docs` is its name wherever an SDK is named: `--sdk docs` (alone it selects
+no SDK), `--first-release docs`, `--bump docs=<kind>`, and the `docs` entry
+of `plan.json` and `release.json`, whose `language` is `docs`. No SDK may
+then be called `docs`.
+
+The package holds what `crucible generate docs --sdks` writes
+([docs.md](docs.md#output-layout)) at its root, so the reference's relative
+links resolve, with `package.json`, a `README.md`, `crucible.json` and
+`crucible-model.json`. A site depends on it and reads `describe.json`,
+`sdks.json` and `changes.json` from `node_modules`.
+
+**Versions.** The reference is planned after the SDKs. Its `sdks.json`
+describes each SDK at the version this plan releases, or else at the last
+version on that SDK's channel, read even when `--sdk` leaves the SDK out;
+an SDK with no channel or no release yet is described as a development
+package. It is unchanged when, generated at its last version with those
+SDK versions, it digests the same as that release. So an SDK release is a
+reference release, a model change that reaches no SDK still is one, and a
+release that changes neither publishes no reference. Its version says only
+that it changed: it takes a patch, its floor or `--bump`, and never asks
+for a bump on a model break or a new service version.
+
+**Build and publish.** `build` generates it into `docs/package`, packs it
+with `npm pack --ignore-scripts` (there is nothing to compile, so no
+compiler is installed), and writes the release into its `out`. `publish`
+uploads it last, after every SDK, and not at all when an SDK failed: its
+install steps name those releases, so it must not reach its channel before
+they do. Publish again once they are there; the journal resumes.
+
+`crucible sdk generate` writes a development export, version `0.0.0-dev`,
+which names no SDK release.
 
 ## Release with `tools/sdk_release.py`
 
