@@ -121,7 +121,11 @@ t.to_datetime()                                          # plain datetime; drops
 A plain timezone-aware `datetime` is accepted anywhere a timestamp is sent;
 naive ones raise `TypeError`. Equality, ordering, hashing, `isoformat()`,
 `repr()`, `replace()`, `astimezone()` and `+`/`-` with a `timedelta` include the
-nanosecond; other inherited operations see the microsecond only. Model
+nanosecond; other inherited operations see the microsecond only. Equality and
+ordering compare instants, so equal instants in a repeated daylight-saving hour
+are equal. Subtracting two timestamps returns a `timedelta`, which stops at the
+microsecond, so `a - b` can be `timedelta(0)` while `a != b`; use
+`a.nanoseconds_since(b)` for the exact difference in nanoseconds. Model
 annotations stay `datetime` so existing callers type-check; use
 `Timestamp.from_datetime` or `isinstance` to reach `nanosecond`. `date-time`
 text is written in UTC with the fraction trimmed of trailing zeros (up to nine

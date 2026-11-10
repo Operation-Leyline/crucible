@@ -26,4 +26,4 @@ Models/WidgetError.cs: /// Raised by <see cref="global::Hostile.LinksClient.GetW
 Optional.cs: /// <param name="value">The value; null becomes an explicit null.</param>
 Timestamp.cs: /// <summary>Reads an RFC 3339 <c>date-time</c> with up to nine fractional digits. Text without an offset is UTC.</summary>
 Timestamp.cs: /// <param name="text">The text, such as <c>2026-03-04T05:06:07.123456789Z</c>.</param>
-Timestamp.cs: /// <exception cref="FormatException">The text is not a valid date-time, or its fraction has a nonzero digit past the ninth.</exception>
+Timestamp.cs: /// <exception cref="FormatException">The text is not a valid date-time, its UTC instant is outside years 0000 through 9999, or its fraction has a nonzero digit past the ninth.</exception>

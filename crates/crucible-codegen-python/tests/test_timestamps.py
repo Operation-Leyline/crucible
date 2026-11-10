@@ -3,7 +3,7 @@ import copy
 import json
 import pickle
 import unittest
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta, timezone, tzinfo
 from decimal import Decimal
 
 import httpx
@@ -31,6 +31,20 @@ def read_city(body: str):
 def city_body(**members):
     extra = "".join(f',"{k}":{v}' for k, v in members.items())
     return '{"city":{"id":"c-0a1b2c3d","name":"Oslo"' + extra + "}}"
+
+
+class _NewYork(tzinfo):
+    """US Eastern on 2026-11-01: 01:00-02:00 happens twice, fold 0 in EDT and fold 1 in EST."""
+    def utcoffset(self, dt):
+        if dt.hour == 0 or dt.hour == 1 and not dt.fold:
+            return timedelta(hours=-4)
+        return timedelta(hours=-5)
+
+    def dst(self, dt):
+        return timedelta(0)
+
+    def tzname(self, dt):
+        return "NY"
 
 
 class DateTimeRoundTrip(unittest.TestCase):
@@ -201,6 +215,37 @@ class TimestampType(unittest.TestCase):
         with self.assertRaises(TypeError):
             a < datetime(2026, 10, 1)
 
+    def test_an_offset_cannot_carry_the_instant_out_of_range(self):
+        for text in ("0001-01-01T00:00:00+01:00", "9999-12-31T23:59:59-01:00"):
+            with self.subTest(text=text), self.assertRaises(ValueError):
+                Timestamp.parse(text)
+        edge = Timestamp.parse("0001-01-01T01:00:00+01:00")
+        self.assertEqual(_timestamp(edge, "date-time", False), "0001-01-01T00:00:00Z")
+
+    def test_equal_instants_in_a_repeated_hour_are_neither_greater(self):
+        utc = Timestamp.parse("2026-11-01T05:30:00.123456789Z")
+        first = Timestamp(2026, 11, 1, 1, 30, 0, 123456, _NewYork(), nanosecond=789, fold=0)
+        second = Timestamp(2026, 11, 1, 1, 30, 0, 123456, _NewYork(), nanosecond=789, fold=1)
+        for a, b in ((utc, first), (first, utc)):
+            with self.subTest(a=a, b=b):
+                self.assertTrue(a == b and a <= b and a >= b)
+                self.assertFalse(a < b or a > b or a != b)
+        self.assertEqual(hash(utc), hash(first))
+        # The same wall-clock time an hour later is a different instant.
+        self.assertTrue(second > utc and utc < second and second != first)
+        self.assertEqual(second.nanoseconds_since(utc), 3600 * 10 ** 9)
+
+    def test_difference_drops_the_nanosecond_but_nanoseconds_since_is_exact(self):
+        a = Timestamp(2026, 10, 1, 12, 30, 0, 5, nanosecond=2)
+        b = Timestamp(2026, 10, 1, 12, 30, 0, 5, nanosecond=1)
+        self.assertEqual(a - b, timedelta(0))
+        self.assertNotEqual(a, b)
+        self.assertEqual(a.nanoseconds_since(b), 1)
+        self.assertEqual(b.nanoseconds_since(a), -1)
+        self.assertEqual(a.nanoseconds_since(datetime(2026, 10, 1, 12, 30, 0, 4, tzinfo=UTC)), 1002)
+        with self.assertRaises(TypeError):
+            a.nanoseconds_since(datetime(2026, 10, 1))
+
     def test_text_forms(self):
         value = Timestamp(2026, 10, 1, 12, 30, 0, 123456, nanosecond=789)
         self.assertEqual(value.isoformat(), "2026-10-01T12:30:00.123456789+00:00")
@@ -247,6 +292,14 @@ class NonFiniteFloats(unittest.TestCase):
                 codec.convert("example#Number", text, decode=True, strict=True)
         self.assertEqual(codec.read_header({"target": "example#Number"}, "1.5"), 1.5)
         self.assertEqual(codec.bound({"target": "example#Number"}, 1.5), "1.5")
+
+    def test_a_response_number_must_be_finite_after_conversion(self):
+        codec = _Codec({"shapes": {"example#Number": {"kind": "double"}}}, {})
+        # 1e999 is finite as a Decimal and overflows as a float; NaN and Infinity are JSON constants json.loads accepts.
+        for text in ("1e999", "-1e999", "NaN", "Infinity", "-Infinity"):
+            with self.subTest(text=text), self.assertRaises(ValueError):
+                codec.convert("example#Number", json.loads(text, parse_float=Decimal), decode=True)
+        self.assertEqual(codec.convert("example#Number", json.loads("1.5e3", parse_float=Decimal), decode=True), 1500.0)
 
 
 if __name__ == "__main__":

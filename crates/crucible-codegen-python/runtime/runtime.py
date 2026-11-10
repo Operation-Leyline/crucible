@@ -344,8 +344,12 @@ class _Codec:
             if isinstance(value, bool) or not isinstance(value, int) or not -(2 ** (bits - 1)) <= value < 2 ** (bits - 1):
                 raise ValueError(f"{kind} requires a signed {bits}-bit integer")
         if kind in ("float", "double"):
-            if isinstance(value, Decimal):
-                return float(value)
+            number = float(value) if isinstance(value, Decimal) else value
+            # The wire has no non-finite number: not the JSON constants NaN and Infinity, and not
+            # a literal such as 1e999 that is finite as a Decimal and overflows as a float.
+            if isinstance(number, float) and not math.isfinite(number):
+                raise ValueError("a non-finite float is not a wire value")
+            return number
         return value
 
     def members(self, shape: dict[str, Any], value: Any, *, decode: bool,

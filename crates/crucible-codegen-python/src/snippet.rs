@@ -63,6 +63,21 @@ fn expr(
             format!("{}({text})", qualified(node.target))
         }
         Kind::Number { kind, text } => number(*kind, text, imports),
+        // Below the microsecond `datetime` cannot hold the instant; the package's own type does.
+        Kind::Timestamp(instant) if instant.nanos % 1000 != 0 => {
+            if instant.calendar() {
+                format!(
+                    "{}.Timestamp.parse({})",
+                    options.module_name,
+                    literal(&instant.rfc3339)
+                )
+            } else {
+                format!(
+                    "{}.Timestamp.from_seconds({}, {})",
+                    options.module_name, instant.seconds, instant.nanos
+                )
+            }
+        }
         Kind::Timestamp(instant) => {
             imports.0.insert("from datetime import datetime, timezone");
             datetime(instant)
@@ -155,8 +170,7 @@ fn number(kind: SimpleKind, text: &str, imports: &mut Imports) -> String {
     }
 }
 
-/// An aware `datetime` in UTC. Python keeps microseconds: finer digits of
-/// the instant are dropped.
+/// An aware `datetime` in UTC, for an instant of whole microseconds.
 fn datetime(instant: &Timestamp) -> String {
     let parts = instant
         .rfc3339

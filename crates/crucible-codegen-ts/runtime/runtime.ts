@@ -141,6 +141,9 @@ function parseRfc3339(text: string): { millis: number; nanos: number } | undefin
   }
   const millis = date.getTime() - offset * 60_000;
   if (Number.isNaN(millis) || Math.abs(millis) > 8.64e15) throw new TypeError(`not a timestamp: ${text}`);
+  // The offset can carry the UTC instant out of 0000..9999, which the wire writes no year for.
+  const utcYear = new Date(millis).getUTCFullYear();
+  if (utcYear < 0 || utcYear > 9999) throw new TypeError(`timestamp outside years 0000 through 9999 in UTC: ${text}`);
   return { millis, nanos: Number(fraction.slice(3)) };
 }
 

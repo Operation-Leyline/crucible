@@ -65,7 +65,7 @@ public readonly struct Timestamp : IEquatable<Timestamp>, IComparable<Timestamp>
     /// <summary>Reads an RFC 3339 <c>date-time</c> with up to nine fractional digits. Text without an offset is UTC.</summary>
     /// <param name="text">The text, such as <c>2026-03-04T05:06:07.123456789Z</c>.</param>
     /// <returns>The timestamp.</returns>
-    /// <exception cref="FormatException">The text is not a valid date-time, or its fraction has a nonzero digit past the ninth.</exception>
+    /// <exception cref="FormatException">The text is not a valid date-time, its UTC instant is outside years 0000 through 9999, or its fraction has a nonzero digit past the ninth.</exception>
     public static Timestamp Parse(string text)
     {
         ArgumentNullException.ThrowIfNull(text);
@@ -85,7 +85,10 @@ public readonly struct Timestamp : IEquatable<Timestamp>, IComparable<Timestamp>
             if (offsetHours > 23 || offsetMinutes > 59) throw new FormatException("Invalid date-time offset");
             offset = (offsetHours * 3600L + offsetMinutes * 60L) * (match.Groups[9].Value == "-" ? -1 : 1);
         }
-        return new Timestamp(DaysFromCivil(year, month, day) * 86400 + hour * 3600 + minute * 60 + second - offset, nanoseconds);
+        var seconds = DaysFromCivil(year, month, day) * 86400 + hour * 3600 + minute * 60 + second - offset;
+        // The offset can carry the UTC instant out of years 0000 through 9999, which the wire has no text for.
+        if (seconds < MinTextSeconds || seconds > MaxTextSeconds) throw new FormatException("Text timestamps require years 0000 through 9999 in UTC");
+        return new Timestamp(seconds, nanoseconds);
     }
 
     /// <summary>Reads epoch seconds as an exact decimal, never through a binary float.</summary>

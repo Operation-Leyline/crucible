@@ -68,6 +68,16 @@ version's section when it is prepared.
   and `"-Infinity"` for a float or double: the wire format has no non-finite
   number. The Python client refuses to send one. Go and C++ documentation
   snippets no longer have a non-finite case, which no model could reach.
+  The Python client also refuses a response number that overflows a double
+  (`1e999`) and the JSON constants `NaN` and `Infinity`.
+- TypeScript, Python and C# clients refuse a `date-time` whose offset carries
+  the UTC instant outside the years they can write back (0000 to 9999; 1 to
+  9999 in Python) instead of decoding a value that fails on re-encode.
+- Python client: `Timestamp` orders and compares by instant, so equal instants
+  in a repeated daylight-saving hour are equal. `a - b` still drops the
+  nanosecond (a `timedelta` cannot hold it); `a.nanoseconds_since(b)` returns
+  the exact difference. The documentation snippet for a timestamp finer than a
+  microsecond uses `Timestamp`, not a truncated `datetime`.
 
 ### Migration
 

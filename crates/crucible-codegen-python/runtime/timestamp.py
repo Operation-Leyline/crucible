@@ -124,7 +124,13 @@ class Timestamp(datetime):
                 raise ValueError("invalid date-time offset")
             offset = timedelta(hours=offset_hours, minutes=offset_minutes)
             zone = timezone(-offset if match.group(9) == "-" else offset)
-        return cls(year, month, day, hour, minute, second, int(digits[:6]), zone, nanosecond=int(digits[6:]))
+        parsed = cls(year, month, day, hour, minute, second, int(digits[:6]), zone, nanosecond=int(digits[6:]))
+        # The offset can carry the UTC instant out of years 1 through 9999, which cannot be written back.
+        try:
+            _EPOCH + timedelta(seconds=parsed._parts()[0])
+        except OverflowError:
+            raise ValueError("timestamp outside years 1 through 9999 in UTC") from None
+        return parsed
 
     @property
     def nanosecond(self) -> int:
@@ -181,23 +187,42 @@ class Timestamp(datetime):
     __radd__ = __add__
 
     def __sub__(self, other: Any) -> Any:
+        """``timedelta`` stops at the microsecond, so a difference of two timestamps drops the nanosecond
+        (``a - b`` can be ``timedelta(0)`` while ``a != b``). Use ``nanoseconds_since`` for the exact difference."""
         result = datetime.__sub__(self.to_datetime(), other.to_datetime() if isinstance(other, Timestamp) else other)
         return self._carry(result) if isinstance(result, datetime) else result
+
+    def nanoseconds_since(self, other: datetime) -> int:
+        """The exact difference ``self - other`` in whole nanoseconds, negative when ``other`` is later."""
+        mine, theirs = self._instant(), _instant(other)
+        if mine is None or theirs is None:
+            raise TypeError("can't subtract offset-naive and offset-aware datetimes")
+        return (mine[0] - theirs[0]) * _BILLION + mine[1] - theirs[1]
+
+    def _instant(self) -> tuple[int, int] | None:
+        """(seconds, nanoseconds) since the epoch from the UTC offset, so an ambiguous local time
+        (the repeated hour when clocks go back) is still one instant. None when naive."""
+        return _instant(self)
 
     def _order(self, other: Any) -> int | None:
         if not isinstance(other, datetime):
             return None
-        mine, theirs = self.to_datetime(), other.to_datetime() if isinstance(other, Timestamp) else other
-        if datetime.__eq__(mine, theirs):
-            difference = self._nanosecond - getattr(other, "_nanosecond", 0)
-            return (difference > 0) - (difference < 0)
-        return -1 if datetime.__lt__(mine, theirs) else 1
+        mine, theirs = self._instant(), _instant(other)
+        if mine is None and theirs is None:
+            # Both naive: wall-clock order, as datetime has it.
+            left, right = _naive_key(self), _naive_key(other)
+            return (left > right) - (left < right)
+        if mine is None or theirs is None:
+            raise TypeError("can't compare offset-naive and offset-aware datetimes")
+        return (mine > theirs) - (mine < theirs)
 
     def __eq__(self, other: object) -> bool:
         if not isinstance(other, datetime):
             return NotImplemented
-        mine, theirs = self.to_datetime(), other.to_datetime() if isinstance(other, Timestamp) else other
-        return bool(datetime.__eq__(mine, theirs)) and self._nanosecond == getattr(other, "_nanosecond", 0)
+        mine, theirs = self._instant(), _instant(other)
+        if mine is None or theirs is None:
+            return mine is None and theirs is None and _naive_key(self) == _naive_key(other)
+        return mine == theirs
 
     def __ne__(self, other: object) -> bool:
         result = self.__eq__(other)
@@ -220,7 +245,16 @@ class Timestamp(datetime):
         return NotImplemented if order is None else order >= 0
 
     def __hash__(self) -> int:
-        base = datetime.__hash__(self.to_datetime())
+        instant = self._instant()
+        if instant is None:
+            base = datetime.__hash__(self.to_datetime())
+        else:
+            # Equal instants hash alike in any zone, repeated hour included; a plain datetime's hash agrees.
+            try:
+                utc = _EPOCH + timedelta(seconds=instant[0], microseconds=instant[1] // 1000)
+            except OverflowError:  # the UTC instant falls outside years 1 through 9999
+                return hash(instant)
+            base = datetime.__hash__(utc)
         return hash((base, self._nanosecond)) if self._nanosecond else base
 
     def isoformat(self, sep: str = "T", timespec: str = "auto") -> str:
@@ -240,6 +274,20 @@ class Timestamp(datetime):
 
     def __reduce__(self) -> Any:
         return self.__reduce_ex__(4)
+
+
+def _instant(value: datetime) -> tuple[int, int] | None:
+    """(seconds, nanoseconds) since the epoch of an aware datetime, taken from its UTC offset; None if naive."""
+    if value.tzinfo is None or value.utcoffset() is None:
+        return None
+    delta = datetime.__sub__(value, _EPOCH)
+    return (delta.days * 86400 + delta.seconds,
+            delta.microseconds * 1000 + getattr(value, "_nanosecond", 0))
+
+
+def _naive_key(value: datetime) -> tuple[int, ...]:
+    return (value.year, value.month, value.day, value.hour, value.minute, value.second,
+            value.microsecond, getattr(value, "_nanosecond", 0))
 
 
 def _unpickle(year: int, month: int, day: int, hour: int, minute: int, second: int, microsecond: int,

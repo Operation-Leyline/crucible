@@ -156,6 +156,15 @@ test("text finer than a nanosecond or not an instant is a TypeError", () => {
   assert.equal(fromWire(dateTime, "2026-10-01T12:30:00.000Z") instanceof PreciseDate, true);
 });
 
+test("an offset that carries the UTC instant outside years 0000 to 9999 is refused", () => {
+  assert.throws(() => PreciseDate.fromRfc3339("0000-01-01T00:00:00+01:00"), /outside years 0000 through 9999/);
+  assert.throws(() => fromWire(dateTime, "9999-12-31T23:59:59-01:00"), /outside years 0000 through 9999/);
+  // The edges themselves are still instants the wire writes.
+  assert.equal(PreciseDate.fromRfc3339("0000-01-01T00:00:00Z").toISOString(), "0000-01-01T00:00:00.000Z");
+  assert.equal(PreciseDate.fromRfc3339("0000-01-01T01:00:00+01:00").toISOString(), "0000-01-01T00:00:00.000Z");
+  assert.equal(PreciseDate.fromRfc3339("9999-12-31T23:59:59-00:00").toISOString(), "9999-12-31T23:59:59.000Z");
+});
+
 test("PreciseDate is a Date and a plain Date is still accepted wherever a timestamp is", () => {
   const value = PreciseDate.fromEpochNanos(1790857800_123456789n);
   assert.ok(value instanceof Date);

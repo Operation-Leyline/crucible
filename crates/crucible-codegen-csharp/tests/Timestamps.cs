@@ -76,6 +76,10 @@ static class Program
         Check(Timestamp.Parse("9999-12-31T23:59:59.999999999Z").ToString() == "9999-12-31T23:59:59.999999999Z", "last instant");
         foreach (var bad in new[] { "2026-03-04T05:06:07.1234567891Z", "2026-02-30T00:00:00Z", "2026-03-04T05:06:60Z", "2026-03-04", "2026-03-04T05:06:07.Z", "x", "" })
             Throws<FormatException>(() => Timestamp.Parse(bad), "invalid date-time accepted: " + bad);
+        // An offset can carry the UTC instant out of years 0000 through 9999; the wire has no text for it.
+        foreach (var bad in new[] { "0000-01-01T00:00:00+01:00", "9999-12-31T23:59:59-01:00" })
+            Throws<FormatException>(() => Timestamp.Parse(bad), "out-of-range UTC instant accepted: " + bad);
+        Check(Timestamp.Parse("0000-01-01T01:00:00+01:00").ToString() == "0000-01-01T00:00:00Z", "offset that stays in range");
         foreach (var bad in new[] { "1.0000000001", "1e-10" })
             Throws<FormatException>(() => Timestamp.FromEpoch(new BigDecimal(bad)), "epoch finer than a nanosecond accepted: " + bad);
         Throws<OverflowException>(() => Timestamp.FromEpoch(new BigDecimal("1e400")), "epoch out of range accepted");

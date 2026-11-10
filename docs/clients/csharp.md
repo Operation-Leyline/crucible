@@ -156,8 +156,9 @@ wire value. Converting a `DateTimeOffset` to `Timestamp` is implicit and exact
 dropped toward the past, and it throws `OverflowException` outside years 1
 through 9999. `Timestamp.Parse` reads RFC 3339 (up to nine fractional digits; no
 offset means UTC), `Timestamp.FromEpoch(BigDecimal)` and `ToEpoch()` use exact
-decimals, `ToString()` writes the trimmed `date-time` form, and the struct
-orders and compares as an instant. Digits finer than a nanosecond raise
+decimals, `ToString()` writes the trimmed `date-time` form for years 0000
+through 9999 and epoch seconds (`seconds.nanoseconds`) for any other instant,
+and the struct orders and compares as an instant. Digits finer than a nanosecond raise
 `FormatException`. `date-time` years run from 0000 to 9999. The runtime uses
 reflection and is not qualified for trimming or Native AOT.
 
