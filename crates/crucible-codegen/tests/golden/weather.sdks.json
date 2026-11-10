@@ -845,7 +845,7 @@
                 "member": "at",
                 "name": "At",
                 "optional": true,
-                "type": "System.DateTimeOffset"
+                "type": "Timestamp"
               }
             ],
             "style": "fields",
@@ -880,7 +880,7 @@
           },
           "paginatedSnippet": null,
           "paginators": null,
-          "snippet": "using System;\nusing System.Globalization;\nusing System.Threading.Tasks;\nusing Example.Weather;\nusing Example.Weather.Models;\n\n// The client sends Authorization: Bearer <token> and Crucible-Version: 2026-10-01 on every request.\nusing var client = new WeatherClient(new ClientConfig\n{\n    Endpoint = Environment.GetEnvironmentVariable(\"WEATHER_ENDPOINT\"),\n    Token = _ => ValueTask.FromResult(Environment.GetEnvironmentVariable(\"WEATHER_TOKEN\")),\n});\n\n// Values from the model's example \"Read a city\".\nvar input = new GetCityInput\n{\n    CityId = \"c-0a1b2c3d\",\n    At = DateTimeOffset.Parse(\"2026-01-02T03:04:05Z\", CultureInfo.InvariantCulture),\n};\n\ntry\n{\n    var output = await client.GetCityAsync(input);\n    Console.WriteLine(output.City);\n    Console.WriteLine(output.Forecast);\n    Console.WriteLine(output.RequestIdValue);\n}\ncatch (NotFoundError error)\n{\n    Console.Error.WriteLine($\"NotFoundError (HTTP {error.StatusCode}): {error.MessageValue}\");\n}\n"
+          "snippet": "using System;\nusing System.Threading.Tasks;\nusing Example.Weather;\nusing Example.Weather.Models;\n\n// The client sends Authorization: Bearer <token> and Crucible-Version: 2026-10-01 on every request.\nusing var client = new WeatherClient(new ClientConfig\n{\n    Endpoint = Environment.GetEnvironmentVariable(\"WEATHER_ENDPOINT\"),\n    Token = _ => ValueTask.FromResult(Environment.GetEnvironmentVariable(\"WEATHER_TOKEN\")),\n});\n\n// Values from the model's example \"Read a city\".\nvar input = new GetCityInput\n{\n    CityId = \"c-0a1b2c3d\",\n    At = Timestamp.Parse(\"2026-01-02T03:04:05Z\"),\n};\n\ntry\n{\n    var output = await client.GetCityAsync(input);\n    Console.WriteLine(output.City);\n    Console.WriteLine(output.Forecast);\n    Console.WriteLine(output.RequestIdValue);\n}\ncatch (NotFoundError error)\n{\n    Console.Error.WriteLine($\"NotFoundError (HTTP {error.StatusCode}): {error.MessageValue}\");\n}\n"
         },
         "example.weather#GetCityPhoto": {
           "asyncMethod": "GetCityPhotoAsync",

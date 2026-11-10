@@ -24,3 +24,6 @@ Models/Widget.cs: /// One of <see cref="global::Hostile.Models.Color"/>; <see cr
 Models/Widget.cs: /// What it is made of: <see cref="global::Hostile.Models.Widget.Object"/> is a keyword in some languages.
 Models/WidgetError.cs: /// Raised by <see cref="global::Hostile.LinksClient.GetWidgetAsync"/> when <see cref="global::Hostile.Models.GetWidgetInput.WidgetId"/> names nothing.
 Optional.cs: /// <param name="value">The value; null becomes an explicit null.</param>
+Timestamp.cs: /// <summary>Reads an RFC 3339 <c>date-time</c> with up to nine fractional digits. Text without an offset is UTC.</summary>
+Timestamp.cs: /// <param name="text">The text, such as <c>2026-03-04T05:06:07.123456789Z</c>.</param>
+Timestamp.cs: /// <exception cref="FormatException">The text is not a valid date-time, or its fraction has a nonzero digit past the ninth.</exception>
