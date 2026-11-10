@@ -29,6 +29,9 @@ version's section when it is prepared.
   `crucible_codegen::sdks::file_at` / `document_at`) names each SDK's released
   version: its guide in `sdks.json` installs that version from its release
   channel. Without one an SDK is still described as a development package.
+- Go client: a module released by a Git tag Go resolves (`v1.2.3`) names that
+  version in its README, `AGENTS.md` and guide, beside the `go get` that
+  selects it. An unpinned `go get` still names none.
 - API reference: `crucible.describe/1` settles what every renderer derived on
   its own. `navigation` is the order the API is listed in (the resource tree
   from the roots, each resource's lifecycle before its other operations, then
