@@ -156,6 +156,19 @@ test("text finer than a nanosecond or not an instant is a TypeError", () => {
   assert.equal(fromWire(dateTime, "2026-10-01T12:30:00.000Z") instanceof PreciseDate, true);
 });
 
+test("a PreciseDate from another generated package keeps its sub-millisecond part", async () => {
+  // Each generated package bundles its own PreciseDate, so instanceof cannot recognise a sibling's.
+  class Foreign extends Date {
+    [Symbol.for("crucible.PreciseDate.nanosBelowMillisecond")](): number { return 456_789; }
+  }
+  const foreign = new Foreign(1790857800123);
+  const { seen } = await echo({ at: foreign, epochAt: foreign });
+  assert.equal(seen.body, '{"at":"2026-10-01T12:30:00.123456789Z","epochAt":1790857800.123456789}');
+  assert.equal(PreciseDate.from(foreign).getEpochNanos(), 1790857800_123456789n);
+  assert.equal(PreciseDate.fromEpochNanos(1790857800_123456789n).compare(foreign), 0);
+  assert.equal(stringifyJson(toWire(dateTime, foreign)), '"2026-10-01T12:30:00.123456789Z"');
+});
+
 test("an offset that carries the UTC instant outside years 0000 to 9999 is refused", () => {
   assert.throws(() => PreciseDate.fromRfc3339("0000-01-01T00:00:00+01:00"), /outside years 0000 through 9999/);
   assert.throws(() => fromWire(dateTime, "9999-12-31T23:59:59-01:00"), /outside years 0000 through 9999/);

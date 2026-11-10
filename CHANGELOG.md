@@ -73,6 +73,10 @@ version's section when it is prepared.
 - TypeScript, Python and C# clients refuse a `date-time` whose offset carries
   the UTC instant outside the years they can write back (0000 to 9999; 1 to
   9999 in Python) instead of decoding a value that fails on re-encode.
+- TypeScript client: a `PreciseDate` from another generated package keeps its
+  sub-millisecond part when it is sent or copied, instead of being cut to
+  milliseconds (each package bundles its own class, so `instanceof` fails across
+  packages). `PreciseDate.of(date)` returns the local class for such a value.
 - Python client: `Timestamp` orders and compares by instant, so equal instants
   in a repeated daylight-saving hour are equal. `a - b` still drops the
   nanosecond (a `timedelta` cannot hold it); `a.nanoseconds_since(b)` returns

@@ -46,6 +46,8 @@ function numericKey(text: string): string {
  * finer ones alone. `setTime()` sets an absolute millisecond instant, so it
  * clears the sub-millisecond part.
  */
+// Registered, so a PreciseDate from another generated package (each bundles its own class) is recognised.
+const SUBMILLIS = Symbol.for("crucible.PreciseDate.nanosBelowMillisecond");
 export class PreciseDate extends Date {
   // Nanoseconds below the millisecond, 0 through 999_999; always non-negative,
   // as the fraction of a second in timestamp text is, even before 1970.
@@ -59,12 +61,25 @@ export class PreciseDate extends Date {
       this.#nanos = parsed.nanos;
     } else if (value instanceof Date) {
       super(value.getTime());
-      this.#nanos = value instanceof PreciseDate ? value.#nanos : 0;
+      this.#nanos = PreciseDate.#below(value);
     } else {
       if (value === undefined) super(); else super(value);
       this.#nanos = 0;
     }
   }
+  /** Nanoseconds below the millisecond of a `Date`, from any package's `PreciseDate`; 0 for a plain `Date`. */
+  static #below(date: Date): number {
+    if (date instanceof PreciseDate) return date.#nanos;
+    const read = (date as { [SUBMILLIS]?: unknown })[SUBMILLIS];
+    const nanos = typeof read === "function" ? (read as () => unknown).call(date) : 0;
+    return typeof nanos === "number" && Number.isInteger(nanos) && nanos >= 0 && nanos < 1_000_000 ? nanos : 0;
+  }
+  /** `date` as this package's `PreciseDate` when it carries a sub-millisecond part, whichever package made it. */
+  static of(date: Date): Date {
+    return date instanceof PreciseDate || PreciseDate.#below(date) === 0 ? date : new PreciseDate(date);
+  }
+  /** @internal Read by other generated packages' `PreciseDate`. */
+  [SUBMILLIS](): number { return this.#nanos; }
   /** The instant `micros` microseconds after the Unix epoch. */
   static fromEpochMicros(micros: bigint): PreciseDate {
     if (typeof micros !== "bigint") throw new TypeError("epoch microseconds are a bigint");
@@ -94,7 +109,7 @@ export class PreciseDate extends Date {
     const theirs = other.getTime();
     if (Number.isNaN(millis) || Number.isNaN(theirs)) return NaN;
     if (millis !== theirs) return millis < theirs ? -1 : 1;
-    const nanos = other instanceof PreciseDate ? other.#nanos : 0;
+    const nanos = PreciseDate.#below(other);
     return this.#nanos === nanos ? 0 : this.#nanos < nanos ? -1 : 1;
   }
   /** Whether both are the same instant to the nanosecond. */
@@ -361,8 +376,7 @@ function valueKey(value: unknown): string {
 function snapshotValue<T>(value: T, seen = new Map<object, unknown>()): T {
   if (value === null || typeof value !== "object") return value;
   if (value instanceof Decimal) return value;
-  if (value instanceof PreciseDate) return new PreciseDate(value) as T;
-  if (value instanceof Date) return new Date(value.getTime()) as T;
+  if (value instanceof Date) return (value instanceof PreciseDate || PreciseDate.of(value) !== value ? new PreciseDate(value) : new Date(value.getTime())) as T;
   if (value instanceof Uint8Array) return value.slice() as T;
   if (seen.has(value)) return seen.get(value) as T;
   const result = (Array.isArray(value) ? new Array(value.length) : Object.create(null)) as Record<string, unknown>;
@@ -488,7 +502,8 @@ export function stringifyJson(value: unknown, space?: number | string): string {
 }
 
 /** The exact text of a timestamp in its modeled format. A plain `Date` prints as it always has. */
-function timestampText(value: Date, format: TimestampFormat): string {
+function timestampText(date: Date, format: TimestampFormat): string {
+  const value = PreciseDate.of(date);
   switch (format) {
     case "date-time": return value.toISOString();
     case "http-date": return value.toUTCString();
@@ -506,6 +521,7 @@ function timestampText(value: Date, format: TimestampFormat): string {
 /** A timestamp as its JSON value: text, or for epoch seconds a number token that keeps every digit. */
 function wireTimestamp(value: Date, format: TimestampFormat): string | number | JsonNumber {
   if (format !== "epoch-seconds") return timestampText(value, format);
+  value = PreciseDate.of(value);
   return value instanceof PreciseDate && value.getEpochNanos() % 1_000_000n !== 0n
     ? new JsonNumber(timestampText(value, format)) : value.getTime() / 1000;
 }
