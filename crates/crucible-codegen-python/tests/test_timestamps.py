@@ -235,6 +235,20 @@ class TimestampType(unittest.TestCase):
         self.assertTrue(second > utc and utc < second and second != first)
         self.assertEqual(second.nanoseconds_since(utc), 3600 * 10 ** 9)
 
+    def test_hash_agrees_with_equality_for_plain_datetimes(self):
+        zone = _NewYork()
+        for fold in (0, 1):
+            plain = datetime(2026, 11, 1, 1, 30, 0, 123456, zone, fold=fold)
+            converted = Timestamp.from_datetime(plain)
+            with self.subTest(fold=fold):
+                # Equal values must hash alike, whether or not they compare equal.
+                self.assertTrue(converted != plain or hash(converted) == hash(plain))
+                self.assertEqual(len({plain, converted}), 1 if converted == plain else 2)
+        # Out of range in UTC: still hashes like the plain datetime it equals.
+        edge = datetime(1, 1, 1, 0, 0, tzinfo=timezone(timedelta(hours=1)))
+        self.assertTrue(Timestamp.from_datetime(edge) == edge)
+        self.assertEqual(hash(Timestamp.from_datetime(edge)), hash(edge))
+
     def test_difference_drops_the_nanosecond_but_nanoseconds_since_is_exact(self):
         a = Timestamp(2026, 10, 1, 12, 30, 0, 5, nanosecond=2)
         b = Timestamp(2026, 10, 1, 12, 30, 0, 5, nanosecond=1)

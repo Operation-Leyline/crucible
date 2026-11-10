@@ -222,6 +222,10 @@ class Timestamp(datetime):
         mine, theirs = self._instant(), _instant(other)
         if mine is None or theirs is None:
             return mine is None and theirs is None and _naive_key(self) == _naive_key(other)
+        # A plain datetime in the second pass of a repeated hour hashes by its first-pass offset, so it
+        # cannot be equal to anything that hashes by instant; datetime itself refuses such comparisons.
+        if not isinstance(other, Timestamp) and other.fold and _repeated(other):
+            return False
         return mine == theirs
 
     def __ne__(self, other: object) -> bool:
@@ -252,8 +256,9 @@ class Timestamp(datetime):
             # Equal instants hash alike in any zone, repeated hour included; a plain datetime's hash agrees.
             try:
                 utc = _EPOCH + timedelta(seconds=instant[0], microseconds=instant[1] // 1000)
-            except OverflowError:  # the UTC instant falls outside years 1 through 9999
-                return hash(instant)
+            except OverflowError:
+                # The UTC instant is outside years 1 through 9999: hash as a plain datetime does.
+                return hash((datetime.__hash__(self.to_datetime()), self._nanosecond)) if self._nanosecond                     else datetime.__hash__(self.to_datetime())
             base = datetime.__hash__(utc)
         return hash((base, self._nanosecond)) if self._nanosecond else base
 
@@ -283,6 +288,13 @@ def _instant(value: datetime) -> tuple[int, int] | None:
     delta = datetime.__sub__(value, _EPOCH)
     return (delta.days * 86400 + delta.seconds,
             delta.microseconds * 1000 + getattr(value, "_nanosecond", 0))
+
+
+def _repeated(value: datetime) -> bool:
+    """Whether the wall-clock time happens twice in its zone, so its offset depends on ``fold``."""
+    plain = datetime(value.year, value.month, value.day, value.hour, value.minute, value.second,
+                     value.microsecond, value.tzinfo)
+    return plain.replace(fold=0).utcoffset() != plain.replace(fold=1).utcoffset()
 
 
 def _naive_key(value: datetime) -> tuple[int, ...]:
