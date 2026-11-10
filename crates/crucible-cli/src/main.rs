@@ -256,6 +256,12 @@ enum Target {
         /// describes beside describe.json: those the audience may see.
         #[arg(long, value_name = "FILE")]
         sdks: Option<PathBuf>,
+        /// The released version of an SDK of --sdks, as NAME=VERSION
+        /// (ts=1.4.0), repeated for each: its guide in sdks.json installs
+        /// that version from its release channel. Without one an SDK is
+        /// described as a development package.
+        #[arg(long = "sdk-version", value_name = "NAME=VERSION", requires = "sdks")]
+        sdk_versions: Vec<String>,
         /// Where describe.json carries each operation's inputSchema and
         /// outputSchema; every mode is crucible.describe/1.
         #[arg(long, value_enum, default_value = "inline")]
@@ -1097,9 +1103,24 @@ fn generate(target: Target, audience: crucible_codegen::Audience) -> Result<(), 
             source,
             out,
             sdks,
+            sdk_versions,
             schemas,
             all_releases,
         } => {
+            let mut versions = crucible_codegen::sdks::Versions::new();
+            for entry in &sdk_versions {
+                match entry.split_once('=') {
+                    Some((name, version)) if !name.is_empty() && !version.is_empty() => {
+                        if versions
+                            .insert(name.to_owned(), version.to_owned())
+                            .is_some()
+                        {
+                            return Err(format!("--sdk-version names {name} twice"));
+                        }
+                    }
+                    _ => return Err(format!("--sdk-version {entry}: expected NAME=VERSION")),
+                }
+            }
             if all_releases && source.api_version.is_some() {
                 return Err(
                     "--all-releases documents every supported release; leave out --api-version"
@@ -1154,7 +1175,8 @@ fn generate(target: Target, audience: crucible_codegen::Audience) -> Result<(), 
                     for release in crucible_ir::versions::releases(&full) {
                         let line = crucible_ir::versions::line(&full, release)
                             .map_err(|e| e.to_string())?;
-                        let mut sdks = crucible_codegen::sdks::file(&file, &line, audience)?;
+                        let mut sdks =
+                            crucible_codegen::sdks::file_at(&file, &line, audience, &versions)?;
                         sdks.path = format!(
                             "{}/{}",
                             crucible_codegen_docs::release_directory(release),
@@ -1163,7 +1185,9 @@ fn generate(target: Target, audience: crucible_codegen::Audience) -> Result<(), 
                         files.push(sdks);
                     }
                 } else {
-                    files.push(crucible_codegen::sdks::file(&file, &full, audience)?);
+                    files.push(crucible_codegen::sdks::file_at(
+                        &file, &full, audience, &versions,
+                    )?);
                 }
             }
             crucible_codegen::write(&out, &files).map_err(|e| e.to_string())?;

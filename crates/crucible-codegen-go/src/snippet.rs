@@ -690,9 +690,15 @@ pub(crate) fn guide(service: &Service, options: &Options) -> Guide {
     let alias = crate::surface::snippet_alias(&options.package_name);
     let mut guide = Guide::new("Go", "go");
     guide.metadata = options.metadata.clone();
-    // A Git release's tag is the module version Go resolves.
+    // A Git release's tag is the module version Go resolves, and the only
+    // version a Go module has: the guide names it exactly where `go get`
+    // selects it. An unpinned `go get` installs the latest release, so
+    // the guide names none beside it.
     guide.install = vec![match options.metadata.git.as_ref().map(|git| &git.tag) {
-        Some(tag) if tag.starts_with('v') => format!("go get {}@{tag}", options.module_path),
+        Some(tag) if tag.starts_with('v') => {
+            guide.version = Some(tag[1..].to_owned());
+            format!("go get {}@{tag}", options.module_path)
+        }
         _ => format!("go get {}", options.module_path),
     }];
     if options.metadata.private {

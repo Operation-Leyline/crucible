@@ -11,7 +11,7 @@ use crucible_ir::ir::{Operation, Service, Shape, SimpleKind};
 use crucible_ir::{Diagnostics, ShapeId};
 use sha2::{Digest, Sha256};
 use std::collections::{BTreeMap, BTreeSet};
-pub use surface::surface;
+pub use surface::{guide_document, surface};
 
 pub struct Options {
     pub package_name: String,

@@ -17,6 +17,31 @@ version's section when it is prepared.
 
 ### Added
 
+- `crucible.sdks/1`: each SDK carries `guide`, its package's generated README
+  as data: the install steps its release channel allows (commands, a manifest
+  entry, or a note naming where a private package is released), its version,
+  and the `client`, `call`, `pagination`, `errors`, `retries` and `links`
+  sections. The README is rendered from the same sections. A documentation
+  site shows each SDK's install and usage rules from it instead of writing
+  them by hand ([docs.md](docs/docs.md#sdk-guides)). Each client generator
+  exports `guide_document` beside `surface`.
+- `crucible generate docs --sdks <file> --sdk-version <name>=<version>` (and
+  `crucible_codegen::sdks::file_at` / `document_at`) names each SDK's released
+  version: its guide in `sdks.json` installs that version from its release
+  channel. Without one an SDK is still described as a development package.
+- Go client: a module released by a Git tag Go resolves (`v1.2.3`) names that
+  version in its README, `AGENTS.md` and guide, beside the `go get` that
+  selects it. An unpinned `go get` still names none.
+- API reference: `crucible.describe/1` settles what every renderer derived on
+  its own. `navigation` is the order the API is listed in (the resource tree
+  from the roots, each resource's lifecycle before its other operations, then
+  the operations on no resource), and the service, every resource, operation
+  and shape carries `summary`, its documentation's first sentence. Both are
+  additive. The Markdown table of contents and the static reference's sidebar
+  now follow `navigation`, so a child resource is listed under its parent and
+  `ListCities` comes before `GetCityPhoto`; a documentation site reads the same
+  fields instead of regrouping `resources` and cutting sentences itself
+  ([docs.md](docs/docs.md#navigation-and-summaries)).
 - TypeScript client: timestamps are lossless to the nanosecond. The package
   exports `PreciseDate`, a `Date` subclass that keeps the nanoseconds below the
   millisecond. Decoded timestamps (body, query, header, `date-time` and
@@ -51,6 +76,10 @@ version's section when it is prepared.
 
 ### Changed
 
+- Generated SDK guides (`README.md`, `AGENTS.md`, and `guide` in
+  `crucible.sdks/1`) page through the first paginated operation that has an
+  example input, where there is one, rather than the first paginated operation
+  with generated sample values.
 - Rust HTTP hosting keeps request futures concrete instead of boxing each one.
   Request/version header names are retained as static names, and content-type
   validation and request-id insertion avoid duplicate header lookups.

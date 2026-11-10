@@ -4,8 +4,8 @@
 - City
   - [CreateCity](operations/API_CreateCity.md)
   - [GetCity](operations/API_GetCity.md)
-  - [GetCityPhoto](operations/API_GetCityPhoto.md)
   - [ListCities](operations/API_ListCities.md)
+  - [GetCityPhoto](operations/API_GetCityPhoto.md)
   - [PutCityPhoto](operations/API_PutCityPhoto.md)
 - Service operations
   - [Ping](operations/API_Ping.md)

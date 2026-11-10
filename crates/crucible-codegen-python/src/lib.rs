@@ -12,7 +12,7 @@ use names::{field, literal, ty};
 use sha2::{Digest, Sha256};
 use std::collections::BTreeSet;
 
-pub use surface::surface;
+pub use surface::{guide_document, surface};
 
 /// The synchronous client class: the service name plus `Client`.
 pub(crate) fn client_name(service: &Service) -> String {

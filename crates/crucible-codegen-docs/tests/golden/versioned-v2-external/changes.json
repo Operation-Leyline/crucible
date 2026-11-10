@@ -271,7 +271,8 @@
                     "since": null,
                     "unstable": false
                   },
-                  "sensitive": false
+                  "sensitive": false,
+                  "summary": ""
                 }
               }
             },
@@ -813,7 +814,8 @@
                     "since": null,
                     "unstable": false
                   },
-                  "sensitive": false
+                  "sensitive": false,
+                  "summary": "A request cannot be parsed or does not satisfy the service's input model."
                 }
               }
             },

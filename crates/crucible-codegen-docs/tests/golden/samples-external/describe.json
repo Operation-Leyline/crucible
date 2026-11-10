@@ -1,5 +1,22 @@
 {
   "format": "crucible.describe/1",
+  "navigation": [
+    {
+      "level": 0,
+      "operations": [
+        "example.samples#Bulk",
+        "example.samples#Check",
+        "example.samples#Edges",
+        "example.samples#GetGraph",
+        "example.samples#ListGraphs",
+        "example.samples#ListRevisions",
+        "example.samples#PutGraph",
+        "example.samples#SearchGraphs",
+        "example.samples#Walk"
+      ],
+      "resource": null
+    }
+  ],
   "operations": {
     "example.samples#Bulk": {
       "auth": [],
@@ -767,6 +784,7 @@
         }
       },
       "status": 200,
+      "summary": "Values a sample cannot show in full, or can only show exactly.",
       "uri": "/bulk"
     },
     "example.samples#Check": {
@@ -914,6 +932,7 @@
         }
       },
       "status": 200,
+      "summary": "A pattern the generator cannot follow.",
       "uri": "/check"
     },
     "example.samples#Edges": {
@@ -1507,6 +1526,7 @@
         }
       },
       "status": 200,
+      "summary": "Values at the edges of what each language represents, in an example: both ends of long, bigInteger and bigDecimal past 64 bits, instants with nanoseconds, before the epoch, with an offset, at both ends of the calendar and before its first year, a null in a sparse recursive map and list, a member left to its default, and an idempotency token the snippets leave to the client.",
       "uri": "/edges"
     },
     "example.samples#GetGraph": {
@@ -1698,6 +1718,7 @@
         }
       },
       "status": 200,
+      "summary": "",
       "uri": "/graphs/{graphId}"
     },
     "example.samples#ListGraphs": {
@@ -1945,6 +1966,7 @@
         }
       },
       "status": 200,
+      "summary": "Paginated, with the page token in the query and no example: the sample's token is none the service issued, so no SDK snippet or http request sends it.",
       "uri": "/graphs"
     },
     "example.samples#ListRevisions": {
@@ -2142,6 +2164,7 @@
         }
       },
       "status": 200,
+      "summary": "Paginated, with a page token that has a default and no example: the snippets write the default, the first page's value, which some languages' constructors require, and never the sample's token.",
       "uri": "/revisions"
     },
     "example.samples#PutGraph": {
@@ -3103,6 +3126,7 @@
         }
       },
       "status": 200,
+      "summary": "Every scalar, collection and default in one request.",
       "uri": "/graphs/{graphId}"
     },
     "example.samples#SearchGraphs": {
@@ -3341,6 +3365,7 @@
         }
       },
       "status": 200,
+      "summary": "Paginated, with the page token in the body beside the query, and no example: no SDK snippet or http request sends it.",
       "uri": "/graphs/search"
     },
     "example.samples#Walk": {
@@ -3640,6 +3665,7 @@
         }
       },
       "status": 200,
+      "summary": "Recursive input and output.",
       "uri": "/walk"
     }
   },
@@ -3664,6 +3690,7 @@
     },
     "protocol": "crucibleJson",
     "resourceRoots": [],
+    "summary": "Every kind of value the reference samples.",
     "title": "Samples",
     "version": "1"
   },
@@ -3696,7 +3723,8 @@
         "since": null,
         "unstable": false
       },
-      "sensitive": false
+      "sensitive": false,
+      "summary": ""
     },
     "crucible.api#BigInteger": {
       "constraints": {
@@ -3726,7 +3754,8 @@
         "since": null,
         "unstable": false
       },
-      "sensitive": false
+      "sensitive": false,
+      "summary": ""
     },
     "crucible.api#Boolean": {
       "constraints": {
@@ -3756,7 +3785,8 @@
         "since": null,
         "unstable": false
       },
-      "sensitive": false
+      "sensitive": false,
+      "summary": ""
     },
     "crucible.api#Document": {
       "constraints": {
@@ -3786,7 +3816,8 @@
         "since": null,
         "unstable": false
       },
-      "sensitive": false
+      "sensitive": false,
+      "summary": ""
     },
     "crucible.api#Integer": {
       "constraints": {
@@ -3816,7 +3847,8 @@
         "since": null,
         "unstable": false
       },
-      "sensitive": false
+      "sensitive": false,
+      "summary": ""
     },
     "crucible.api#Long": {
       "constraints": {
@@ -3846,7 +3878,8 @@
         "since": null,
         "unstable": false
       },
-      "sensitive": false
+      "sensitive": false,
+      "summary": ""
     },
     "crucible.api#String": {
       "constraints": {
@@ -3876,7 +3909,8 @@
         "since": null,
         "unstable": false
       },
-      "sensitive": false
+      "sensitive": false,
+      "summary": ""
     },
     "crucible.api#Timestamp": {
       "constraints": {
@@ -3906,7 +3940,8 @@
         "since": null,
         "unstable": false
       },
-      "sensitive": false
+      "sensitive": false,
+      "summary": ""
     },
     "crucible.api#Unit": {
       "documentation": {
@@ -3930,7 +3965,8 @@
         "since": null,
         "unstable": false
       },
-      "sensitive": false
+      "sensitive": false,
+      "summary": ""
     },
     "example.samples#Archive": {
       "constraints": {
@@ -3963,7 +3999,8 @@
         "since": null,
         "unstable": false
       },
-      "sensitive": false
+      "sensitive": false,
+      "summary": ""
     },
     "example.samples#Bell": {
       "constraints": {
@@ -3993,7 +4030,8 @@
         "since": null,
         "unstable": false
       },
-      "sensitive": false
+      "sensitive": false,
+      "summary": "A control character, valid in a body and not in a header."
     },
     "example.samples#Blank": {
       "constraints": {
@@ -4023,7 +4061,8 @@
         "since": null,
         "unstable": false
       },
-      "sensitive": false
+      "sensitive": false,
+      "summary": "White space only: list items differ by length."
     },
     "example.samples#Blanks": {
       "constraints": {
@@ -4096,7 +4135,8 @@
       },
       "sensitive": false,
       "set": true,
-      "sparse": false
+      "sparse": false,
+      "summary": ""
     },
     "example.samples#Bounded": {
       "constraints": {
@@ -4126,7 +4166,8 @@
         "since": null,
         "unstable": false
       },
-      "sensitive": false
+      "sensitive": false,
+      "summary": "Outside the generator's subset: a word boundary."
     },
     "example.samples#Branch": {
       "documentation": {
@@ -4189,7 +4230,8 @@
         "since": null,
         "unstable": false
       },
-      "sensitive": false
+      "sensitive": false,
+      "summary": ""
     },
     "example.samples#BulkInput": {
       "documentation": {
@@ -4606,7 +4648,8 @@
         "since": null,
         "unstable": false
       },
-      "sensitive": false
+      "sensitive": false,
+      "summary": ""
     },
     "example.samples#Busy": {
       "documentation": {
@@ -4754,7 +4797,8 @@
         "since": null,
         "unstable": false
       },
-      "sensitive": false
+      "sensitive": false,
+      "summary": ""
     },
     "example.samples#CheckInput": {
       "documentation": {
@@ -4817,7 +4861,8 @@
         "since": null,
         "unstable": false
       },
-      "sensitive": false
+      "sensitive": false,
+      "summary": ""
     },
     "example.samples#EdgesInput": {
       "documentation": {
@@ -5435,7 +5480,8 @@
         "since": null,
         "unstable": false
       },
-      "sensitive": false
+      "sensitive": false,
+      "summary": ""
     },
     "example.samples#EpochTime": {
       "constraints": {
@@ -5465,7 +5511,8 @@
         "since": null,
         "unstable": false
       },
-      "sensitive": false
+      "sensitive": false,
+      "summary": ""
     },
     "example.samples#Essay": {
       "constraints": {
@@ -5498,7 +5545,8 @@
         "since": null,
         "unstable": false
       },
-      "sensitive": false
+      "sensitive": false,
+      "summary": "Longer than a sample shows."
     },
     "example.samples#Expression": {
       "documentation": {
@@ -5598,7 +5646,8 @@
         "since": null,
         "unstable": false
       },
-      "sensitive": false
+      "sensitive": false,
+      "summary": "Recursion through a union whose first arm leads back."
     },
     "example.samples#GetGraphInput": {
       "documentation": {
@@ -5661,7 +5710,8 @@
         "since": null,
         "unstable": false
       },
-      "sensitive": false
+      "sensitive": false,
+      "summary": ""
     },
     "example.samples#GetGraphOutput": {
       "documentation": {
@@ -5727,7 +5777,8 @@
         "since": null,
         "unstable": false
       },
-      "sensitive": false
+      "sensitive": false,
+      "summary": ""
     },
     "example.samples#GraphId": {
       "constraints": {
@@ -5757,7 +5808,8 @@
         "since": null,
         "unstable": false
       },
-      "sensitive": false
+      "sensitive": false,
+      "summary": "A graph id: a type prefix and 26 Crockford base-32 characters."
     },
     "example.samples#GraphIds": {
       "constraints": {
@@ -5827,7 +5879,8 @@
       },
       "sensitive": false,
       "set": false,
-      "sparse": false
+      "sparse": false,
+      "summary": ""
     },
     "example.samples#GraphName": {
       "constraints": {
@@ -5860,7 +5913,8 @@
         "since": null,
         "unstable": false
       },
-      "sensitive": false
+      "sensitive": false,
+      "summary": "A DNS-style name."
     },
     "example.samples#GraphNotFound": {
       "documentation": {
@@ -6002,7 +6056,8 @@
         "since": null,
         "unstable": false
       },
-      "sensitive": false
+      "sensitive": false,
+      "summary": ""
     },
     "example.samples#Huge": {
       "constraints": {
@@ -6035,7 +6090,8 @@
         "since": null,
         "unstable": false
       },
-      "sensitive": false
+      "sensitive": false,
+      "summary": "Above every 64-bit integer."
     },
     "example.samples#Label": {
       "constraints": {
@@ -6068,7 +6124,8 @@
         "since": null,
         "unstable": false
       },
-      "sensitive": false
+      "sensitive": false,
+      "summary": ""
     },
     "example.samples#Limits": {
       "constraints": {
@@ -6183,7 +6240,8 @@
         "unstable": false
       },
       "sensitive": false,
-      "sparse": false
+      "sparse": false,
+      "summary": ""
     },
     "example.samples#ListGraphsInput": {
       "documentation": {
@@ -6286,7 +6344,8 @@
         "since": null,
         "unstable": false
       },
-      "sensitive": false
+      "sensitive": false,
+      "summary": ""
     },
     "example.samples#ListGraphsOutput": {
       "documentation": {
@@ -6386,7 +6445,8 @@
         "since": null,
         "unstable": false
       },
-      "sensitive": false
+      "sensitive": false,
+      "summary": ""
     },
     "example.samples#ListRevisionsInput": {
       "documentation": {
@@ -6449,7 +6509,8 @@
         "since": null,
         "unstable": false
       },
-      "sensitive": false
+      "sensitive": false,
+      "summary": ""
     },
     "example.samples#ListRevisionsOutput": {
       "documentation": {
@@ -6549,7 +6610,8 @@
         "since": null,
         "unstable": false
       },
-      "sensitive": false
+      "sensitive": false,
+      "summary": ""
     },
     "example.samples#ManyLabels": {
       "constraints": {
@@ -6625,7 +6687,8 @@
       },
       "sensitive": false,
       "set": false,
-      "sparse": false
+      "sparse": false,
+      "summary": "More labels than a sample shows."
     },
     "example.samples#ManyLimits": {
       "constraints": {
@@ -6740,7 +6803,8 @@
         "unstable": false
       },
       "sensitive": false,
-      "sparse": false
+      "sparse": false,
+      "summary": "More entries than a sample shows."
     },
     "example.samples#Negative": {
       "constraints": {
@@ -6773,7 +6837,8 @@
         "since": null,
         "unstable": false
       },
-      "sensitive": false
+      "sensitive": false,
+      "summary": ""
     },
     "example.samples#Node": {
       "documentation": {
@@ -6876,7 +6941,8 @@
         "since": null,
         "unstable": false
       },
-      "sensitive": false
+      "sensitive": false,
+      "summary": "A tree: recursion through an optional list."
     },
     "example.samples#Nodes": {
       "constraints": {
@@ -6946,7 +7012,8 @@
       },
       "sensitive": false,
       "set": false,
-      "sparse": false
+      "sparse": false,
+      "summary": ""
     },
     "example.samples#Port": {
       "constraints": {
@@ -6979,7 +7046,8 @@
         "since": null,
         "unstable": false
       },
-      "sensitive": false
+      "sensitive": false,
+      "summary": ""
     },
     "example.samples#Price": {
       "constraints": {
@@ -7012,7 +7080,8 @@
         "since": null,
         "unstable": false
       },
-      "sensitive": false
+      "sensitive": false,
+      "summary": ""
     },
     "example.samples#Printable": {
       "constraints": {
@@ -7042,7 +7111,8 @@
         "since": null,
         "unstable": false
       },
-      "sensitive": false
+      "sensitive": false,
+      "summary": ""
     },
     "example.samples#Priority": {
       "documentation": {
@@ -7067,6 +7137,7 @@
         "unstable": false
       },
       "sensitive": false,
+      "summary": "",
       "values": [
         {
           "documentation": {
@@ -8011,7 +8082,8 @@
         "since": null,
         "unstable": false
       },
-      "sensitive": false
+      "sensitive": false,
+      "summary": ""
     },
     "example.samples#PutGraphOutput": {
       "documentation": {
@@ -8151,7 +8223,8 @@
         "since": null,
         "unstable": false
       },
-      "sensitive": false
+      "sensitive": false,
+      "summary": ""
     },
     "example.samples#Ratio": {
       "constraints": {
@@ -8184,7 +8257,8 @@
         "since": null,
         "unstable": false
       },
-      "sensitive": false
+      "sensitive": false,
+      "summary": ""
     },
     "example.samples#Region": {
       "constraints": {
@@ -8214,7 +8288,8 @@
         "since": null,
         "unstable": false
       },
-      "sensitive": false
+      "sensitive": false,
+      "summary": ""
     },
     "example.samples#Regions": {
       "constraints": {
@@ -8284,7 +8359,8 @@
       },
       "sensitive": false,
       "set": false,
-      "sparse": false
+      "sparse": false,
+      "summary": ""
     },
     "example.samples#SearchGraphsInput": {
       "documentation": {
@@ -8387,7 +8463,8 @@
         "since": null,
         "unstable": false
       },
-      "sensitive": false
+      "sensitive": false,
+      "summary": ""
     },
     "example.samples#SearchGraphsOutput": {
       "documentation": {
@@ -8487,7 +8564,8 @@
         "since": null,
         "unstable": false
       },
-      "sensitive": false
+      "sensitive": false,
+      "summary": ""
     },
     "example.samples#Sha": {
       "constraints": {
@@ -8517,7 +8595,8 @@
         "since": null,
         "unstable": false
       },
-      "sensitive": false
+      "sensitive": false,
+      "summary": ""
     },
     "example.samples#Source": {
       "documentation": {
@@ -8617,7 +8696,8 @@
         "since": null,
         "unstable": false
       },
-      "sensitive": false
+      "sensitive": false,
+      "summary": ""
     },
     "example.samples#SparseLabels": {
       "constraints": {
@@ -8687,7 +8767,8 @@
       },
       "sensitive": false,
       "set": false,
-      "sparse": true
+      "sparse": true,
+      "summary": ""
     },
     "example.samples#Tags": {
       "constraints": {
@@ -8763,7 +8844,8 @@
       },
       "sensitive": false,
       "set": true,
-      "sparse": false
+      "sparse": false,
+      "summary": ""
     },
     "example.samples#Thumbnail": {
       "constraints": {
@@ -8796,7 +8878,8 @@
         "since": null,
         "unstable": false
       },
-      "sensitive": false
+      "sensitive": false,
+      "summary": ""
     },
     "example.samples#Tier": {
       "documentation": {
@@ -8821,6 +8904,7 @@
         "unstable": false
       },
       "sensitive": false,
+      "summary": "",
       "values": [
         {
           "documentation": {
@@ -8897,7 +8981,8 @@
         "since": null,
         "unstable": false
       },
-      "sensitive": false
+      "sensitive": false,
+      "summary": "Just below 0.3, which a double would round onto."
     },
     "example.samples#Tree": {
       "constraints": {
@@ -9003,7 +9088,8 @@
         "unstable": false
       },
       "sensitive": false,
-      "sparse": true
+      "sparse": true,
+      "summary": "A map that reaches itself through its values, whose entries may be null."
     },
     "example.samples#WalkInput": {
       "documentation": {
@@ -9103,7 +9189,8 @@
         "since": null,
         "unstable": false
       },
-      "sensitive": false
+      "sensitive": false,
+      "summary": ""
     },
     "example.samples#WalkOutput": {
       "documentation": {
@@ -9166,7 +9253,8 @@
         "since": null,
         "unstable": false
       },
-      "sensitive": false
+      "sensitive": false,
+      "summary": ""
     }
   },
   "versions": {

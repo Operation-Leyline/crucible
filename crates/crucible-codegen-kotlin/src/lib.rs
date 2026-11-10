@@ -9,7 +9,7 @@ use crucible_ir::ir::{DocNotes, Operation, Service, Shape, SimpleKind};
 use crucible_ir::{Diagnostics, ShapeId};
 use sha2::{Digest, Sha256};
 use std::collections::BTreeSet;
-pub use surface::surface;
+pub use surface::{guide_document, surface};
 
 pub struct Options {
     pub group_id: String,

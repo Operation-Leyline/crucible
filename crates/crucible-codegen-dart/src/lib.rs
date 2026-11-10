@@ -21,7 +21,7 @@ pub const CODEC_RUNTIME: &str = include_str!("../runtime/codec.dart");
 pub const ERROR_RUNTIME: &str = include_str!("../runtime/errors.dart");
 pub const DESCRIBE_RUNTIME: &str = include_str!("../runtime/describe.dart");
 
-pub use surface::surface;
+pub use surface::{guide_document, surface};
 
 pub struct Options {
     pub package_name: String,

@@ -864,6 +864,104 @@ fn leyline() -> crucible_ir::ir::Service {
     leyline_with(|text| text)
 }
 
+/// `navigation` settles the order every renderer lists the API in: the
+/// resource tree from the roots, each resource's lifecycle before its other
+/// operations, then the operations on no resource. `summary` is each
+/// item's first sentence. The Markdown table of contents follows both.
+#[test]
+fn navigation_and_summaries_are_settled_in_the_description() {
+    let service = project(&leyline(), Audience::External).unwrap();
+    let description = crucible_codegen_common::describe::describe(&service).unwrap();
+    let groups: Vec<_> = description
+        .navigation
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|group| (group["resource"].as_str(), group["level"].as_u64().unwrap()))
+        .collect();
+    assert_eq!(
+        groups,
+        [
+            (Some("example.leyline#Organization"), 0),
+            (Some("example.leyline#Graph"), 1),
+            (Some("example.leyline#History"), 2),
+            (None, 0),
+        ]
+    );
+    // Every operation is listed, and one on no resource only in the last group.
+    let listed: std::collections::BTreeSet<_> = description
+        .navigation
+        .as_array()
+        .unwrap()
+        .iter()
+        .flat_map(|group| group["operations"].as_array().unwrap())
+        .map(|id| id.as_str().unwrap())
+        .collect();
+    assert_eq!(
+        listed,
+        description.operations.keys().map(String::as_str).collect()
+    );
+    assert_eq!(
+        description.service["summary"],
+        "Organizations, their graphs and the graphs' histories."
+    );
+    assert!(
+        description
+            .operations
+            .values()
+            .all(|op| op["summary"].is_string())
+    );
+    assert!(
+        description
+            .shapes
+            .values()
+            .all(|shape| shape["summary"].is_string())
+    );
+    assert!(
+        description
+            .resources
+            .values()
+            .all(|resource| resource["summary"].is_string())
+    );
+
+    let files = generate(&service).unwrap();
+    let toc = &files
+        .iter()
+        .find(|f| f.path == "src/SUMMARY.md")
+        .unwrap()
+        .contents;
+    let organization = toc.find("- Organization\n").unwrap();
+    let graph = toc.find("  - Graph\n").unwrap();
+    let history = toc.find("    - History\n").unwrap();
+    assert!(organization < graph && graph < history, "{toc}");
+
+    // A description written before the fields existed still loads.
+    let mut older: serde_json::Value = serde_json::from_str(&description.to_json()).unwrap();
+    older.as_object_mut().unwrap().remove("navigation");
+    let older: crucible_codegen_common::describe::Description =
+        serde_json::from_value(older).unwrap();
+    assert!(older.navigation.is_null());
+}
+
+/// The lifecycle leads a resource's operations in the order a reader uses
+/// it, whatever the operations are called; the rest follow by name.
+#[test]
+fn navigation_lists_the_lifecycle_before_other_operations() {
+    let files = files(WEATHER, Audience::External);
+    let describe = files.iter().find(|f| f.path == "describe.json").unwrap();
+    let description: Value = serde_json::from_str(&describe.contents).unwrap();
+    assert_eq!(
+        description["navigation"][0]["operations"],
+        serde_json::json!([
+            "example.weather#CreateCity",
+            "example.weather#GetCity",
+            "example.weather#ListCities",
+            "example.weather#GetCityPhoto",
+            "example.weather#PutCityPhoto"
+        ])
+    );
+}
+
 /// Typed permissions (docs/permissions.md §6.3): a Permissions page with a
 /// table per tier, an Authorization section per operation, and the
 /// registry and requirements in `describe.json`. Internal permissions and

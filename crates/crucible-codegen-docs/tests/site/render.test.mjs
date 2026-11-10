@@ -217,8 +217,22 @@ test("navigation groups operations by resource, then service operations, then da
   const groups = x.navigation(x.index(WEATHER));
   // One release, the current one: no changelog to list.
   assert.deepEqual(groups.map((g) => g.label), ["City", "Service operations", "Data types"]);
-  assert.deepEqual(groups[0].entries.map((e) => e.item.name), ["CreateCity", "GetCity", "GetCityPhoto", "ListCities", "PutCityPhoto"]);
+  // The description's order: the lifecycle (create, read, list), then the
+  // resource's other operations by name.
+  assert.deepEqual(groups[0].entries.map((e) => e.item.name), ["CreateCity", "GetCity", "ListCities", "GetCityPhoto", "PutCityPhoto"]);
   assert.ok(!groups[2].entries.some((e) => e.id.startsWith("crucible.api#")));
+});
+
+test("navigation follows the description's resource tree, and an older description is grouped by id", () => {
+  const groups = x.navigation(x.index(PERMISSIONS)).filter((g) => g.kind === "resource");
+  // Organization is the root; Graph is its child and History is Graph's.
+  assert.deepEqual(groups.map((g) => [g.label, g.depth]), [["Organization", 0], ["Graph", 1], ["History", 2]]);
+  // A describe.json written before `navigation` existed.
+  const older = structuredClone(PERMISSIONS);
+  delete older.navigation;
+  const before = x.navigation(x.index(older)).filter((g) => g.kind === "resource");
+  assert.deepEqual(before.map((g) => [g.label, g.depth]), [["Graph", 0], ["History", 0], ["Organization", 0]]);
+  assert.deepEqual(before[0].entries.map((e) => e.item.name), ["ArchiveGraph", "CreateGraph", "ExecuteQuery", "GetGraph", "ListGraphs", "RewriteGraph"]);
 });
 
 test("search needs every term, keeps matching groups and finds by method or path", () => {

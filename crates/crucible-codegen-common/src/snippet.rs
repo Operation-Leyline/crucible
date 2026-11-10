@@ -505,10 +505,19 @@ pub fn showcase(service: &Service) -> Option<&Operation> {
         .or_else(|| service.operations.first())
 }
 
-/// The first paginated operation, by shape ID: a README's pagination
-/// example.
+/// A README's pagination example: the first paginated operation, by shape
+/// ID, with an example input, so the guide pages through a request the
+/// model's author wrote; else the first paginated operation.
 pub fn paginated(service: &Service) -> Option<&Operation> {
-    service.operations.iter().find(|op| op.paginated.is_some())
+    let paginated = || {
+        service
+            .operations
+            .iter()
+            .filter(|op| op.paginated.is_some())
+    };
+    paginated()
+        .find(|op| op.examples.iter().any(|e| e.input.is_some()))
+        .or_else(|| paginated().next())
 }
 
 /// `{SERVICE}_{suffix}`: the environment variable a snippet reads its

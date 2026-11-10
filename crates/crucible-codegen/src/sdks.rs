@@ -61,6 +61,37 @@ pub fn lines_of<'a>(service: &Service, selected: &[&'a Sdk]) -> Vec<&'a Sdk> {
 /// null `endpoint`. Every SDK that cannot be described is reported, in one
 /// error. Deterministic: the same file and model give the same bytes.
 pub fn document(file: &SdkFile, service: &Service, selected: &[&Sdk]) -> Result<Value, String> {
+    document_at(file, service, selected, &Versions::new())
+}
+
+/// The released version of each SDK, by its `[sdk.<name>]`: what a
+/// documentation site's install steps should name.
+pub type Versions = std::collections::BTreeMap<String, String>;
+
+/// [`document`], describing each SDK named in `versions` as released at
+/// that version: its guide installs that version from its release channel
+/// (a Git channel's tag for it). An SDK `versions` leaves out is described
+/// as a development package, which names no release. `crucible-sdk.toml`'s
+/// own `version` is a floor a release may raise, so it is never assumed. A
+/// version for an SDK the file does not declare is refused.
+pub fn document_at(
+    file: &SdkFile,
+    service: &Service,
+    selected: &[&Sdk],
+    versions: &Versions,
+) -> Result<Value, String> {
+    let unknown: Vec<_> = versions
+        .keys()
+        .filter(|name| !file.sdks.contains_key(*name))
+        .map(String::as_str)
+        .collect();
+    if !unknown.is_empty() {
+        return Err(format!(
+            "{} declares no SDK named {}",
+            file.path.display(),
+            unknown.join(", ")
+        ));
+    }
     if let Some(declared) = &file.service
         && *declared != service.id.to_string()
     {
@@ -77,7 +108,11 @@ pub fn document(file: &SdkFile, service: &Service, selected: &[&Sdk]) -> Result<
     let mut sdks = serde_json::Map::new();
     let mut errors = Vec::new();
     for sdk in selected {
-        match sdk.model(current).and_then(|line| entry(file, &line, sdk)) {
+        let version = versions.get(&sdk.name).map(String::as_str);
+        match sdk
+            .model(current)
+            .and_then(|line| entry(file, &line, sdk, version))
+        {
             Ok(entry) => {
                 sdks.insert(sdk.name.clone(), entry);
             }
@@ -155,9 +190,20 @@ pub fn render(document: &Value) -> String {
 /// release, so a site that renders one release's reference knows the
 /// other lines exist.
 pub fn file(file: &SdkFile, service: &Service, audience: Audience) -> Result<crate::File, String> {
+    file_at(file, service, audience, &Versions::new())
+}
+
+/// [`file`] with each SDK's released version ([`document_at`]). A version
+/// may name any SDK the file declares, whichever reference describes it.
+pub fn file_at(
+    file: &SdkFile,
+    service: &Service,
+    audience: Audience,
+    versions: &Versions,
+) -> Result<crate::File, String> {
     let visible = visible_in(file, audience);
     let described = lines_of(service, &visible);
-    let mut document = document(file, service, &described)?;
+    let mut document = document_at(file, service, &described, versions)?;
     let current = crucible_ir::versions::line_current(service);
     let current = crucible_ir::versions::current_name(current.as_ref().unwrap_or(service));
     let mut lines: std::collections::BTreeMap<&str, Vec<&str>> = std::collections::BTreeMap::new();
@@ -177,7 +223,12 @@ pub fn file(file: &SdkFile, service: &Service, audience: Audience) -> Result<cra
     })
 }
 
-fn entry(file: &SdkFile, service: &Service, sdk: &Sdk) -> Result<Value, String> {
+fn entry(
+    file: &SdkFile,
+    service: &Service,
+    sdk: &Sdk,
+    version: Option<&str>,
+) -> Result<Value, String> {
     let mut sdk = sdk.clone();
     let endpoint_env = match &sdk.options.endpoint {
         Some(Endpoint::Env { name, .. }) => Some(name.clone()),
@@ -192,7 +243,7 @@ fn entry(file: &SdkFile, service: &Service, sdk: &Sdk) -> Result<Value, String> 
     sdk.metadata.agents = None;
     sdk.metadata.license_file = None;
     let client = sdk
-        .client(file, None)
+        .client(file, version)
         .map_err(|error| format!("sdk.{}: {error}", sdk.name))?;
     let mut surface = client
         .surface(service, sdk.audience)

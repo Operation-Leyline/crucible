@@ -530,6 +530,198 @@ fn package_guides_show_each_import_once_and_where_the_digest_goes() {
     }
 }
 
+/// A guide pages through a request the model's author wrote where there
+/// is one: the first paginated operation with an example input, else the
+/// first paginated operation.
+#[test]
+fn a_guide_pages_through_an_operation_with_an_example() {
+    use crucible_codegen_common::snippet::paginated;
+    let mut service = common::load("weather");
+    let pagination = service
+        .operations
+        .iter()
+        .find_map(|op| op.paginated.clone())
+        .expect("weather has a paginated operation");
+    // Every operation pages, and only the last one has an example.
+    let example = service
+        .operations
+        .iter()
+        .flat_map(|op| &op.examples)
+        .find(|example| example.input.is_some())
+        .expect("weather has an example with an input")
+        .clone();
+    for op in &mut service.operations {
+        op.paginated = Some(pagination.clone());
+        op.examples.clear();
+    }
+    let first = service.operations.first().unwrap().id.clone();
+    let last = service.operations.last().unwrap().id.clone();
+    assert_ne!(first, last);
+    assert_eq!(paginated(&service).unwrap().id, first);
+    service
+        .operations
+        .last_mut()
+        .unwrap()
+        .examples
+        .push(example);
+    assert_eq!(paginated(&service).unwrap().id, last);
+}
+
+/// `guide` in `crucible.sdks/1` is the package's README as data: every
+/// section it lists is in the README the generator emits, under its
+/// heading and word for word, and so are its install commands, so a site
+/// that shows the guide shows what the package ships.
+#[cfg(feature = "all-clients")]
+#[test]
+fn an_sdk_guide_is_the_generated_readme_section_by_section() {
+    let service = common::load("weather");
+    for (language, client) in clients::clients() {
+        let surface = client.surface(&service, Audience::External).unwrap();
+        let guide = surface
+            .guide
+            .as_ref()
+            .expect("a described surface has a guide");
+        let files = client.emit(&service).unwrap();
+        let readme = &files
+            .iter()
+            .find(|file| file.path.ends_with("README.md"))
+            .unwrap_or_else(|| panic!("{language}: no README.md"))
+            .contents;
+        let ids: Vec<_> = guide.sections.iter().map(|s| s.id.as_str()).collect();
+        assert_eq!(
+            ids,
+            ["client", "call", "pagination", "errors", "retries", "links"],
+            "{language}"
+        );
+        for section in &guide.sections {
+            assert!(
+                readme.contains(&format!("## {}\n\n{}\n", section.title, section.markdown)),
+                "{language}: section {} is not in its README:\n{readme}",
+                section.id
+            );
+        }
+        for command in &guide.install.commands {
+            assert!(readme.contains(command), "{language}: {command}");
+        }
+        if let Some(manifest) = &guide.install.manifest {
+            assert!(readme.contains(&manifest.text), "{language}: manifest");
+        }
+    }
+}
+
+/// The install steps follow the release channel, and a configured README
+/// replaces the package's file, never the guide: a scoped package on a
+/// private npm registry configures its scope first, and a crate released
+/// by Git tag names its repository and tag rather than crates.io.
+#[test]
+fn an_sdk_guide_installs_from_the_declared_channel() {
+    let text = r#"
+schema_version = 1
+model = "model"
+
+[defaults]
+private = true
+
+[sdk.ts]
+package = "@example/weather"
+version = "1.2.0"
+readme = "README.md"
+out = "generated/ts"
+channel = { npm = "https://npm.pkg.github.com", access = "restricted" }
+
+[sdk.rust]
+package = "weather-sdk"
+version = "1.2.0"
+out = "generated/rust"
+channel = { git = "git@github.com:example/weather-rs.git", tag = "v{version}" }
+
+[sdk.go]
+package = "weather"
+module_path = "github.com/example/weather-go"
+out = "generated/go"
+channel = { git = "git@github.com:example/weather-go.git", tag = "v{version}" }
+"#;
+    let (directory, path) = repository("weather", text);
+    fs::write(directory.path().join("README.md"), "# Hand written\n").unwrap();
+    let file = sdk::load(&path).unwrap();
+    let service = common::load("weather");
+    // The file's `version` is a floor a release may raise: without a
+    // released version the SDKs are development packages, naming none.
+    let development = sdks::file(&file, &service, Audience::External).unwrap();
+    assert!(!development.contents.contains("1.2.0"));
+    let versions: sdks::Versions = [("ts", "1.2.3"), ("rust", "1.2.3")]
+        .into_iter()
+        .map(|(name, version)| (name.to_owned(), version.to_owned()))
+        .collect();
+    let text = sdks::file_at(&file, &service, Audience::External, &versions)
+        .unwrap()
+        .contents;
+    let document: serde_json::Value = serde_json::from_str(&text).unwrap();
+    let ts = &document["sdks"]["ts"]["guide"];
+    assert_eq!(ts["version"], "1.2.3");
+    assert_eq!(
+        ts["install"]["commands"],
+        serde_json::json!([
+            "npm config set @example:registry https://npm.pkg.github.com",
+            "npm install @example/weather@1.2.3"
+        ])
+    );
+    assert_eq!(ts["sections"][0]["id"], "client");
+    assert!(!text.contains("Hand written"));
+    let rust = &document["sdks"]["rust"]["guide"];
+    let steps = rust["install"].to_string();
+    assert!(steps.contains("weather-rs"), "{steps}");
+    assert!(steps.contains("v1.2.3"), "{steps}");
+    assert!(!steps.contains("cargo add weather-sdk@"), "{steps}");
+    // Go has no package version of its own: its release is its tag. The
+    // guide still reports the release it installs, and none without one.
+    assert!(document["sdks"]["go"]["guide"]["version"].is_null());
+    let released: sdks::Versions = [("go".to_owned(), "1.2.3".to_owned())].into();
+    let text = sdks::file_at(&file, &service, Audience::External, &released)
+        .unwrap()
+        .contents;
+    let document: serde_json::Value = serde_json::from_str(&text).unwrap();
+    let go = &document["sdks"]["go"]["guide"];
+    assert_eq!(go["version"], "1.2.3");
+    assert!(go["install"].to_string().contains("@v1.2.3"), "{go}");
+    // Without a channel whose tag Go can resolve, `go get` is unpinned and
+    // installs the latest release: the guide names no version beside it.
+    // A module path that happens to spell the version pins nothing.
+    for (module, channel) in [
+        ("github.com/example/weather-go", ""),
+        (
+            "github.com/example/weather-go",
+            r#"channel = { git = "git@github.com:example/weather-go.git", tag = "sdk-{version}" }"#,
+        ),
+        ("github.com/example/weather-1.2.3", ""),
+    ] {
+        let text = format!(
+            "schema_version = 1\nmodel = \"model\"\n\n[sdk.go]\npackage = \"weather\"\n\
+             module_path = \"{module}\"\nout = \"generated/go\"\n{channel}\n"
+        );
+        let (_directory, path) = repository("weather", &text);
+        let file = sdk::load(&path).unwrap();
+        let text = sdks::file_at(&file, &service, Audience::External, &released)
+            .unwrap()
+            .contents;
+        let document: serde_json::Value = serde_json::from_str(&text).unwrap();
+        let go = &document["sdks"]["go"]["guide"];
+        assert_eq!(
+            go["install"]["commands"],
+            serde_json::json!([format!("go get {module}")]),
+            "{channel}"
+        );
+        assert!(go["version"].is_null(), "{channel}: {go}");
+    }
+    // A version for an SDK the file does not declare names nothing.
+    let unknown: sdks::Versions = [("python".to_owned(), "1.0.0".to_owned())].into();
+    let refused = sdks::file_at(&file, &service, Audience::External, &unknown).unwrap_err();
+    assert!(
+        refused.contains("declares no SDK named python"),
+        "{refused}"
+    );
+}
+
 /// A paginated call's first page sends no page token, and a copied call
 /// no idempotency token, wherever the request binds it (`page-tokens`).
 /// Each operation's example sets the token to a value written nowhere

@@ -46,7 +46,7 @@ pub use file::File;
 pub use names::escape_identifier;
 pub use runtime_dependency::RuntimeDependency;
 pub use scaffold::{ScaffoldOptions, Stub, file_stem, folder, module_name, scaffold};
-pub use surface::surface;
+pub use surface::{guide_document, surface};
 
 use std::collections::BTreeSet;
 

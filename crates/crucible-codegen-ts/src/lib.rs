@@ -200,7 +200,7 @@ pub fn capabilities() -> crucible_ir::Capabilities {
     ])
 }
 
-pub use surface::surface;
+pub use surface::{guide_document, surface};
 
 /// The client class: `client_name`, or the service name plus `Client`.
 pub(crate) fn client_name(service: &Service, options: &Options) -> String {

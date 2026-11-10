@@ -346,7 +346,22 @@ pub(super) fn render(service: &Service, d: &Description) -> Vec<File> {
     index.push_str("\n## Service errors\n\n");
     index.push_str(&errors(d, &d.service["errors"], ""));
     index.push_str("## Operations\n\n");
-    for resource in d.resources.values() {
+    for group in groups(d) {
+        let Some(resource) = group.resource else {
+            summary.push_str("- Service operations\n");
+            index.push_str("### Service operations\n\n");
+            for op in &group.operations {
+                let row = format!(
+                    "{}{}",
+                    link(string(&op["name"]), &operation_path(op)),
+                    badge(op)
+                );
+                index.push_str(&format!("- {row}\n"));
+                summary.push_str(&format!("  - {row}\n"));
+            }
+            index.push('\n');
+            continue;
+        };
         let name = string(&resource["name"]);
         index.push_str(&format!(
             "### {name}{}\n\n{}{}",
@@ -373,36 +388,18 @@ pub(super) fn render(service: &Service, d: &Description) -> Vec<File> {
             }
             index.push('\n');
         }
-        summary.push_str(&format!("- {}\n", escaped(name)));
-        for id in list(&resource["operations"]) {
-            if let Some(op) = d.operations.get(string(id)) {
-                let row = format!(
-                    "{}{}",
-                    link(string(&op["name"]), &operation_path(op)),
-                    badge(op)
-                );
-                index.push_str(&format!("- {row}\n"));
-                summary.push_str(&format!("  - {row}\n"));
-            }
-        }
-        index.push('\n');
-    }
-    let unbound: Vec<_> = d
-        .operations
-        .values()
-        .filter(|op| list(&op["resources"]).is_empty())
-        .collect();
-    if !unbound.is_empty() {
-        summary.push_str("- Service operations\n");
-        index.push_str("### Service operations\n\n");
-        for op in unbound {
+        // The table of contents nests a resource under its parent, as the
+        // model does.
+        let indent = "  ".repeat(group.depth);
+        summary.push_str(&format!("{indent}- {}\n", escaped(name)));
+        for op in &group.operations {
             let row = format!(
                 "{}{}",
                 link(string(&op["name"]), &operation_path(op)),
                 badge(op)
             );
             index.push_str(&format!("- {row}\n"));
-            summary.push_str(&format!("  - {row}\n"));
+            summary.push_str(&format!("{indent}  - {row}\n"));
         }
         index.push('\n');
     }
@@ -501,24 +498,41 @@ pub(super) fn render(service: &Service, d: &Description) -> Vec<File> {
     files
 }
 
+/// One group of the reference's navigation: a resource and its operations,
+/// or, without a resource, the operations bound to none.
+struct Group<'a> {
+    resource: Option<&'a Value>,
+    depth: usize,
+    operations: Vec<&'a Value>,
+}
+
+/// The description's `navigation`, resolved to its resources and
+/// operations: the order every renderer lists the API in.
+fn groups(d: &Description) -> Vec<Group<'_>> {
+    list(&d.navigation)
+        .iter()
+        .filter_map(|group| {
+            let resource = match group["resource"].as_str() {
+                Some(id) => Some(d.resources.get(id)?),
+                None => None,
+            };
+            Some(Group {
+                resource,
+                depth: group["level"].as_u64().unwrap_or_default() as usize,
+                operations: list(&group["operations"])
+                    .iter()
+                    .filter_map(|id| d.operations.get(string(id)))
+                    .collect(),
+            })
+        })
+        .collect()
+}
+
 /// The first sentence of an item's documentation, as one line of plain
-/// text: what an index line says about the page it links.
+/// text: what an index line says about the page it links. The sentence is
+/// the description's `summary`.
 fn summary(item: &Value) -> String {
-    let text = string(&item["documentation"]["text"]);
-    let paragraph = text.split("\n\n").next().unwrap_or_default();
-    let line = paragraph.split_whitespace().collect::<Vec<_>>().join(" ");
-    // A sentence ends at a period before a capital, so "Payments Inc.
-    // reports" and "e.g. a city" stay whole.
-    let end = line.match_indices(". ").map(|(at, _)| at).find(|&at| {
-        line[at + 2..]
-            .chars()
-            .next()
-            .is_some_and(char::is_uppercase)
-    });
-    plain(match end {
-        Some(end) => &line[..=end],
-        None => &line,
-    })
+    plain(string(&item["summary"]))
 }
 
 /// Model text as inert Markdown text, for `llms.txt`, which an agent reads

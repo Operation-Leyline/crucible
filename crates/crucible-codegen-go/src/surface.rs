@@ -127,3 +127,16 @@ fn names_package(native: &str, uses: &str) -> bool {
             .is_some_and(|c| c.is_alphanumeric() || c == '_' || c == '.')
     })
 }
+
+/// The package's generated guide, as `crucible.sdks/1` carries it beside
+/// the surface: what its README says, section by section.
+pub fn guide_document(
+    service: &Service,
+    options: &Options,
+) -> crucible_codegen_common::guide::Document {
+    crucible_codegen_common::guide::document(
+        service,
+        &surface(service, options),
+        &crate::snippet::guide(service, options),
+    )
+}

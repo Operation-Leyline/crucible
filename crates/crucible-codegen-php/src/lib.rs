@@ -15,7 +15,7 @@ use names::{field, identifier, reserved, variant};
 use sha2::{Digest, Sha256};
 use std::collections::{BTreeMap, BTreeSet};
 
-pub use surface::surface;
+pub use surface::{guide_document, surface};
 
 /// The client class: the service name plus `Client`.
 fn client_name(service: &Service) -> String {

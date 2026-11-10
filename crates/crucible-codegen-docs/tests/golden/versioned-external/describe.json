@@ -1,5 +1,20 @@
 {
   "format": "crucible.describe/1",
+  "navigation": [
+    {
+      "level": 0,
+      "operations": [
+        "example.shop#DeleteItem",
+        "example.shop#GetItem",
+        "example.shop#GetLabel",
+        "example.shop#ListItems",
+        "example.shop#ListLabels",
+        "example.shop#PutLabel",
+        "example.shop#RecordPayment"
+      ],
+      "resource": null
+    }
+  ],
   "operations": {
     "example.shop#DeleteItem": {
       "auth": [],
@@ -184,6 +199,7 @@
         }
       },
       "status": 200,
+      "summary": "",
       "uri": "/items/{id}"
     },
     "example.shop#GetItem": {
@@ -398,6 +414,7 @@
         }
       },
       "status": 200,
+      "summary": "",
       "uri": "/things/{id}"
     },
     "example.shop#GetLabel": {
@@ -590,6 +607,7 @@
         }
       },
       "status": 200,
+      "summary": "One label.",
       "uri": "/labels/{id}"
     },
     "example.shop#ListItems": {
@@ -816,6 +834,7 @@
         }
       },
       "status": 200,
+      "summary": "",
       "uri": "/items"
     },
     "example.shop#ListLabels": {
@@ -1016,6 +1035,7 @@
         }
       },
       "status": 200,
+      "summary": "Every label on the shelf, and the kinds of item they mark.",
       "uri": "/labels"
     },
     "example.shop#PutLabel": {
@@ -1267,6 +1287,7 @@
         }
       },
       "status": 200,
+      "summary": "Replaces a label.",
       "uri": "/labels/{id}"
     },
     "example.shop#RecordPayment": {
@@ -1430,6 +1451,7 @@
         "name": "Payments"
       },
       "status": 200,
+      "summary": "A payment processor's delivery (decision 81).",
       "uri": "/payments"
     }
   },
@@ -1457,6 +1479,7 @@
     },
     "protocol": "crucibleJson",
     "resourceRoots": [],
+    "summary": "",
     "title": "Shop",
     "version": "v4"
   },
@@ -1489,7 +1512,8 @@
         "since": null,
         "unstable": false
       },
-      "sensitive": false
+      "sensitive": false,
+      "summary": ""
     },
     "crucible.api#String": {
       "constraints": {
@@ -1519,7 +1543,8 @@
         "since": null,
         "unstable": false
       },
-      "sensitive": false
+      "sensitive": false,
+      "summary": ""
     },
     "crucible.errors#InternalServerException": {
       "documentation": {
@@ -1667,7 +1692,8 @@
         "since": null,
         "unstable": false
       },
-      "sensitive": false
+      "sensitive": false,
+      "summary": "An unexpected server failure."
     },
     "crucible.errors#ValidationException": {
       "documentation": {
@@ -1919,7 +1945,8 @@
         "since": null,
         "unstable": false
       },
-      "sensitive": false
+      "sensitive": false,
+      "summary": "A request cannot be parsed or does not satisfy the service's input model."
     },
     "crucible.errors#ValidationExceptionField": {
       "documentation": {
@@ -2019,7 +2046,8 @@
         "since": null,
         "unstable": false
       },
-      "sensitive": false
+      "sensitive": false,
+      "summary": "A request field that failed validation."
     },
     "crucible.errors#ValidationExceptionFieldList": {
       "constraints": {
@@ -2089,7 +2117,8 @@
       },
       "sensitive": false,
       "set": false,
-      "sparse": false
+      "sparse": false,
+      "summary": ""
     },
     "crucible.errors#ValidationExceptionReason": {
       "documentation": {
@@ -2114,6 +2143,7 @@
         "unstable": false
       },
       "sensitive": false,
+      "summary": "A machine-readable reason; clients never need to parse message text.",
       "values": [
         {
           "documentation": {
@@ -2301,7 +2331,8 @@
         "since": null,
         "unstable": false
       },
-      "sensitive": false
+      "sensitive": false,
+      "summary": ""
     },
     "example.shop#DeleteItemOutput": {
       "documentation": {
@@ -2366,7 +2397,8 @@
         "since": null,
         "unstable": false
       },
-      "sensitive": false
+      "sensitive": false,
+      "summary": ""
     },
     "example.shop#GetItemInput": {
       "documentation": {
@@ -2429,7 +2461,8 @@
         "since": null,
         "unstable": false
       },
-      "sensitive": false
+      "sensitive": false,
+      "summary": ""
     },
     "example.shop#GetItemOutput": {
       "documentation": {
@@ -2534,7 +2567,8 @@
         "since": null,
         "unstable": false
       },
-      "sensitive": false
+      "sensitive": false,
+      "summary": ""
     },
     "example.shop#GetLabelInput": {
       "documentation": {
@@ -2597,7 +2631,8 @@
         "since": null,
         "unstable": false
       },
-      "sensitive": false
+      "sensitive": false,
+      "summary": ""
     },
     "example.shop#GetLabelOutput": {
       "documentation": {
@@ -2660,7 +2695,8 @@
         "since": null,
         "unstable": false
       },
-      "sensitive": false
+      "sensitive": false,
+      "summary": ""
     },
     "example.shop#ItemGoneException": {
       "documentation": {
@@ -2763,7 +2799,8 @@
         "since": null,
         "unstable": false
       },
-      "sensitive": false
+      "sensitive": false,
+      "summary": ""
     },
     "example.shop#ItemNotFoundException": {
       "documentation": {
@@ -2866,7 +2903,8 @@
         "since": null,
         "unstable": false
       },
-      "sensitive": false
+      "sensitive": false,
+      "summary": ""
     },
     "example.shop#Kind": {
       "documentation": {
@@ -2893,6 +2931,7 @@
         "unstable": false
       },
       "sensitive": false,
+      "summary": "",
       "values": [
         {
           "documentation": {
@@ -3027,7 +3066,8 @@
       },
       "sensitive": false,
       "set": false,
-      "sparse": false
+      "sparse": false,
+      "summary": ""
     },
     "example.shop#Label": {
       "documentation": {
@@ -3166,7 +3206,8 @@
         "since": null,
         "unstable": false
       },
-      "sensitive": false
+      "sensitive": false,
+      "summary": "An item's label."
     },
     "example.shop#Labels": {
       "constraints": {
@@ -3236,7 +3277,8 @@
       },
       "sensitive": false,
       "set": false,
-      "sparse": false
+      "sparse": false,
+      "summary": ""
     },
     "example.shop#ListItemsInput": {
       "documentation": {
@@ -3341,7 +3383,8 @@
         "since": null,
         "unstable": false
       },
-      "sensitive": false
+      "sensitive": false,
+      "summary": ""
     },
     "example.shop#ListItemsOutput": {
       "documentation": {
@@ -3441,7 +3484,8 @@
         "since": null,
         "unstable": false
       },
-      "sensitive": false
+      "sensitive": false,
+      "summary": ""
     },
     "example.shop#ListLabelsOutput": {
       "documentation": {
@@ -3541,7 +3585,8 @@
         "since": null,
         "unstable": false
       },
-      "sensitive": false
+      "sensitive": false,
+      "summary": ""
     },
     "example.shop#Names": {
       "constraints": {
@@ -3611,7 +3656,8 @@
       },
       "sensitive": false,
       "set": false,
-      "sparse": false
+      "sparse": false,
+      "summary": ""
     },
     "example.shop#PutLabelInput": {
       "documentation": {
@@ -3711,7 +3757,8 @@
         "since": null,
         "unstable": false
       },
-      "sensitive": false
+      "sensitive": false,
+      "summary": ""
     },
     "example.shop#PutLabelOutput": {
       "documentation": {
@@ -3774,7 +3821,8 @@
         "since": null,
         "unstable": false
       },
-      "sensitive": false
+      "sensitive": false,
+      "summary": ""
     },
     "example.shop#RecordPaymentInput": {
       "documentation": {
@@ -3837,7 +3885,8 @@
         "since": null,
         "unstable": false
       },
-      "sensitive": false
+      "sensitive": false,
+      "summary": ""
     },
     "example.shop#RecordPaymentOutput": {
       "documentation": {
@@ -3900,7 +3949,8 @@
         "since": null,
         "unstable": false
       },
-      "sensitive": false
+      "sensitive": false,
+      "summary": ""
     }
   },
   "versions": {
@@ -4173,7 +4223,8 @@
                     "since": null,
                     "unstable": false
                   },
-                  "sensitive": false
+                  "sensitive": false,
+                  "summary": ""
                 },
                 "example.shop#Kind": {
                   "documentation": {
@@ -4198,6 +4249,7 @@
                     "unstable": false
                   },
                   "sensitive": false,
+                  "summary": "",
                   "values": [
                     {
                       "documentation": {
@@ -4783,7 +4835,8 @@
                     "since": null,
                     "unstable": false
                   },
-                  "sensitive": false
+                  "sensitive": false,
+                  "summary": "A request cannot be parsed or does not satisfy the service's input model."
                 },
                 "example.shop#CountItemsInput": {
                   "documentation": {
@@ -4846,7 +4899,8 @@
                     "since": null,
                     "unstable": false
                   },
-                  "sensitive": false
+                  "sensitive": false,
+                  "summary": ""
                 },
                 "example.shop#CountItemsOutput": {
                   "documentation": {
@@ -4909,7 +4963,8 @@
                     "since": null,
                     "unstable": false
                   },
-                  "sensitive": false
+                  "sensitive": false,
+                  "summary": ""
                 },
                 "example.shop#CountUnavailableException": {
                   "documentation": {
@@ -5012,7 +5067,8 @@
                     "since": null,
                     "unstable": false
                   },
-                  "sensitive": false
+                  "sensitive": false,
+                  "summary": ""
                 }
               }
             },
