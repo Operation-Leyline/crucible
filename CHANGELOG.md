@@ -23,6 +23,17 @@ version's section when it is prepared.
   `epoch-seconds`) are `PreciseDate` values; inputs accept either class, and a
   plain `Date` encodes as before. A model shape named `PreciseDate` is refused.
   `getTime()` and `<`/`>` still see milliseconds only; use `compare()`/`equals()`.
+- Python client: timestamps are lossless to the nanosecond. The package exports
+  `Timestamp`, a `datetime` subclass that also carries the nanosecond. Decoded
+  timestamps are `Timestamp` values; inputs accept a plain aware `datetime`, and
+  generated annotations stay `datetime`. Epoch seconds are exact decimals in
+  both directions. A model shape named `Timestamp` is refused.
+- C# client: timestamps are lossless to the nanosecond. The package has a
+  `Timestamp` value type (seconds and nanoseconds) with an implicit conversion
+  from `DateTimeOffset` and an explicit, lossy conversion to it. See *Migration*.
+- Conformance: the shared serialization corpus has a nanosecond `date-time` case
+  and a nanosecond `epoch-seconds` case, run by every client generator, and no
+  per-client timestamp exception remains.
 - `.cru`: `internal resource X` keeps a whole resource out of the external
   contract. Its operations keep lifecycle checks, `$` bindings and views; it may
   hold internal identifier and property types, and it may be a child of a public
@@ -45,6 +56,32 @@ version's section when it is prepared.
   validation and request-id insertion avoid duplicate header lookups.
 - `.cru`: refusing an internal identifier or property type now names the resource
   and applies only to one that is not `internal`.
+- TypeScript, Python and C# clients keep the digits of a timestamp finer than
+  their native date type instead of truncating them, and refuse one finer than
+  a nanosecond.
+- Python client: a `date-time` is written with the shortest fraction that is
+  exact (`.12Z`, not `.120000Z`); whole seconds are unchanged. Reading accepts
+  RFC 3339 only, and a missing offset means UTC.
+- C# client: reading a `date-time` accepts RFC 3339 only, and a missing offset
+  means UTC.
+- C, C++ and Python clients no longer accept the strings `"NaN"`, `"Infinity"`
+  and `"-Infinity"` for a float or double: the wire format has no non-finite
+  number. The Python client refuses to send one. Go and C++ documentation
+  snippets no longer have a non-finite case, which no model could reach.
+
+### Migration
+
+- C# client: timestamp members are `Timestamp`, not `DateTimeOffset`. No shim
+  can keep the old member type. Assigning a `DateTimeOffset` still compiles
+  through the implicit conversion. Where code reads a member as a
+  `DateTimeOffset`, call `ToDateTimeOffset()` or cast explicitly; both drop
+  digits finer than 100 ns and throw outside years 1 to 9999.
+- TypeScript client: the runtime no longer exports `formatTimestamp` and
+  `parseTimestamp`. Build an exact instant with `PreciseDate.fromRfc3339`,
+  `fromEpochMicros` or `fromEpochNanos`, and print one with `toISOString()`.
+- Python client: text that `datetime.fromisoformat` accepted but RFC 3339 does
+  not (a date alone, a time without seconds, an offset without a colon) is now
+  refused when decoding a timestamp.
 
 ## [0.9.0] - 2026-11-04
 
