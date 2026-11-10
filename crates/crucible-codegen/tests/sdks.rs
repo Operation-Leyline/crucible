@@ -530,6 +530,43 @@ fn package_guides_show_each_import_once_and_where_the_digest_goes() {
     }
 }
 
+/// A guide pages through a request the model's author wrote where there
+/// is one: the first paginated operation with an example input, else the
+/// first paginated operation.
+#[test]
+fn a_guide_pages_through_an_operation_with_an_example() {
+    use crucible_codegen_common::snippet::paginated;
+    let mut service = common::load("weather");
+    let pagination = service
+        .operations
+        .iter()
+        .find_map(|op| op.paginated.clone())
+        .expect("weather has a paginated operation");
+    // Every operation pages, and only the last one has an example.
+    let example = service
+        .operations
+        .iter()
+        .flat_map(|op| &op.examples)
+        .find(|example| example.input.is_some())
+        .expect("weather has an example with an input")
+        .clone();
+    for op in &mut service.operations {
+        op.paginated = Some(pagination.clone());
+        op.examples.clear();
+    }
+    let first = service.operations.first().unwrap().id.clone();
+    let last = service.operations.last().unwrap().id.clone();
+    assert_ne!(first, last);
+    assert_eq!(paginated(&service).unwrap().id, first);
+    service
+        .operations
+        .last_mut()
+        .unwrap()
+        .examples
+        .push(example);
+    assert_eq!(paginated(&service).unwrap().id, last);
+}
+
 /// `guide` in `crucible.sdks/1` is the package's README as data: every
 /// section it lists is in the README the generator emits, under its
 /// heading and word for word, and so are its install commands, so a site

@@ -73,6 +73,10 @@ version's section when it is prepared.
 
 ### Changed
 
+- Generated SDK guides (`README.md`, `AGENTS.md`, and `guide` in
+  `crucible.sdks/1`) page through the first paginated operation that has an
+  example input, where there is one, rather than the first paginated operation
+  with generated sample values.
 - Rust HTTP hosting keeps request futures concrete instead of boxing each one.
   Request/version header names are retained as static names, and content-type
   validation and request-id insertion avoid duplicate header lookups.
