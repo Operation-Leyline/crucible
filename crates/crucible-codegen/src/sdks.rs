@@ -257,6 +257,14 @@ fn entry(
     if endpoint_env.is_some() {
         surface.endpoint = None;
     }
+    // A generator without a package version of its own (Go, whose release
+    // is its Git tag) installs the release but has no version to report:
+    // the guide still says which release it describes.
+    if let (Some(version), Some(guide)) = (version, surface.guide.as_mut())
+        && guide.version.is_none()
+    {
+        guide.version = Some(version.to_owned());
+    }
     let mut entry = serde_json::to_value(&surface).expect("a surface is JSON data");
     let object = entry.as_object_mut().expect("a surface is an object");
     object.insert("name".into(), json!(sdk.name));

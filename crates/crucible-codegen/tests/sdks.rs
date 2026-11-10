@@ -634,6 +634,12 @@ package = "weather-sdk"
 version = "1.2.0"
 out = "generated/rust"
 channel = { git = "git@github.com:example/weather-rs.git", tag = "v{version}" }
+
+[sdk.go]
+package = "weather"
+module_path = "github.com/example/weather-go"
+out = "generated/go"
+channel = { git = "git@github.com:example/weather-go.git", tag = "v{version}" }
 "#;
     let (directory, path) = repository("weather", text);
     fs::write(directory.path().join("README.md"), "# Hand written\n").unwrap();
@@ -667,6 +673,17 @@ channel = { git = "git@github.com:example/weather-rs.git", tag = "v{version}" }
     assert!(steps.contains("weather-rs"), "{steps}");
     assert!(steps.contains("v1.2.3"), "{steps}");
     assert!(!steps.contains("cargo add weather-sdk@"), "{steps}");
+    // Go has no package version of its own: its release is its tag. The
+    // guide still reports the release it installs, and none without one.
+    assert!(document["sdks"]["go"]["guide"]["version"].is_null());
+    let released: sdks::Versions = [("go".to_owned(), "1.2.3".to_owned())].into();
+    let text = sdks::file_at(&file, &service, Audience::External, &released)
+        .unwrap()
+        .contents;
+    let document: serde_json::Value = serde_json::from_str(&text).unwrap();
+    let go = &document["sdks"]["go"]["guide"];
+    assert_eq!(go["version"], "1.2.3");
+    assert!(go["install"].to_string().contains("@v1.2.3"), "{go}");
     // A version for an SDK the file does not declare names nothing.
     let unknown: sdks::Versions = [("python".to_owned(), "1.0.0".to_owned())].into();
     let refused = sdks::file_at(&file, &service, Audience::External, &unknown).unwrap_err();
