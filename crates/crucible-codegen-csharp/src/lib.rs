@@ -108,7 +108,7 @@ fn ty(service: &Service, id: &ShapeId, ns: &str) -> String {
             SimpleKind::Long => "long",
             SimpleKind::Float => "float",
             SimpleKind::Double => "double",
-            SimpleKind::Timestamp => "global::System.DateTimeOffset",
+            SimpleKind::Timestamp => return format!("global::{ns}.Timestamp"),
             SimpleKind::Document => "global::System.Text.Json.Nodes.JsonNode",
             SimpleKind::Blob => "byte[]",
         }
@@ -955,6 +955,7 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
         ("UnknownUnion", include_str!("../runtime/UnknownUnion.cs")),
         ("Unit", include_str!("../runtime/Unit.cs")),
         ("BigDecimal", include_str!("../runtime/BigDecimal.cs")),
+        ("Timestamp", include_str!("../runtime/Timestamp.cs")),
         (
             "ClientRuntime.Policy",
             include_str!("../runtime/ClientRuntime.Policy.cs"),

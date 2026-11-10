@@ -25,6 +25,15 @@ HEADER_ECHO = """readonly operation HeaderEcho {
 }
 """
 
+FLOAT_HEADER_ECHO = """readonly operation FloatHeaderEcho {
+    http GET "/float-header" -> 200
+    output {
+        @header("X-Ratio")
+        ratio?: double
+    }
+}
+"""
+
 RECURSIVE = """service Service {
     version "1"
     protocol json
@@ -102,8 +111,8 @@ def models(output):
     # Payload Content-Type precedence, from the model shared with the Python generator's tests.
     generate(ROOT / "tests/models/payload-bindings", output / "payload", "payload_client", "payload")
     source = qualification_model(output)
-    (source / "header.cru").write_text(HEADER_ECHO, encoding="utf-8", newline="\n")
-    add_operations(source, "HeaderEcho")
+    (source / "header.cru").write_text(HEADER_ECHO + FLOAT_HEADER_ECHO, encoding="utf-8", newline="\n")
+    add_operations(source, "HeaderEcho", "FloatHeaderEcho")
     generate(source, output / "sdk")
     edge = copy_package("weather", output / "edge-model")
     rename_shapes(edge, {"CitySummary": "String", "Location": "Array", "Sky": "Time"})

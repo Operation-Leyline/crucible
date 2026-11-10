@@ -1,0 +1,9 @@
+service Instants {
+    version "1"
+    protocol json
+    operations [Echo]
+}
+
+timestamp Moment { format date-time }
+
+timestamp EpochMoment { format epoch-seconds }

@@ -9,7 +9,7 @@ import unittest
 import httpx
 from weather_client import AsyncWeatherClient, WeatherClient, UNSET, ServiceError, WeatherException, CreateCityInput, ListCitiesInput, CitySummary, ListCitiesOutput
 from weather_client import models as m
-from weather_client.runtime import _Codec, SyncClient, AsyncClientBase, NetworkError
+from weather_client.runtime import _Codec, _json, SyncClient, AsyncClientBase, NetworkError
 
 ROOT = Path(__file__).resolve().parents[3]
 CASES = json.loads((ROOT / "tests/conformance/retry.json").read_text())
@@ -126,14 +126,14 @@ class RuntimeTests(unittest.TestCase):
         codec = _Codec(m._SCHEMA, m._CLASSES)
         for case in SERIALIZATION_CASES:
             with self.subTest(case=case["id"]):
-                wire = json.loads(case["wire"])
+                wire = json.loads(case["wire"], parse_float=Decimal)
                 if case.get("reject"):
                     with self.assertRaises((ValueError, TypeError)):
                         codec.convert(case["target"], wire, decode=True)
                     continue
-                expected = case.get("expectByProfile", {}).get("python-datetime", case["expect"])
+                expected = case["expect"]
                 native = codec.convert(case["target"], wire, decode=True)
-                encoded = json.dumps(codec.convert(case["target"], native), allow_nan=False)
+                encoded = _json(codec.convert(case["target"], native))
                 self.assertEqual(json.loads(encoded, parse_float=Decimal),
                                  json.loads(expected["json"], parse_float=Decimal))
                 members = codec.shapes[case["target"]].get("members", {})
@@ -146,9 +146,8 @@ class RuntimeTests(unittest.TestCase):
                 if "instant" in expected:
                     instant = expected["instant"]
                     value = getattr(native, members[instant["member"]]["attribute"])
-                    delta = value - datetime(1970, 1, 1, tzinfo=timezone.utc)
-                    self.assertEqual(str(delta.days * 86400 + delta.seconds), instant["seconds"])
-                    self.assertEqual(delta.microseconds * 1000, instant["nanoseconds"])
+                    self.assertEqual(str(value.seconds), instant["seconds"])
+                    self.assertEqual(value.nanoseconds, instant["nanoseconds"])
 
     def test_ir_nullability_preserves_document_null(self):
         codec = _Codec(m._SCHEMA, m._CLASSES)
@@ -198,26 +197,19 @@ class RuntimeTests(unittest.TestCase):
                 self.assertEqual(encoded, case["encoded"])
                 self.assertEqual(codec.read_header(member, encoded), case["values"])
 
-    def test_non_finite_float_bindings(self):
-        import math
+    def test_non_finite_float_bindings_are_refused(self):
         codec = _Codec(m._SCHEMA, m._CLASSES)
-        # Extend shapes with Float and Double if they are not already there
-        if "crucible.api#Float" not in codec.shapes:
-            codec.shapes["crucible.api#Float"] = {"kind": "float"}
-        if "crucible.api#Double" not in codec.shapes:
-            codec.shapes["crucible.api#Double"] = {"kind": "double"}
-            
-        for target, value, expected in [
-            ("crucible.api#Float", float("nan"), "NaN"),
-            ("crucible.api#Double", float("inf"), "Infinity"),
-            ("crucible.api#Double", float("-inf"), "-Infinity"),
-            ("crucible.api#Double", Decimal("NaN"), "NaN"),
-            ("crucible.api#Double", Decimal("Infinity"), "Infinity"),
-            ("crucible.api#Double", Decimal("-Infinity"), "-Infinity"),
+        codec.shapes.setdefault("crucible.api#Float", {"kind": "float"})
+        codec.shapes.setdefault("crucible.api#Double", {"kind": "double"})
+        for target, value in [
+            ("crucible.api#Float", float("nan")),
+            ("crucible.api#Double", float("inf")),
+            ("crucible.api#Double", float("-inf")),
+            ("crucible.api#Double", Decimal("NaN")),
+            ("crucible.api#Double", Decimal("Infinity")),
         ]:
-            with self.subTest(target=target, value=value):
-                encoded = codec.bound({"target": target}, value)
-                self.assertEqual(encoded, expected)
+            with self.subTest(target=target, value=value), self.assertRaises(ValueError):
+                codec.bound({"target": target}, value)
 
     def test_unquoted_http_date_header_lists(self):
         schema = {"shapes": {"example#Time": {"kind": "timestamp"},

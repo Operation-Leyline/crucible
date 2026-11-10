@@ -101,13 +101,36 @@ bearer `Authorization` header supplied with `headers=` wins over it. An
 operation that accepts no token never calls it. Credentials in headers require HTTPS, with a loopback
 exception for tests.
 
-`datetime` has microsecond precision and supports years 1 through 9999.
-Epoch timestamps pass through Python's floating-point timestamp conversion;
-submicrosecond fractions can round away, and large epoch values can lose
-additional precision. Text timestamps retain at most six fractional digits.
-For example, epoch `-0.000000125` decodes to the Unix epoch and re-encodes as
-`0.0`. The shared serialization suite records this Python precision profile
-separately from nanosecond and .NET tick representations.
+Timestamps keep the nanosecond. Decoded timestamp members are `Timestamp`
+(exported by the package), a `datetime` subclass, so code that reads one as a
+`datetime` keeps working. It adds `nanosecond` (0 to 999, the part below the
+microsecond, as pandas does) and, for exact parts, `seconds` and `nanoseconds`
+(0 to 999999999). Years 1 through 9999 only, as `datetime`.
+
+```python
+from weather_client import Timestamp
+t = Timestamp.parse("2026-03-04T05:06:07.123456789Z")   # RFC 3339; no offset means UTC
+t.nanosecond, t.nanoseconds                              # (789, 123456789)
+Timestamp.from_seconds(1772600767, 123456789) == t
+Timestamp.from_epoch("1772600767.123456789") == t        # epoch seconds, exact decimal
+t.to_epoch()                                             # Decimal('1772600767.123456789')
+Timestamp.from_datetime(some_datetime)                   # lossless, keeps a Timestamp's nanosecond
+t.to_datetime()                                          # plain datetime; drops the nanosecond
+```
+
+A plain timezone-aware `datetime` is accepted anywhere a timestamp is sent;
+naive ones raise `TypeError`. Equality, ordering, hashing, `isoformat()`,
+`repr()`, `replace()`, `astimezone()` and `+`/`-` with a `timedelta` include the
+nanosecond; other inherited operations see the microsecond only. Model
+annotations stay `datetime` so existing callers type-check; use
+`Timestamp.from_datetime` or `isinstance` to reach `nanosecond`. `date-time`
+text is written in UTC with the fraction trimmed of trailing zeros (up to nine
+digits); `epoch-seconds` is written as an exact decimal, never a float, and read
+the same way (a `Decimal` or `int`; a `float` is read as its shortest decimal).
+Digits finer than a nanosecond raise `ValueError`, as does a non-finite number.
+The runtime parses the fraction itself, so nine digits read the same on every
+supported Python (3.11 and later). Non-finite floats (`NaN`, `Infinity`) are not
+wire values and are refused when sent or read.
 
 ## Transport and pagination
 

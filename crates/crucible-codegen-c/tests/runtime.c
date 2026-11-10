@@ -48,7 +48,9 @@ static void respond(weather_arena *arena, weather_response *response, int status
     good(weather_arena_copy(arena, body, &copied, error), error);
     response->status = status; response->body = (weather_blob){(const unsigned char *)copied.data, copied.length};
 }
-enum fake_mode { retry_case, header_case, malformed_case, invalid_success, pagination_cycle, pagination_end, pagination_failure,
+/* The float header the fake service answers with. */
+static const char *float_header_wire;
+enum fake_mode { retry_case, header_case, float_header_case, malformed_case, invalid_success, pagination_cycle, pagination_end, pagination_failure,
                  wait_retry, auth_override, binding_case, network_retry, public_auth };
 typedef struct { enum fake_mode mode; const weather_json *row; unsigned attempts; bool first_only; } fake;
 
@@ -78,6 +80,10 @@ static weather_status send_fake(void *user, const weather_request *request, bool
         check(!read_body, "header-only response does not read body");
         respond(arena, response, 200, VIEW("{bad"), error);
         good(weather_header_set(arena, &response->headers, VIEW("x-items"), text(get(state->row, "wire")), error), error);
+        break;
+    case float_header_case:
+        respond(arena, response, 200, VIEW("{}"), error);
+        good(weather_header_set(arena, &response->headers, VIEW("x-ratio"), VIEW(float_header_wire), error), error);
         break;
     case malformed_case: {
         const char *names[] = {"x-request-id", "retry-after", "x-extra"};
@@ -159,6 +165,19 @@ static void shared_cases(void) {
         check(result.value->items.value->length == tags.length, "header list length");
         for (size_t j = 0; j < tags.length; ++j) check(weather_string_equal(result.value->items.value->items[j], items[j]), "header list item");
         weather_operations_header_echo_result_free(&result); weather_client_free(client);
+    }
+    /* The wire codec refuses non-finite floats, so a header spelling one is a failed decode. */
+    const char *float_headers[] = {"NaN", "Infinity", "-Infinity", "1.5"};
+    for (size_t i = 0; i < sizeof(float_headers) / sizeof(*float_headers); ++i) {
+        fake state = {float_header_case, NULL, 0, false}; weather_client *client = client_new(config(&state));
+        weather_operations_float_header_echo_result result = {0}; weather_error failure = {0};
+        float_header_wire = float_headers[i];
+        weather_status status = weather_operations_float_header_echo(client, NULL, NULL, &result, &failure);
+        if (i == 3) {
+            good(status, &failure);
+            check(result.value && result.value->ratio.state == weather_present && result.value->ratio.value == 1.5, "finite float header");
+        } else check(status != weather_ok, "non-finite float header refused");
+        weather_operations_float_header_echo_result_free(&result); weather_client_free(client);
     }
     rows = fixture(arena, "MALFORMED_CASES");
     for (size_t i = 0; i < weather_json_size(rows); ++i) {

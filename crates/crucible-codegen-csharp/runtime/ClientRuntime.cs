@@ -85,7 +85,7 @@ internal sealed partial class ClientRuntime : IDisposable
             case "double":
                 return JsonSerializer.SerializeToNode(value, value.GetType(), JsonOptions);
             case "blob": return JsonValue.Create(Convert.ToBase64String((byte[])value));
-            case "timestamp": return WriteTime((DateTimeOffset)value, format ?? Text(shape["format"]));
+            case "timestamp": return WriteTime(value is DateTimeOffset native ? native : (Timestamp)value, format ?? Text(shape["format"]));
             case "enum": return JsonValue.Create(value.ToString());
             case "intEnum": return JsonValue.Create((int)value.GetType().GetProperty("Value")!.GetValue(value)!);
             case "bigInteger": return JsonNode.Parse(((BigInteger)value).ToString(CultureInfo.InvariantCulture));
@@ -219,16 +219,23 @@ internal sealed partial class ClientRuntime : IDisposable
         if (decimal.Truncate(number) != number) throw new JsonException("Expected integer");
         return number;
     }
-    private static JsonNode WriteTime(DateTimeOffset value, string? format) => format switch
+    private static JsonNode WriteTime(Timestamp value, string? format) => format switch
     {
-        "epoch-seconds" => JsonValue.Create((value.UtcTicks - DateTimeOffset.UnixEpoch.UtcTicks) / (decimal)TimeSpan.TicksPerSecond)!,
-        "http-date" => JsonValue.Create(value.UtcDateTime.ToString("R", CultureInfo.InvariantCulture))!,
-        _ => JsonValue.Create(value.UtcDateTime.ToString("yyyy-MM-dd'T'HH:mm:ss.FFFFFFF'Z'", CultureInfo.InvariantCulture))!
+        // Exact decimal text: a binary float or a 100 ns tick would drop the last digits.
+        "epoch-seconds" => JsonNode.Parse(value.EpochText())!,
+        "http-date" => JsonValue.Create(value.ToDateTimeOffset().UtcDateTime.ToString("R", CultureInfo.InvariantCulture))!,
+        _ => JsonValue.Create(value.ToDateTimeString())!
     };
-    private static DateTimeOffset ReadTime(JsonNode value, string? format)
+    private static Timestamp ReadTime(JsonNode value, string? format)
     {
-        if (format == "epoch-seconds") return DateTimeOffset.UnixEpoch.AddTicks(checked((long)decimal.Truncate(value.GetValue<decimal>() * TimeSpan.TicksPerSecond)));
-        return DateTimeOffset.Parse(value.GetValue<string>(), CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal).ToUniversalTime();
+        if (format == "epoch-seconds")
+        {
+            if (value.GetValueKind() != JsonValueKind.Number) throw new JsonException("Expected epoch seconds as a number");
+            return Timestamp.FromEpoch(new BigDecimal(value.ToJsonString()));
+        }
+        var text = value.GetValue<string>();
+        if (format == "http-date") return DateTimeOffset.Parse(text, CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal).ToUniversalTime();
+        return Timestamp.Parse(text);
     }
     private static string Scalar(JsonNode value) => value.GetValueKind() == JsonValueKind.String ? value.GetValue<string>() : value.ToJsonString(JsonOptions);
     internal static string Bound(JsonNode value)

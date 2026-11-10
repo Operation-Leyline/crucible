@@ -34,4 +34,5 @@ from .models import (
     ValidationReason,
 )
 from .runtime import UNSET, ServiceError, WeatherException, NetworkError, ResponseMetadata
+from .timestamp import Timestamp
 from .telemetry import TelemetryHook, OpenTelemetryHook, OperationStarted, AttemptStarted, AttemptFinished, OperationFinished

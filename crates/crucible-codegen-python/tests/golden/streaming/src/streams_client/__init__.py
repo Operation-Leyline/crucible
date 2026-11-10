@@ -13,5 +13,6 @@ from .models import (
     WorkFailed,
 )
 from .runtime import UNSET, ServiceError, StreamsException, NetworkError, ResponseMetadata
+from .timestamp import Timestamp
 from .stream import ResponseStream, AsyncResponseStream, StreamProtocolError
 from .telemetry import TelemetryHook, OpenTelemetryHook, OperationStarted, AttemptStarted, AttemptFinished, OperationFinished
