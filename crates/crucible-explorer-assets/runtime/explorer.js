@@ -155,23 +155,30 @@
   const list = (v) => (Array.isArray(v) ? v : []);
   const names = (map) => Object.keys(map).sort();
 
-  // Mirrors the Markdown reference: an operation appears under each resource
-  // that binds it, unbound ones under "Service operations".
+  // The description's `navigation` settles the order, as it does for the
+  // Markdown reference: resources in tree order, each with its lifecycle
+  // and then its other operations, an operation under each resource that
+  // binds it, and unbound ones under "Service operations". A describe.json
+  // written before the field is grouped as it was then, by id.
   function navigation(m) {
     const groups = [];
-    for (const id of names(m.resources)) {
-      const resource = m.resources[id];
-      groups.push({
-        kind: "resource",
-        id,
-        label: resource.name,
-        item: resource,
-        entries: list(resource.operations).filter((o) => m.operations[o]).map((o) => ({ kind: "op", id: o, item: m.operations[o] })),
-      });
-    }
-    const unbound = names(m.operations).filter((id) => list(m.operations[id].resources).length === 0);
-    if (unbound.length) {
-      groups.push({ kind: "service", id: "", label: "Service operations", item: null, entries: unbound.map((o) => ({ kind: "op", id: o, item: m.operations[o] })) });
+    const entries = (ids) => list(ids).filter((o) => m.operations[o]).map((o) => ({ kind: "op", id: o, item: m.operations[o] }));
+    const service = (ids) => ({ kind: "service", id: "", label: "Service operations", item: null, entries: entries(ids) });
+    if (Array.isArray(m.d.navigation)) {
+      for (const group of m.d.navigation) {
+        if (group.resource === null) groups.push(service(group.operations));
+        else if (m.resources[group.resource]) {
+          const resource = m.resources[group.resource];
+          groups.push({ kind: "resource", id: group.resource, label: resource.name, item: resource, depth: group.level || 0, entries: entries(group.operations) });
+        }
+      }
+    } else {
+      for (const id of names(m.resources)) {
+        const resource = m.resources[id];
+        groups.push({ kind: "resource", id, label: resource.name, item: resource, depth: 0, entries: entries(resource.operations) });
+      }
+      const unbound = names(m.operations).filter((id) => list(m.operations[id].resources).length === 0);
+      if (unbound.length) groups.push(service(unbound));
     }
     const shapes = names(m.shapes).filter((id) => !isBuiltin(id));
     if (shapes.length) {
@@ -896,7 +903,7 @@
       items.push(
         h(
           "li",
-          { class: "cx-nav-group" },
+          { class: "cx-nav-group", "data-depth": group.depth ? String(Math.min(group.depth, 3)) : null },
           h("div", { class: "cx-nav-heading" }, group.kind === "resource" ? link("resource", group.id, group.label, "cx-nav-link") : group.label),
           h(
             "ul",

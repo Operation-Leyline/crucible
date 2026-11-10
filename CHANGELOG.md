@@ -17,6 +17,16 @@ version's section when it is prepared.
 
 ### Added
 
+- API reference: `crucible.describe/1` settles what every renderer derived on
+  its own. `navigation` is the order the API is listed in (the resource tree
+  from the roots, each resource's lifecycle before its other operations, then
+  the operations on no resource), and the service, every resource, operation
+  and shape carries `summary`, its documentation's first sentence. Both are
+  additive. The Markdown table of contents and the static reference's sidebar
+  now follow `navigation`, so a child resource is listed under its parent and
+  `ListCities` comes before `GetCityPhoto`; a documentation site reads the same
+  fields instead of regrouping `resources` and cutting sentences itself
+  ([docs.md](docs/docs.md#navigation-and-summaries)).
 - TypeScript client: timestamps are lossless to the nanosecond. The package
   exports `PreciseDate`, a `Date` subclass that keeps the nanoseconds below the
   millisecond. Decoded timestamps (body, query, header, `date-time` and

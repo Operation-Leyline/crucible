@@ -1,5 +1,15 @@
 {
   "format": "crucible.describe/1",
+  "navigation": [
+    {
+      "level": 0,
+      "operations": [
+        "example.docs#ListItems",
+        "example.docs#WriteItem"
+      ],
+      "resource": "example.docs#Item"
+    }
+  ],
   "operations": {
     "example.docs#ListItems": {
       "auth": [],
@@ -350,6 +360,7 @@
         }
       },
       "status": 200,
+      "summary": "Read a page of items.",
       "uri": "/ListItems"
     },
     "example.docs#WriteItem": {
@@ -757,6 +768,7 @@
         }
       },
       "status": 200,
+      "summary": "",
       "uri": "/WriteItem"
     }
   },
@@ -797,7 +809,8 @@
         "example.docs#WriteItem"
       ],
       "properties": {},
-      "resources": []
+      "resources": [],
+      "summary": "Catalog items."
     }
   },
   "service": {
@@ -829,6 +842,7 @@
     "resourceRoots": [
       "example.docs#Item"
     ],
+    "summary": "Browse items. <script>alert(1)</script>",
     "title": "Catalog API",
     "version": "2026-10"
   },
@@ -861,7 +875,8 @@
         "since": null,
         "unstable": false
       },
-      "sensitive": false
+      "sensitive": false,
+      "summary": ""
     },
     "crucible.api#Integer": {
       "constraints": {
@@ -891,7 +906,8 @@
         "since": null,
         "unstable": false
       },
-      "sensitive": false
+      "sensitive": false,
+      "summary": ""
     },
     "crucible.api#String": {
       "constraints": {
@@ -921,7 +937,8 @@
         "since": null,
         "unstable": false
       },
-      "sensitive": false
+      "sensitive": false,
+      "summary": ""
     },
     "crucible.api#Timestamp": {
       "constraints": {
@@ -951,7 +968,8 @@
         "since": null,
         "unstable": false
       },
-      "sensitive": false
+      "sensitive": false,
+      "summary": ""
     },
     "example.docs#Content": {
       "documentation": {
@@ -1101,7 +1119,8 @@
         "since": "2026-01",
         "unstable": true
       },
-      "sensitive": false
+      "sensitive": false,
+      "summary": ""
     },
     "example.docs#Items": {
       "constraints": {
@@ -1171,7 +1190,8 @@
       },
       "sensitive": false,
       "set": false,
-      "sparse": false
+      "sparse": false,
+      "summary": ""
     },
     "example.docs#ListItemsInput": {
       "documentation": {
@@ -1274,7 +1294,8 @@
         "since": null,
         "unstable": false
       },
-      "sensitive": false
+      "sensitive": false,
+      "summary": ""
     },
     "example.docs#ListItemsOutput": {
       "documentation": {
@@ -1374,7 +1395,8 @@
         "since": null,
         "unstable": false
       },
-      "sensitive": false
+      "sensitive": false,
+      "summary": ""
     },
     "example.docs#State": {
       "documentation": {
@@ -1399,6 +1421,7 @@
         "unstable": false
       },
       "sensitive": false,
+      "summary": "",
       "values": [
         {
           "documentation": {
@@ -1552,7 +1575,8 @@
         "since": null,
         "unstable": false
       },
-      "sensitive": false
+      "sensitive": false,
+      "summary": "Temporarily unavailable."
     },
     "example.docs#WriteItemInput": {
       "documentation": {
@@ -1689,7 +1713,8 @@
         "since": null,
         "unstable": false
       },
-      "sensitive": false
+      "sensitive": false,
+      "summary": ""
     },
     "example.docs#WriteItemOutput": {
       "documentation": {
@@ -1826,7 +1851,8 @@
         "since": null,
         "unstable": false
       },
-      "sensitive": false
+      "sensitive": false,
+      "summary": ""
     }
   },
   "versions": {

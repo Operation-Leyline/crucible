@@ -71,6 +71,10 @@ h3 { margin: 1.5rem 0 0.5rem; font-size: 1.05rem; }
 }
 .cx-nav-list, .cx-nav-list ul, .cx-list { list-style: none; margin: 0; padding: 0; }
 .cx-nav-group { margin-top: 1rem; }
+/* A child resource sits under its parent, as in the model. */
+.cx-nav-group[data-depth="1"] { margin-left: 0.75rem; }
+.cx-nav-group[data-depth="2"] { margin-left: 1.5rem; }
+.cx-nav-group[data-depth="3"] { margin-left: 2.25rem; }
 .cx-nav-heading { font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); margin-bottom: 0.25rem; }
 .cx-nav-link { display: block; padding: 0.25rem 0.5rem; border-radius: 6px; color: var(--text); text-decoration: none; overflow-wrap: anywhere; }
 .cx-nav-heading .cx-nav-link { padding-left: 0; color: inherit; }

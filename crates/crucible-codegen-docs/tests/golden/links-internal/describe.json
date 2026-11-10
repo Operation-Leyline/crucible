@@ -1,5 +1,23 @@
 {
   "format": "crucible.describe/1",
+  "navigation": [
+    {
+      "level": 0,
+      "operations": [
+        "example.links#GetGadget"
+      ],
+      "resource": "example.links#Gadget"
+    },
+    {
+      "level": 0,
+      "operations": [
+        "example.links#CreateWidget",
+        "example.links#GetWidget",
+        "example.links#Reveal"
+      ],
+      "resource": null
+    }
+  ],
   "operations": {
     "example.links#CreateWidget": {
       "auth": [
@@ -505,6 +523,7 @@
         }
       },
       "status": 200,
+      "summary": "Makes a Widget; read it with GetWidget.",
       "uri": "/widgets"
     },
     "example.links#GetGadget": {
@@ -663,6 +682,7 @@
         }
       },
       "status": 200,
+      "summary": "Reads a Gadget.",
       "uri": "/gadgets/{gadgetId}"
     },
     "example.links#GetWidget": {
@@ -866,6 +886,7 @@
         }
       },
       "status": 200,
+      "summary": "Reads the Widget that CreateWidget made, by GetWidget.widgetId, and returns it as GetWidget.widget.",
       "uri": "/widgets/{widgetId}"
     },
     "example.links#Reveal": {
@@ -1016,6 +1037,7 @@
         }
       },
       "status": 200,
+      "summary": "Reads a Secret; internal, like Secret.value.",
       "uri": "/secrets"
     }
   },
@@ -1052,7 +1074,8 @@
       "properties": {
         "label": "crucible.api#String"
       },
-      "resources": []
+      "resources": [],
+      "summary": ""
     }
   },
   "service": {
@@ -1085,6 +1108,7 @@
     "resourceRoots": [
       "example.links#Gadget"
     ],
+    "summary": "Widgets, linked.",
     "title": "Links",
     "version": "1"
   },
@@ -1117,7 +1141,8 @@
         "since": null,
         "unstable": false
       },
-      "sensitive": false
+      "sensitive": false,
+      "summary": ""
     },
     "example.links#Choice": {
       "documentation": {
@@ -1217,7 +1242,8 @@
         "since": null,
         "unstable": false
       },
-      "sensitive": false
+      "sensitive": false,
+      "summary": "One of two things."
     },
     "example.links#Code": {
       "documentation": {
@@ -1242,6 +1268,7 @@
         "unstable": false
       },
       "sensitive": false,
+      "summary": "A numbered code.",
       "values": [
         {
           "documentation": {
@@ -1310,6 +1337,7 @@
         "unstable": false
       },
       "sensitive": false,
+      "summary": "A colour.",
       "values": [
         {
           "documentation": {
@@ -1678,7 +1706,8 @@
         "since": null,
         "unstable": false
       },
-      "sensitive": false
+      "sensitive": false,
+      "summary": ""
     },
     "example.links#CreateWidgetOutput": {
       "documentation": {
@@ -1741,7 +1770,8 @@
         "since": null,
         "unstable": false
       },
-      "sensitive": false
+      "sensitive": false,
+      "summary": ""
     },
     "example.links#GetGadgetInput": {
       "documentation": {
@@ -1804,7 +1834,8 @@
         "since": null,
         "unstable": false
       },
-      "sensitive": false
+      "sensitive": false,
+      "summary": ""
     },
     "example.links#GetGadgetOutput": {
       "documentation": {
@@ -1867,7 +1898,8 @@
         "since": null,
         "unstable": false
       },
-      "sensitive": false
+      "sensitive": false,
+      "summary": ""
     },
     "example.links#GetWidgetInput": {
       "documentation": {
@@ -1930,7 +1962,8 @@
         "since": null,
         "unstable": false
       },
-      "sensitive": false
+      "sensitive": false,
+      "summary": ""
     },
     "example.links#GetWidgetOutput": {
       "documentation": {
@@ -1993,7 +2026,8 @@
         "since": null,
         "unstable": false
       },
-      "sensitive": false
+      "sensitive": false,
+      "summary": ""
     },
     "example.links#Label": {
       "constraints": {
@@ -2026,7 +2060,8 @@
         "since": null,
         "unstable": false
       },
-      "sensitive": false
+      "sensitive": false,
+      "summary": "A short label."
     },
     "example.links#RevealOutput": {
       "documentation": {
@@ -2089,7 +2124,8 @@
         "since": null,
         "unstable": false
       },
-      "sensitive": false
+      "sensitive": false,
+      "summary": ""
     },
     "example.links#Secret": {
       "documentation": {
@@ -2152,7 +2188,8 @@
         "since": null,
         "unstable": false
       },
-      "sensitive": false
+      "sensitive": false,
+      "summary": "Not part of the external contract; Reveal returns it."
     },
     "example.links#Widget": {
       "documentation": {
@@ -2289,7 +2326,8 @@
         "since": null,
         "unstable": false
       },
-      "sensitive": false
+      "sensitive": false,
+      "summary": "A widget; CreateWidget makes one."
     },
     "example.links#WidgetError": {
       "documentation": {
@@ -2392,7 +2430,8 @@
         "since": null,
         "unstable": false
       },
-      "sensitive": false
+      "sensitive": false,
+      "summary": "Raised by GetWidget when GetWidget.widgetId names nothing."
     },
     "example.links#Widgets": {
       "constraints": {
@@ -2462,7 +2501,8 @@
       },
       "sensitive": false,
       "set": false,
-      "sparse": false
+      "sparse": false,
+      "summary": "Several widgets."
     },
     "example.links#WidgetsByName": {
       "constraints": {
@@ -2568,7 +2608,8 @@
         "unstable": false
       },
       "sensitive": false,
-      "sparse": false
+      "sparse": false,
+      "summary": "Widgets by name."
     }
   },
   "versions": {

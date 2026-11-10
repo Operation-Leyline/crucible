@@ -1,5 +1,17 @@
 {
   "format": "crucible.describe/1",
+  "navigation": [
+    {
+      "level": 0,
+      "operations": [
+        "example.history#DeleteItem",
+        "example.history#GetItem",
+        "example.history#ListItems",
+        "example.history#PutItem"
+      ],
+      "resource": null
+    }
+  ],
   "operations": {
     "example.history#DeleteItem": {
       "auth": [],
@@ -121,6 +133,7 @@
         }
       },
       "status": 200,
+      "summary": "Deletes an item.",
       "uri": "/items/{id}"
     },
     "example.history#GetItem": {
@@ -366,6 +379,7 @@
         }
       },
       "status": 200,
+      "summary": "Reads one item.",
       "uri": "/things/{id}"
     },
     "example.history#ListItems": {
@@ -564,6 +578,7 @@
         }
       },
       "status": 200,
+      "summary": "Lists item names.",
       "uri": "/items"
     },
     "example.history#PutItem": {
@@ -770,6 +785,7 @@
         }
       },
       "status": 200,
+      "summary": "Stores an item.",
       "uri": "/items/{id}"
     }
   },
@@ -794,6 +810,7 @@
     },
     "protocol": "crucibleJson",
     "resourceRoots": [],
+    "summary": "A shop's items, across three releases.",
     "title": "Shop",
     "version": "v3"
   },
@@ -826,7 +843,8 @@
         "since": null,
         "unstable": false
       },
-      "sensitive": false
+      "sensitive": false,
+      "summary": ""
     },
     "crucible.api#String": {
       "constraints": {
@@ -856,7 +874,8 @@
         "since": null,
         "unstable": false
       },
-      "sensitive": false
+      "sensitive": false,
+      "summary": ""
     },
     "example.history#DeleteItemInput": {
       "documentation": {
@@ -919,7 +938,8 @@
         "since": null,
         "unstable": false
       },
-      "sensitive": false
+      "sensitive": false,
+      "summary": ""
     },
     "example.history#GetItemInput": {
       "documentation": {
@@ -982,7 +1002,8 @@
         "since": null,
         "unstable": false
       },
-      "sensitive": false
+      "sensitive": false,
+      "summary": ""
     },
     "example.history#GetItemOutput": {
       "documentation": {
@@ -1158,7 +1179,8 @@
         "since": null,
         "unstable": false
       },
-      "sensitive": false
+      "sensitive": false,
+      "summary": ""
     },
     "example.history#ItemGone": {
       "documentation": {
@@ -1261,7 +1283,8 @@
         "since": null,
         "unstable": false
       },
-      "sensitive": false
+      "sensitive": false,
+      "summary": "The item was deleted."
     },
     "example.history#ItemLocked": {
       "documentation": {
@@ -1364,7 +1387,8 @@
         "since": null,
         "unstable": false
       },
-      "sensitive": false
+      "sensitive": false,
+      "summary": "Another writer holds the item."
     },
     "example.history#ItemNotFound": {
       "documentation": {
@@ -1506,7 +1530,8 @@
         "since": null,
         "unstable": false
       },
-      "sensitive": false
+      "sensitive": false,
+      "summary": "No item has that id."
     },
     "example.history#Kind": {
       "documentation": {
@@ -1533,6 +1558,7 @@
         "unstable": false
       },
       "sensitive": false,
+      "summary": "How big an item is.",
       "values": [
         {
           "documentation": {
@@ -1701,7 +1727,8 @@
         "since": null,
         "unstable": false
       },
-      "sensitive": false
+      "sensitive": false,
+      "summary": ""
     },
     "example.history#ListItemsOutput": {
       "documentation": {
@@ -1764,7 +1791,8 @@
         "since": null,
         "unstable": false
       },
-      "sensitive": false
+      "sensitive": false,
+      "summary": ""
     },
     "example.history#Names": {
       "constraints": {
@@ -1834,7 +1862,8 @@
       },
       "sensitive": false,
       "set": false,
-      "sparse": false
+      "sparse": false,
+      "summary": ""
     },
     "example.history#PutItemInput": {
       "documentation": {
@@ -1973,7 +2002,8 @@
         "since": null,
         "unstable": false
       },
-      "sensitive": false
+      "sensitive": false,
+      "summary": ""
     },
     "example.history#PutItemOutput": {
       "documentation": {
@@ -2038,7 +2068,8 @@
         "since": null,
         "unstable": false
       },
-      "sensitive": false
+      "sensitive": false,
+      "summary": ""
     },
     "example.history#Size": {
       "documentation": {
@@ -2144,7 +2175,8 @@
         "since": null,
         "unstable": false
       },
-      "sensitive": false
+      "sensitive": false,
+      "summary": "An item's dimensions."
     }
   },
   "versions": {
@@ -2359,7 +2391,8 @@
                     "since": null,
                     "unstable": false
                   },
-                  "sensitive": false
+                  "sensitive": false,
+                  "summary": "An item's dimensions."
                 }
               }
             },
@@ -2792,7 +2825,8 @@
                     "since": null,
                     "unstable": false
                   },
-                  "sensitive": false
+                  "sensitive": false,
+                  "summary": ""
                 }
               }
             },

@@ -36,6 +36,12 @@ An error response names its code in the <code>X-Crucible-Error</code> header and
 
 ## Operations
 
+### Organization
+
+<p>A tenant.</p>
+
+- [GetOrganization](operations/API_GetOrganization.md)
+
 ### Graph
 
 <p>A graph database.</p>
@@ -52,12 +58,6 @@ An error response names its code in the <code>X-Crucible-Error</code> header and
 <p>A graph's saved state.</p>
 
 - [RestoreBackup](operations/API_RestoreBackup.md)
-
-### Organization
-
-<p>A tenant.</p>
-
-- [GetOrganization](operations/API_GetOrganization.md)
 
 ### Service operations
 

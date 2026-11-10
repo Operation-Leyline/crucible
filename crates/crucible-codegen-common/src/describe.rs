@@ -28,6 +28,11 @@ pub struct Description {
     /// `api_version`. See [`versions`].
     #[serde(default)]
     pub versions: Value,
+    /// The order a reader meets the API in: an array of `{resource, level,
+    /// operations}` groups. `null` in a description written before the
+    /// field existed. See [`navigation`].
+    #[serde(default)]
+    pub navigation: Value,
     /// The schema mode, when it is not inline: `{"mode": "shared", "$defs":
     /// ...}`, the operations' shared JSON Schema definitions, or `{"mode":
     /// "omit"}`. Absent for [`Schemas::Inline`]; set by
@@ -161,6 +166,15 @@ pub fn documentation(service: &Service, docs: Option<&str>) -> Value {
     let markdown = docs.unwrap_or_default();
     json!({"markdown": markdown, "html": documentation::html_linked(service, markdown),
         "text": documentation::text_linked(service, markdown)})
+}
+
+/// An item's `summary`: the first sentence of its documentation's `text`
+/// ([`documentation::summary`]), which is how a renderer describes the
+/// item in an index, a sidebar or a search result.
+fn summarize(item: &mut Value) {
+    let summary =
+        documentation::summary(item["documentation"]["text"].as_str().unwrap_or_default());
+    item["summary"] = json!(summary);
 }
 
 fn notes(notes: &DocNotes) -> Value {
@@ -381,7 +395,90 @@ fn shape(service: &Service, id: &ShapeId, shape: &Shape) -> Value {
             "internal":v.internal,"documentation":documentation(service, v.docs.as_deref()),"notes":notes(&v.notes)})).collect::<Vec<_>>()),
         Shape::Unit { .. } => {}
     }
+    summarize(&mut value);
     value
+}
+
+/// The order a reader meets the API in, settled here so the Markdown
+/// reference, the static reference and a documentation site agree: one
+/// group per resource, walking the resource tree from the service's roots
+/// with children after their parent (`level` counts the parents), then any
+/// resource no root reaches, by id. A group's operations are its lifecycle
+/// in the order a reader uses it (create, put, read, update, delete,
+/// list), then its other operations by name. An operation bound to several
+/// resources is in each one's group. Operations on no resource close the
+/// list in a group whose `resource` is `null`, left out when there are
+/// none.
+fn navigation(service: &Service) -> Value {
+    fn visit(
+        service: &Service,
+        id: &ShapeId,
+        depth: usize,
+        seen: &mut std::collections::BTreeSet<ShapeId>,
+        groups: &mut Vec<Value>,
+    ) {
+        let Some(resource) = service.resources.get(id) else {
+            return;
+        };
+        if !seen.insert(id.clone()) {
+            return;
+        }
+        let lifecycle = &resource.lifecycle;
+        let mut operations: Vec<&ShapeId> = [
+            &lifecycle.create,
+            &lifecycle.put,
+            &lifecycle.read,
+            &lifecycle.update,
+            &lifecycle.delete,
+            &lifecycle.list,
+        ]
+        .into_iter()
+        .flatten()
+        .collect();
+        let mut rest: Vec<&ShapeId> = resource
+            .operations
+            .iter()
+            .chain(&resource.collection_operations)
+            .filter(|id| !operations.contains(id))
+            .collect();
+        rest.sort_by(|a, b| (service.name_of(a), *a).cmp(&(service.name_of(b), *b)));
+        rest.dedup();
+        operations.extend(rest);
+        // A lifecycle slot may be repeated (one operation as put and
+        // create); the first place it takes is where it stays.
+        let mut listed = std::collections::BTreeSet::new();
+        operations.retain(|id| listed.insert((*id).clone()));
+        groups.push(json!({"resource": id.to_string(), "level": depth,
+            "operations": operations.iter().map(ToString::to_string).collect::<Vec<_>>()}));
+        for child in &resource.resources {
+            visit(service, child, depth + 1, seen, groups);
+        }
+    }
+    let mut seen = std::collections::BTreeSet::new();
+    let mut groups = Vec::new();
+    for root in &service.resource_roots {
+        visit(service, root, 0, &mut seen, &mut groups);
+    }
+    for id in service.resources.keys() {
+        visit(service, id, 0, &mut seen, &mut groups);
+    }
+    let grouped: std::collections::BTreeSet<&str> = groups
+        .iter()
+        .flat_map(|group| group["operations"].as_array().into_iter().flatten())
+        .filter_map(Value::as_str)
+        .collect();
+    let mut unbound: Vec<&ShapeId> = service
+        .operations
+        .iter()
+        .map(|op| &op.id)
+        .filter(|id| !grouped.contains(id.to_string().as_str()))
+        .collect();
+    unbound.sort_by(|a, b| (service.name_of(a), *a).cmp(&(service.name_of(b), *b)));
+    if !unbound.is_empty() {
+        groups.push(json!({"resource": Value::Null, "level": 0,
+            "operations": unbound.iter().map(ToString::to_string).collect::<Vec<_>>()}));
+    }
+    Value::Array(groups)
 }
 
 /// Build from an already projected IR. Refusals are collected before any output
@@ -539,8 +636,17 @@ fn describe_inner(
         operations,
         shapes,
         versions,
+        navigation: navigation(service),
         schemas: None,
     };
+    summarize(&mut description.service);
+    for item in description
+        .resources
+        .values_mut()
+        .chain(description.operations.values_mut())
+    {
+        summarize(item);
+    }
     if let Some(base) = &service.error_docs_base {
         description.service["errorDocsBase"] = json!(base);
     }

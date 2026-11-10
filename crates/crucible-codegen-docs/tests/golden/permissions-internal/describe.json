@@ -1,5 +1,41 @@
 {
   "format": "crucible.describe/1",
+  "navigation": [
+    {
+      "level": 0,
+      "operations": [
+        "example.leyline#GetOrganization"
+      ],
+      "resource": "example.leyline#Organization"
+    },
+    {
+      "level": 1,
+      "operations": [
+        "example.leyline#ArchiveGraph",
+        "example.leyline#CreateGraph",
+        "example.leyline#ExecuteQuery",
+        "example.leyline#GetGraph",
+        "example.leyline#ListGraphs",
+        "example.leyline#RewriteGraph"
+      ],
+      "resource": "example.leyline#Graph"
+    },
+    {
+      "level": 2,
+      "operations": [
+        "example.leyline#RestoreBackup"
+      ],
+      "resource": "example.leyline#History"
+    },
+    {
+      "level": 0,
+      "operations": [
+        "example.leyline#GetUser",
+        "example.leyline#Health"
+      ],
+      "resource": null
+    }
+  ],
   "operations": {
     "example.leyline#ArchiveGraph": {
       "auth": [
@@ -256,6 +292,7 @@
         }
       },
       "status": 200,
+      "summary": "A mixed list: clients see the public clause and that more are internal, never the internal clause or the internal member its when reads.",
       "uri": "/orgs/{organizationId}/graphs/{graphId}/archive"
     },
     "example.leyline#CreateGraph": {
@@ -476,6 +513,7 @@
         }
       },
       "status": 200,
+      "summary": "",
       "uri": "/orgs/{organizationId}/graphs"
     },
     "example.leyline#ExecuteQuery": {
@@ -825,6 +863,7 @@
         }
       },
       "status": 200,
+      "summary": "",
       "uri": "/orgs/{organizationId}/graphs/{graphId}/query"
     },
     "example.leyline#GetGraph": {
@@ -1036,6 +1075,7 @@
         }
       },
       "status": 200,
+      "summary": "",
       "uri": "/orgs/{organizationId}/graphs/{graph}"
     },
     "example.leyline#GetOrganization": {
@@ -1226,6 +1266,7 @@
         }
       },
       "status": 200,
+      "summary": "",
       "uri": "/orgs/{organizationId}"
     },
     "example.leyline#GetUser": {
@@ -1368,6 +1409,7 @@
         }
       },
       "status": 200,
+      "summary": "Answers about the caller's own credential.",
       "uri": "/user"
     },
     "example.leyline#Health": {
@@ -1495,6 +1537,7 @@
         }
       },
       "status": 200,
+      "summary": "No authentication: nothing to authorize.",
       "uri": "/health"
     },
     "example.leyline#ListGraphs": {
@@ -1698,6 +1741,7 @@
         }
       },
       "status": 200,
+      "summary": "Returns only the graphs the caller may read.",
       "uri": "/orgs/{organizationId}/graphs"
     },
     "example.leyline#RestoreBackup": {
@@ -1900,6 +1944,7 @@
         }
       },
       "status": 200,
+      "summary": "",
       "uri": "/orgs/{organizationId}/graphs/{graphId}/histories/{historyId}/restore"
     },
     "example.leyline#RewriteGraph": {
@@ -2175,6 +2220,7 @@
         }
       },
       "status": 200,
+      "summary": "Hostile documentation: a backtick in a when literal, and handler clause documentation that must keep its case, its paragraphs and its code spans.",
       "uri": "/orgs/{organizationId}/graphs/{graphId}/rewrite"
     }
   },
@@ -2217,7 +2263,8 @@
       "properties": {},
       "resources": [
         "example.leyline#History"
-      ]
+      ],
+      "summary": "A graph database."
     },
     "example.leyline#History": {
       "documentation": {
@@ -2251,7 +2298,8 @@
         "example.leyline#RestoreBackup"
       ],
       "properties": {},
-      "resources": []
+      "resources": [],
+      "summary": "A graph's saved state."
     },
     "example.leyline#Organization": {
       "documentation": {
@@ -2285,7 +2333,8 @@
       "properties": {},
       "resources": [
         "example.leyline#Graph"
-      ]
+      ],
+      "summary": "A tenant."
     }
   },
   "service": {
@@ -2413,6 +2462,7 @@
     "resourceRoots": [
       "example.leyline#Organization"
     ],
+    "summary": "Organizations, their graphs and the graphs' histories.",
     "title": "Leyline",
     "version": "2026-10-01"
   },
@@ -2445,7 +2495,8 @@
         "since": null,
         "unstable": false
       },
-      "sensitive": false
+      "sensitive": false,
+      "summary": ""
     },
     "crucible.api#Integer": {
       "constraints": {
@@ -2475,7 +2526,8 @@
         "since": null,
         "unstable": false
       },
-      "sensitive": false
+      "sensitive": false,
+      "summary": ""
     },
     "crucible.api#String": {
       "constraints": {
@@ -2505,7 +2557,8 @@
         "since": null,
         "unstable": false
       },
-      "sensitive": false
+      "sensitive": false,
+      "summary": ""
     },
     "crucible.api#Unit": {
       "documentation": {
@@ -2529,7 +2582,8 @@
         "since": null,
         "unstable": false
       },
-      "sensitive": false
+      "sensitive": false,
+      "summary": ""
     },
     "crucible.errors#InternalServerException": {
       "documentation": {
@@ -2677,7 +2731,8 @@
         "since": null,
         "unstable": false
       },
-      "sensitive": false
+      "sensitive": false,
+      "summary": "An unexpected server failure."
     },
     "crucible.errors#NotFoundException": {
       "documentation": {
@@ -2819,7 +2874,8 @@
         "since": null,
         "unstable": false
       },
-      "sensitive": false
+      "sensitive": false,
+      "summary": "The resource does not exist, or the caller may not know that it does."
     },
     "crucible.errors#ValidationException": {
       "documentation": {
@@ -3071,7 +3127,8 @@
         "since": null,
         "unstable": false
       },
-      "sensitive": false
+      "sensitive": false,
+      "summary": "A request cannot be parsed or does not satisfy the service's input model."
     },
     "crucible.errors#ValidationExceptionField": {
       "documentation": {
@@ -3171,7 +3228,8 @@
         "since": null,
         "unstable": false
       },
-      "sensitive": false
+      "sensitive": false,
+      "summary": "A request field that failed validation."
     },
     "crucible.errors#ValidationExceptionFieldList": {
       "constraints": {
@@ -3241,7 +3299,8 @@
       },
       "sensitive": false,
       "set": false,
-      "sparse": false
+      "sparse": false,
+      "summary": ""
     },
     "crucible.errors#ValidationExceptionReason": {
       "documentation": {
@@ -3266,6 +3325,7 @@
         "unstable": false
       },
       "sensitive": false,
+      "summary": "A machine-readable reason; clients never need to parse message text.",
       "values": [
         {
           "documentation": {
@@ -3488,7 +3548,8 @@
         "since": null,
         "unstable": false
       },
-      "sensitive": false
+      "sensitive": false,
+      "summary": ""
     },
     "example.leyline#ArchiveGraphOutput": {
       "documentation": {
@@ -3551,7 +3612,8 @@
         "since": null,
         "unstable": false
       },
-      "sensitive": false
+      "sensitive": false,
+      "summary": ""
     },
     "example.leyline#CreateGraphInput": {
       "documentation": {
@@ -3651,7 +3713,8 @@
         "since": null,
         "unstable": false
       },
-      "sensitive": false
+      "sensitive": false,
+      "summary": ""
     },
     "example.leyline#CreateGraphOutput": {
       "documentation": {
@@ -3714,7 +3777,8 @@
         "since": null,
         "unstable": false
       },
-      "sensitive": false
+      "sensitive": false,
+      "summary": ""
     },
     "example.leyline#ExecuteQueryInput": {
       "documentation": {
@@ -3888,7 +3952,8 @@
         "since": null,
         "unstable": false
       },
-      "sensitive": false
+      "sensitive": false,
+      "summary": ""
     },
     "example.leyline#ExecuteQueryOutput": {
       "documentation": {
@@ -3951,7 +4016,8 @@
         "since": null,
         "unstable": false
       },
-      "sensitive": false
+      "sensitive": false,
+      "summary": ""
     },
     "example.leyline#GetGraphInput": {
       "documentation": {
@@ -4051,7 +4117,8 @@
         "since": null,
         "unstable": false
       },
-      "sensitive": false
+      "sensitive": false,
+      "summary": ""
     },
     "example.leyline#GetGraphOutput": {
       "documentation": {
@@ -4114,7 +4181,8 @@
         "since": null,
         "unstable": false
       },
-      "sensitive": false
+      "sensitive": false,
+      "summary": ""
     },
     "example.leyline#GetOrganizationInput": {
       "documentation": {
@@ -4177,7 +4245,8 @@
         "since": null,
         "unstable": false
       },
-      "sensitive": false
+      "sensitive": false,
+      "summary": ""
     },
     "example.leyline#GetOrganizationOutput": {
       "documentation": {
@@ -4240,7 +4309,8 @@
         "since": null,
         "unstable": false
       },
-      "sensitive": false
+      "sensitive": false,
+      "summary": ""
     },
     "example.leyline#GetUserOutput": {
       "documentation": {
@@ -4303,7 +4373,8 @@
         "since": null,
         "unstable": false
       },
-      "sensitive": false
+      "sensitive": false,
+      "summary": ""
     },
     "example.leyline#GraphId": {
       "constraints": {
@@ -4333,7 +4404,8 @@
         "since": null,
         "unstable": false
       },
-      "sensitive": false
+      "sensitive": false,
+      "summary": ""
     },
     "example.leyline#HealthOutput": {
       "documentation": {
@@ -4396,7 +4468,8 @@
         "since": null,
         "unstable": false
       },
-      "sensitive": false
+      "sensitive": false,
+      "summary": ""
     },
     "example.leyline#HistoryId": {
       "constraints": {
@@ -4426,7 +4499,8 @@
         "since": null,
         "unstable": false
       },
-      "sensitive": false
+      "sensitive": false,
+      "summary": ""
     },
     "example.leyline#HistoryRef": {
       "documentation": {
@@ -4489,7 +4563,8 @@
         "since": null,
         "unstable": false
       },
-      "sensitive": false
+      "sensitive": false,
+      "summary": ""
     },
     "example.leyline#ListGraphsInput": {
       "documentation": {
@@ -4552,7 +4627,8 @@
         "since": null,
         "unstable": false
       },
-      "sensitive": false
+      "sensitive": false,
+      "summary": ""
     },
     "example.leyline#ListGraphsOutput": {
       "documentation": {
@@ -4615,7 +4691,8 @@
         "since": null,
         "unstable": false
       },
-      "sensitive": false
+      "sensitive": false,
+      "summary": ""
     },
     "example.leyline#Names": {
       "constraints": {
@@ -4685,7 +4762,8 @@
       },
       "sensitive": false,
       "set": false,
-      "sparse": false
+      "sparse": false,
+      "summary": ""
     },
     "example.leyline#OrganizationId": {
       "constraints": {
@@ -4715,7 +4793,8 @@
         "since": null,
         "unstable": false
       },
-      "sensitive": false
+      "sensitive": false,
+      "summary": ""
     },
     "example.leyline#QueryTarget": {
       "documentation": {
@@ -4815,7 +4894,8 @@
         "since": null,
         "unstable": false
       },
-      "sensitive": false
+      "sensitive": false,
+      "summary": "Where a query reads: the current state, or a saved history."
     },
     "example.leyline#ResourceKind": {
       "documentation": {
@@ -4840,6 +4920,7 @@
         "unstable": false
       },
       "sensitive": false,
+      "summary": "The resource types grants name; histories are granted through graphs.",
       "values": [
         {
           "documentation": {
@@ -5020,7 +5101,8 @@
         "since": null,
         "unstable": false
       },
-      "sensitive": false
+      "sensitive": false,
+      "summary": ""
     },
     "example.leyline#RestoreBackupOutput": {
       "documentation": {
@@ -5083,7 +5165,8 @@
         "since": null,
         "unstable": false
       },
-      "sensitive": false
+      "sensitive": false,
+      "summary": ""
     },
     "example.leyline#RewriteGraphInput": {
       "documentation": {
@@ -5220,7 +5303,8 @@
         "since": null,
         "unstable": false
       },
-      "sensitive": false
+      "sensitive": false,
+      "summary": ""
     },
     "example.leyline#RewriteGraphOutput": {
       "documentation": {
@@ -5283,7 +5367,8 @@
         "since": null,
         "unstable": false
       },
-      "sensitive": false
+      "sensitive": false,
+      "summary": ""
     }
   },
   "versions": {

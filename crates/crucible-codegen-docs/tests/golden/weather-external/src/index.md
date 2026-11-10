@@ -39,8 +39,8 @@ An error response names its code in the <code>X-Crucible-Error</code> header and
 
 - [CreateCity](operations/API_CreateCity.md)
 - [GetCity](operations/API_GetCity.md)
-- [GetCityPhoto](operations/API_GetCityPhoto.md)
 - [ListCities](operations/API_ListCities.md)
+- [GetCityPhoto](operations/API_GetCityPhoto.md)
 - [PutCityPhoto](operations/API_PutCityPhoto.md)
 
 ### Service operations

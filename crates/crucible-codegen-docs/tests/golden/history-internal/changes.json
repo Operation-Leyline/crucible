@@ -251,7 +251,8 @@
                     "since": null,
                     "unstable": false
                   },
-                  "sensitive": false
+                  "sensitive": false,
+                  "summary": "An item's dimensions."
                 }
               }
             },
@@ -817,7 +818,8 @@
                     "since": null,
                     "unstable": false
                   },
-                  "sensitive": false
+                  "sensitive": false,
+                  "summary": ""
                 }
               }
             },

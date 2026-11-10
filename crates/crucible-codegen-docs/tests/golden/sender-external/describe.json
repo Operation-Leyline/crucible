@@ -1,5 +1,16 @@
 {
   "format": "crucible.describe/1",
+  "navigation": [
+    {
+      "level": 0,
+      "operations": [
+        "example.hooks#GetAccount",
+        "example.hooks#RecordPaymentEvent",
+        "example.hooks#ReportLeakedKeys"
+      ],
+      "resource": null
+    }
+  ],
   "operations": {
     "example.hooks#GetAccount": {
       "auth": [
@@ -179,6 +190,7 @@
         }
       },
       "status": 200,
+      "summary": "Read an account.",
       "uri": "/accounts/{accountId}"
     },
     "example.hooks#RecordPaymentEvent": {
@@ -384,6 +396,7 @@
         "name": "Payments Inc."
       },
       "status": 200,
+      "summary": "Receive an event from the payment processor.",
       "uri": "/payment-events"
     },
     "example.hooks#ReportLeakedKeys": {
@@ -622,6 +635,7 @@
         "name": "CodeHost"
       },
       "status": 200,
+      "summary": "Receive a report of leaked keys from a code host's secret scanner.",
       "uri": "/leaked-keys"
     }
   },
@@ -654,6 +668,7 @@
     },
     "protocol": "crucibleJson",
     "resourceRoots": [],
+    "summary": "Accounts, paid for through a payment processor that reports payments to RecordPaymentEvent.",
     "title": "Hooks",
     "version": "2026-10-01"
   },
@@ -686,7 +701,8 @@
         "since": null,
         "unstable": false
       },
-      "sensitive": false
+      "sensitive": false,
+      "summary": ""
     },
     "crucible.api#Long": {
       "constraints": {
@@ -716,7 +732,8 @@
         "since": null,
         "unstable": false
       },
-      "sensitive": false
+      "sensitive": false,
+      "summary": ""
     },
     "crucible.api#String": {
       "constraints": {
@@ -746,7 +763,8 @@
         "since": null,
         "unstable": false
       },
-      "sensitive": false
+      "sensitive": false,
+      "summary": ""
     },
     "example.hooks#AccessDenied": {
       "documentation": {
@@ -849,7 +867,8 @@
         "since": null,
         "unstable": false
       },
-      "sensitive": false
+      "sensitive": false,
+      "summary": "A request that is not signed, or not signed by the sender."
     },
     "example.hooks#AccountId": {
       "constraints": {
@@ -879,7 +898,8 @@
         "since": null,
         "unstable": false
       },
-      "sensitive": false
+      "sensitive": false,
+      "summary": ""
     },
     "example.hooks#GetAccountInput": {
       "documentation": {
@@ -942,7 +962,8 @@
         "since": null,
         "unstable": false
       },
-      "sensitive": false
+      "sensitive": false,
+      "summary": ""
     },
     "example.hooks#GetAccountOutput": {
       "documentation": {
@@ -1042,7 +1063,8 @@
         "since": null,
         "unstable": false
       },
-      "sensitive": false
+      "sensitive": false,
+      "summary": ""
     },
     "example.hooks#LeakedKey": {
       "documentation": {
@@ -1142,7 +1164,8 @@
         "since": null,
         "unstable": false
       },
-      "sensitive": false
+      "sensitive": false,
+      "summary": "A key the scanner found in public."
     },
     "example.hooks#LeakedKeys": {
       "constraints": {
@@ -1215,7 +1238,8 @@
       },
       "sensitive": false,
       "set": false,
-      "sparse": false
+      "sparse": false,
+      "summary": ""
     },
     "example.hooks#PaymentEventBody": {
       "constraints": {
@@ -1245,7 +1269,8 @@
         "since": null,
         "unstable": false
       },
-      "sensitive": false
+      "sensitive": false,
+      "summary": "The event as the processor sent it, unparsed, so the signature is checked over exactly those bytes."
     },
     "example.hooks#PaymentSignature": {
       "constraints": {
@@ -1278,7 +1303,8 @@
         "since": null,
         "unstable": false
       },
-      "sensitive": true
+      "sensitive": true,
+      "summary": "The processor's signature: a timestamp and an HMAC of the exact body."
     },
     "example.hooks#RecordPaymentEventInput": {
       "documentation": {
@@ -1381,7 +1407,8 @@
         "since": null,
         "unstable": false
       },
-      "sensitive": false
+      "sensitive": false,
+      "summary": ""
     },
     "example.hooks#RecordPaymentEventOutput": {
       "documentation": {
@@ -1444,7 +1471,8 @@
         "since": null,
         "unstable": false
       },
-      "sensitive": false
+      "sensitive": false,
+      "summary": ""
     },
     "example.hooks#ReportLeakedKeysInput": {
       "documentation": {
@@ -1584,7 +1612,8 @@
         "since": null,
         "unstable": false
       },
-      "sensitive": false
+      "sensitive": false,
+      "summary": ""
     }
   },
   "versions": {

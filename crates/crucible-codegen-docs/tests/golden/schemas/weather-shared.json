@@ -1,5 +1,26 @@
 {
   "format": "crucible.describe/1",
+  "navigation": [
+    {
+      "level": 0,
+      "operations": [
+        "example.weather#CreateCity",
+        "example.weather#GetCity",
+        "example.weather#ListCities",
+        "example.weather#GetCityPhoto",
+        "example.weather#PutCityPhoto"
+      ],
+      "resource": "example.weather#City"
+    },
+    {
+      "level": 0,
+      "operations": [
+        "example.weather#Ping",
+        "example.weather#Status"
+      ],
+      "resource": null
+    }
+  ],
   "operations": {
     "example.weather#CreateCity": {
       "auth": [
@@ -228,6 +249,7 @@
         }
       },
       "status": 201,
+      "summary": "",
       "uri": "/cities"
     },
     "example.weather#GetCity": {
@@ -455,6 +477,7 @@
         }
       },
       "status": 200,
+      "summary": "",
       "uri": "/cities/{cityId}"
     },
     "example.weather#GetCityPhoto": {
@@ -578,6 +601,7 @@
         }
       },
       "status": 200,
+      "summary": "",
       "uri": "/cities/{cityId}/photo"
     },
     "example.weather#ListCities": {
@@ -775,6 +799,7 @@
         }
       },
       "status": 200,
+      "summary": "",
       "uri": "/cities"
     },
     "example.weather#Ping": {
@@ -877,6 +902,7 @@
         }
       },
       "status": 200,
+      "summary": "",
       "uri": "/ping"
     },
     "example.weather#PutCityPhoto": {
@@ -1019,6 +1045,7 @@
         }
       },
       "status": 200,
+      "summary": "Stores a city's photo exactly as sent.",
       "uri": "/cities/{cityId}/photo"
     },
     "example.weather#Status": {
@@ -1114,6 +1141,7 @@
         }
       },
       "status": 200,
+      "summary": "",
       "uri": "/status"
     }
   },
@@ -1152,7 +1180,8 @@
         "example.weather#PutCityPhoto"
       ],
       "properties": {},
-      "resources": []
+      "resources": [],
+      "summary": ""
     }
   },
   "schemas": {
@@ -1702,6 +1731,7 @@
     "resourceRoots": [
       "example.weather#City"
     ],
+    "summary": "",
     "title": "Weather",
     "version": "2026-10-01"
   },
@@ -1734,7 +1764,8 @@
         "since": null,
         "unstable": false
       },
-      "sensitive": false
+      "sensitive": false,
+      "summary": ""
     },
     "crucible.api#Double": {
       "constraints": {
@@ -1764,7 +1795,8 @@
         "since": null,
         "unstable": false
       },
-      "sensitive": false
+      "sensitive": false,
+      "summary": ""
     },
     "crucible.api#Integer": {
       "constraints": {
@@ -1794,7 +1826,8 @@
         "since": null,
         "unstable": false
       },
-      "sensitive": false
+      "sensitive": false,
+      "summary": ""
     },
     "crucible.api#Long": {
       "constraints": {
@@ -1824,7 +1857,8 @@
         "since": null,
         "unstable": false
       },
-      "sensitive": false
+      "sensitive": false,
+      "summary": ""
     },
     "crucible.api#String": {
       "constraints": {
@@ -1854,7 +1888,8 @@
         "since": null,
         "unstable": false
       },
-      "sensitive": false
+      "sensitive": false,
+      "summary": ""
     },
     "crucible.api#Timestamp": {
       "constraints": {
@@ -1884,7 +1919,8 @@
         "since": null,
         "unstable": false
       },
-      "sensitive": false
+      "sensitive": false,
+      "summary": ""
     },
     "crucible.api#Unit": {
       "documentation": {
@@ -1908,7 +1944,8 @@
         "since": null,
         "unstable": false
       },
-      "sensitive": false
+      "sensitive": false,
+      "summary": ""
     },
     "example.weather#CityId": {
       "constraints": {
@@ -1938,7 +1975,8 @@
         "since": null,
         "unstable": false
       },
-      "sensitive": false
+      "sensitive": false,
+      "summary": ""
     },
     "example.weather#CityName": {
       "constraints": {
@@ -1971,7 +2009,8 @@
         "since": null,
         "unstable": false
       },
-      "sensitive": false
+      "sensitive": false,
+      "summary": ""
     },
     "example.weather#CitySummaries": {
       "constraints": {
@@ -2041,7 +2080,8 @@
       },
       "sensitive": false,
       "set": false,
-      "sparse": false
+      "sparse": false,
+      "summary": ""
     },
     "example.weather#CitySummary": {
       "documentation": {
@@ -2295,7 +2335,8 @@
         "since": null,
         "unstable": false
       },
-      "sensitive": false
+      "sensitive": false,
+      "summary": ""
     },
     "example.weather#ConflictError": {
       "documentation": {
@@ -2398,7 +2439,8 @@
         "since": null,
         "unstable": false
       },
-      "sensitive": false
+      "sensitive": false,
+      "summary": ""
     },
     "example.weather#Coordinates": {
       "documentation": {
@@ -2498,7 +2540,8 @@
         "since": null,
         "unstable": false
       },
-      "sensitive": false
+      "sensitive": false,
+      "summary": ""
     },
     "example.weather#CreateCityInput": {
       "documentation": {
@@ -2675,7 +2718,8 @@
         "since": null,
         "unstable": false
       },
-      "sensitive": false
+      "sensitive": false,
+      "summary": ""
     },
     "example.weather#CreateCityOutput": {
       "documentation": {
@@ -2738,7 +2782,8 @@
         "since": null,
         "unstable": false
       },
-      "sensitive": false
+      "sensitive": false,
+      "summary": ""
     },
     "example.weather#DateTime": {
       "constraints": {
@@ -2768,7 +2813,8 @@
         "since": null,
         "unstable": false
       },
-      "sensitive": false
+      "sensitive": false,
+      "summary": ""
     },
     "example.weather#Forecast": {
       "constraints": {
@@ -2874,7 +2920,8 @@
         "unstable": false
       },
       "sensitive": false,
-      "sparse": false
+      "sparse": false,
+      "summary": ""
     },
     "example.weather#GetCityInput": {
       "documentation": {
@@ -2974,7 +3021,8 @@
         "since": null,
         "unstable": false
       },
-      "sensitive": false
+      "sensitive": false,
+      "summary": ""
     },
     "example.weather#GetCityOutput": {
       "documentation": {
@@ -3111,7 +3159,8 @@
         "since": null,
         "unstable": false
       },
-      "sensitive": false
+      "sensitive": false,
+      "summary": ""
     },
     "example.weather#GetCityPhotoInput": {
       "documentation": {
@@ -3174,7 +3223,8 @@
         "since": null,
         "unstable": false
       },
-      "sensitive": false
+      "sensitive": false,
+      "summary": ""
     },
     "example.weather#GetCityPhotoOutput": {
       "documentation": {
@@ -3277,7 +3327,8 @@
         "since": null,
         "unstable": false
       },
-      "sensitive": false
+      "sensitive": false,
+      "summary": ""
     },
     "example.weather#ListCitiesInput": {
       "documentation": {
@@ -3420,7 +3471,8 @@
         "since": null,
         "unstable": false
       },
-      "sensitive": false
+      "sensitive": false,
+      "summary": ""
     },
     "example.weather#ListCitiesOutput": {
       "documentation": {
@@ -3520,7 +3572,8 @@
         "since": null,
         "unstable": false
       },
-      "sensitive": false
+      "sensitive": false,
+      "summary": ""
     },
     "example.weather#Location": {
       "documentation": {
@@ -3620,7 +3673,8 @@
         "since": null,
         "unstable": false
       },
-      "sensitive": false
+      "sensitive": false,
+      "summary": ""
     },
     "example.weather#NotFoundError": {
       "documentation": {
@@ -3762,7 +3816,8 @@
         "since": null,
         "unstable": false
       },
-      "sensitive": false
+      "sensitive": false,
+      "summary": ""
     },
     "example.weather#Photo": {
       "constraints": {
@@ -3795,7 +3850,8 @@
         "since": null,
         "unstable": false
       },
-      "sensitive": false
+      "sensitive": false,
+      "summary": "A photo, carried unparsed."
     },
     "example.weather#PhotoSummary": {
       "documentation": {
@@ -3938,7 +3994,8 @@
         "since": "2026-10",
         "unstable": true
       },
-      "sensitive": false
+      "sensitive": false,
+      "summary": ""
     },
     "example.weather#PutCityPhotoInput": {
       "documentation": {
@@ -4078,7 +4135,8 @@
         "since": null,
         "unstable": false
       },
-      "sensitive": false
+      "sensitive": false,
+      "summary": ""
     },
     "example.weather#PutCityPhotoOutput": {
       "documentation": {
@@ -4141,7 +4199,8 @@
         "since": null,
         "unstable": false
       },
-      "sensitive": false
+      "sensitive": false,
+      "summary": ""
     },
     "example.weather#Sky": {
       "documentation": {
@@ -4166,6 +4225,7 @@
         "unstable": false
       },
       "sensitive": false,
+      "summary": "",
       "values": [
         {
           "documentation": {
@@ -4237,7 +4297,8 @@
         "since": null,
         "unstable": false
       },
-      "sensitive": false
+      "sensitive": false,
+      "summary": ""
     },
     "example.weather#StatusOutput": {
       "documentation": {
@@ -4262,7 +4323,8 @@
         "since": null,
         "unstable": false
       },
-      "sensitive": false
+      "sensitive": false,
+      "summary": ""
     },
     "example.weather#Tags": {
       "constraints": {
@@ -4335,7 +4397,8 @@
       },
       "sensitive": false,
       "set": false,
-      "sparse": false
+      "sparse": false,
+      "summary": ""
     },
     "example.weather#ThrottlingError": {
       "documentation": {
@@ -4483,7 +4546,8 @@
         "since": null,
         "unstable": false
       },
-      "sensitive": false
+      "sensitive": false,
+      "summary": ""
     },
     "example.weather#Thumbnail": {
       "constraints": {
@@ -4516,7 +4580,8 @@
         "since": null,
         "unstable": false
       },
-      "sensitive": false
+      "sensitive": false,
+      "summary": "The photo's first bytes: base64 in JSON."
     },
     "example.weather#ValidationError": {
       "documentation": {
@@ -4741,7 +4806,8 @@
         "since": null,
         "unstable": false
       },
-      "sensitive": false
+      "sensitive": false,
+      "summary": ""
     },
     "example.weather#ValidationField": {
       "documentation": {
@@ -4841,7 +4907,8 @@
         "since": null,
         "unstable": false
       },
-      "sensitive": false
+      "sensitive": false,
+      "summary": ""
     },
     "example.weather#ValidationFieldList": {
       "constraints": {
@@ -4911,7 +4978,8 @@
       },
       "sensitive": false,
       "set": false,
-      "sparse": false
+      "sparse": false,
+      "summary": ""
     },
     "example.weather#ValidationReason": {
       "documentation": {
@@ -4936,6 +5004,7 @@
         "unstable": false
       },
       "sensitive": false,
+      "summary": "",
       "values": [
         {
           "documentation": {

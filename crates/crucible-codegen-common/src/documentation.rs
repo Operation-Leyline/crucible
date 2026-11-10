@@ -235,6 +235,26 @@ pub fn operation(service: &Service, op: &Operation) -> String {
     docs
 }
 
+/// The first sentence of documentation text ([`text`]'s output), on one
+/// line: what an index, a sidebar or a search result says about an item.
+/// A sentence ends at a period before a capital, so "Payments Inc.
+/// reports" and "e.g. a city" stay whole. Every renderer reads this one
+/// rule, through `summary` in `crucible.describe/1`.
+pub fn summary(text: &str) -> String {
+    let paragraph = text.split("\n\n").next().unwrap_or_default();
+    let line = paragraph.split_whitespace().collect::<Vec<_>>().join(" ");
+    let end = line.match_indices(". ").map(|(at, _)| at).find(|&at| {
+        line[at + 2..]
+            .chars()
+            .next()
+            .is_some_and(char::is_uppercase)
+    });
+    match end {
+        Some(end) => line[..=end].to_owned(),
+        None => line,
+    }
+}
+
 /// Preserve prose, links and code while removing Markdown-only delimiters.
 pub fn text(markdown: &str) -> String {
     render_text(markdown, None)
@@ -715,6 +735,22 @@ fn parse_blocks(markdown: &str) -> Vec<Block> {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn a_summary_is_the_first_sentence_on_one_line() {
+        assert_eq!(
+            super::summary("Returns one\ncity. It reads nothing else.\n\nMore."),
+            "Returns one city."
+        );
+        // A period that ends no sentence: an abbreviation before a
+        // lowercase word, or before a capital that is not after a space.
+        assert_eq!(
+            super::summary("Payments Inc. reports, e.g. a city. Next."),
+            "Payments Inc. reports, e.g. a city."
+        );
+        assert_eq!(super::summary("No period at all"), "No period at all");
+        assert_eq!(super::summary(""), "");
+    }
+
     #[test]
     fn commonmark_preserves_content_without_doc_format_directives() {
         let rendered = super::text(

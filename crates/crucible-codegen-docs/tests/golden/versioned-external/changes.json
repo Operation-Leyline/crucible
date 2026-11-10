@@ -271,7 +271,8 @@
                     "since": null,
                     "unstable": false
                   },
-                  "sensitive": false
+                  "sensitive": false,
+                  "summary": ""
                 },
                 "example.shop#Kind": {
                   "documentation": {
@@ -296,6 +297,7 @@
                     "unstable": false
                   },
                   "sensitive": false,
+                  "summary": "",
                   "values": [
                     {
                       "documentation": {
@@ -881,7 +883,8 @@
                     "since": null,
                     "unstable": false
                   },
-                  "sensitive": false
+                  "sensitive": false,
+                  "summary": "A request cannot be parsed or does not satisfy the service's input model."
                 },
                 "example.shop#CountItemsInput": {
                   "documentation": {
@@ -944,7 +947,8 @@
                     "since": null,
                     "unstable": false
                   },
-                  "sensitive": false
+                  "sensitive": false,
+                  "summary": ""
                 },
                 "example.shop#CountItemsOutput": {
                   "documentation": {
@@ -1007,7 +1011,8 @@
                     "since": null,
                     "unstable": false
                   },
-                  "sensitive": false
+                  "sensitive": false,
+                  "summary": ""
                 },
                 "example.shop#CountUnavailableException": {
                   "documentation": {
@@ -1110,7 +1115,8 @@
                     "since": null,
                     "unstable": false
                   },
-                  "sensitive": false
+                  "sensitive": false,
+                  "summary": ""
                 }
               }
             },

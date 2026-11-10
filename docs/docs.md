@@ -107,8 +107,10 @@ src/
 ```
 
 `SUMMARY.md` groups operations by resource, with a separate group for service
-operations. An operation bound to several resources appears in each group and
-has one page. The overview lists protocol identity, authentication, service
+operations, in the description's [`navigation`](#navigation-and-summaries)
+order: a child resource is nested under its parent, and a resource's
+lifecycle operations come before its others. An operation bound to several
+resources appears in each group and has one page. The overview lists protocol identity, authentication, service
 errors, resource lifecycle slots, and operations. Data-type pages include
 structures, unions, enums, constrained scalars, and collections. A service
 whose chain has more than its current release also has `releases.md`, its
@@ -406,6 +408,7 @@ construct is accepted by this output.
   "resources": {},
   "operations": {},
   "shapes": {},
+  "navigation": [],
   "versions": null
 }
 ```
@@ -425,6 +428,44 @@ adds no clocks, build paths, or deployment-specific values.
 Every operation, shape, member and enum value carries `history`, and the
 root carries `versions`, both described under
 [Release history](#release-history).
+
+### Navigation and summaries
+
+`navigation` is the order a reader meets the API in, settled once so that
+the Markdown table of contents, the static reference's sidebar and a
+documentation site's own pages agree. It is an array of groups:
+
+```json
+"navigation": [
+  { "resource": "example.shop#Shop", "level": 0, "operations": ["example.shop#GetShop"] },
+  { "resource": "example.shop#Item", "level": 1, "operations": ["example.shop#CreateItem", "example.shop#GetItem", "example.shop#ListItems", "example.shop#ArchiveItem"] },
+  { "resource": null, "level": 0, "operations": ["example.shop#Ping"] }
+]
+```
+
+| Field | Type | Value |
+|---|---|---|
+| `resource` | resource ID or `null` | The group's resource; `null` for the last group, the operations on no resource, which is left out when there are none |
+| `level` | integer | How many parents the resource has in the tree: `0` for a root. A site that lists resources flat ignores it |
+| `operations` | operation-ID array | The resource's lifecycle in the order a reader uses it (create, put, read, update, delete, list), then its other operations by name, then ID |
+
+Groups walk the resource tree from `service.resourceRoots`, each resource
+followed by its children in model order, then any resource no root reaches,
+by ID. An operation bound to several resources is in each one's group, once
+in each, and every operation is in at least one group. Data types and
+releases are not in `navigation`: a renderer lists `shapes` and
+`versions.releases` as it sees fit. A description written before the field
+existed has none (`null` when read into `Description`); the static reference
+then groups resources by ID, each with its operations by ID.
+
+The service, every resource, operation and shape also carries `summary`:
+the first sentence of its `documentation.text` on one line, for an index, a
+sidebar or a search result. A sentence ends at a period followed by a space
+and a capital letter, so "Payments Inc. reports" and "e.g. a city" stay
+whole; without one, the summary is the first paragraph. It is empty when
+there is no documentation. It is plain text, not Markdown or HTML: escape it
+for where it is shown. `llms.txt` uses the same sentence
+(`crucible_codegen_common::documentation::summary`).
 
 ### Common documentation and notes
 

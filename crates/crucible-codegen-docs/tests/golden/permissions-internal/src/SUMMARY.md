@@ -1,17 +1,17 @@
 # Summary
 
 - [Service overview](index.md)
-- Graph
-  - [ArchiveGraph](operations/API_ArchiveGraph.md)
-  - [CreateGraph](operations/API_CreateGraph.md)
-  - [ExecuteQuery](operations/API_ExecuteQuery.md)
-  - [GetGraph](operations/API_GetGraph.md)
-  - [ListGraphs](operations/API_ListGraphs.md)
-  - [RewriteGraph](operations/API_RewriteGraph.md)
-- History
-  - [RestoreBackup](operations/API_RestoreBackup.md)
 - Organization
   - [GetOrganization](operations/API_GetOrganization.md)
+  - Graph
+    - [ArchiveGraph](operations/API_ArchiveGraph.md)
+    - [CreateGraph](operations/API_CreateGraph.md)
+    - [ExecuteQuery](operations/API_ExecuteQuery.md)
+    - [GetGraph](operations/API_GetGraph.md)
+    - [ListGraphs](operations/API_ListGraphs.md)
+    - [RewriteGraph](operations/API_RewriteGraph.md)
+    - History
+      - [RestoreBackup](operations/API_RestoreBackup.md)
 - Service operations
   - [GetUser](operations/API_GetUser.md)
   - [Health](operations/API_Health.md)
