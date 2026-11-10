@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { fromWire, parseJson, timestamp } from "./generated/src/runtime.js";
+import { PreciseDate } from "./generated/src/index.js";
 
 test("epoch-seconds timestamps decode to the exact millisecond", () => {
   const schema = timestamp("epoch-seconds");
@@ -12,7 +13,9 @@ test("epoch-seconds timestamps decode to the exact millisecond", () => {
   }
 });
 
-test("sub-millisecond epoch-seconds fractions truncate like date-time text", () => {
+test("sub-millisecond epoch-seconds fractions are kept, not truncated", () => {
   const schema = timestamp("epoch-seconds");
-  assert.equal((fromWire(schema, parseJson("1791432419.889900")) as Date).getTime(), 1791432419889);
+  const decoded = fromWire(schema, parseJson("1791432419.889900")) as PreciseDate;
+  assert.equal(decoded.getTime(), 1791432419889);
+  assert.equal(decoded.getEpochNanos(), 1791432419_889900000n);
 });

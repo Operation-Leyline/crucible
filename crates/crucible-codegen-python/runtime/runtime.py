@@ -24,6 +24,7 @@ import httpx
 
 from .auth import apply_auth, preset_auth
 from .policy import RetryStrategy, SystemClock
+from .timestamp import Timestamp, _date_time_text, _epoch_text
 from .telemetry import (REDACTED, AttemptFinished, AttemptStarted, OperationFinished, OperationStarted,
                         TelemetryHook, emit, redact_headers, redact_query)
 
@@ -238,22 +239,21 @@ def _check_credentials(request: httpx.Request) -> None:
 
 
 def _timestamp(value: Any, fmt: str, decode: bool) -> Any:
+    """Decode wire text or a number to a `Timestamp`, or encode a datetime exactly: no digit of the nanosecond is lost."""
     if decode:
         if fmt == "epoch-seconds":
-            return datetime.fromtimestamp(float(value), timezone.utc)
+            return Timestamp.from_epoch(value)
         if fmt == "http-date":
-            return parsedate_to_datetime(value).astimezone(timezone.utc)
-        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
-        # An offset-less date-time is UTC, and must stay aware to be sent back.
-        return parsed.replace(tzinfo=timezone.utc) if parsed.tzinfo is None else parsed
-    if not isinstance(value, datetime) or value.tzinfo is None:
+            return Timestamp.from_datetime(parsedate_to_datetime(value).astimezone(timezone.utc))
+        return Timestamp.parse(value)
+    if not isinstance(value, datetime) or value.tzinfo is None or value.utcoffset() is None:
         raise TypeError("timestamps must be timezone-aware datetime values")
-    value = value.astimezone(timezone.utc)
-    if fmt == "epoch-seconds":
-        return value.timestamp()
     if fmt == "http-date":
-        return format_datetime(value, usegmt=True)
-    return value.isoformat().replace("+00:00", "Z")
+        return format_datetime(value.astimezone(timezone.utc), usegmt=True)
+    seconds, nanoseconds = Timestamp.from_datetime(value)._parts()
+    if fmt == "epoch-seconds":
+        return Decimal(_epoch_text(seconds, nanoseconds))
+    return _date_time_text(seconds, nanoseconds)
 
 
 def _blob(value: Any, decode: bool) -> Any:
@@ -296,10 +296,8 @@ class _Codec:
                 raise ValueError("string requires text")
             if kind == "boolean" and not isinstance(value, bool):
                 raise ValueError("boolean requires bool")
-            if kind in ("float", "double") and (isinstance(value, bool) or not (
-                    isinstance(value, (int, float, Decimal))
-                    or isinstance(value, str) and value in ("NaN", "Infinity", "-Infinity"))):
-                raise ValueError("float requires a number or a modeled nonfinite literal")
+            if kind in ("float", "double") and (isinstance(value, bool) or not isinstance(value, (int, float, Decimal))):
+                raise ValueError("float requires a number")
             if kind == "list" and not isinstance(value, list):
                 raise ValueError("list requires an array")
             if kind == "map" and not isinstance(value, dict):
@@ -346,8 +344,12 @@ class _Codec:
             if isinstance(value, bool) or not isinstance(value, int) or not -(2 ** (bits - 1)) <= value < 2 ** (bits - 1):
                 raise ValueError(f"{kind} requires a signed {bits}-bit integer")
         if kind in ("float", "double"):
-            if isinstance(value, Decimal):
-                return float(value)
+            number = float(value) if isinstance(value, Decimal) else value
+            # The wire has no non-finite number: not the JSON constants NaN and Infinity, and not
+            # a literal such as 1e999 that is finite as a Decimal and overflows as a float.
+            if isinstance(number, float) and not math.isfinite(number):
+                raise ValueError("a non-finite float is not a wire value")
+            return number
         return value
 
     def members(self, shape: dict[str, Any], value: Any, *, decode: bool,
@@ -397,7 +399,7 @@ class _Codec:
         if shape["kind"] == "timestamp":
             value = _timestamp(value, fmt or member["format"], False)
         if shape["kind"] in ("float", "double") and isinstance(value, (float, Decimal)) and not math.isfinite(value):
-            return "NaN" if math.isnan(value) else "Infinity" if value > 0 else "-Infinity"
+            raise ValueError("a non-finite float cannot be sent")
         if isinstance(value, bool):
             return "true" if value else "false"
         return str(value)
@@ -444,7 +446,10 @@ class _Codec:
         if kind == "bigDecimal":
             return self.convert(m["target"], Decimal(text), decode=True)
         if kind in ("float", "double"):
-            return float(text)
+            number = float(text)
+            if not math.isfinite(number):
+                raise ValueError("a non-finite float is not valid on the wire")
+            return number
         if kind == "boolean":
             if text not in ("true", "false"):
                 raise ValueError("invalid boolean header")

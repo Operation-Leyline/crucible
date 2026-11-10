@@ -345,3 +345,28 @@ fn weather_get_city_snippet() {
     ));
     assert!(snippet.contains("except weather_client.NotFoundError as error:\n    print(f\"NotFoundError (HTTP {error.metadata.status}): {error.message}\")\n"));
 }
+
+/// `datetime` stops at the microsecond, so a sample instant finer than that is
+/// written with the package's `Timestamp`, which keeps every digit; one that
+/// is whole microseconds stays a plain `datetime`.
+#[test]
+fn a_snippet_timestamp_finer_than_a_microsecond_keeps_every_digit() {
+    let service = load("samples");
+    let options = options(None);
+    let surface = surface(&service, &options);
+    let edges = surface
+        .operations
+        .values()
+        .find(|operation| operation.method == "edges")
+        .map(|operation| operation.snippet.as_str())
+        .expect("the samples model has an Edges operation");
+    assert!(
+        edges
+            .contains("precise=weather_client.Timestamp.parse(\"2026-01-15T09:30:00.123456789Z\")"),
+        "{edges}"
+    );
+    assert!(
+        edges.contains("offset=datetime(2026, 1, 15, 4, 0, 0, tzinfo=timezone.utc)"),
+        "{edges}"
+    );
+}

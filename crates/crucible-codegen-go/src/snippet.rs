@@ -71,7 +71,6 @@ struct Literal<'a> {
     qualifier: String,
     time: bool,
     big: bool,
-    math: bool,
     /// The program declares `bigInt`, for an integer beyond `int64`.
     big_text: bool,
     /// The program declares `ptr`, for a sparse collection's element.
@@ -85,7 +84,6 @@ impl<'a> Literal<'a> {
             qualifier: qualifier.to_owned(),
             time: false,
             big: false,
-            math: false,
             big_text: false,
             ptr: false,
         }
@@ -232,17 +230,6 @@ impl<'a> Literal<'a> {
                 }
             }
             SimpleKind::BigDecimal => format!("{}Decimal({})", self.qualifier, literal(text)),
-            SimpleKind::Float | SimpleKind::Double
-                if matches!(text, "NaN" | "Infinity" | "-Infinity") =>
-            {
-                self.math = true;
-                let value = match text {
-                    "NaN" => "math.NaN()",
-                    "Infinity" => "math.Inf(1)",
-                    _ => "math.Inf(-1)",
-                };
-                format!("{ty}({value})")
-            }
             // An integer enum the value is not declared in converts.
             _ if matches!(self.service.shape(node.target), Some(Shape::IntEnum(_))) => {
                 format!("{ty}({text})")
@@ -463,11 +450,7 @@ fn program(
     literal: &Literal<'_>,
     body: &str,
 ) -> String {
-    for (used, path) in [
-        (literal.time, "time"),
-        (literal.big, "math/big"),
-        (literal.math, "math"),
-    ] {
+    for (used, path) in [(literal.time, "time"), (literal.big, "math/big")] {
         if used {
             standard.insert(path);
         }

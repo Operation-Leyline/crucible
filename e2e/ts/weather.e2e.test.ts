@@ -7,6 +7,7 @@ import { test } from "node:test";
 import {
   ConflictError,
   NotFoundError,
+  PreciseDate,
   ThrottlingError,
   ValidationError,
   WeatherClient,
@@ -36,6 +37,37 @@ test("a created city reads back with every member intact", async () => {
   assert.equal(read.city.name, name);
   assert.equal(read.requestId, "req-from-server", "a response header member");
   assert.deepEqual(read.forecast, { clear: { at: "2026-10-01T12:30:00+00:00" } }, "a query timestamp, a map, a document");
+});
+
+test("timestamps keep their sub-millisecond digits across the wire", async () => {
+  const created = await client.createCity({ name: unique("tromso") });
+  const { updatedAt, createdAt } = created.city;
+  assert.ok(updatedAt instanceof PreciseDate && createdAt instanceof PreciseDate);
+  // The server stamps both members with one instant to the nanosecond; one is
+  // RFC 3339 text and the other a decimal number, and neither is a float.
+  assert.ok(updatedAt.equals(createdAt), `${updatedAt.toISOString()} vs ${createdAt.toISOString()}`);
+
+  const at = PreciseDate.fromEpochMicros(1790857800_123456n);
+  const read = await client.getCity({ cityId: created.city.id, at });
+  assert.deepEqual(read.forecast, { clear: { at: "2026-10-01T12:30:00.123456+00:00" } }, "a microsecond query timestamp reached the server");
+  assert.ok((read.city.updatedAt as PreciseDate).equals(updatedAt), "and the stored instant reads back unchanged");
+});
+
+test("a response timestamp decodes to the exact sub-millisecond instant the server wrote", async () => {
+  // The real service stamps the clock, so a stub transport returns a known instant:
+  // 123456789 ns past the second, in both wire forms. A decoder that cut the
+  // digits to milliseconds or microseconds fails the exact checks below.
+  const body = '{"city":{"id":"c-1","name":"x","updatedAt":"2026-10-01T12:30:00.123456789Z","createdAt":1790857800.123456789}}';
+  const stub = new WeatherClient({
+    endpoint: "https://weather.example",
+    fetch: async () => new Response(body, { headers: { "content-type": "application/json" } }),
+  });
+  const { city } = await stub.createCity({ name: "x" });
+  for (const value of [city.updatedAt, city.createdAt]) {
+    assert.ok(value instanceof PreciseDate);
+    assert.equal(value.getEpochNanos(), 1790857800_123456789n);
+    assert.equal(value.toISOString(), "2026-10-01T12:30:00.123456789Z");
+  }
 });
 
 test("resending the same input replays instead of creating twice", async () => {

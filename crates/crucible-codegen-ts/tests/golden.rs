@@ -389,6 +389,42 @@ fn a_shape_named_date_does_not_shadow_timestamps() {
     );
 }
 
+/// `PreciseDate` is exported from the package index beside the models, so a
+/// model shape with that name would shadow it there. Refused like `Decimal`.
+#[test]
+fn a_shape_named_like_the_precise_date_class_is_refused() {
+    let service = weather_with(|text| {
+        let text = text.replace(
+            "structure CitySummary {
+",
+            "structure CitySummary {
+    precise?: PreciseDate
+",
+        );
+        if text.contains("structure CitySummary {") {
+            text + "
+string PreciseDate
+"
+        } else {
+            text
+        }
+    });
+    let options = Options {
+        package_name: "@example/weather".into(),
+        package_version: "0.0.0-dev".into(),
+        client_name: None,
+        endpoint: None,
+        middleware: vec![],
+        package_json: None,
+        metadata: Default::default(),
+    };
+    let error = emit(&service, &options).unwrap_err().to_string();
+    assert!(
+        error.contains("`PreciseDate` collides with a name the TypeScript client exports"),
+        "{error}"
+    );
+}
+
 #[test]
 fn schemas_preserve_ir_nullability_and_exact_long_defaults() {
     let service = weather_with(|text| {

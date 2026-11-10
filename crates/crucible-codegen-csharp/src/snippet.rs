@@ -88,6 +88,7 @@ const TAKEN: &[&str] = &[
     "AttemptFinished",
     "AttemptStarted",
     "BigDecimal",
+    "Timestamp",
     "ClientConfig",
     "ClientRuntime",
     "CubicCalculator",
@@ -140,14 +141,18 @@ impl Literal<'_> {
                 _ => literal(text),
             },
             Kind::Number { kind, text } => self.number(node, *kind, text),
-            Kind::Timestamp(instant) => {
-                self.usings.insert("System");
-                self.usings.insert("System.Globalization");
-                format!(
-                    "DateTimeOffset.Parse({}, CultureInfo.InvariantCulture)",
-                    literal(&instant.rfc3339)
-                )
-            }
+            // The package's own type keeps every digit; `DateTimeOffset` stops at 100 ns.
+            Kind::Timestamp(instant) if instant.calendar() => format!(
+                "{}.Parse({})",
+                root_name(self.service, self.options, "Timestamp"),
+                literal(&instant.rfc3339)
+            ),
+            Kind::Timestamp(instant) => format!(
+                "new {}({}, {})",
+                root_name(self.service, self.options, "Timestamp"),
+                instant.seconds,
+                instant.nanos
+            ),
             Kind::Blob(bytes) => match std::str::from_utf8(bytes) {
                 Ok(text) if !text.chars().any(char::is_control) => {
                     self.usings.insert("System.Text");

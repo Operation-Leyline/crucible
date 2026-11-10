@@ -233,6 +233,19 @@ func TestNonFiniteFloatHeaders(t *testing.T) {
 		t.Fatal("NaN accepted as a float header")
 	}
 }
+func TestNonFiniteFloatBodyStrings(t *testing.T) {
+	schema := &schemaDescription{Shapes: map[string]shapeDescription{"example#Ratio": {Kind: "float"}}}
+	for _, text := range []string{"NaN", "Infinity", "-Infinity"} {
+		var out float64
+		if err := decodeValue(schema, "example#Ratio", text, reflect.ValueOf(&out).Elem(), ""); err == nil {
+			t.Fatalf("%q accepted as a float body value", text)
+		}
+	}
+	var out float64
+	if err := decodeValue(schema, "example#Ratio", json.Number("1.5"), reflect.ValueOf(&out).Elem(), ""); err != nil || out != 1.5 {
+		t.Fatalf("finite => %v, %v", out, err)
+	}
+}
 func TestMalformedErrorMetadataAndRetry(t *testing.T) {
 	data, err := os.ReadFile("malformed-errors.json")
 	if err != nil {

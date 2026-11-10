@@ -38,6 +38,7 @@ const RUNTIME_EXPORTS: &[&str] = &[
     "TimeoutError",
     "UnknownUnion",
     "Decimal",
+    "PreciseDate",
     "contentSha256",
     "stringifyJson",
     "ClientConfig",
@@ -387,7 +388,7 @@ fn index(client: &str, permissions: &str) -> String {
          export * from \"./errors.js\";\n\
          {permissions}\
          export {{ {client} }} from \"./client.js\";\n\
-         export {{ Decimal, NetworkError, ResponseStream, ServiceError, StreamProtocolError, TimeoutError, contentSha256, stringifyJson }} from \"./runtime.js\";\n\
+         export {{ Decimal, NetworkError, PreciseDate, ResponseStream, ServiceError, StreamProtocolError, TimeoutError, contentSha256, stringifyJson }} from \"./runtime.js\";\n\
          export type {{\n  ClientConfig,\n  Document,\n  Fetch,\n  Middleware,\n  Next,\n  RequestOptions,\n  \
          ResponseMetadata,\n  RetryConfig,\n  TokenProvider,\n  Unit,\n  UnknownUnion,\n}} from \"./runtime.js\";\n"
     )

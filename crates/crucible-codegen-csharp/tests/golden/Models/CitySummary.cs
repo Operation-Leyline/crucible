@@ -31,18 +31,18 @@ public sealed class @CitySummary {
     /// <summary>
     /// Whether updatedAt was set, to a value or to an explicit null.
     /// </summary>
-    public global::Example.Weather.Optional<global::System.DateTimeOffset> @UpdatedAtPresence { get; set; }
+    public global::Example.Weather.Optional<global::Example.Weather.Timestamp> @UpdatedAtPresence { get; set; }
     /// <summary>
     /// The <c>updatedAt</c> member.
     /// </summary>
     /// <remarks>
     /// <para>Optional: null when unset or explicitly null; UpdatedAtPresence tells the two apart.</para>
     /// </remarks>
-    public global::System.DateTimeOffset? @UpdatedAt { get => @UpdatedAtPresence.IsSet && !@UpdatedAtPresence.IsNull ? @UpdatedAtPresence.Value : (global::System.DateTimeOffset?)null; set => @UpdatedAtPresence = value is null ? global::Example.Weather.Optional<global::System.DateTimeOffset>.Null : global::Example.Weather.Optional<global::System.DateTimeOffset>.Of(value.Value); }
+    public global::Example.Weather.Timestamp? @UpdatedAt { get => @UpdatedAtPresence.IsSet && !@UpdatedAtPresence.IsNull ? @UpdatedAtPresence.Value : (global::Example.Weather.Timestamp?)null; set => @UpdatedAtPresence = value is null ? global::Example.Weather.Optional<global::Example.Weather.Timestamp>.Null : global::Example.Weather.Optional<global::Example.Weather.Timestamp>.Of(value.Value); }
     /// <summary>
     /// Whether createdAt was set, to a value or to an explicit null.
     /// </summary>
-    public global::Example.Weather.Optional<global::System.DateTimeOffset> @CreatedAtPresence { get; set; }
+    public global::Example.Weather.Optional<global::Example.Weather.Timestamp> @CreatedAtPresence { get; set; }
     /// <summary>
     /// The <c>createdAt</c> member.
     /// </summary>
@@ -51,7 +51,7 @@ public sealed class @CitySummary {
     /// <para>Deprecated since 2026-08: Use updatedAt.</para>
     /// </remarks>
     [global::System.Obsolete("Use updatedAt. (since 2026-08)")]
-    public global::System.DateTimeOffset? @CreatedAt { get => @CreatedAtPresence.IsSet && !@CreatedAtPresence.IsNull ? @CreatedAtPresence.Value : (global::System.DateTimeOffset?)null; set => @CreatedAtPresence = value is null ? global::Example.Weather.Optional<global::System.DateTimeOffset>.Null : global::Example.Weather.Optional<global::System.DateTimeOffset>.Of(value.Value); }
+    public global::Example.Weather.Timestamp? @CreatedAt { get => @CreatedAtPresence.IsSet && !@CreatedAtPresence.IsNull ? @CreatedAtPresence.Value : (global::Example.Weather.Timestamp?)null; set => @CreatedAtPresence = value is null ? global::Example.Weather.Optional<global::Example.Weather.Timestamp>.Null : global::Example.Weather.Optional<global::Example.Weather.Timestamp>.Of(value.Value); }
     /// <summary>
     /// Formats every set member as <c>Type(Member=value, ...)</c>; sensitive members print as a redaction marker, never their value.
     /// </summary>

@@ -30,6 +30,138 @@ function numericKey(text: string): string {
   return `${match[1]}${digits}e${exponent}`;
 }
 
+/**
+ * A timestamp exact to the nanosecond. A JS `Date` holds whole milliseconds,
+ * so this subclass keeps the nanoseconds below the millisecond beside it.
+ * Every `Date` operation still works and sees milliseconds only: `getTime()`,
+ * `valueOf()`, `<` and `>` ignore the sub-millisecond part, so compare with
+ * `compare()` or `equals()` when it matters. `toISOString()` and `toJSON()`
+ * print every digit the value has.
+ *
+ * Decoded timestamps are always a `PreciseDate`; anywhere a timestamp is
+ * accepted, a plain `Date` (whole milliseconds) is accepted too.
+ *
+ * The sub-millisecond part survives the field setters (`setMilliseconds`,
+ * `setSeconds`, `setUTCHours`, ...), which change one field and leave the
+ * finer ones alone. `setTime()` sets an absolute millisecond instant, so it
+ * clears the sub-millisecond part.
+ */
+// Registered, so a PreciseDate from another generated package (each bundles its own class) is recognised.
+const SUBMILLIS = Symbol.for("crucible.PreciseDate.nanosBelowMillisecond");
+export class PreciseDate extends Date {
+  // Nanoseconds below the millisecond, 0 through 999_999; always non-negative,
+  // as the fraction of a second in timestamp text is, even before 1970.
+  #nanos: number;
+  /** `number`: epoch milliseconds. `string`: RFC 3339 text, up to nine fractional digits. `Date`: a copy. No argument: now. */
+  constructor(value?: number | string | Date) {
+    if (typeof value === "string") {
+      const parsed = parseRfc3339(value);
+      if (parsed === undefined) throw new TypeError(`not an RFC 3339 timestamp: ${value}`);
+      super(parsed.millis);
+      this.#nanos = parsed.nanos;
+    } else if (value instanceof Date) {
+      super(value.getTime());
+      this.#nanos = PreciseDate.#below(value);
+    } else {
+      if (value === undefined) super(); else super(value);
+      this.#nanos = 0;
+    }
+  }
+  /** Nanoseconds below the millisecond of a `Date`, from any package's `PreciseDate`; 0 for a plain `Date`. */
+  static #below(date: Date): number {
+    if (date instanceof PreciseDate) return date.#nanos;
+    const read = (date as { [SUBMILLIS]?: unknown })[SUBMILLIS];
+    const nanos = typeof read === "function" ? (read as () => unknown).call(date) : 0;
+    return typeof nanos === "number" && Number.isInteger(nanos) && nanos >= 0 && nanos < 1_000_000 ? nanos : 0;
+  }
+  /** `date` as this package's `PreciseDate` when it carries a sub-millisecond part, whichever package made it. */
+  static of(date: Date): Date {
+    return date instanceof PreciseDate || PreciseDate.#below(date) === 0 ? date : new PreciseDate(date);
+  }
+  /** @internal Read by other generated packages' `PreciseDate`. */
+  [SUBMILLIS](): number { return this.#nanos; }
+  /** The instant `micros` microseconds after the Unix epoch. */
+  static fromEpochMicros(micros: bigint): PreciseDate {
+    if (typeof micros !== "bigint") throw new TypeError("epoch microseconds are a bigint");
+    return PreciseDate.fromEpochNanos(micros * 1000n);
+  }
+  /** The instant `nanos` nanoseconds after the Unix epoch. */
+  static fromEpochNanos(nanos: bigint): PreciseDate {
+    if (typeof nanos !== "bigint") throw new TypeError("epoch nanoseconds are a bigint");
+    let millis = nanos / 1_000_000n;
+    if (nanos % 1_000_000n < 0n) millis -= 1n;
+    if (millis > 8_640_000_000_000_000n || millis < -8_640_000_000_000_000n) throw new TypeError("timestamp out of range");
+    const result = new PreciseDate(Number(millis));
+    result.#nanos = Number(nanos - millis * 1_000_000n);
+    return result;
+  }
+  /** Parse RFC 3339 text; more than nine significant fractional digits is a `TypeError`. */
+  static fromRfc3339(text: string): PreciseDate { return new PreciseDate(text); }
+  /** A new `PreciseDate` with the instant of any `Date`, keeping the sub-millisecond part of a `PreciseDate`. */
+  static from(date: Date): PreciseDate { return new PreciseDate(date); }
+  /** Epoch microseconds, truncating below the microsecond. Throws a `RangeError` for an invalid date. */
+  getEpochMicros(): bigint { return BigInt(this.#millis()) * 1000n + BigInt(Math.floor(this.#nanos / 1000)); }
+  /** Epoch nanoseconds. Throws a `RangeError` for an invalid date. */
+  getEpochNanos(): bigint { return BigInt(this.#millis()) * 1_000_000n + BigInt(this.#nanos); }
+  /** -1, 0 or 1 by exact instant (NaN if either date is invalid). Plain dates count as whole milliseconds. */
+  compare(other: Date): number {
+    const millis = this.getTime();
+    const theirs = other.getTime();
+    if (Number.isNaN(millis) || Number.isNaN(theirs)) return NaN;
+    if (millis !== theirs) return millis < theirs ? -1 : 1;
+    const nanos = PreciseDate.#below(other);
+    return this.#nanos === nanos ? 0 : this.#nanos < nanos ? -1 : 1;
+  }
+  /** Whether both are the same instant to the nanosecond. */
+  equals(other: Date): boolean { return this.compare(other) === 0; }
+  /** Set epoch milliseconds; the sub-millisecond part becomes zero. */
+  override setTime(time: number): number { this.#nanos = 0; return super.setTime(time); }
+  /** RFC 3339 in UTC with three fractional digits, or six when the value is whole microseconds, else nine. */
+  override toISOString(): string {
+    const base = super.toISOString();
+    if (this.#nanos === 0) return base;
+    const digits = String(this.#nanos).padStart(6, "0");
+    return base.slice(0, -1) + (this.#nanos % 1000 === 0 ? digits.slice(0, 3) : digits) + "Z";
+  }
+  /** Same text as `toISOString()`, or `null` for an invalid date. */
+  override toJSON(): string {
+    // Like Date: null (not a string) for an invalid date, whatever the lib typing says.
+    return (Number.isNaN(this.getTime()) ? null : this.toISOString()) as string;
+  }
+  #millis(): number {
+    const millis = this.getTime();
+    if (Number.isNaN(millis)) throw new RangeError("Invalid time value");
+    return millis;
+  }
+}
+const RFC3339 = /^(\d{4})-(\d{2})-(\d{2})[Tt](\d{2}):(\d{2}):(\d{2})(?:\.(\d+))?(?:[Zz]|([+-])(\d{2}):(\d{2}))$/;
+/** Strict RFC 3339 with a zone; undefined when the text is some other shape, a TypeError when it is that shape and not a real instant. */
+function parseRfc3339(text: string): { millis: number; nanos: number } | undefined {
+  const m = RFC3339.exec(text);
+  if (m === null) return undefined;
+  const [year, month, day, hour, minute, second] = m.slice(1, 7).map(Number);
+  let fraction = m[7] ?? "";
+  if (fraction.length > 9) {
+    if (/[1-9]/.test(fraction.slice(9))) throw new TypeError(`timestamp finer than a nanosecond: ${text}`);
+    fraction = fraction.slice(0, 9);
+  }
+  fraction = fraction.padEnd(9, "0");
+  const offset = m[8] === undefined ? 0 : (m[8] === "-" ? -1 : 1) * (Number(m[9]) * 60 + Number(m[10]));
+  const date = new Date(0);
+  date.setUTCFullYear(year, month - 1, day);
+  date.setUTCHours(hour, minute, second, Number(fraction.slice(0, 3)));
+  if (date.getUTCMonth() !== month - 1 || date.getUTCDate() !== day || hour > 23 || minute > 59 || second > 59
+      || (m[8] !== undefined && (Number(m[9]) > 23 || Number(m[10]) > 59))) {
+    throw new TypeError(`not a timestamp: ${text}`);
+  }
+  const millis = date.getTime() - offset * 60_000;
+  if (Number.isNaN(millis) || Math.abs(millis) > 8.64e15) throw new TypeError(`not a timestamp: ${text}`);
+  // The offset can carry the UTC instant out of 0000..9999, which the wire writes no year for.
+  const utcYear = new Date(millis).getUTCFullYear();
+  if (utcYear < 0 || utcYear > 9999) throw new TypeError(`timestamp outside years 0000 through 9999 in UTC: ${text}`);
+  return { millis, nanos: Number(fraction.slice(3)) };
+}
+
 /** A future union arm. `json` is its lossless JSON payload, not the enclosing union. */
 export interface UnknownUnion {
   readonly $unknown: { readonly name: string; readonly json: string };
@@ -177,7 +309,7 @@ export function toWire(schema: Schema | undefined, value: unknown): unknown {
     case "string": case "boolean":
       if (typeof value !== schema.kind || (typeof value === "number" && !Number.isFinite(value))) throw new TypeError(`expected ${schema.kind}`);
       return value;
-    case "timestamp": return formatTimestamp(value as Date, schema.format);
+    case "timestamp": return wireTimestamp(value as Date, schema.format);
     case "blob": return toBase64(value as Uint8Array);
     case "list":
       if (!Array.isArray(value)) throw new TypeError("expected array");
@@ -208,7 +340,7 @@ export function fromWire(schema: Schema | undefined, value: unknown): unknown {
     case "string": case "boolean":
       if (typeof value !== schema.kind) throw new TypeError(`expected ${schema.kind}`);
       return value;
-    case "timestamp": return parseTimestamp((value instanceof JsonNumber ? Number(value.text) : value) as string | number);
+    case "timestamp": return parseTimestamp(value as string | number | JsonNumber);
     case "blob": return fromBase64(value as string);
     case "list":
       if (!Array.isArray(value)) throw new TypeError("expected array");
@@ -244,7 +376,7 @@ function valueKey(value: unknown): string {
 function snapshotValue<T>(value: T, seen = new Map<object, unknown>()): T {
   if (value === null || typeof value !== "object") return value;
   if (value instanceof Decimal) return value;
-  if (value instanceof Date) return new Date(value.getTime()) as T;
+  if (value instanceof Date) return (value instanceof PreciseDate || PreciseDate.of(value) !== value ? new PreciseDate(value) : new Date(value.getTime())) as T;
   if (value instanceof Uint8Array) return value.slice() as T;
   if (seen.has(value)) return seen.get(value) as T;
   const result = (Array.isArray(value) ? new Array(value.length) : Object.create(null)) as Record<string, unknown>;
@@ -369,16 +501,29 @@ export function stringifyJson(value: unknown, space?: number | string): string {
   return write(value, 0);
 }
 
-/** Encode a Date using its modeled timestamp format. */
-export function formatTimestamp(value: Date, format: TimestampFormat): string | number {
+/** The exact text of a timestamp in its modeled format. A plain `Date` prints as it always has. */
+function timestampText(date: Date, format: TimestampFormat): string {
+  const value = PreciseDate.of(date);
   switch (format) {
-    case "date-time":
-      return value.toISOString();
-    case "http-date":
-      return value.toUTCString();
-    case "epoch-seconds":
-      return value.getTime() / 1000;
+    case "date-time": return value.toISOString();
+    case "http-date": return value.toUTCString();
+    case "epoch-seconds": {
+      if (!(value instanceof PreciseDate) || value.getEpochNanos() % 1_000_000n === 0n) return String(value.getTime() / 1000);
+      // Decimal text from integer nanoseconds, never a float.
+      const nanos = value.getEpochNanos();
+      const magnitude = nanos < 0n ? -nanos : nanos;
+      const fraction = (magnitude % 1_000_000_000n).toString().padStart(9, "0").replace(/0+$/, "");
+      return `${nanos < 0n ? "-" : ""}${magnitude / 1_000_000_000n}${fraction === "" ? "" : "." + fraction}`;
+    }
   }
+}
+
+/** A timestamp as its JSON value: text, or for epoch seconds a number token that keeps every digit. */
+function wireTimestamp(value: Date, format: TimestampFormat): string | number | JsonNumber {
+  if (format !== "epoch-seconds") return timestampText(value, format);
+  value = PreciseDate.of(value);
+  return value instanceof PreciseDate && value.getEpochNanos() % 1_000_000n !== 0n
+    ? new JsonNumber(timestampText(value, format)) : value.getTime() / 1000;
 }
 
 /** Standard, padded base64: how a JSON body carries a blob. */
@@ -402,16 +547,43 @@ export function fromBase64(text: string): Uint8Array {
 
 // Seconds times 1000 can land just below the true millisecond (1090069807.626
 // * 1000 is ...625.9999), so snap values within float noise to the nearest
-// millisecond. Finer fractions truncate, as `Date` does for date-time text.
+// millisecond. Only a float needs this; a numeric token is read exactly.
 function epochMillis(seconds: number): number {
   const millis = seconds * 1000;
   const nearest = Math.round(millis);
   return Math.abs(millis - nearest) < 5e-4 ? nearest : Math.floor(millis);
 }
 
-/** Decode timestamp text or epoch seconds to a Date; invalid timestamps throw. */
-export function parseTimestamp(value: string | number): Date {
-  const date = typeof value === "number" ? new Date(epochMillis(value)) : new Date(value);
+/** Integer nanoseconds of JSON number text in epoch seconds, read without a float; finer than a nanosecond is an error. */
+function epochSecondsNanos(text: string): bigint {
+  const match = /^(-?)(\d+)(?:\.(\d+))?(?:[eE]([+-]?\d+))?$/.exec(text.trim());
+  if (match === null) throw new TypeError(`not a timestamp: ${text}`);
+  const exponent = Number(match[4] ?? "0");
+  if (!(Math.abs(exponent) <= 100)) throw new TypeError(`timestamp out of range: ${text}`);
+  const digits = match[2] + (match[3] ?? "");
+  const scale = 9 + exponent - (match[3]?.length ?? 0);
+  let nanos: bigint;
+  if (scale >= 0) {
+    nanos = BigInt(digits) * 10n ** BigInt(scale);
+  } else {
+    const padded = digits.padStart(-scale, "0");
+    if (/[1-9]/.test(padded.slice(padded.length + scale))) throw new TypeError(`timestamp finer than a nanosecond: ${text}`);
+    nanos = BigInt(padded.slice(0, padded.length + scale) || "0");
+  }
+  return match[1] === "-" ? -nanos : nanos;
+}
+
+/**
+ * Decode timestamp text or epoch seconds to a `PreciseDate`; invalid timestamps
+ * throw. RFC 3339 text and a numeric token keep up to nine fractional digits;
+ * a float (epoch seconds already in a `number`) has only milliseconds to give.
+ */
+function parseTimestamp(value: string | number | JsonNumber): PreciseDate {
+  if (value instanceof JsonNumber) return PreciseDate.fromEpochNanos(epochSecondsNanos(value.text));
+  const rfc3339 = typeof value === "string" ? parseRfc3339(value) : undefined;
+  const date = typeof value === "number" ? new PreciseDate(epochMillis(value))
+    : rfc3339 !== undefined ? PreciseDate.fromEpochNanos(BigInt(rfc3339.millis) * 1_000_000n + BigInt(rfc3339.nanos))
+    : new PreciseDate(new Date(value));
   if (Number.isNaN(date.getTime())) throw new TypeError(`not a timestamp: ${String(value)}`);
   return date;
 }
@@ -1107,7 +1279,7 @@ function withIdempotencyToken(operation: OperationSpec, input: object): object {
 function scalar(value: unknown, schema: Schema | undefined): string {
   if (value instanceof Date) {
     const format = schema?.kind === "timestamp" ? schema.format : "date-time";
-    return String(formatTimestamp(value, format));
+    return timestampText(value, format);
   }
   const encoded = toWire(schema, value);
   return encoded instanceof JsonNumber ? encoded.text : String(encoded);
@@ -1152,7 +1324,7 @@ function parseHeader(text: string, schema: Schema | undefined, wire = false): un
       return text.trim() === "true";
     case "timestamp":
       return wire ? (schema.format === "epoch-seconds" ? new JsonNumber(text.trim()) : text)
-        : parseTimestamp(schema.format === "epoch-seconds" ? Number(text) : text);
+        : parseTimestamp(schema.format === "epoch-seconds" ? new JsonNumber(text.trim()) : text);
     case "list":
       return (schema.member.kind==="timestamp" && schema.member.format==="http-date" && !text.trimStart().startsWith('"') ? text.split(/,\s*(?=(?:Mon|Tue|Wed|Thu|Fri|Sat|Sun),)/) : splitHeader(text)).map(item => parseHeader(item, schema.member, wire));
     default:
