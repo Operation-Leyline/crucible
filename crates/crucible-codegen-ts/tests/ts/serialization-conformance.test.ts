@@ -74,8 +74,8 @@ function exactJson(text: string): unknown {
   const parsed = value(); assert.equal(index, tokens.length); return parsed;
 }
 
-test("shared serialization coverage: all 16 cases", () => {
-  assert.equal(cases.length, 16);
+test("shared serialization coverage: all 18 cases", () => {
+  assert.equal(cases.length, 18);
 });
 
 for (const row of cases) test(`serialization conformance: ${row.id}`, () => {
