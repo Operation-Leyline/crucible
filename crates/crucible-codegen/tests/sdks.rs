@@ -684,6 +684,30 @@ channel = { git = "git@github.com:example/weather-go.git", tag = "v{version}" }
     let go = &document["sdks"]["go"]["guide"];
     assert_eq!(go["version"], "1.2.3");
     assert!(go["install"].to_string().contains("@v1.2.3"), "{go}");
+    // Without a channel whose tag Go can resolve, `go get` is unpinned and
+    // installs the latest release: the guide names no version beside it.
+    for channel in [
+        "",
+        r#"channel = { git = "git@github.com:example/weather-go.git", tag = "sdk-{version}" }"#,
+    ] {
+        let text = format!(
+            "schema_version = 1\nmodel = \"model\"\n\n[sdk.go]\npackage = \"weather\"\n\
+             module_path = \"github.com/example/weather-go\"\nout = \"generated/go\"\n{channel}\n"
+        );
+        let (_directory, path) = repository("weather", &text);
+        let file = sdk::load(&path).unwrap();
+        let text = sdks::file_at(&file, &service, Audience::External, &released)
+            .unwrap()
+            .contents;
+        let document: serde_json::Value = serde_json::from_str(&text).unwrap();
+        let go = &document["sdks"]["go"]["guide"];
+        assert_eq!(
+            go["install"]["commands"],
+            serde_json::json!(["go get github.com/example/weather-go"]),
+            "{channel}"
+        );
+        assert!(go["version"].is_null(), "{channel}: {go}");
+    }
     // A version for an SDK the file does not declare names nothing.
     let unknown: sdks::Versions = [("python".to_owned(), "1.0.0".to_owned())].into();
     let refused = sdks::file_at(&file, &service, Audience::External, &unknown).unwrap_err();

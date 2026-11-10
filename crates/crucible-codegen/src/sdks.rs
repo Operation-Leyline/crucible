@@ -258,12 +258,23 @@ fn entry(
         surface.endpoint = None;
     }
     // A generator without a package version of its own (Go, whose release
-    // is its Git tag) installs the release but has no version to report:
-    // the guide still says which release it describes.
+    // is its Git tag) has no version to report. The guide names the
+    // release only where its install steps select it: an unpinned `go get`
+    // installs whatever is latest, so naming a version beside it would
+    // promise a release the reader may not get.
     if let (Some(version), Some(guide)) = (version, surface.guide.as_mut())
         && guide.version.is_none()
     {
-        guide.version = Some(version.to_owned());
+        let install = &guide.install;
+        let pinned = install
+            .commands
+            .iter()
+            .map(String::as_str)
+            .chain(install.manifest.as_ref().map(|m| m.text.as_str()))
+            .any(|step| step.contains(version));
+        if pinned {
+            guide.version = Some(version.to_owned());
+        }
     }
     let mut entry = serde_json::to_value(&surface).expect("a surface is JSON data");
     let object = entry.as_object_mut().expect("a surface is an object");
