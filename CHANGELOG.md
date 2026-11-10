@@ -17,6 +17,12 @@ version's section when it is prepared.
 
 ### Added
 
+- TypeScript client: timestamps are lossless to the nanosecond. The package
+  exports `PreciseDate`, a `Date` subclass that keeps the nanoseconds below the
+  millisecond. Decoded timestamps (body, query, header, `date-time` and
+  `epoch-seconds`) are `PreciseDate` values; inputs accept either class, and a
+  plain `Date` encodes as before. A model shape named `PreciseDate` is refused.
+  `getTime()` and `<`/`>` still see milliseconds only; use `compare()`/`equals()`.
 - `.cru`: `internal resource X` keeps a whole resource out of the external
   contract. Its operations keep lifecycle checks, `$` bindings and views; it may
   hold internal identifier and property types, and it may be a child of a public

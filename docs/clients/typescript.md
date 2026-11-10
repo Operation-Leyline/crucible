@@ -160,8 +160,8 @@ client's schema conversion. Middleware reading `request.text()` sees the exact
 encoded body, suitable for computing a digest without reparsing it.
 
 
-Timestamps use `Date`, with millisecond precision; submillisecond fractions are
-lost. HTTP-date has second precision. Known union arms use native object types.
+Timestamps are typed `Date`; see [Timestamps](#timestamps) for nanosecond
+precision. Known union arms use native object types.
 A future arm has the exported `UnknownUnion` form:
 
 ```typescript
@@ -265,6 +265,42 @@ values when reading responses.
 
 Sparse lists and maps include `null` in their element or value type. `@uniqueItems` lists remain arrays; encoding and decoding reject duplicate
 values, comparing objects structurally and numbers mathematically. Dense collections reject null elements, including document elements; null nested inside a document is preserved.
+
+### Timestamps
+
+The wire format carries timestamps to the nanosecond; a JavaScript `Date` holds
+milliseconds. The package therefore exports `PreciseDate`, a subclass of `Date`
+that also keeps the nanoseconds below the millisecond:
+
+- Every timestamp a client decodes (body, query, header, `date-time` and
+  `epoch-seconds`) is a `PreciseDate` with up to nine fractional digits.
+  `epoch-seconds` is read from the number's text, never through a float.
+  HTTP-date has whole seconds. Text finer than a nanosecond is a `TypeError`.
+- Every timestamp input accepts a `PreciseDate` or a plain `Date`. A plain
+  `Date` encodes as it always has. A `PreciseDate` prints the precision it has:
+  three fractional digits when it has no sub-millisecond part, six when it is
+  whole microseconds, otherwise nine. `epoch-seconds` is an exact decimal number.
+- Model types stay `Date`, because one structure is both input and output and
+  a `Date` is not a `PreciseDate`. A `PreciseDate` is assignable to every
+  timestamp member; to read the nanoseconds of a decoded one, narrow it:
+  `if (city.updatedAt instanceof PreciseDate) ...`, or `PreciseDate.from(date)`.
+
+```typescript
+import { PreciseDate } from "@example/weather";
+
+const at = PreciseDate.fromEpochMicros(1790857800_123456n); // or fromEpochNanos, fromRfc3339
+at.toISOString();     // "2026-10-01T12:30:00.123456Z"
+at.getEpochMicros();  // 1790857800123456n
+at.getEpochNanos();   // 1790857800123456000n
+at.equals(other);     // exact; also compare(other) for sorting: -1, 0 or 1
+```
+
+`getTime()`, `valueOf()`, and the operators `<` and `>` see milliseconds only,
+so two instants within one millisecond compare equal with them; use `compare()`
+or `equals()` for exact order. `setTime()` sets whole milliseconds and clears the
+sub-millisecond part; the field setters (`setMilliseconds()`, `setSeconds()`, and
+so on) leave it alone. `toISOString()` and `toJSON()` print full precision.
+The name `PreciseDate` is reserved: a model shape with that name is refused.
 
 ### Authentication
 

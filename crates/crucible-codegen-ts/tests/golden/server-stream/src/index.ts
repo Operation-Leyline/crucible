@@ -3,7 +3,7 @@
 export * from "./models.js";
 export * from "./errors.js";
 export { StreamsClient } from "./client.js";
-export { Decimal, NetworkError, ResponseStream, ServiceError, StreamProtocolError, TimeoutError, contentSha256, stringifyJson } from "./runtime.js";
+export { Decimal, NetworkError, PreciseDate, ResponseStream, ServiceError, StreamProtocolError, TimeoutError, contentSha256, stringifyJson } from "./runtime.js";
 export type {
   ClientConfig,
   Document,

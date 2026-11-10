@@ -158,14 +158,6 @@
           "seconds": "0",
           "nanoseconds": 0
         }
-      },
-      "javascript-bigint-date": {
-        "json": "{\"id\":\"c\",\"name\":\"n\",\"population\":0,\"createdAt\":0}",
-        "instant": {
-          "member": "createdAt",
-          "seconds": "0",
-          "nanoseconds": 0
-        }
       }
     }
   }

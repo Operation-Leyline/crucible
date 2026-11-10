@@ -7,6 +7,7 @@ import { test } from "node:test";
 import {
   ConflictError,
   NotFoundError,
+  PreciseDate,
   ThrottlingError,
   ValidationError,
   WeatherClient,
@@ -36,6 +37,20 @@ test("a created city reads back with every member intact", async () => {
   assert.equal(read.city.name, name);
   assert.equal(read.requestId, "req-from-server", "a response header member");
   assert.deepEqual(read.forecast, { clear: { at: "2026-10-01T12:30:00+00:00" } }, "a query timestamp, a map, a document");
+});
+
+test("timestamps keep their sub-millisecond digits across the wire", async () => {
+  const created = await client.createCity({ name: unique("tromso") });
+  const { updatedAt, createdAt } = created.city;
+  assert.ok(updatedAt instanceof PreciseDate && createdAt instanceof PreciseDate);
+  // The server stamps both members with one instant to the nanosecond; one is
+  // RFC 3339 text and the other a decimal number, and neither is a float.
+  assert.ok(updatedAt.equals(createdAt), `${updatedAt.toISOString()} vs ${createdAt.toISOString()}`);
+
+  const at = PreciseDate.fromEpochMicros(1790857800_123456n);
+  const read = await client.getCity({ cityId: created.city.id, at });
+  assert.deepEqual(read.forecast, { clear: { at: "2026-10-01T12:30:00.123456+00:00" } }, "a microsecond query timestamp reached the server");
+  assert.ok((read.city.updatedAt as PreciseDate).equals(updatedAt), "and the stored instant reads back unchanged");
 });
 
 test("resending the same input replays instead of creating twice", async () => {

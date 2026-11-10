@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { test } from "node:test";
 import { blob, fromWire, toWire, parseJson, stringifyJson } from "./generated/src/runtime.js";
 import type { Schema } from "./generated/src/runtime.js";
+import { PreciseDate } from "./generated/src/index.js";
 import { S_CitySummary, S_Location, S_Forecast } from "./generated/src/schemas.js";
 
 interface Expectation {
@@ -100,10 +101,10 @@ for (const row of cases) test(`serialization conformance: ${row.id}`, () => {
   }
   if (expect.instant !== undefined) {
     const instant = (native as Record<string, unknown>)[expect.instant.member];
-    assert.ok(instant instanceof Date);
-    const milliseconds = instant.getTime();
-    const seconds = Math.floor(milliseconds / 1000);
+    assert.ok(instant instanceof PreciseDate);
+    const nanos = instant.getEpochNanos();
+    const seconds = nanos >= 0n ? nanos / 1_000_000_000n : -((-nanos + 999_999_999n) / 1_000_000_000n);
     assert.equal(String(seconds), expect.instant.seconds);
-    assert.equal((milliseconds - seconds * 1000) * 1_000_000, expect.instant.nanoseconds);
+    assert.equal(Number(nanos - seconds * 1_000_000_000n), expect.instant.nanoseconds);
   }
 });
