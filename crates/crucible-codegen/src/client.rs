@@ -175,33 +175,89 @@ impl Client {
         let _ = service;
         match *self {
             #[cfg(feature = "rust")]
-            Self::Rust(ref options) => crucible_codegen_rust::surface(service, options),
+            Self::Rust(ref options) => {
+                let mut surface = crucible_codegen_rust::surface(service, options);
+                surface.guide = Some(crucible_codegen_rust::guide_document(service, options));
+                surface
+            }
             #[cfg(feature = "ts")]
-            Self::Ts(ref options) => crucible_codegen_ts::surface(service, options),
+            Self::Ts(ref options) => {
+                let mut surface = crucible_codegen_ts::surface(service, options);
+                surface.guide = Some(crucible_codegen_ts::guide_document(service, options));
+                surface
+            }
             #[cfg(feature = "python")]
-            Self::Python(ref options) => crucible_codegen_python::surface(service, options),
+            Self::Python(ref options) => {
+                let mut surface = crucible_codegen_python::surface(service, options);
+                surface.guide = Some(crucible_codegen_python::guide_document(service, options));
+                surface
+            }
             #[cfg(feature = "go")]
-            Self::Go(ref options) => crucible_codegen_go::surface(service, options),
+            Self::Go(ref options) => {
+                let mut surface = crucible_codegen_go::surface(service, options);
+                surface.guide = Some(crucible_codegen_go::guide_document(service, options));
+                surface
+            }
             #[cfg(feature = "java")]
-            Self::Java(ref options) => crucible_codegen_java::surface(service, options),
+            Self::Java(ref options) => {
+                let mut surface = crucible_codegen_java::surface(service, options);
+                surface.guide = Some(crucible_codegen_java::guide_document(service, options));
+                surface
+            }
             #[cfg(feature = "csharp")]
-            Self::Csharp(ref options) => crucible_codegen_csharp::surface(service, options),
+            Self::Csharp(ref options) => {
+                let mut surface = crucible_codegen_csharp::surface(service, options);
+                surface.guide = Some(crucible_codegen_csharp::guide_document(service, options));
+                surface
+            }
             #[cfg(feature = "kotlin")]
-            Self::Kotlin(ref options) => crucible_codegen_kotlin::surface(service, options),
+            Self::Kotlin(ref options) => {
+                let mut surface = crucible_codegen_kotlin::surface(service, options);
+                surface.guide = Some(crucible_codegen_kotlin::guide_document(service, options));
+                surface
+            }
             #[cfg(feature = "swift")]
-            Self::Swift(ref options) => crucible_codegen_swift::surface(service, options),
+            Self::Swift(ref options) => {
+                let mut surface = crucible_codegen_swift::surface(service, options);
+                surface.guide = Some(crucible_codegen_swift::guide_document(service, options));
+                surface
+            }
             #[cfg(feature = "dart")]
-            Self::Dart(ref options) => crucible_codegen_dart::surface(service, options),
+            Self::Dart(ref options) => {
+                let mut surface = crucible_codegen_dart::surface(service, options);
+                surface.guide = Some(crucible_codegen_dart::guide_document(service, options));
+                surface
+            }
             #[cfg(feature = "php")]
-            Self::Php(ref options) => crucible_codegen_php::surface(service, options),
+            Self::Php(ref options) => {
+                let mut surface = crucible_codegen_php::surface(service, options);
+                surface.guide = Some(crucible_codegen_php::guide_document(service, options));
+                surface
+            }
             #[cfg(feature = "ruby")]
-            Self::Ruby(ref options) => crucible_codegen_ruby::surface(service, options),
+            Self::Ruby(ref options) => {
+                let mut surface = crucible_codegen_ruby::surface(service, options);
+                surface.guide = Some(crucible_codegen_ruby::guide_document(service, options));
+                surface
+            }
             #[cfg(feature = "cpp")]
-            Self::Cpp(ref options) => crucible_codegen_cpp::surface(service, options),
+            Self::Cpp(ref options) => {
+                let mut surface = crucible_codegen_cpp::surface(service, options);
+                surface.guide = Some(crucible_codegen_cpp::guide_document(service, options));
+                surface
+            }
             #[cfg(feature = "c")]
-            Self::C(ref options) => crucible_codegen_c::surface(service, options),
+            Self::C(ref options) => {
+                let mut surface = crucible_codegen_c::surface(service, options);
+                surface.guide = Some(crucible_codegen_c::guide_document(service, options));
+                surface
+            }
             #[cfg(feature = "r")]
-            Self::R(ref options) => crucible_codegen_r::surface(service, options),
+            Self::R(ref options) => {
+                let mut surface = crucible_codegen_r::surface(service, options);
+                surface.guide = Some(crucible_codegen_r::guide_document(service, options));
+                surface
+            }
         }
     }
 

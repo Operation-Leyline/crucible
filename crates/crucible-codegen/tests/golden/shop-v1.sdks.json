@@ -127,6 +127,52 @@
       },
       "endpoint": null,
       "endpointEnv": null,
+      "guide": {
+        "fence": "c",
+        "install": {
+          "commands": [
+            "cmake -S . -B build -DCMAKE_BUILD_TYPE=Release",
+            "cmake --build build --config Release",
+            "cmake --install build --config Release --prefix \"$HOME/.local\"",
+            "# Needs yyjson 0.13, libcurl 7.68 or newer and OpenSSL 1.1.1 or newer."
+          ],
+          "manifest": {
+            "fence": "cmake",
+            "text": "find_package(shop_v1 0.0.0 CONFIG REQUIRED)\ntarget_link_libraries(app PRIVATE shop_v1::shop_v1)\n"
+          },
+          "note": null
+        },
+        "language": "C",
+        "refersTo": "shop_v1/client.h",
+        "sections": [
+          {
+            "id": "client",
+            "markdown": "```c\n#include \"shop_v1/client.h\"\n\n#include <stdio.h>\n#include <stdlib.h>\n\nint main(void) {\n    shop_v1_error error = {0};\n    shop_v1_client_config config = shop_v1_client_defaults();\n    config.endpoint = shop_v1_string_view(getenv(\"SHOP_ENDPOINT\"));\n    shop_v1_client *client = NULL;\n    if (shop_v1_client_new(&config, &client, &error) != shop_v1_ok) {\n        fprintf(stderr, \"shop_v1_client_new: %s\\n\", error.message);\n        return 1;\n    }\n    /* Call operations with the client, then free it. */\n    shop_v1_client_free(client);\n    return 0;\n}\n```\n\nThe service declares no authentication. The client copies `config`'s strings; free it with `shop_v1_client_free` after its calls and iterators finish. `config.endpoint` is the service's base URL. The client sends `Crucible-Version: v1` on every request.",
+            "title": "Create a client"
+          },
+          {
+            "id": "call",
+            "markdown": "`shop_v1_operations_count_items` calls `CountItems`. Every operation has a method like it.\n\n```c\n#include \"shop_v1/client.h\"\n\n#include <stdio.h>\n#include <stdlib.h>\n\nint main(void) {\n    shop_v1_error error = {0};\n    /* The client sends Crucible-Version: v1 on every request. */\n    shop_v1_client_config config = shop_v1_client_defaults();\n    config.endpoint = shop_v1_string_view(getenv(\"SHOP_ENDPOINT\"));\n    shop_v1_client *client = NULL;\n    if (shop_v1_client_new(&config, &client, &error) != shop_v1_ok) {\n        fprintf(stderr, \"shop_v1_client_new: %s\\n\", error.message);\n        return 1;\n    }\n\n    /* Sample values generated from the model's types and constraints. */\n    shop_v1_models_count_items_input input = {0};\n    shop_v1_models_count_items_input_set_shelf(&input, shop_v1_string_view(\"shelf\"));\n\n    shop_v1_operations_count_items_result result = {0};\n    shop_v1_status status = shop_v1_operations_count_items(client, &input, NULL, NULL, &result, &error);\n    if (status == shop_v1_ok) {\n        printf(\"count: %lld\\n\", (long long)shop_v1_models_count_items_output_get_count(result.value));\n    } else if (shop_v1_error_as_count_unavailable_exception(&result.base) != NULL) {\n        shop_v1_string text = {0};\n        const shop_v1_models_count_unavailable_exception *failure = shop_v1_error_as_count_unavailable_exception(&result.base);\n        fprintf(stderr, \"CountUnavailableException (HTTP %d)\\n\", result.base.response.status);\n        text = shop_v1_models_count_unavailable_exception_get_message(failure);\n        fprintf(stderr, \"message: %.*s\\n\", (int)text.length, text.data);\n    } else {\n        fprintf(stderr, \"CountItems failed: %s\\n\", error.message);\n    }\n    shop_v1_operations_count_items_result_free(&result);\n    shop_v1_client_free(client);\n    return status == shop_v1_ok ? 0 : 1;\n}\n```",
+            "title": "Call an operation"
+          },
+          {
+            "id": "errors",
+            "markdown": "Every call returns a `shop_v1_status`: `shop_v1_service_error` for an HTTP error response, whose modelled error `shop_v1_error_as_<error>(&result.base)` returns (`NULL` for another error) and whose status is `result.base.response.status`; `shop_v1_network`, `shop_v1_deadline`, `shop_v1_cancelled` or `shop_v1_invalid` otherwise, with `error.message`. Free the result after a failure too: it owns the error's data.",
+            "title": "Errors"
+          },
+          {
+            "id": "retries",
+            "markdown": "Calls are retried with backoff when a retry is safe: a modelled throttling error is retried for any operation; transport failures, HTTP 500, 502, 503 and 504 and other retryable modelled errors only for operations that are read-only, idempotent or carry an idempotency token. For operations that declare an idempotency token, an unset token is generated once per call and reused on every attempt; set it yourself to replay one logical request across calls. Set `config.max_attempts` (3, the first included; 1 turns retries off), `config.timeout` (the whole call's budget in seconds) and `config.base_delay` and `config.max_delay` before constructing the client.",
+            "title": "Retries and idempotency"
+          },
+          {
+            "id": "links",
+            "markdown": "- [The C client guide](<https://github.com/Operation-Leyline/crucible/blob/main/docs/clients/c.md>)",
+            "title": "Links"
+          }
+        ],
+        "version": "0.0.0"
+      },
       "language": "c",
       "middleware": [],
       "name": "c-v1",
@@ -420,6 +466,51 @@
       },
       "endpoint": null,
       "endpointEnv": null,
+      "guide": {
+        "fence": "cpp",
+        "install": {
+          "commands": [
+            "cmake -S . -B build -DCMAKE_BUILD_TYPE=Release",
+            "cmake --build build --config Release",
+            "cmake --install build --config Release --prefix \"$HOME/.local\""
+          ],
+          "manifest": {
+            "fence": "cmake",
+            "text": "find_package(shop_v1 0.0.0 CONFIG REQUIRED)\ntarget_link_libraries(app PRIVATE shop_v1::shop_v1)\n"
+          },
+          "note": null
+        },
+        "language": "C++",
+        "refersTo": "shop_v1/client.hpp",
+        "sections": [
+          {
+            "id": "client",
+            "markdown": "```cpp\n#include \"shop_v1/client.hpp\"\n\nnamespace sdk = example::shop_v1;\n\nsdk::runtime::ClientConfig config;\nif (const char* endpoint = std::getenv(\"SHOP_ENDPOINT\")) config.endpoint = endpoint;\nsdk::ShopClient client(config);\n```\n\nThe service declares no authentication. `config.endpoint` is the service's base URL. The client sends `Crucible-Version: v1` on every request.",
+            "title": "Create a client"
+          },
+          {
+            "id": "call",
+            "markdown": "`count_items` calls `CountItems`. Every operation has a method like it.\n\n```cpp\n#include \"shop_v1/client.hpp\"\n\n#include <cstdlib>\n#include <iostream>\n\nnamespace sdk = example::shop_v1;\n\nint main() {\n    // The client sends Crucible-Version: v1 on every request.\n    sdk::runtime::ClientConfig config;\n    if (const char* endpoint = std::getenv(\"SHOP_ENDPOINT\")) config.endpoint = endpoint;\n    sdk::ShopClient client(config);\n\n    // Sample values generated from the model's types and constraints.\n    const sdk::models::CountItemsInput input(\"shelf\");\n\n    try {\n        const auto output = client.count_items(input);\n        std::cout << \"count: \" << sdk::runtime::debug_value(output.count) << '\\n';\n    } catch (const sdk::models::CountUnavailableException& error) {\n        std::cerr << \"CountUnavailableException (HTTP \" << error.metadata().status << \"): \" << error.message << '\\n';\n        return 1;\n    }\n    return 0;\n}\n```",
+            "title": "Call an operation"
+          },
+          {
+            "id": "errors",
+            "markdown": "Each modelled error is a struct in `example::shop_v1::models` deriving from `runtime::ShopException` and `runtime::ServiceError`: catch it by `const&` and read its fields and `metadata().status`. Transport failures throw `runtime::NetworkError`, an exhausted `timeout` throws `runtime::DeadlineError`, and a stopped `std::stop_token` throws `runtime::CancelledError`.",
+            "title": "Errors"
+          },
+          {
+            "id": "retries",
+            "markdown": "Calls are retried with backoff when a retry is safe: a modelled throttling error is retried for any operation; transport failures, HTTP 500, 502, 503 and 504 and other retryable modelled errors only for operations that are read-only, idempotent or carry an idempotency token. For operations that declare an idempotency token, an unset token is generated once per call and reused on every attempt; set it yourself to replay one logical request across calls. Set `max_attempts` in `ClientConfig` to change the attempt limit (3, the first included; 1 turns retries off), and `base_delay` and `max_delay` for the backoff; `timeout` (30 seconds) bounds the whole call, retries included.",
+            "title": "Retries and idempotency"
+          },
+          {
+            "id": "links",
+            "markdown": "- [The C++ client guide](<https://github.com/Operation-Leyline/crucible/blob/main/docs/clients/cpp.md>)",
+            "title": "Links"
+          }
+        ],
+        "version": "0.0.0"
+      },
       "language": "cpp",
       "middleware": [],
       "name": "cpp-v1",
@@ -713,6 +804,49 @@
       },
       "endpoint": null,
       "endpointEnv": null,
+      "guide": {
+        "fence": "csharp",
+        "install": {
+          "commands": [
+            "dotnet add package Example.Shop.V1 --version 0.0.0-dev"
+          ],
+          "manifest": {
+            "fence": "xml",
+            "text": "<PackageReference Include=\"Example.Shop.V1\" Version=\"0.0.0-dev\" />"
+          },
+          "note": null
+        },
+        "language": "C#",
+        "refersTo": "Example.Shop.V1",
+        "sections": [
+          {
+            "id": "client",
+            "markdown": "```csharp\nusing Example.Shop.V1;\nusing Example.Shop.V1.Models;\n\nusing var client = new ShopClient(new ClientConfig\n{\n    Endpoint = Environment.GetEnvironmentVariable(\"SHOP_ENDPOINT\"),\n});\n```\n\nThe service declares no authentication. `ClientConfig.Endpoint` is the service's base URL. The client is `IDisposable`; share one instance. The client sends `Crucible-Version: v1` on every request.",
+            "title": "Create a client"
+          },
+          {
+            "id": "call",
+            "markdown": "`CountItems` calls `CountItems`. Every operation has a method like it.\n\n```csharp\nusing System;\nusing Example.Shop.V1;\nusing Example.Shop.V1.Models;\n\n// The client sends Crucible-Version: v1 on every request.\nusing var client = new ShopClient(new ClientConfig\n{\n    Endpoint = Environment.GetEnvironmentVariable(\"SHOP_ENDPOINT\"),\n});\n\n// Sample values generated from the model's types and constraints.\nvar input = new CountItemsInput\n{\n    Shelf = \"shelf\",\n};\n\ntry\n{\n    var output = await client.CountItemsAsync(input);\n    Console.WriteLine(output.Count);\n}\ncatch (CountUnavailableException error)\n{\n    Console.Error.WriteLine($\"CountUnavailableException (HTTP {error.StatusCode}): {error.MessageValue}\");\n}\n```",
+            "title": "Call an operation"
+          },
+          {
+            "id": "errors",
+            "markdown": "Each modelled error is an exception class in `Example.Shop.V1.Models`, deriving from `Example.Shop.V1.ShopException` and `ServiceError`: catch it and read its properties, and `StatusCode`, `RequestId` and `Headers`. A modelled member named like an `Exception` property takes a `Value` suffix (`MessageValue`). Transport failures throw `NetworkError`.",
+            "title": "Errors"
+          },
+          {
+            "id": "retries",
+            "markdown": "Calls are retried with backoff when a retry is safe: a modelled throttling error is retried for any operation; transport failures, HTTP 500, 502, 503 and 504 and other retryable modelled errors only for operations that are read-only, idempotent or carry an idempotency token. For operations that declare an idempotency token, an unset token is generated once per call and reused on every attempt; set it yourself to replay one logical request across calls. Set `MaxAttempts` in `ClientConfig` to change the attempt limit (3, the first included; 1 turns retries off), `Timeout`, `BaseDelay` and `MaxDelay` for the call budget and backoff, and `RetryMode` to `RetryMode.Standard` or `RetryMode.Adaptive` for a shared retry quota or client-side rate limiting.",
+            "title": "Retries and idempotency"
+          },
+          {
+            "id": "links",
+            "markdown": "- [The C# client guide](<https://github.com/Operation-Leyline/crucible/blob/main/docs/clients/csharp.md>)",
+            "title": "Links"
+          }
+        ],
+        "version": "0.0.0-dev"
+      },
       "language": "csharp",
       "middleware": [],
       "name": "csharp-v1",
@@ -1007,6 +1141,49 @@
       },
       "endpoint": null,
       "endpointEnv": null,
+      "guide": {
+        "fence": "dart",
+        "install": {
+          "commands": [
+            "dart pub add shop_v1:0.0.0-dev"
+          ],
+          "manifest": {
+            "fence": "yaml",
+            "text": "dependencies:\n  shop_v1: 0.0.0-dev\n"
+          },
+          "note": null
+        },
+        "language": "Dart",
+        "refersTo": "package:shop_v1/shop_v1.dart",
+        "sections": [
+          {
+            "id": "client",
+            "markdown": "```dart\nimport 'package:shop_v1/shop_v1.dart';\n\nimport 'dart:io' as io;\n\nfinal client = ShopClient(ClientConfig(\n  endpoint: io.Platform.environment['SHOP_ENDPOINT'],\n));\n```\n\nThe service declares no authentication. `endpoint` is the service's base URL. The client sends `Crucible-Version: v1` on every request.",
+            "title": "Create a client"
+          },
+          {
+            "id": "call",
+            "markdown": "`countItems` calls `CountItems`. Every operation has a method like it.\n\n```dart\nimport 'dart:io' as io;\n\nimport 'package:shop_v1/shop_v1.dart';\n\nFuture<void> main() async {\n  // The client sends Crucible-Version: v1 on every request.\n  final client = ShopClient(ClientConfig(\n    endpoint: io.Platform.environment['SHOP_ENDPOINT'],\n  ));\n  // Sample values generated from the model's types and constraints.\n  final input = CountItemsInput(\n    shelf: \"shelf\",\n  );\n  try {\n    final output = await client.countItems(input);\n    print(output.count);\n  } on CountUnavailableException catch (error) {\n    print('CountUnavailableException (HTTP ${error.metadata.status}): ${error.message}');\n  } finally {\n    client.close();\n  }\n}\n```",
+            "title": "Call an operation"
+          },
+          {
+            "id": "errors",
+            "markdown": "Each modelled error is a class exported from the package, extending `ShopException` and `ServiceError`: catch it with `on CountUnavailableException catch (error)` and read its fields and `error.metadata.status`. An error response the model does not describe is an `UnknownServiceError`; a call that gets no response throws `NetworkException`, a cancelled one `CancelledException`, and one outlasting `ClientConfig.timeout` a `TimeoutException`.",
+            "title": "Errors"
+          },
+          {
+            "id": "retries",
+            "markdown": "Calls are retried with backoff when a retry is safe: a modelled throttling error is retried for any operation; transport failures, HTTP 500, 502, 503 and 504 and other retryable modelled errors only for operations that are read-only, idempotent or carry an idempotency token. For operations that declare an idempotency token, an unset token is generated once per call and reused on every attempt; set it yourself to replay one logical request across calls. Set `maxAttempts` in `ClientConfig` to change the attempt limit (3, the first included; 1 turns retries off), and `baseDelay` and `maxDelay` to change the backoff.",
+            "title": "Retries and idempotency"
+          },
+          {
+            "id": "links",
+            "markdown": "- [The Dart client guide](<https://github.com/Operation-Leyline/crucible/blob/main/docs/clients/dart.md>)",
+            "title": "Links"
+          }
+        ],
+        "version": "0.0.0-dev"
+      },
       "language": "dart",
       "middleware": [],
       "name": "dart-v1",
@@ -1300,6 +1477,46 @@
       },
       "endpoint": null,
       "endpointEnv": null,
+      "guide": {
+        "fence": "go",
+        "install": {
+          "commands": [
+            "go get example.com/shop/v1"
+          ],
+          "manifest": null,
+          "note": null
+        },
+        "language": "Go",
+        "refersTo": "shop",
+        "sections": [
+          {
+            "id": "client",
+            "markdown": "```go\nimport shop \"example.com/shop/v1\"\n\nclient, err := shop.NewShopClient(shop.Config{\n\tEndpoint: os.Getenv(\"SHOP_ENDPOINT\"),\n})\nif err != nil {\n\tlog.Fatal(err)\n}\n```\n\nThe service declares no authentication. `Config.Endpoint` is the service's base URL. The client sends `Crucible-Version: v1` on every request.",
+            "title": "Create a client"
+          },
+          {
+            "id": "call",
+            "markdown": "`CountItems` calls `CountItems`. Every operation has a method like it.\n\n```go\npackage main\n\nimport (\n\t\"context\"\n\t\"errors\"\n\t\"fmt\"\n\t\"log\"\n\t\"os\"\n\n\tshop \"example.com/shop/v1\"\n)\n\nfunc main() {\n\tctx := context.Background()\n\t// The client sends Crucible-Version: v1 on every request.\n\tclient, err := shop.NewShopClient(shop.Config{\n\t\tEndpoint: os.Getenv(\"SHOP_ENDPOINT\"),\n\t})\n\tif err != nil {\n\t\tlog.Fatal(err)\n\t}\n\n\t// Sample values generated from the model's types and constraints.\n\tinput := &shop.CountItemsInput{\n\t\tShelf: shop.Some(\"shelf\"),\n\t}\n\n\toutput, err := client.CountItems(ctx, input)\n\tvar countUnavailableException *shop.CountUnavailableException\n\tif errors.As(err, &countUnavailableException) {\n\t\tfmt.Printf(\"CountUnavailableException (HTTP %d): %v\\n\", countUnavailableException.Metadata.Metadata.Status, countUnavailableException.Message)\n\t\treturn\n\t}\n\tif err != nil {\n\t\tlog.Fatal(err)\n\t}\n\tfmt.Println(output.Count)\n}\n```",
+            "title": "Call an operation"
+          },
+          {
+            "id": "errors",
+            "markdown": "Each modelled error is a struct such as `*shop.CountUnavailableException`, matched with `errors.As(err, &target)`; its `Metadata` (`*shop.ServiceError`) carries the HTTP status, request ID and headers. Every service error satisfies `shop.ShopException`; an unmodelled one is a `*shop.ServiceError`, a transport failure a `*shop.NetworkError`, and cancellation and deadlines keep their context errors.",
+            "title": "Errors"
+          },
+          {
+            "id": "retries",
+            "markdown": "Calls are retried with backoff when a retry is safe: a modelled throttling error is retried for any operation; transport failures, HTTP 500, 502, 503 and 504 and other retryable modelled errors only for operations that are read-only, idempotent or carry an idempotency token. For operations that declare an idempotency token, an unset token is generated once per call and reused on every attempt; set it yourself to replay one logical request across calls. Set `Config.MaxAttempts` to change the attempt limit (3, the first included; 1 turns retries off) and `Config.RetryMode` to `shop.RetryModeStandard` or `shop.RetryModeAdaptive` for a shared retry quota or client-side rate limiting.",
+            "title": "Retries and idempotency"
+          },
+          {
+            "id": "links",
+            "markdown": "- [The Go client guide](<https://github.com/Operation-Leyline/crucible/blob/main/docs/clients/go.md>)",
+            "title": "Links"
+          }
+        ],
+        "version": null
+      },
       "language": "go",
       "middleware": [],
       "name": "go-v1",
@@ -1593,6 +1810,47 @@
       },
       "endpoint": null,
       "endpointEnv": null,
+      "guide": {
+        "fence": "java",
+        "install": {
+          "commands": [],
+          "manifest": {
+            "fence": "xml",
+            "text": "<dependency><groupId>com.example</groupId><artifactId>shop-v1</artifactId><version>0.0.0-SNAPSHOT</version></dependency>"
+          },
+          "note": null
+        },
+        "language": "Java",
+        "refersTo": "com.example.shop.v1",
+        "sections": [
+          {
+            "id": "client",
+            "markdown": "```java\nimport com.example.shop.v1.ClientConfig;\nimport com.example.shop.v1.ShopClient;\n\nClientConfig config = new ClientConfig();\nconfig.endpoint = System.getenv(\"SHOP_ENDPOINT\");\nShopClient client = new ShopClient(config);\n```\n\nThe service declares no authentication. `ClientConfig.endpoint` is the service's base URL. The client sends `Crucible-Version: v1` on every request.",
+            "title": "Create a client"
+          },
+          {
+            "id": "call",
+            "markdown": "`countItems` calls `CountItems`. Every operation has a method like it.\n\n```java\nimport com.example.shop.v1.ClientConfig;\nimport com.example.shop.v1.ShopClient;\nimport com.example.shop.v1.model.CountItemsInput;\nimport com.example.shop.v1.model.CountItemsOutput;\nimport com.example.shop.v1.model.CountUnavailableException;\n\npublic class CountItemsExample {\n    public static void main(String[] args) {\n        // The client sends Crucible-Version: v1 on every request.\n        ClientConfig config = new ClientConfig();\n        config.endpoint = System.getenv(\"SHOP_ENDPOINT\");\n        ShopClient client = new ShopClient(config);\n\n        // Sample values generated from the model's types and constraints.\n        CountItemsInput input = CountItemsInput.builder()\n            .shelf(\"shelf\")\n            .build();\n\n        try {\n            CountItemsOutput output = client.countItems(input);\n            System.out.println(output.count());\n        } catch (CountUnavailableException error) {\n            System.err.println(\"CountUnavailableException (HTTP \" + error.status() + \"): \" + error.message());\n        }\n    }\n}\n```",
+            "title": "Call an operation"
+          },
+          {
+            "id": "errors",
+            "markdown": "Each modelled error is an unchecked exception class in `com.example.shop.v1.model`, extending `com.example.shop.v1.ShopException` and `ServiceError`: catch it and read its accessors, and `status()`, `requestId()` and `headers()`. Transport failures throw `NetworkError`.",
+            "title": "Errors"
+          },
+          {
+            "id": "retries",
+            "markdown": "Calls are retried with backoff when a retry is safe: a modelled throttling error is retried for any operation; transport failures, HTTP 500, 502, 503 and 504 and other retryable modelled errors only for operations that are read-only, idempotent or carry an idempotency token. For operations that declare an idempotency token, an unset token is generated once per call and reused on every attempt; set it yourself to replay one logical request across calls. Set `ClientConfig.maxAttempts` to change the attempt limit (3, the first included; 1 turns retries off), and `timeout`, `baseDelay` and `maxDelay` for the call budget and backoff.",
+            "title": "Retries and idempotency"
+          },
+          {
+            "id": "links",
+            "markdown": "- [The Java client guide](<https://github.com/Operation-Leyline/crucible/blob/main/docs/clients/java.md>)",
+            "title": "Links"
+          }
+        ],
+        "version": "0.0.0-SNAPSHOT"
+      },
       "language": "java",
       "middleware": [],
       "name": "java-v1",
@@ -1887,6 +2145,47 @@
       },
       "endpoint": null,
       "endpointEnv": null,
+      "guide": {
+        "fence": "kotlin",
+        "install": {
+          "commands": [],
+          "manifest": {
+            "fence": "kotlin",
+            "text": "implementation(\"com.example:shop-v1-kotlin:0.0.0-SNAPSHOT\")"
+          },
+          "note": null
+        },
+        "language": "Kotlin",
+        "refersTo": "com.example.shop.v1",
+        "sections": [
+          {
+            "id": "client",
+            "markdown": "```kotlin\nimport com.example.shop.v1.ShopClient\nimport com.example.shop.v1.ClientConfig\nimport com.example.shop.v1.model.*\n\nval client = ShopClient(ClientConfig(endpoint = System.getenv(\"SHOP_ENDPOINT\")))\n```\n\nThe service declares no authentication. `ClientConfig.endpoint` is the service's base URL. The client is `AutoCloseable`; share one instance. The client sends `Crucible-Version: v1` on every request.",
+            "title": "Create a client"
+          },
+          {
+            "id": "call",
+            "markdown": "`countItems` calls `CountItems`. Every operation has a method like it.\n\n```kotlin\nimport com.example.shop.v1.ClientConfig\nimport com.example.shop.v1.ShopClient\nimport com.example.shop.v1.model.*\n\nsuspend fun main() {\n    // The client sends Crucible-Version: v1 on every request.\n    val client = ShopClient(ClientConfig(endpoint = System.getenv(\"SHOP_ENDPOINT\")))\n\n    // Sample values generated from the model's types and constraints.\n    val input = CountItemsInput {\n        shelf = \"shelf\"\n    }\n\n    try {\n        val output = client.countItems(input)\n        println(output.count)\n    } catch (error: CountUnavailableException) {\n        System.err.println(\"CountUnavailableException (HTTP ${error.status}): ${error.messageValue}\")\n    }\n}\n```",
+            "title": "Call an operation"
+          },
+          {
+            "id": "errors",
+            "markdown": "Each modelled error is an exception class in `com.example.shop.v1.model`, extending `com.example.shop.v1.ShopException` and `ServiceError`: catch it and read its properties, and `status`, `requestId` and `headers`. A modelled member named like an exception property takes a `Value` suffix (`messageValue`). Transport failures throw `NetworkError`.",
+            "title": "Errors"
+          },
+          {
+            "id": "retries",
+            "markdown": "Calls are retried with backoff when a retry is safe: a modelled throttling error is retried for any operation; transport failures, HTTP 500, 502, 503 and 504 and other retryable modelled errors only for operations that are read-only, idempotent or carry an idempotency token. For operations that declare an idempotency token, an unset token is generated once per call and reused on every attempt; set it yourself to replay one logical request across calls. Set `maxAttempts` in `ClientConfig` to change the attempt limit (3, the first included; 1 turns retries off), `timeout`, `baseDelay` and `maxDelay` for the call budget and backoff, and `retryMode` to `RetryMode.STANDARD` or `RetryMode.ADAPTIVE` for a shared retry quota or client-side rate limiting.",
+            "title": "Retries and idempotency"
+          },
+          {
+            "id": "links",
+            "markdown": "- [The Kotlin client guide](<https://github.com/Operation-Leyline/crucible/blob/main/docs/clients/kotlin.md>)",
+            "title": "Links"
+          }
+        ],
+        "version": "0.0.0-SNAPSHOT"
+      },
       "language": "kotlin",
       "middleware": [],
       "name": "kotlin-v1",
@@ -2182,6 +2481,46 @@
       },
       "endpoint": null,
       "endpointEnv": null,
+      "guide": {
+        "fence": "php",
+        "install": {
+          "commands": [
+            "composer require example/shop-v1:0.0.0"
+          ],
+          "manifest": null,
+          "note": null
+        },
+        "language": "PHP",
+        "refersTo": "Example\\ShopV1",
+        "sections": [
+          {
+            "id": "client",
+            "markdown": "```php\n$client = new \\Example\\ShopV1\\ShopClient(new \\Example\\ShopV1\\Runtime\\ClientConfig(\n    endpoint: getenv('SHOP_ENDPOINT') ?: null,\n));\n```\n\nThe service declares no authentication. `endpoint` is the service's base URL. The client sends `Crucible-Version: v1` on every request.",
+            "title": "Create a client"
+          },
+          {
+            "id": "call",
+            "markdown": "`countItems` calls `CountItems`. Every operation has a method like it.\n\n```php\n<?php\ndeclare(strict_types=1);\n\nrequire __DIR__ . '/vendor/autoload.php';\n\n// The client sends Crucible-Version: v1 on every request.\n$client = new \\Example\\ShopV1\\ShopClient(new \\Example\\ShopV1\\Runtime\\ClientConfig(\n    endpoint: getenv('SHOP_ENDPOINT') ?: null,\n));\n\n// Sample values generated from the model's types and constraints.\n$input = new \\Example\\ShopV1\\CountItemsInput(\n    shelf: 'shelf',\n);\n\ntry {\n    $output = $client->countItems($input);\n    var_dump($output->count);\n} catch (\\Example\\ShopV1\\CountUnavailableException $error) {\n    fwrite(STDERR, 'CountUnavailableException (HTTP ' . $error->metadata->status . '): ' . $error->messageValue . PHP_EOL);\n}\n```",
+            "title": "Call an operation"
+          },
+          {
+            "id": "errors",
+            "markdown": "Each modelled error is a class in `Example\\ShopV1`, extending `ShopException` (a `Runtime\\ServiceError`, itself a `RuntimeException`): catch it and read its properties and `$error->metadata->status`. A modelled `message` member is the `messageValue` property, since `getMessage()` belongs to the exception. A failure without a response throws `Runtime\\NetworkException`; a call that outlasts the configured `timeout` throws `Runtime\\TimeoutException`.",
+            "title": "Errors"
+          },
+          {
+            "id": "retries",
+            "markdown": "Calls are retried with backoff when a retry is safe: a modelled throttling error is retried for any operation; transport failures, HTTP 500, 502, 503 and 504 and other retryable modelled errors only for operations that are read-only, idempotent or carry an idempotency token. For operations that declare an idempotency token, an unset token is generated once per call and reused on every attempt; set it yourself to replay one logical request across calls. Pass `maxAttempts` to `Example\\ShopV1\\Runtime\\ClientConfig` to change the attempt limit (3, the first included); 1 turns retries off.",
+            "title": "Retries and idempotency"
+          },
+          {
+            "id": "links",
+            "markdown": "- [The PHP client guide](<https://github.com/Operation-Leyline/crucible/blob/main/docs/clients/php.md>)",
+            "title": "Links"
+          }
+        ],
+        "version": "0.0.0"
+      },
       "language": "php",
       "middleware": [],
       "name": "php-v1",
@@ -2473,6 +2812,46 @@
       },
       "endpoint": null,
       "endpointEnv": null,
+      "guide": {
+        "fence": "python",
+        "install": {
+          "commands": [
+            "pip install shop-v1==0.0.0.dev0"
+          ],
+          "manifest": null,
+          "note": null
+        },
+        "language": "Python",
+        "refersTo": "shop_v1",
+        "sections": [
+          {
+            "id": "client",
+            "markdown": "```python\nimport shop_v1\n\nimport os\n\nclient = shop_v1.ShopClient(endpoint=os.environ[\"SHOP_ENDPOINT\"])\n```\n\nThe service declares no authentication. `endpoint` is the service's base URL. `AsyncShopClient` has the same constructor and methods, to `await`. The client sends `Crucible-Version: v1` on every request.",
+            "title": "Create a client"
+          },
+          {
+            "id": "call",
+            "markdown": "`count_items` calls `CountItems`. Every operation has a method like it.\n\n```python\nimport os\n\nimport shop_v1\n\n# The client sends Crucible-Version: v1 on every request.\nclient = shop_v1.ShopClient(endpoint=os.environ[\"SHOP_ENDPOINT\"])\n\n# Sample values generated from the model's types and constraints.\nrequest = shop_v1.CountItemsInput(\n    shelf=\"shelf\",\n)\n\ntry:\n    output = client.count_items(request)\n    print(output.count)\nexcept shop_v1.CountUnavailableException as error:\n    print(f\"CountUnavailableException (HTTP {error.metadata.status}): {error.message}\")\n```",
+            "title": "Call an operation"
+          },
+          {
+            "id": "errors",
+            "markdown": "Each modelled error is a class exported from the package, subclassing `ShopException` and `ServiceError`: catch it with `except` and read its fields and `metadata.status`. Transport failures raise `NetworkError`; an exhausted `timeout` raises `TimeoutError`.",
+            "title": "Errors"
+          },
+          {
+            "id": "retries",
+            "markdown": "Calls are retried with backoff when a retry is safe: a modelled throttling error is retried for any operation; transport failures, HTTP 500, 502, 503 and 504 and other retryable modelled errors only for operations that are read-only, idempotent or carry an idempotency token. For operations that declare an idempotency token, an unset token is generated once per call and reused on every attempt; set it yourself to replay one logical request across calls. Pass `max_attempts=` to the client to change the attempt limit (3, the first included; 1 turns retries off), and `retry_mode=\"standard\"` or `\"adaptive\"` for a retry quota.",
+            "title": "Retries and idempotency"
+          },
+          {
+            "id": "links",
+            "markdown": "- [The Python client guide](<https://github.com/Operation-Leyline/crucible/blob/main/docs/clients/python.md>)",
+            "title": "Links"
+          }
+        ],
+        "version": "0.0.0.dev0"
+      },
       "language": "python",
       "middleware": [],
       "name": "python-v1",
@@ -2766,6 +3145,46 @@
       },
       "endpoint": null,
       "endpointEnv": null,
+      "guide": {
+        "fence": "r",
+        "install": {
+          "commands": [
+            "R CMD INSTALL shopv1_0.0.0.tar.gz"
+          ],
+          "manifest": null,
+          "note": null
+        },
+        "language": "R",
+        "refersTo": "shopv1",
+        "sections": [
+          {
+            "id": "client",
+            "markdown": "```r\nlibrary(shopv1)\n\nclient <- ShopClient(client_config(\n  endpoint = Sys.getenv(\"SHOP_ENDPOINT\")\n))\n```\n\nThe service declares no authentication. `endpoint` is the service's base URL. Call `client$close()` when finished. The client sends `Crucible-Version: v1` on every request.",
+            "title": "Create a client"
+          },
+          {
+            "id": "call",
+            "markdown": "`count_items` calls `CountItems`. Every operation has a method like it.\n\n```r\nlibrary(shopv1)\n\n# The client sends Crucible-Version: v1 on every request.\nclient <- ShopClient(client_config(\n  endpoint = Sys.getenv(\"SHOP_ENDPOINT\")\n))\n\n# Sample values generated from the model's types and constraints.\ninput <- CountItemsInput(shelf = \"shelf\")\n\ntryCatch(\n  {\n    output <- client$count_items(input)\n    print(output$count)\n  },\n  CountUnavailableException = function(error) {\n    message(\"CountUnavailableException (HTTP \", error$metadata$status, \"): \", conditionMessage(error))\n  }\n)\n\nclient$close()\n```",
+            "title": "Call an operation"
+          },
+          {
+            "id": "errors",
+            "markdown": "A modelled error is signalled as a condition classed with the error's name, then `ShopException`, `crucible_service_error` and `crucible_error`: handle it with `tryCatch(..., InternalServerException = function(error) ...)` and read `conditionMessage(error)`, `error$metadata$status` and its decoded members in `error$model`. Transport failures signal `crucible_network`, an exhausted `timeout` `crucible_deadline`, and a cancelled call `crucible_cancelled`.",
+            "title": "Errors"
+          },
+          {
+            "id": "retries",
+            "markdown": "Calls are retried with backoff when a retry is safe: a modelled throttling error is retried for any operation; transport failures, HTTP 500, 502, 503 and 504 and other retryable modelled errors only for operations that are read-only, idempotent or carry an idempotency token. For operations that declare an idempotency token, an unset token is generated once per call and reused on every attempt; set it yourself to replay one logical request across calls. Set `max_attempts` in `client_config()` to change the attempt limit (3, the first included); `max_attempts = 1` turns retries off.",
+            "title": "Retries and idempotency"
+          },
+          {
+            "id": "links",
+            "markdown": "- [The R client guide](<https://github.com/Operation-Leyline/crucible/blob/main/docs/clients/r.md>)",
+            "title": "Links"
+          }
+        ],
+        "version": "0.0.0"
+      },
       "language": "r",
       "middleware": [],
       "name": "r-v1",
@@ -3059,6 +3478,46 @@
       },
       "endpoint": null,
       "endpointEnv": null,
+      "guide": {
+        "fence": "ruby",
+        "install": {
+          "commands": [
+            "gem install example_shop_v1 -v 0.0.0"
+          ],
+          "manifest": null,
+          "note": null
+        },
+        "language": "Ruby",
+        "refersTo": "example_shop_v1",
+        "sections": [
+          {
+            "id": "client",
+            "markdown": "```ruby\nrequire 'example_shop_v1'\n\nclient = ExampleShopV1::ShopClient.new(ExampleShopV1::Runtime::ClientConfig.new(endpoint: ENV.fetch('SHOP_ENDPOINT')))\n```\n\nThe service declares no authentication. `endpoint:` is the service's base URL. The client sends `Crucible-Version: v1` on every request.",
+            "title": "Create a client"
+          },
+          {
+            "id": "call",
+            "markdown": "`count_items` calls `CountItems`. Every operation has a method like it.\n\n```ruby\nrequire 'example_shop_v1'\n\n# The client sends Crucible-Version: v1 on every request.\nclient = ExampleShopV1::ShopClient.new(ExampleShopV1::Runtime::ClientConfig.new(endpoint: ENV.fetch('SHOP_ENDPOINT')))\n\n# Sample values generated from the model's types and constraints.\ninput = ExampleShopV1::CountItemsInput.new(\n  shelf: 'shelf',\n)\n\nbegin\n  output = client.count_items(input)\n  p output.count\nrescue ExampleShopV1::CountUnavailableException => error\n  warn \"CountUnavailableException (HTTP #{error.metadata.status}): #{error.message_value}\"\nend\n```",
+            "title": "Call an operation"
+          },
+          {
+            "id": "errors",
+            "markdown": "Each modelled error is a class under `ExampleShopV1`, a subclass of `ExampleShopV1::ShopException`: `rescue` it and read its members and `metadata.status` (a modelled `message` member is `message_value`). An error response the model does not describe raises `ExampleShopV1::ShopException` itself; no response raises `ExampleShopV1::Runtime::NetworkError`, and a call outlasting `timeout:` raises `ExampleShopV1::Runtime::DeadlineError`.",
+            "title": "Errors"
+          },
+          {
+            "id": "retries",
+            "markdown": "Calls are retried with backoff when a retry is safe: a modelled throttling error is retried for any operation; transport failures, HTTP 500, 502, 503 and 504 and other retryable modelled errors only for operations that are read-only, idempotent or carry an idempotency token. For operations that declare an idempotency token, an unset token is generated once per call and reused on every attempt; set it yourself to replay one logical request across calls. Set `max_attempts:` in `ExampleShopV1::Runtime::ClientConfig` to change the attempt limit (3, the first included; 1 turns retries off), and `base_delay:` and `max_delay:` for the backoff.",
+            "title": "Retries and idempotency"
+          },
+          {
+            "id": "links",
+            "markdown": "- [The Ruby client guide](<https://github.com/Operation-Leyline/crucible/blob/main/docs/clients/ruby.md>)",
+            "title": "Links"
+          }
+        ],
+        "version": "0.0.0"
+      },
       "language": "ruby",
       "middleware": [],
       "name": "ruby-v1",
@@ -3352,6 +3811,50 @@
       },
       "endpoint": null,
       "endpointEnv": null,
+      "guide": {
+        "fence": "rust",
+        "install": {
+          "commands": [
+            "cargo add shop-sdk@0.9.0",
+            "cargo add tokio --features macros,rt-multi-thread"
+          ],
+          "manifest": {
+            "fence": "toml",
+            "text": "[dependencies]\nshop-sdk = \"0.9.0\"\ntokio = { version = \"1\", features = [\"macros\", \"rt-multi-thread\"] }"
+          },
+          "note": null
+        },
+        "language": "Rust",
+        "refersTo": "shop_sdk",
+        "sections": [
+          {
+            "id": "client",
+            "markdown": "```rust\nuse shop_sdk::*;\n\nlet client = ShopClient::new(runtime::Config::new(std::env::var(\"SHOP_ENDPOINT\")?));\n```\n\nThe service declares no authentication. Methods are `async`: run them on an async runtime such as Tokio. The client sends `Crucible-Version: v1` on every request.",
+            "title": "Create a client"
+          },
+          {
+            "id": "call",
+            "markdown": "`count_items` calls `CountItems`. Every operation has a method like it.\n\n```rust\nuse shop_sdk::*;\n\n#[tokio::main]\nasync fn main() -> Result<(), Box<dyn std::error::Error>> {\n    // The client sends Crucible-Version: v1 on every request.\n    let client = ShopClient::new(runtime::Config::new(std::env::var(\"SHOP_ENDPOINT\")?));\n\n    // Sample values generated from the model's types and constraints.\n    let input = CountItemsInput::builder()\n        .shelf(\"shelf\")\n        .build();\n\n    match client.count_items(input).await {\n        Ok(output) => {\n            println!(\"{:?}\", output.count());\n        }\n        Err(runtime::Error::Service(runtime::ServiceError {\n            error: CountItemsError::CountUnavailableException(error),\n            metadata,\n        })) => {\n            eprintln!(\"CountUnavailableException (HTTP {}): {:?}\", metadata.status, error.message());\n        }\n        Err(error) => return Err(error.into()),\n    }\n    Ok(())\n}\n```",
+            "title": "Call an operation"
+          },
+          {
+            "id": "errors",
+            "markdown": "A call returns `Result<Output, runtime::Error<OperationError>>`. A modelled error is `runtime::Error::Service(runtime::ServiceError { error, metadata })`, where `error` is the operation's error enum (`CountItemsError::CountUnavailableException(..)`, say) and `metadata` holds the HTTP status and request ID; `ShopException` unifies every operation's errors. Other variants are transport, decoding, timeout and cancellation failures.",
+            "title": "Errors"
+          },
+          {
+            "id": "retries",
+            "markdown": "Calls are retried with backoff when a retry is safe: a modelled throttling error is retried for any operation; transport failures, HTTP 500, 502, 503 and 504 and other retryable modelled errors only for operations that are read-only, idempotent or carry an idempotency token. For operations that declare an idempotency token, an unset token is generated once per call and reused on every attempt; set it yourself to replay one logical request across calls. `runtime::Config::retry(runtime::Retry { .. })` changes the attempt limit (3, the first included) and backoff; `runtime::Retry::none()` turns retries off.",
+            "title": "Retries and idempotency"
+          },
+          {
+            "id": "links",
+            "markdown": "- [The Rust client guide](<https://github.com/Operation-Leyline/crucible/blob/main/docs/clients/rust.md>)",
+            "title": "Links"
+          }
+        ],
+        "version": "0.9.0"
+      },
       "language": "rust",
       "middleware": [],
       "name": "rust-v1",
@@ -3645,6 +4148,44 @@
       },
       "endpoint": null,
       "endpointEnv": null,
+      "guide": {
+        "fence": "swift",
+        "install": {
+          "commands": [],
+          "manifest": null,
+          "note": "Add the package with SwiftPM's `.package(url:from:)` from the Git repository it is released to, and its `ShopV1` product to the target that calls the API."
+        },
+        "language": "Swift",
+        "refersTo": "ShopV1",
+        "sections": [
+          {
+            "id": "client",
+            "markdown": "```swift\nimport Foundation\nimport ShopV1\n\nlet client = try ShopClient(ClientConfig(endpoint: ProcessInfo.processInfo.environment[\"SHOP_ENDPOINT\"]))\n```\n\nThe service declares no authentication. `endpoint` is the service's base URL. The initializer throws for an invalid configuration; share one client, and call `close()` when finished. The client sends `Crucible-Version: v1` on every request.",
+            "title": "Create a client"
+          },
+          {
+            "id": "call",
+            "markdown": "`countItems` calls `CountItems`. Every operation has a method like it.\n\n```swift\nimport Foundation\nimport ShopV1\n\n// The client sends Crucible-Version: v1 on every request.\nlet client = try ShopClient(ClientConfig(endpoint: ProcessInfo.processInfo.environment[\"SHOP_ENDPOINT\"]))\n\n// Sample values generated from the model's types and constraints.\nlet input = CountItemsInput(\n    shelf: \"shelf\"\n)\n\ndo {\n    let output = try await client.countItems(input)\n    print(\"count:\", output.count)\n} catch let error as CountUnavailableException {\n    print(\"CountUnavailableException (HTTP \\(error.metadata.status)):\", error.message)\n}\nclient.close()\n```",
+            "title": "Call an operation"
+          },
+          {
+            "id": "errors",
+            "markdown": "Each modelled error is a struct conforming to `ShopException` and `ServiceError`: catch it with `catch let error as CountUnavailableException` and read its properties and `metadata.status`. An error the client does not model is `UnknownServiceError`; a failure without a response throws `NetworkError`, and a call outlasting `ClientConfig.timeout` throws `TimeoutError`.",
+            "title": "Errors"
+          },
+          {
+            "id": "retries",
+            "markdown": "Calls are retried with backoff when a retry is safe: a modelled throttling error is retried for any operation; transport failures, HTTP 500, 502, 503 and 504 and other retryable modelled errors only for operations that are read-only, idempotent or carry an idempotency token. For operations that declare an idempotency token, an unset token is generated once per call and reused on every attempt; set it yourself to replay one logical request across calls. Set `maxAttempts` in `ClientConfig` to change the attempt limit (3, the first included; 1 turns retries off), and `baseDelay` and `maxDelay` for the backoff.",
+            "title": "Retries and idempotency"
+          },
+          {
+            "id": "links",
+            "markdown": "- [The Swift client guide](<https://github.com/Operation-Leyline/crucible/blob/main/docs/clients/swift.md>)",
+            "title": "Links"
+          }
+        ],
+        "version": "0.0.0-dev"
+      },
       "language": "swift",
       "middleware": [],
       "name": "swift-v1",
@@ -3939,6 +4480,46 @@
       },
       "endpoint": null,
       "endpointEnv": null,
+      "guide": {
+        "fence": "ts",
+        "install": {
+          "commands": [
+            "npm install @example/shop-v1@0.0.0-dev"
+          ],
+          "manifest": null,
+          "note": null
+        },
+        "language": "TypeScript",
+        "refersTo": "@example/shop-v1",
+        "sections": [
+          {
+            "id": "client",
+            "markdown": "```ts\nimport { ShopClient } from \"@example/shop-v1\";\nimport type * as models from \"@example/shop-v1\";\n\nconst client = new ShopClient({ endpoint: process.env.SHOP_ENDPOINT });\n```\n\nThe service declares no authentication. `endpoint` is the service's base URL. The client sends `Crucible-Version: v1` on every request.",
+            "title": "Create a client"
+          },
+          {
+            "id": "call",
+            "markdown": "`countItems` calls `CountItems`. Every operation has a method like it.\n\n```ts\nimport { CountUnavailableException, ShopClient } from \"@example/shop-v1\";\nimport type * as models from \"@example/shop-v1\";\n\n// The client sends Crucible-Version: v1 on every request.\nconst client = new ShopClient({ endpoint: process.env.SHOP_ENDPOINT });\n\n// Sample values generated from the model's types and constraints.\nconst input: models.CountItemsInput = {\n  shelf: \"shelf\",\n};\n\ntry {\n  const output = await client.countItems(input);\n  console.log(output.count);\n} catch (error) {\n  if (error instanceof CountUnavailableException) {\n    console.error(`CountUnavailableException (HTTP ${error.$metadata.status}):`, error.message);\n  } else {\n    throw error;\n  }\n}\n```",
+            "title": "Call an operation"
+          },
+          {
+            "id": "errors",
+            "markdown": "Each modelled error is a class exported from the package, extending `ShopException` and `ServiceError`: test it with `instanceof` and read its fields and `$metadata.status`. Transport failures throw `NetworkError`; an exhausted `timeoutMs` throws `TimeoutError`.",
+            "title": "Errors"
+          },
+          {
+            "id": "retries",
+            "markdown": "Calls are retried with backoff when a retry is safe: a modelled throttling error is retried for any operation; transport failures, HTTP 500, 502, 503 and 504 and other retryable modelled errors only for operations that are read-only, idempotent or carry an idempotency token. For operations that declare an idempotency token, an unset token is generated once per call and reused on every attempt; set it yourself to replay one logical request across calls. Set `retry: { maxAttempts }` in the client configuration to change the attempt limit (3, the first included), or `retry: false` to turn retries off.",
+            "title": "Retries and idempotency"
+          },
+          {
+            "id": "links",
+            "markdown": "- [The TypeScript client guide](<https://github.com/Operation-Leyline/crucible/blob/main/docs/clients/typescript.md>)",
+            "title": "Links"
+          }
+        ],
+        "version": "0.0.0-dev"
+      },
       "language": "ts",
       "middleware": [],
       "name": "ts-v1",

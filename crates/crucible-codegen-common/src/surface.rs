@@ -30,6 +30,11 @@ pub struct Surface {
     pub middleware: Vec<Middleware>,
     /// Every operation the client exposes, by absolute operation shape ID.
     pub operations: BTreeMap<String, Operation>,
+    /// The package's generated guide (install steps, constructing the
+    /// client, pagination, errors, retries), where the surface was built
+    /// for `crucible.sdks/1`; a generator's own `surface` leaves it out.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub guide: Option<crate::guide::Document>,
 }
 
 impl Surface {
@@ -41,6 +46,7 @@ impl Surface {
             endpoint: None,
             middleware: Vec::new(),
             operations: BTreeMap::new(),
+            guide: None,
         }
     }
 }

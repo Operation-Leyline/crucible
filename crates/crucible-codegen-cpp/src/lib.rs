@@ -8,7 +8,7 @@ mod permissions;
 mod snippet;
 mod surface;
 
-pub use surface::surface;
+pub use surface::{guide_document, surface};
 
 use crucible_ir::{
     Diagnostics,

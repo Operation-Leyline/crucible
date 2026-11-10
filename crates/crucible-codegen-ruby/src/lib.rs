@@ -95,7 +95,7 @@ fn operation_docs(
 use sha2::{Digest, Sha256};
 use std::collections::BTreeSet;
 
-pub use surface::surface;
+pub use surface::{guide_document, surface};
 
 /// The client class: the service name plus `Client`, under the module.
 fn client_name(service: &Service) -> String {

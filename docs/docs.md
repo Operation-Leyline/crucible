@@ -56,7 +56,8 @@ or `--sdks` on `crucible generate docs`:
 crucible generate docs model --out generated/reference --sdks crucible-sdk.toml
 ```
 
-The output then
+Name the SDK releases the reference ships with, so its install steps pin
+them: `--sdk-version ts=1.4.0 --sdk-version rust=0.2.3`. The output then
 also holds `sdks.json`, the [`crucible.sdks/1`](#the-cruciblesdks1-contract)
 document. Its SDK file must declare this model, and the build needs the
 `crucible-build` feature of each SDK's language. `crucible sdk describe`
@@ -916,6 +917,27 @@ describe`, which describes every SDK it selects.
 | `endpoint`, `endpointEnv` | The endpoint generated into the client, or null; the environment variable an `endpoint = { env = ".." }` names, or null. A variable is never read: `endpoint` is then null, and since a released SDK always has that endpoint generated in (`crucible sdk generate` and `build` refuse an unset variable), `construct` takes none. Without any endpoint, `construct` reads a variable named `endpoint` (PHP `$endpoint`) |
 | `middleware` | Default middleware, in order: `{name, headers}`, such as `{"name": "content-sha256", "headers": ["x-amz-content-sha256"]}` |
 | `operations` | Operation ID to the operation object below |
+| `guide` | The package's generated guide, below: how to install it, construct its client, page, handle errors and retry |
+
+#### SDK guides
+
+`guide` is what the package's generated `README.md` says
+([clients](clients.md#generated-package-documentation)), as data, so a
+documentation site shows each SDK's install steps and rules without
+writing them again. The README is rendered from the same sections, so the
+two cannot disagree. It is always the generated guide: a `readme`
+configured in the SDK file replaces the package's file, never this.
+
+| Field | Type and meaning |
+|---|---|
+| `language`, `fence` | The language as a reader names it (`TypeScript`, `C#`) and the Markdown code-fence language of its snippets (`ts`, `csharp`) |
+| `version` | The package version the install steps name, or null. `--sdk-version <name>=<version>` on `crucible generate docs` (`crucible_codegen::sdks::file_at`) names each SDK's released version, and its guide then installs that version from its release channel, a Git channel's tag included. Without one the SDK is described as a development package (`0.0.0-dev`, no Git tag): the file's own `version` is a floor a release may raise ([sdk-releases.md](sdk-releases.md)), so it is never assumed. A version for an SDK the file does not declare is refused |
+| `refersTo` | How source code names the package: `package.import`, or the alias the language uses (Go) |
+| `install` | `{commands, manifest, note}`: shell lines that add the package, version included; null or `{fence, text}`, a manifest entry to add instead of or beside them (a `Cargo.toml` dependency, a Maven `<dependency>`); and null or one Markdown paragraph. The steps follow the SDK's release channel: a private package, or one released by Git tag, has a `note` naming where it is released and no command that would install its name from the public registry; a scoped npm package on another registry configures its scope's registry first |
+| `sections` | Ordered `{id, title, markdown}`: `client` (the imports and statements that construct the client, and how it authenticates), `call` (one complete call), `pagination`, `errors`, `retries` and `links`. A section the service has no use for (no paginated operation, no modelled error, no link) is absent. `markdown` is the section's body without its heading; its code blocks are fenced with `fence`. Consumers must ignore an `id` they do not know |
+
+Model text in a guide is escaped as in the README: a title or a link name
+cannot add a heading, a link or an HTML comment.
 
 Every spelling in an SDK entry (the client's name and `construct`, input,
 output and member types) resolves in a source file that starts with

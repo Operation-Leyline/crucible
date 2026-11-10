@@ -17,6 +17,18 @@ version's section when it is prepared.
 
 ### Added
 
+- `crucible.sdks/1`: each SDK carries `guide`, its package's generated README
+  as data: the install steps its release channel allows (commands, a manifest
+  entry, or a note naming where a private package is released), its version,
+  and the `client`, `call`, `pagination`, `errors`, `retries` and `links`
+  sections. The README is rendered from the same sections. A documentation
+  site shows each SDK's install and usage rules from it instead of writing
+  them by hand ([docs.md](docs/docs.md#sdk-guides)). Each client generator
+  exports `guide_document` beside `surface`.
+- `crucible generate docs --sdks <file> --sdk-version <name>=<version>` (and
+  `crucible_codegen::sdks::file_at` / `document_at`) names each SDK's released
+  version: its guide in `sdks.json` installs that version from its release
+  channel. Without one an SDK is still described as a development package.
 - API reference: `crucible.describe/1` settles what every renderer derived on
   its own. `navigation` is the order the API is listed in (the resource tree
   from the roots, each resource's lifecycle before its other operations, then

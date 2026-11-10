@@ -380,6 +380,155 @@ fn install(surface: &Surface, guide: &Guide) -> Install {
     }
 }
 
+/// One section of a package's guide: what the README shows under one
+/// heading, and what `crucible.sdks/1` carries for a documentation site.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
+#[non_exhaustive]
+pub struct Section {
+    /// Stable across languages and releases: `client`, `call`,
+    /// `pagination`, `errors`, `retries`, `links`.
+    pub id: String,
+    pub title: String,
+    /// The section's body, without its heading or a trailing newline.
+    pub markdown: String,
+}
+
+/// How a package is added to a project, as its release channel allows.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
+#[non_exhaustive]
+pub struct InstallSteps {
+    /// Shell lines, version included; empty where the package has none.
+    pub commands: Vec<String>,
+    /// A manifest entry to add instead of, or beside, the commands.
+    pub manifest: Option<Manifest>,
+    /// Where an unpublished package is released, or what a package
+    /// without an install line does instead: one Markdown paragraph.
+    pub note: Option<String>,
+}
+
+/// A manifest entry and its Markdown code fence (`toml`, `xml`).
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
+#[non_exhaustive]
+pub struct Manifest {
+    pub fence: String,
+    pub text: String,
+}
+
+/// A package's generated guide as data (`guide` of an SDK in
+/// `crucible.sdks/1`, docs/docs.md): the README's content, section by
+/// section, so a documentation site shows each SDK's install steps and
+/// rules without writing them again. It is the generated guide whether or
+/// not the package ships a configured README.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+#[non_exhaustive]
+pub struct Document {
+    /// The language as a reader names it: `TypeScript`, `C#`.
+    pub language: String,
+    /// The Markdown code fence of its snippets: `ts`, `csharp`.
+    pub fence: String,
+    /// The package's version, when it has one to install.
+    pub version: Option<String>,
+    /// How code names the package.
+    pub refers_to: String,
+    pub install: InstallSteps,
+    pub sections: Vec<Section>,
+}
+
+/// The package's generated guide, section by section: what [`readme`]
+/// renders, whatever README the package's metadata configures.
+pub fn document(service: &Service, surface: &Surface, guide: &Guide) -> Document {
+    let install = install(surface, guide);
+    Document {
+        language: guide.language.clone(),
+        fence: guide.fence.clone(),
+        version: guide.version.clone(),
+        refers_to: guide
+            .refers_to
+            .clone()
+            .unwrap_or_else(|| surface.package.import.clone()),
+        install: InstallSteps {
+            commands: install.lines,
+            manifest: install
+                .manifest
+                .map(|(fence, text)| Manifest { fence, text }),
+            note: install.note,
+        },
+        sections: sections(service, surface, guide),
+    }
+}
+
+fn section(id: &str, title: &str, markdown: String) -> Section {
+    Section {
+        id: id.to_owned(),
+        title: title.to_owned(),
+        markdown: markdown.trim_end_matches('\n').to_owned(),
+    }
+}
+
+/// The guide's sections after the install lines, in the README's order.
+fn sections(service: &Service, surface: &Surface, guide: &Guide) -> Vec<Section> {
+    let mut out = Vec::new();
+    let mut client = code(&guide.fence, &construct(surface, guide));
+    client.push('\n');
+    client.push_str(&guide.auth);
+    if let Some(sentence) = crate::snippet::added_headers_markdown(service, &surface.middleware) {
+        client.push(' ');
+        client.push_str(&sentence);
+    }
+    out.push(section("client", "Create a client", client));
+    if let Some(operation) = crate::snippet::showcase(service)
+        && let Some(entry) = surface.operations.get(&operation.id.to_string())
+        && !entry.snippet.is_empty()
+    {
+        out.push(section(
+            "call",
+            "Call an operation",
+            format!(
+                "{} calls {}. Every operation has a method like it.\n\n{}",
+                code_span(&entry.method),
+                code_span(operation.name()),
+                code(&guide.fence, &entry.snippet)
+            ),
+        ));
+    }
+    if let Some(mut pagination) = fill(&guide.pagination, service, surface) {
+        if let Some(operation) = crate::snippet::paginated(service)
+            && let Some(snippet) = surface
+                .operations
+                .get(&operation.id.to_string())
+                .and_then(|entry| entry.paginated_snippet.as_ref())
+        {
+            pagination.push_str("\n\n");
+            pagination.push_str(&code(&guide.fence, snippet));
+        }
+        out.push(section("pagination", "Pagination", pagination));
+    }
+    if has_errors(service)
+        && let Some(errors) = fill(&guide.errors, service, surface)
+    {
+        out.push(section("errors", "Errors", errors));
+    }
+    let mut retries = RETRY_RULES.to_owned();
+    let idempotent = idempotent_operations(service, surface);
+    if !idempotent.is_empty() {
+        retries.push_str(&format!(
+            " These operations fill a token: {}.",
+            idempotent.join(", ")
+        ));
+    }
+    if !guide.retries.is_empty() {
+        retries.push(' ');
+        retries.push_str(&guide.retries);
+    }
+    out.push(section("retries", "Retries and idempotency", retries));
+    let links = links(service, guide);
+    if !links.is_empty() {
+        out.push(section("links", "Links", links.concat()));
+    }
+    out
+}
+
 /// The package's `README.md`: the configured one, else generated.
 pub fn readme(service: &Service, surface: &Surface, guide: &Guide) -> String {
     if let Some(readme) = &guide.metadata.readme {
@@ -429,67 +578,12 @@ pub fn readme(service: &Service, surface: &Surface, guide: &Guide) -> String {
             .map(|v| format!(", version {}", code_span(v)))
             .unwrap_or_default(),
     ));
-    out.push_str("## Create a client\n\n");
-    out.push_str(&code(&guide.fence, &construct(surface, guide)));
-    out.push('\n');
-    out.push_str(&guide.auth);
-    if let Some(sentence) = crate::snippet::added_headers_markdown(service, &surface.middleware) {
-        out.push(' ');
-        out.push_str(&sentence);
-    }
-    out.push_str("\n\n");
-    if let Some(operation) = crate::snippet::showcase(service)
-        && let Some(entry) = surface.operations.get(&operation.id.to_string())
-        && !entry.snippet.is_empty()
-    {
-        out.push_str(&format!(
-            "## Call an operation\n\n{} calls {}. Every operation has a method like it.\n\n",
-            code_span(&entry.method),
-            code_span(operation.name())
-        ));
-        out.push_str(&code(&guide.fence, &entry.snippet));
-        out.push('\n');
-    }
-    if let Some(pagination) = fill(&guide.pagination, service, surface) {
-        out.push_str("## Pagination\n\n");
-        out.push_str(&pagination);
-        out.push_str("\n\n");
-        if let Some(operation) = crate::snippet::paginated(service)
-            && let Some(snippet) = surface
-                .operations
-                .get(&operation.id.to_string())
-                .and_then(|entry| entry.paginated_snippet.as_ref())
-        {
-            out.push_str(&code(&guide.fence, snippet));
-            out.push('\n');
-        }
-    }
-    if has_errors(service)
-        && let Some(errors) = fill(&guide.errors, service, surface)
-    {
-        out.push_str("## Errors\n\n");
-        out.push_str(&errors);
-        out.push_str("\n\n");
-    }
-    out.push_str("## Retries and idempotency\n\n");
-    out.push_str(RETRY_RULES);
-    let idempotent = idempotent_operations(service, surface);
-    if !idempotent.is_empty() {
-        out.push_str(&format!(
-            " These operations fill a token: {}.",
-            idempotent.join(", ")
-        ));
-    }
-    if !guide.retries.is_empty() {
-        out.push(' ');
-        out.push_str(&guide.retries);
-    }
-    out.push('\n');
-    let links = links(service, guide);
-    if !links.is_empty() {
-        out.push_str("\n## Links\n\n");
-        out.push_str(&links.concat());
-    }
+    // The same sections `crucible.sdks/1` carries, under their headings.
+    let sections: Vec<String> = sections(service, surface, guide)
+        .iter()
+        .map(|section| format!("## {}\n\n{}\n", section.title, section.markdown))
+        .collect();
+    out.push_str(&sections.join("\n"));
     out
 }
 
