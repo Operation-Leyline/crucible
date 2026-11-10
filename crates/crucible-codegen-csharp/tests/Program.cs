@@ -137,7 +137,7 @@ static class Program
                 catch (Exception e) when (e is JsonException or FormatException or OverflowException or ArgumentException)
                 { if (test["reject"]?.GetValue<bool>() == true) continue; throw new Exception(id, e); }
                 Check(test["reject"]?.GetValue<bool>() != true, id + " accepted invalid wire");
-                var expect = test["expectByProfile"]?["dotnet-ticks"] ?? test["expect"]!;
+                var expect = test["expect"]!;
                 var sharedEncoded = Encode(runtime, target, value);
                 Check(ExactJsonEquals(sharedEncoded, J(expect["json"]!.GetValue<string>())), id + ": " + sharedEncoded);
                 if (expect["states"] is JsonObject states) foreach (var (member, state) in states)
@@ -152,9 +152,8 @@ static class Program
                 {
                     var member = instant["member"]!.GetValue<string>();
                     var optional = (value.GetType().GetProperty(char.ToUpperInvariant(member[0]) + member[1..] + "Presence") ?? value.GetType().GetProperty(char.ToUpperInvariant(member[0]) + member[1..]))!.GetValue(value)!;
-                    var time = (DateTimeOffset)optional.GetType().GetProperty("Value")!.GetValue(optional)!;
-                    long seconds = time.ToUnixTimeSeconds(), nanos = (time - DateTimeOffset.FromUnixTimeSeconds(seconds)).Ticks * 100;
-                    Check(seconds.ToString(System.Globalization.CultureInfo.InvariantCulture) == instant["seconds"]!.GetValue<string>() && nanos == instant["nanoseconds"]!.GetValue<int>(), id + " instant");
+                    var time = (Timestamp)optional.GetType().GetProperty("Value")!.GetValue(optional)!;
+                    Check(time.Seconds.ToString(System.Globalization.CultureInfo.InvariantCulture) == instant["seconds"]!.GetValue<string>() && time.Nanoseconds == instant["nanoseconds"]!.GetValue<int>(), id + " instant");
                 }
             }
             byte[] blob = [0xff, 0, 0x80, 0x01];
@@ -167,7 +166,7 @@ static class Program
             Check(JsonNode.DeepEquals(Encode(runtime, "example.weather#Location", Decode(runtime, "example.weather#Location", unknown)), J(unknown)), "unknown union");
             Check(Encode(runtime, "example.weather#Location", new Location { Unknown = new Unit() }).ToJsonString() == "{\"unknown\":{}}", "unit union");
             var city = (CitySummary)Decode(runtime, "example.weather#CitySummary", """{"id":"c","name":"x","createdAt":-0.0000001,"population":9223372036854775807}""");
-            Check(city.Population == long.MaxValue && city.CreatedAt == DateTimeOffset.UnixEpoch.AddTicks(-1), "number and timestamp precision");
+            Check(city.Population == long.MaxValue && city.CreatedAt == new Timestamp(-1, 999999900), "number and timestamp precision");
             Check(((CitySummary)Decode(runtime, "example.weather#CitySummary", """{"id":"c","name":"x"}""")).Population == 0, "absent default");
             try { Decode(runtime, "example.weather#CitySummary", """{"id":"c","name":"x","population":null}"""); throw new Exception("null default accepted"); } catch (JsonException) { }
             var ordinary = new CreateCityInput { Name = "", ClientToken = "", ExpectedRevision = 0L };

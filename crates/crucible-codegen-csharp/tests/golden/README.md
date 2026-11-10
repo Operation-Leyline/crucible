@@ -38,7 +38,6 @@ using var client = new WeatherClient(new ClientConfig
 
 ```csharp
 using System;
-using System.Globalization;
 using System.Threading.Tasks;
 using Example.Weather;
 using Example.Weather.Models;
@@ -53,7 +52,7 @@ using var client = new WeatherClient(new ClientConfig
 var input = new GetCityInput
 {
     CityId = "c-0a1b2c3d",
-    At = DateTimeOffset.Parse("2026-01-02T03:04:05Z", CultureInfo.InvariantCulture),
+    At = Timestamp.Parse("2026-01-02T03:04:05Z"),
 };
 
 try

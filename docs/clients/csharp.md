@@ -147,9 +147,19 @@ modeled member or an `UnknownVariant` containing a name and `JsonNode`. Unknown
 JSON documents retain integer tokens; `long` preserves signed 64-bit values.
 Blobs use `byte[]`, encoded as standard base64 in JSON. A modeled blob payload
 is sent and received as raw bytes, with its declared media type on requests.
-Timestamps use `DateTimeOffset` with 100-nanosecond precision and the .NET date
-range. Epoch fractions below that precision are truncated toward zero. The
-runtime uses reflection and is not qualified for trimming or Native AOT.
+Timestamps use the package's `Timestamp` struct: whole `Seconds` and
+`Nanoseconds` (0 to 999999999), exact for `date-time` and `epoch-seconds`.
+`DateTimeOffset` counts 100-nanosecond ticks, so it cannot hold a nanosecond
+wire value. Converting a `DateTimeOffset` to `Timestamp` is implicit and exact
+(`Timestamp t = DateTimeOffset.UtcNow;`); converting back is explicit and lossy
+(`(DateTimeOffset)t` or `t.ToDateTimeOffset()`): digits finer than a tick are
+dropped toward the past, and it throws `OverflowException` outside years 1
+through 9999. `Timestamp.Parse` reads RFC 3339 (up to nine fractional digits; no
+offset means UTC), `Timestamp.FromEpoch(BigDecimal)` and `ToEpoch()` use exact
+decimals, `ToString()` writes the trimmed `date-time` form, and the struct
+orders and compares as an instant. Digits finer than a nanosecond raise
+`FormatException`. `date-time` years run from 0000 to 9999. The runtime uses
+reflection and is not qualified for trimming or Native AOT.
 
 Modeled exceptions extend `ServiceError`. Its `ErrorName`, `StatusCode`,
 `RequestId`, `Headers`, `Retryable`, and `Throttling` properties describe the

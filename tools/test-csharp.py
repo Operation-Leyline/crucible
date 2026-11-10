@@ -113,6 +113,7 @@ def qualify(output):
             (str(ROOT / "tests/conformance/error-docs.json"),))
     # Doc comments and ToString of the generated models; pack runs with -warnaserror, so a malformed comment fails.
     consume(output, ROOT / "tests/models/client-docs-jvm", "display", "Example.Docs", "Display.cs")
+    consume(output, ROOT / "tests/models/timestamp-precision", "timestamps", "Example.Instants", "Timestamps.cs")
     permissions(output)
     policy(output)
     wire = output / "wire"

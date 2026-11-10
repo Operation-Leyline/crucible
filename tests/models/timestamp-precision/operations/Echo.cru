@@ -1,0 +1,24 @@
+/// Sends and returns an instant in each place a timestamp can travel.
+operation Echo {
+    http POST "/echo"
+    input {
+        @query("at")
+        at?: Moment
+        @query("epoch")
+        epoch?: EpochMoment
+        @header("X-At")
+        atHeader?: Moment
+        @header("X-Epoch")
+        epochHeader?: EpochMoment
+        bodyAt?: Moment
+        bodyEpoch?: EpochMoment
+    }
+    output {
+        @header("X-At")
+        atHeader?: Moment
+        @header("X-Epoch")
+        epochHeader?: EpochMoment
+        bodyAt?: Moment
+        bodyEpoch?: EpochMoment
+    }
+}

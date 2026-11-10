@@ -105,6 +105,7 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
         "UNSET",
         "OpenEnum",
         "OpenIntEnum",
+        "Timestamp",
         "Decimal",
         "TelemetryHook",
         "OpenTelemetryHook",
@@ -623,12 +624,16 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
             format!("src/{module}/telemetry.py"),
             include_str!("../runtime/telemetry.py").replace("\r\n", "\n"),
         ),
+        file(
+            format!("src/{module}/timestamp.py"),
+            include_str!("../runtime/timestamp.py").replace("\r\n", "\n"),
+        ),
         file(format!("src/{module}/py.typed"), String::new()),
         file(format!("src/{module}/crucible.json"), provenance),
         file(
             format!("src/{module}/__init__.py"),
             format!(
-                "from .client import {client_name}, {async_client_name}\n{model_import}from .runtime import UNSET, ServiceError, {exception}, NetworkError, ResponseMetadata\n{stream_import}from .telemetry import TelemetryHook, OpenTelemetryHook, OperationStarted, AttemptStarted, AttemptFinished, OperationFinished\n"
+                "from .client import {client_name}, {async_client_name}\n{model_import}from .runtime import UNSET, ServiceError, {exception}, NetworkError, ResponseMetadata\nfrom .timestamp import Timestamp\n{stream_import}from .telemetry import TelemetryHook, OpenTelemetryHook, OperationStarted, AttemptStarted, AttemptFinished, OperationFinished\n"
             ),
         ),
     ]);

@@ -55,6 +55,7 @@ fn weather_matches_goldens() {
             "auth.py",
             "policy.py",
             "telemetry.py",
+            "timestamp.py",
         ]
         .iter()
         .any(|name| file.path.ends_with(name))
@@ -248,6 +249,15 @@ fn service_client_export_collisions_are_diagnosed() {
         let service = weather_with(|text| text.replace("CitySummary", name));
         assert!(emit(&service, &options()).is_err(), "{name}");
     }
+}
+
+/// The runtime's exact `Timestamp` is exported beside the models, so a model
+/// of that name would shadow it.
+#[test]
+fn a_model_named_timestamp_collides_with_the_runtime_type() {
+    let service = weather_with(|text| text.replace("CitySummary", "Timestamp"));
+    let diagnostics = emit(&service, &options()).err().unwrap();
+    assert!(diagnostics.to_string().contains("`Timestamp`"));
 }
 
 #[test]
