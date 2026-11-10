@@ -63,6 +63,32 @@
     "reject": true
   },
   {
+    "id": "timestamp-date-time-nanoseconds",
+    "target": "example.weather#CitySummary",
+    "wire": "{\"id\":\"c\",\"name\":\"n\",\"updatedAt\":\"2026-03-04T05:06:07.123456789Z\"}",
+    "expect": {
+      "json": "{\"id\":\"c\",\"name\":\"n\",\"population\":0,\"updatedAt\":\"2026-03-04T05:06:07.123456789Z\"}",
+      "instant": {
+        "member": "updatedAt",
+        "seconds": "1772600767",
+        "nanoseconds": 123456789
+      }
+    }
+  },
+  {
+    "id": "timestamp-epoch-seconds-nanoseconds",
+    "target": "example.weather#CitySummary",
+    "wire": "{\"id\":\"c\",\"name\":\"n\",\"createdAt\":1772600767.123456789}",
+    "expect": {
+      "json": "{\"id\":\"c\",\"name\":\"n\",\"population\":0,\"createdAt\":1772600767.123456789}",
+      "instant": {
+        "member": "createdAt",
+        "seconds": "1772600767",
+        "nanoseconds": 123456789
+      }
+    }
+  },
+  {
     "id": "binary-blob",
     "target": "example.weather#Photo",
     "wire": "\"AAH/gA==\"",

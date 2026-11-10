@@ -146,9 +146,9 @@ fn state<T>(value: &Field<T>) -> &'static str {
 }
 
 #[test]
-fn shared_serialization_all_16_cases() {
+fn shared_serialization_all_18_cases() {
     let rows = cases();
-    assert_eq!(rows.len(), 16, "Update corpus coverage when extending it");
+    assert_eq!(rows.len(), 18, "Update corpus coverage when extending it");
     for row in &rows {
         run(row);
     }
