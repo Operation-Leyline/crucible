@@ -904,7 +904,7 @@ neither the environment nor the SDKs' README and license files.
   "format": "crucible.sdks/1",
   "service": "example.weather#Weather",
   "sdks": { "ts": {} },
-  "http": { "endpointEnv": "WEATHER_ENDPOINT", "tokenEnv": "WEATHER_TOKEN", "operations": {} },
+  "http": { "endpointEnv": "WEATHER_ENDPOINT", "tokenEnv": "WEATHER_TOKEN", "operations": {}, "guide": {} },
   "lines": { "v1": ["ts-v1"] }
 }
 ```
@@ -1069,6 +1069,20 @@ the widest audience among the listed SDKs. Like every SDK, it leaves out a
 |---|---|
 | `endpointEnv`, `tokenEnv` | The environment variables the snippets read the endpoint and bearer token from; `tokenEnv` is null for a service without bearer auth |
 | `operations` | Operation ID to `{method, uri, headers, body, bodyEncoding, example, omitted, snippet}` |
+| `guide` | `{language, fence, sections}`: how to call the API without an SDK, in sections of the shape an SDK's `guide` has (`id`, `title`, `markdown`, `html`) |
+
+`guide` is to a caller without an SDK what an SDK's `guide` is to its
+language, so a site shows both with one page. `language` is `HTTP` and
+`fence` `sh`; it has no `install`. Its sections, by `id`:
+
+| `id` | Says |
+|---|---|
+| `request` | The endpoint and token variables the commands read (the endpoint is the one the listed SDKs call, where those that name one agree), and each header to send with its value and the requests it goes on: the ones every command here sends |
+| `call` | The operation the SDK guides call, as a command, and its response: the example's the command sends, else the generated sample's |
+| `types` | The JSON each simple API type the service uses is written as, then structures, lists, maps, enums and unions |
+| `pagination` | How to follow the pages, with the token members' names where every paginated operation shares them; absent without a paginated operation |
+| `errors` | An error on the wire (the model's first example of one, else an error's generated sample) and how to tell errors apart; absent without a modelled error |
+| `retries` | When a retry is safe, and the idempotency token a caller sends itself |
 
 The request is the one `describe.json` shows: the first example with an
 input, else the generated sample, either way without its idempotency

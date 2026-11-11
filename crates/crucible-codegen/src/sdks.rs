@@ -159,13 +159,25 @@ pub fn document_at(
     let shared = releases
         .next()
         .filter(|first| releases.all(|other| other == *first));
+    // The endpoint the raw request's guide exports: the one the described
+    // SDKs call, where those that name one agree.
+    let mut endpoints: Vec<&str> = sdks
+        .values()
+        .filter_map(|entry| entry["endpoint"].as_str())
+        .collect();
+    endpoints.sort_unstable();
+    endpoints.dedup();
+    let endpoint = match endpoints[..] {
+        [endpoint] => Some(endpoint),
+        _ => None,
+    };
     let http = match shared {
         Some(shared) if shared != release => {
             let line = crucible_ir::versions::line(current, shared)
                 .map_err(|diagnostics| diagnostics.to_string())?;
-            http::document(&line, audience, &middleware)?
+            http::document(&line, audience, &middleware, endpoint)?
         }
-        _ => http::document(service, audience, &middleware)?,
+        _ => http::document(service, audience, &middleware, endpoint)?,
     };
     Ok(crate::sdk::canonical(&json!({
         "format": FORMAT,

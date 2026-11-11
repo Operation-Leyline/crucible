@@ -2,6 +2,42 @@
   "format": "crucible.sdks/1",
   "http": {
     "endpointEnv": "SHOP_ENDPOINT",
+    "guide": {
+      "fence": "sh",
+      "language": "HTTP",
+      "sections": [
+        {
+          "html": "<p>Every operation is one HTTP request to the API's endpoint. A body, in a request or a response, is JSON. The commands here read the endpoint from <code>SHOP_ENDPOINT</code>:</p>\n<pre><code class=\"language-sh\">export SHOP_ENDPOINT='https://&lt;endpoint&gt;'\n</code></pre>\n<p>Send these headers:</p>\n<table><thead><tr><th>Header</th><th>Value</th><th>On</th></tr></thead><tbody>\n<tr><td><code>Content-Type</code></td><td><code>application/json</code></td><td>a request with a JSON body</td></tr>\n<tr><td><code>Crucible-Version</code></td><td><code>v1</code></td><td>every request</td></tr>\n</tbody></table>\n<p><code>Crucible-Version</code> names the release this reference documents. A request without it is served at a release the service chooses, which may be an older one.</p>\n",
+          "id": "request",
+          "markdown": "Every operation is one HTTP request to the API's endpoint. A body, in a request or a response, is JSON. The commands here read the endpoint from `SHOP_ENDPOINT`:\n\n```sh\nexport SHOP_ENDPOINT='https://<endpoint>'\n```\n\nSend these headers:\n\n| Header | Value | On |\n|---|---|---|\n| `Content-Type` | `application/json` | a request with a JSON body |\n| `Crucible-Version` | `v1` | every request |\n\n`Crucible-Version` names the release this reference documents. A request without it is served at a release the service chooses, which may be an older one.",
+          "title": "Send a request"
+        },
+        {
+          "html": "<p><code>CountItems</code> is <code>GET /count</code>:</p>\n<pre><code class=\"language-sh\">curl \"$SHOP_ENDPOINT\"'/count?shelf=shelf' \\\n  -H 'Crucible-Version: v1'\n</code></pre>\n<p>It answers <code>200</code> with a JSON body:</p>\n<pre><code class=\"language-json\">{\n  \"count\": 1\n}\n</code></pre>\n<p>Every operation's page has its request, its response and a command like this one.</p>\n",
+          "id": "call",
+          "markdown": "`CountItems` is `GET /count`:\n\n```sh\ncurl \"$SHOP_ENDPOINT\"'/count?shelf=shelf' \\\n  -H 'Crucible-Version: v1'\n```\n\nIt answers `200` with a JSON body:\n\n```json\n{\n  \"count\": 1\n}\n```\n\nEvery operation's page has its request, its response and a command like this one.",
+          "title": "Call an operation"
+        },
+        {
+          "html": "<p>Each of the API's simple types is written in JSON like this:</p>\n<table><thead><tr><th>API type</th><th>JSON</th></tr></thead><tbody>\n<tr><td>boolean</td><td><code>true</code> or <code>false</code></td></tr>\n<tr><td>string</td><td>a string</td></tr>\n<tr><td>32-bit integer (<code>integer</code>)</td><td>a whole number</td></tr>\n</tbody></table>\n<p>A structure is an object with a member for each of its members, a list is an array, and an enum is its value as a string. Leave an optional member out to send nothing for it. In a path, a query string or a header, a value is written as text.</p>\n",
+          "id": "types",
+          "markdown": "Each of the API's simple types is written in JSON like this:\n\n| API type | JSON |\n|---|---|\n| boolean | `true` or `false` |\n| string | a string |\n| 32-bit integer (`integer`) | a whole number |\n\nA structure is an object with a member for each of its members, a list is an array, and an enum is its value as a string. Leave an optional member out to send nothing for it. In a path, a query string or a header, a value is written as text.",
+          "title": "Types"
+        },
+        {
+          "html": "<p>A request that fails answers with a 4xx or 5xx status. The <code>X-Crucible-Error</code> header names the error, and the JSON body repeats the name in <code>__type</code>, beside the error's members:</p>\n<pre><code class=\"language-http\">HTTP/1.1 503\nContent-Type: application/json\nX-Crucible-Error: CountUnavailableException\n\n{\n  \"__type\": \"CountUnavailableException\",\n  \"message\": \"message\"\n}\n</code></pre>\n<p>Tell errors apart by that name, not by the message. Each operation's page lists the errors it returns, with the status of each and whether a retry can succeed. Every response carries the request's ID in <code>x-request-id</code>: quote it when you report a failure.</p>\n",
+          "id": "errors",
+          "markdown": "A request that fails answers with a 4xx or 5xx status. The `X-Crucible-Error` header names the error, and the JSON body repeats the name in `__type`, beside the error's members:\n\n```http\nHTTP/1.1 503\nContent-Type: application/json\nX-Crucible-Error: CountUnavailableException\n\n{\n  \"__type\": \"CountUnavailableException\",\n  \"message\": \"message\"\n}\n```\n\nTell errors apart by that name, not by the message. Each operation's page lists the errors it returns, with the status of each and whether a retry can succeed. Every response carries the request's ID in `x-request-id`: quote it when you report a failure.",
+          "title": "Errors"
+        },
+        {
+          "html": "<p>Retry with backoff, and only where a retry is safe: a throttling error for any operation; a connection failure, HTTP 500, 502, 503 or 504, or another error marked retryable, only for an operation that is read-only, idempotent or takes an idempotency token.</p>\n",
+          "id": "retries",
+          "markdown": "Retry with backoff, and only where a retry is safe: a throttling error for any operation; a connection failure, HTTP 500, 502, 503 or 504, or another error marked retryable, only for an operation that is read-only, idempotent or takes an idempotency token.",
+          "title": "Retries and idempotency"
+        }
+      ]
+    },
     "operations": {
       "example.shop#CountItems": {
         "body": null,

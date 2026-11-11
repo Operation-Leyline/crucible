@@ -630,6 +630,92 @@ fn an_sdk_guide_is_the_generated_readme_section_by_section() {
     }
 }
 
+/// A caller without an SDK gets a guide of the SDK guides' shape, written
+/// from the model: the headers the commands send, the call the SDK guides
+/// make with its response, the JSON of each type, and the wire's rules.
+#[test]
+fn the_raw_request_has_a_guide_of_the_sdk_guides_shape() {
+    let (_directory, path) = repository("weather", TS_AND_RUST);
+    let file = sdk::load(&path).unwrap();
+    let service = common::load("weather");
+    let text = sdks::file(&file, &service, Audience::External)
+        .unwrap()
+        .contents;
+    let document: serde_json::Value = serde_json::from_str(&text).unwrap();
+    let guide = &document["http"]["guide"];
+    assert_eq!(guide["language"], "HTTP");
+    assert_eq!(guide["fence"], "sh");
+    let sections = guide["sections"].as_array().unwrap();
+    let ids: Vec<&str> = sections
+        .iter()
+        .map(|section| section["id"].as_str().unwrap())
+        .collect();
+    assert_eq!(
+        ids,
+        [
+            "request",
+            "call",
+            "types",
+            "pagination",
+            "errors",
+            "retries"
+        ]
+    );
+    let section = |id: &str| {
+        let section = sections.iter().find(|s| s["id"] == id).unwrap();
+        // Every section is ready to insert: titled, and rendered.
+        assert!(!section["title"].as_str().unwrap().is_empty(), "{id}");
+        assert!(!section["html"].as_str().unwrap().is_empty(), "{id}");
+        section["markdown"].as_str().unwrap().to_owned()
+    };
+
+    // The variables and headers are the ones the commands use.
+    let request = section("request");
+    assert!(request.contains("export WEATHER_ENDPOINT="), "{request}");
+    assert!(
+        request.contains("export WEATHER_TOKEN='<token>'"),
+        "{request}"
+    );
+    assert!(
+        request.contains("| `Crucible-Version` | `2026-10-01` | every request |"),
+        "{request}"
+    );
+    assert!(request.contains("| `x-amz-content-sha256` |"), "{request}");
+    // No credential, and no placeholder a shell would expand.
+    assert!(!request.contains("Bearer <"), "{request}");
+
+    // The first call is the operation's own command, with a response.
+    let showcase = crucible_codegen_common::snippet::showcase(&service).unwrap();
+    let command = document["http"]["operations"][showcase.id.to_string()]["snippet"]
+        .as_str()
+        .unwrap();
+    let call = section("call");
+    assert!(call.contains(command.trim_end()), "{call}");
+    assert!(call.contains("```json"), "{call}");
+
+    // JSON's form for a type, in a table that is a table in the HTML.
+    let types = section("types");
+    assert!(
+        types.contains("| 64-bit integer (`long`) | a whole number, every digit written |"),
+        "{types}"
+    );
+    assert!(types.contains("RFC 3339"), "{types}");
+    let html = sections.iter().find(|s| s["id"] == "types").unwrap()["html"]
+        .as_str()
+        .unwrap();
+    assert!(html.contains("<table>"), "{html}");
+
+    // The wire's rules name the model's members and the protocol's header.
+    let pagination = section("pagination");
+    assert!(pagination.contains("`nextToken`"), "{pagination}");
+    let errors = section("errors");
+    assert!(errors.contains("`X-Crucible-Error`"), "{errors}");
+    assert!(errors.contains("\"__type\""), "{errors}");
+    let retries = section("retries");
+    assert!(retries.contains("idempotency token"), "{retries}");
+    assert!(!retries.contains("SDKs send this"), "{retries}");
+}
+
 /// A guide says how the API's types are written in its language, from the
 /// generator's own mapping, and only for the types the service uses.
 #[test]

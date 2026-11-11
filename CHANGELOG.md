@@ -23,6 +23,11 @@ version's section when it is prepared.
   generator's own mapping (a 64-bit integer is `i64` in Rust and `bigint` in
   TypeScript), then how the language writes named types, lists, maps and
   optional members.
+- `http` in `crucible.sdks/1` gains a `guide` for a caller without an SDK, in
+  sections of the shape an SDK's guide has: the headers to send, a first
+  call with its response, the JSON each API type is written as, pagination,
+  errors as they travel, and when to retry. A documentation site shows it
+  with the page that shows the SDK guides.
 - The API reference can carry the service's OpenAPI document: `crucible
   generate docs --openapi [--endpoint <url>]` writes `openapi.json` beside
   `describe.json`, and `[docs]` in `crucible-sdk.toml` takes `openapi = true`

@@ -562,14 +562,22 @@ pub fn document(service: &Service, surface: &Surface, guide: &Guide) -> Document
     }
 }
 
-fn section(id: &str, title: &str, markdown: String) -> Section {
-    let markdown = markdown.trim_end_matches('\n').to_owned();
-    Section {
-        id: id.to_owned(),
-        title: title.to_owned(),
-        html: crate::documentation::html_with_tables(&markdown),
-        markdown,
+impl Section {
+    /// A section of `markdown`, with its HTML: how every guide's section
+    /// is made, an SDK's or the raw request's.
+    pub fn new(id: &str, title: &str, markdown: String) -> Self {
+        let markdown = markdown.trim_end_matches('\n').to_owned();
+        Self {
+            id: id.to_owned(),
+            title: title.to_owned(),
+            html: crate::documentation::html_with_tables(&markdown),
+            markdown,
+        }
     }
+}
+
+fn section(id: &str, title: &str, markdown: String) -> Section {
+    Section::new(id, title, markdown)
 }
 
 /// The guide's sections after the install lines, in the README's order.
