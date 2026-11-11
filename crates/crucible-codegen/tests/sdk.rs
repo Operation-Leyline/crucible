@@ -1104,3 +1104,159 @@ fn a_private_sdk_is_never_public_on_npm() {
         "access \"public\"",
     );
 }
+
+const REFERENCE: &str = r#"
+schema_version = 1
+model = "model"
+
+[defaults]
+repository = "https://github.com/example/weather"
+license = "LicenseRef-Proprietary"
+private = true
+
+[sdk.ts]
+package = "@example/weather"
+out = "generated/ts"
+channel = { npm = "https://npm.pkg.github.com", access = "restricted" }
+
+[docs]
+package = "@example/weather-reference"
+schemas = "shared"
+version = "0.3.0"
+out = "generated/docs"
+channel = { npm = "https://npm.pkg.github.com", access = "restricted" }
+"#;
+
+/// `[docs]` declares the API reference package: its own keys, the common
+/// keys a reference has a use for (inherited from `[defaults]`), and an
+/// npm channel.
+#[test]
+fn the_reference_is_declared_beside_the_sdks() {
+    let (_directory, path) = repository(REFERENCE);
+    let file = sdk::load(&path).unwrap();
+    let docs = file.docs.as_ref().unwrap();
+    assert_eq!(docs.package, "@example/weather-reference");
+    assert_eq!(docs.schemas, sdk::DocsSchemas::Shared);
+    assert_eq!(docs.audience, crucible_ir::Audience::External);
+    assert_eq!(docs.version.as_deref(), Some("0.3.0"));
+    assert_eq!(
+        docs.repository.as_deref(),
+        Some("https://github.com/example/weather")
+    );
+    assert_eq!(docs.license.as_deref(), Some("LicenseRef-Proprietary"));
+    assert!(docs.private);
+    assert!(
+        matches!(&docs.channel, Some(Channel::Npm { access: Some(access), .. }) if access == "restricted")
+    );
+    // Its configuration digest follows the SDKs it describes.
+    let digest = docs.config_sha256(&file);
+    let (_directory, path) = repository(&REFERENCE.replace(
+        "package = \"@example/weather\"",
+        "package = \"@example/weather-client\"",
+    ));
+    let changed = sdk::load(&path).unwrap();
+    assert_ne!(
+        changed.docs.as_ref().unwrap().config_sha256(&changed),
+        digest
+    );
+    assert_eq!(
+        file.to_json()["docs"]["package"],
+        "@example/weather-reference"
+    );
+
+    // `docs` selects the reference; alone it selects no SDK.
+    let names = |names: &[&str]| {
+        names
+            .iter()
+            .map(|name| (*name).to_owned())
+            .collect::<Vec<_>>()
+    };
+    let (sdks, docs) = file.selection(&[]).unwrap();
+    assert_eq!((sdks.len(), docs.is_some()), (1, true));
+    let (sdks, docs) = file.selection(&names(&["docs"])).unwrap();
+    assert_eq!((sdks.len(), docs.is_some()), (0, true));
+    let (sdks, docs) = file.selection(&names(&["ts"])).unwrap();
+    assert_eq!((sdks.len(), docs.is_some()), (1, false));
+    // A file without `[docs]` has no such name.
+    let (_directory, path) = repository(&REFERENCE[..REFERENCE.find("[docs]").unwrap()]);
+    let plain = sdk::load(&path).unwrap();
+    assert!(plain.docs.is_none());
+    assert!(plain.selection(&names(&["docs"])).is_err());
+}
+
+#[test]
+fn the_reference_reports_every_error_at_its_key() {
+    let found = errors(
+        r#"
+schema_version = 1
+model = "model"
+
+[sdk.docs]
+language = "ts"
+package = "@example/weather"
+out = "generated/reference/ts"
+
+[docs]
+package = "Weather Reference"
+schemas = "compact"
+audience = "everyone"
+version = "1.0"
+readme = "sdk/README.md"
+colour = "blue"
+out = "generated/reference"
+channel = { git = "git@github.com:example/reference.git" }
+"#,
+    );
+    assert_error(&found, "docs.package", "is not an npm package name");
+    assert_error(&found, "docs.schemas", "\"inline\", \"shared\" or \"omit\"");
+    assert_error(&found, "docs.audience", "\"external\" or \"internal\"");
+    assert_error(&found, "docs.version", "is not a version floor");
+    assert_error(&found, "docs.readme", "takes no `readme`");
+    assert_error(&found, "docs.colour", "unknown key");
+    assert_error(&found, "docs.channel", "name an `npm` registry");
+    assert_error(&found, "sdk.docs", "call this SDK something else");
+
+    let found = errors(
+        r#"
+schema_version = 1
+model = "model"
+
+[sdk.ts]
+package = "@example/weather"
+out = "generated/docs/ts"
+
+[docs]
+package = "@example/weather-reference"
+out = "generated/docs"
+private = true
+"#,
+    );
+    assert_error(&found, "docs.out", "overlaps sdk.ts's out");
+    assert_error(
+        &found,
+        "docs.channel",
+        "a private reference names its channel",
+    );
+
+    let found = errors("schema_version = 1\nmodel = \"model\"\n\n[docs]\nschemas = \"omit\"\n");
+    assert_error(&found, "docs", "set `package`");
+    assert_error(&found, "docs", "set `out`");
+
+    // Private or internal content never reaches the public registry.
+    let public = |extra: &str| {
+        errors(&format!(
+            "schema_version = 1\nmodel = \"model\"\n\n[docs]\npackage = \"weather-reference\"\nout = \"generated/docs\"\n{extra}\nchannel = {{ npm = \"https://registry.npmjs.org\" }}\n"
+        ))
+    };
+    assert_error(
+        &public("private = true"),
+        "docs.channel",
+        "never goes to a public registry",
+    );
+    assert_error(
+        &public("audience = \"internal\""),
+        "docs.channel",
+        "an internal-audience reference never goes to a public registry",
+    );
+    assert!(public("").is_empty());
+}

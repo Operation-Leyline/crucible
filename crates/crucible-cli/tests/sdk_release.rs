@@ -750,3 +750,140 @@ fn a_line_without_a_model_snapshot_needs_a_bump() {
     ])));
     assert_eq!(plan["sdks"]["go-v1"]["version"], "0.2.0", "{plan}");
 }
+
+const DOCS: &str = r#"
+[docs]
+package = "@example/weather-reference"
+schemas = "shared"
+out = "generated/docs"
+"#;
+
+/// `[docs]` is the API reference as a package: a development export
+/// beside the SDKs', planned after them, and named `docs` everywhere.
+#[test]
+fn the_reference_is_exported_and_planned_beside_the_sdks() {
+    let service = Service::new(&format!("{RUST}{DOCS}"));
+    let repo = service.repo();
+    let generated = success(service.crucible(&["sdk", "generate", "--sdk", "docs"]));
+    assert!(generated.contains("docs: wrote"), "{generated}");
+    // `docs` alone generates no SDK.
+    assert!(!repo.join("generated/rust").exists());
+    let docs = repo.join("generated/docs");
+    for file in [
+        "describe.json",
+        "sdks.json",
+        "changes.json",
+        "llms.txt",
+        "src/SUMMARY.md",
+        "README.md",
+    ] {
+        assert!(docs.join(file).is_file(), "{file}");
+    }
+    let manifest = json(&fs::read_to_string(docs.join("package.json")).unwrap());
+    assert_eq!(manifest["name"], "@example/weather-reference");
+    assert_eq!(manifest["version"], "0.0.0-dev");
+    // npm refuses to publish a package that says it is private.
+    assert!(manifest.get("private").is_none());
+    let provenance = json(&fs::read_to_string(docs.join("crucible.json")).unwrap());
+    assert_eq!(provenance["language"], "docs");
+    assert_eq!(provenance["package"], "@example/weather-reference");
+    let description = json(&fs::read_to_string(docs.join("describe.json")).unwrap());
+    assert_eq!(description["schemas"]["mode"], "shared");
+    // A development export names no SDK release.
+    let sdks = json(&fs::read_to_string(docs.join("sdks.json")).unwrap());
+    assert!(sdks["sdks"]["rust"]["guide"]["install"]["manifest"].is_null());
+
+    let plan = json(&success(service.crucible(&[
+        "sdk",
+        "plan",
+        "--first-release",
+        "rust",
+        "--json",
+    ])));
+    assert_eq!(plan["sdks"]["docs"]["language"], "docs");
+    assert_eq!(
+        plan["sdks"]["docs"]["package"],
+        "@example/weather-reference"
+    );
+    // Without a channel it is built at its development version.
+    assert_eq!(plan["sdks"]["docs"]["version"], "0.0.0-dev");
+    let config = success(service.crucible(&["sdk", "config"]));
+    assert!(config.contains("[docs] API reference"), "{config}");
+    // The flags that name a release take `docs`, and say why it has none.
+    let error = failure(service.crucible(&["sdk", "plan", "--first-release", "docs"]));
+    assert!(error.contains("[docs] has no channel"), "{error}");
+}
+
+/// A release builds the reference last, describing each SDK at the
+/// version the plan releases, and later at the last one on its channel.
+#[test]
+fn a_release_builds_the_reference_at_the_sdk_versions_it_ships_with() {
+    if std::env::var_os("CRUCIBLE_SDK_NPM_TESTS").is_none() {
+        eprintln!("skipped: set CRUCIBLE_SDK_NPM_TESTS=1 to run npm");
+        return;
+    }
+    let service = Service::new(&format!("{RUST}{DOCS}"));
+    let repo = service.repo();
+    fs::write(repo.join("consumer/expected.lock"), lock("0.2.0")).unwrap();
+    service.commit("expected lock");
+    let release = service.release();
+    let release_arg = release.to_str().unwrap();
+    let built = success(service.crucible(&[
+        "sdk",
+        "build",
+        "--out",
+        release_arg,
+        "--first-release",
+        "rust",
+    ]));
+    assert!(
+        built.contains("docs: built docs/example-weather-reference-0.0.0-dev.tgz"),
+        "{built}"
+    );
+    let record = json(&fs::read_to_string(release.join("release.json")).unwrap());
+    assert_eq!(
+        record["sdks"]["docs"]["artifact"]["path"],
+        "docs/example-weather-reference-0.0.0-dev.tgz"
+    );
+    let rust_guide = |directory: &Path| {
+        json(&fs::read_to_string(directory.join("sdks.json")).unwrap())["sdks"]["rust"]["guide"]
+            .clone()
+    };
+    // The reference names the Rust release this plan ships, by its tag.
+    let guide = rust_guide(&release.join("docs/package"));
+    assert_eq!(guide["version"], "0.2.0");
+    let manifest = guide["install"]["manifest"]["text"].as_str().unwrap();
+    assert!(manifest.contains("tag = \"v0.2.0\""), "{manifest}");
+    // `out` holds the release, as an SDK's does.
+    assert_eq!(rust_guide(&repo.join("generated/docs"))["version"], "0.2.0");
+    let plan = json(&fs::read_to_string(release.join("plan.json")).unwrap());
+    assert!(plan["sdks"]["docs"]["tools"]["npm"].is_string());
+    assert!(plan["sdks"]["docs"]["tools"].get("typescript").is_none());
+    let verified = success(service.crucible(&["sdk", "verify", release_arg]));
+    assert!(verified.contains("docs 0.0.0-dev"), "{verified}");
+    let published = success(service.crucible(&["sdk", "publish", release_arg, "--execute"]));
+    assert!(published.contains("docs: no channel"), "{published}");
+    assert_eq!(service.remote_tags(), "v0.2.0");
+
+    // Later, with nothing else selected: the SDK's last release is read
+    // from its channel, so the reference still names it.
+    let again = service.root.path().join("release2");
+    success(service.crucible(&[
+        "sdk",
+        "build",
+        "--out",
+        again.to_str().unwrap(),
+        "--sdk",
+        "docs",
+    ]));
+    let record = json(&fs::read_to_string(again.join("release.json")).unwrap());
+    assert_eq!(
+        record["sdks"]
+            .as_object()
+            .unwrap()
+            .keys()
+            .collect::<Vec<_>>(),
+        ["docs"]
+    );
+    assert_eq!(rust_guide(&again.join("docs/package"))["version"], "0.2.0");
+}

@@ -13,6 +13,26 @@ use crate::provenance::Source;
 /// must be tracked and unmodified, so `commit` reproduces it; otherwise this
 /// fails, unless `allow_dirty`, which records `dirty`.
 pub fn source(file: &SdkFile, sdk: &Sdk, allow_dirty: bool) -> Result<Source, String> {
+    let mut inputs = Vec::new();
+    inputs.extend(sdk.metadata.readme.clone());
+    inputs.extend(sdk.metadata.agents.clone());
+    inputs.extend(sdk.metadata.license_file.clone());
+    source_of(file, &format!("sdk.{}", sdk.name), inputs, allow_dirty)
+}
+
+/// [`source`] for the `[docs]` release: its inputs are the model and the
+/// SDK file, and each README or license file of an SDK it describes is
+/// that SDK's own input.
+pub fn docs_source(file: &SdkFile, allow_dirty: bool) -> Result<Source, String> {
+    source_of(file, super::Docs::NAME, Vec::new(), allow_dirty)
+}
+
+fn source_of(
+    file: &SdkFile,
+    label: &str,
+    own_inputs: Vec<String>,
+    allow_dirty: bool,
+) -> Result<Source, String> {
     let root = file.root();
     let root = if root.as_os_str().is_empty() {
         Path::new(".")
@@ -46,9 +66,7 @@ pub fn source(file: &SdkFile, sdk: &Sdk, allow_dirty: bool) -> Result<Source, St
         .unwrap_or(super::FILE_NAME)
         .to_owned();
     let mut inputs = vec![name, file.model.clone()];
-    inputs.extend(sdk.metadata.readme.clone());
-    inputs.extend(sdk.metadata.agents.clone());
-    inputs.extend(sdk.metadata.license_file.clone());
+    inputs.extend(own_inputs);
     // One problem per input: untracked, or tracked but different from HEAD.
     let mut problems = Vec::new();
     for input in &inputs {
@@ -69,8 +87,7 @@ pub fn source(file: &SdkFile, sdk: &Sdk, allow_dirty: bool) -> Result<Source, St
     }
     if !problems.is_empty() && !allow_dirty {
         return Err(format!(
-            "sdk.{}: its source commit would not reproduce it: {}; commit them, or pass --allow-dirty",
-            sdk.name,
+            "{label}: its source commit would not reproduce it: {}; commit them, or pass --allow-dirty",
             problems.join("; ")
         ));
     }

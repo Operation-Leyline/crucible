@@ -17,6 +17,16 @@ version's section when it is prepared.
 
 ### Added
 
+- `crucible-sdk.toml` takes `[docs]`: the API reference as an npm package,
+  versioned and published by `crucible sdk plan|build|verify|publish` beside
+  the SDKs it describes. It holds what `crucible generate docs --sdks` writes,
+  with each SDK described at the version the release publishes (or the last
+  one on its channel), and is uploaded after every SDK. `crucible sdk
+  generate` writes its development export. A documentation site depends on
+  the package instead of regenerating the reference from the model
+  ([sdk-releases.md](docs/sdk-releases.md#release-the-api-reference-docs)).
+  `crucible_codegen::sdk::SdkFile` gains `docs`, and `SdkFile::selection`
+  resolves `--sdk` names with it.
 - `crucible.sdks/1`: each SDK carries `guide`, its package's generated README
   as data: the install steps its release channel allows (commands, a manifest
   entry, or a note naming where a private package is released), its version,
