@@ -24,7 +24,7 @@ const TOP_KEYS: &[&str] = &[
 
 /// `[docs]`'s own keys; of the common keys it takes [`DOCS_COMMON_KEYS`].
 const DOCS_KEYS: &[&str] = &[
-    "package", "audience", "schemas", "out", "version", "channel",
+    "package", "audience", "schemas", "openapi", "endpoint", "out", "version", "channel",
 ];
 
 /// The common keys a reference package has a use for. The others describe
@@ -332,6 +332,30 @@ fn docs(context: &mut Context<'_>, table: &Table, defaults: &Common) -> Option<D
             }
         },
     };
+    let openapi = table
+        .get("openapi")
+        .and_then(|value| boolean(context, &at("openapi"), value))
+        .unwrap_or(false);
+    // The server URL the OpenAPI document names: published, so it carries
+    // no credential, like an SDK's endpoint.
+    let endpoint = table
+        .get("endpoint")
+        .and_then(|value| string(context, &at("endpoint"), value))
+        .filter(
+            |endpoint| match crucible_codegen_common::metadata::url_problem(endpoint) {
+                Some(problem) => {
+                    context.error(&at("endpoint"), problem);
+                    false
+                }
+                None => true,
+            },
+        );
+    if table.contains_key("endpoint") && !openapi {
+        context.error(
+            &at("endpoint"),
+            "names the server of openapi.json; set `openapi = true` with it",
+        );
+    }
     let out = match table.get("out") {
         Some(value) => path_value(context, &at("out"), value),
         None => {
@@ -408,6 +432,8 @@ fn docs(context: &mut Context<'_>, table: &Table, defaults: &Common) -> Option<D
         schemas,
         out: out?,
         version,
+        openapi,
+        endpoint,
         description: metadata.description,
         repository: metadata.repository,
         homepage: metadata.homepage,

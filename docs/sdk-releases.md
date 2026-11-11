@@ -404,6 +404,8 @@ channel = { npm = "https://npm.pkg.github.com", access = "restricted" }
 | `out` | Where `crucible sdk generate` writes the development export, distinct from every SDK's. Required |
 | `audience` | `external` (default) or `internal`: the reference's audience, and which SDKs it describes |
 | `schemas` | `inline` (default), `shared` or `omit`: `crucible generate docs --schemas` |
+| `openapi` | `true` to also hold `openapi.json`, the same API as an OpenAPI 3.1 document ([openapi.md](openapi.md)), for a site to offer as a download. Default `false`. A service the OpenAPI generator refuses then fails the package, with its diagnostics |
+| `endpoint` | The API server URL `openapi.json` names, without credentials; relative paths without it. Only with `openapi = true` |
 | `version` | A floor, as an SDK's |
 | `channel` | `{ npm = "<registry>", access, dist_tag }`. Without one the reference is built and never released |
 | `description`, `repository`, `homepage`, `license`, `private` | The common keys a reference has a use for, inherited from `[defaults]`. The others describe a client package and are refused |

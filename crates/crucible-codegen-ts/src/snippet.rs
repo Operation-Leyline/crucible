@@ -329,6 +329,14 @@ pub(crate) fn guide(service: &Service, options: &Options) -> Guide {
                 ],
                 None => vec![format!("npm install {spec} --registry {url}")],
             };
+            // A private package's registry answers only a caller it knows.
+            if options.metadata.private {
+                guide.install_note = Some(format!(
+                    "The package is private: npm needs a token that can read it from `{url}` \
+                     (`npm login --registry {url}`, or an `_authToken` line for the registry in \
+                     your user `.npmrc`). Keep the token out of the project's files."
+                ));
+            }
         }
         _ if !guide.published() => guide.install_note = Some(guide.release_note(name)),
         _ => guide.install = vec![format!("npm install {spec}")],

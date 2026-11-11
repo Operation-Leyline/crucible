@@ -34,6 +34,9 @@ pub fn package(
     let mut files = crate::docs(service, docs.audience, &options)
         .map_err(|diagnostics| format!("cannot generate docs:\n{diagnostics}"))?;
     files.push(crate::sdks::file_at(file, service, docs.audience, sdks)?);
+    if docs.openapi {
+        files.push(openapi(docs, service)?);
+    }
     for owned in ["package.json", "README.md"] {
         if files.iter().any(|file| file.path == owned) {
             return Err(format!(
@@ -64,6 +67,31 @@ pub fn package(
     )
     .map_err(|error| format!("docs: {error}"))?;
     Ok(files)
+}
+
+/// The OpenAPI document's name beside `describe.json`.
+pub const OPENAPI_FILE: &str = "openapi.json";
+
+/// `openapi.json`: the service as the package's audience sees it, for
+/// tools that read OpenAPI. The reference stays the fuller description. A
+/// service the OpenAPI generator refuses fails the package, with its
+/// diagnostics, since the file was asked for.
+#[cfg(feature = "openapi")]
+fn openapi(docs: &Docs, service: &Service) -> Result<File, String> {
+    let options = crate::OpenApiOptions {
+        endpoint: docs.endpoint.clone(),
+    };
+    crate::Generator::OpenApi(options)
+        .emit_for_audience(service, docs.audience)
+        .map_err(|diagnostics| format!("docs.openapi:\n{diagnostics}"))?
+        .into_iter()
+        .find(|file| file.path == OPENAPI_FILE)
+        .ok_or_else(|| format!("docs.openapi: the generator wrote no {OPENAPI_FILE}"))
+}
+
+#[cfg(not(feature = "openapi"))]
+fn openapi(_docs: &Docs, _service: &Service) -> Result<File, String> {
+    Err("docs.openapi: this crucible was built without the OpenAPI generator".into())
 }
 
 /// `package.json`: identity, where it is published, and nothing to run.
@@ -127,11 +155,16 @@ fn readme(docs: &Docs, service: &Service, version: &str, sdks: &Versions) -> Str
          | `sdks.json` | Each SDK's names, snippets and guide (`crucible.sdks/1`) |\n\
          | `changes.json` | The release chain (`crucible.changes/1`) |\n\
          | `llms.txt`, `llms-full.txt`, `src/` | The same reference as Markdown |\n\
-         | `index.html` | A static page that renders `describe.json` |\n",
+         | `index.html` | A static page that renders `describe.json` |\n{openapi}",
         markdown_text(&docs.package),
         code_span(&service.id.to_string()),
         code_span(&service.version),
         code_span(version),
+        openapi = if docs.openapi {
+            "| `openapi.json` | The same API as an OpenAPI 3.1 document |\n"
+        } else {
+            ""
+        },
     );
     if !sdks.is_empty() {
         out.push_str("\nIt describes these SDK releases:\n\n");

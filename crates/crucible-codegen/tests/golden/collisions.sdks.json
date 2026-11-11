@@ -119,32 +119,38 @@
             "fence": "toml",
             "text": "[dependencies]\nsurface-sdk = \"0.9.0\"\ntokio = { version = \"1\", features = [\"macros\", \"rt-multi-thread\"] }"
           },
-          "note": null
+          "note": null,
+          "noteHtml": null
         },
         "language": "Rust",
         "refersTo": "surface_sdk",
         "sections": [
           {
+            "html": "<pre><code class=\"language-rust\">use surface_sdk::*;\n\nlet client = SurfaceClient::new(runtime::Config::new(std::env::var(\"SURFACE_ENDPOINT\")?));\n</code></pre>\n<p>The service declares no authentication. Methods are <code>async</code>: run them on an async runtime such as Tokio. The client sends <code>Crucible-Version: 1</code> on every request.</p>\n",
             "id": "client",
             "markdown": "```rust\nuse surface_sdk::*;\n\nlet client = SurfaceClient::new(runtime::Config::new(std::env::var(\"SURFACE_ENDPOINT\")?));\n```\n\nThe service declares no authentication. Methods are `async`: run them on an async runtime such as Tokio. The client sends `Crucible-Version: 1` on every request.",
             "title": "Create a client"
           },
           {
+            "html": "<p><code>list_things</code> calls <code>ListThings</code>. Every operation has a method like it.</p>\n<pre><code class=\"language-rust\">use surface_sdk::*;\n\n#[tokio::main]\nasync fn main() -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {\n    // The client sends Crucible-Version: 1 on every request.\n    let client = SurfaceClient::new(runtime::Config::new(std::env::var(\"SURFACE_ENDPOINT\")?));\n\n    // Sample values generated from the model's types and constraints.\n    let input = ListThingsInput::builder()\n        .member_build(\"build\")\n        .build();\n\n    let output = client.list_things(input).await?;\n    println!(\"{:?}\", output.next_token());\n    println!(\"{:?}\", output.member_info());\n    println!(\"{:?}\", output.count());\n    Ok(())\n}\n</code></pre>\n",
             "id": "call",
             "markdown": "`list_things` calls `ListThings`. Every operation has a method like it.\n\n```rust\nuse surface_sdk::*;\n\n#[tokio::main]\nasync fn main() -> Result<(), Box<dyn std::error::Error>> {\n    // The client sends Crucible-Version: 1 on every request.\n    let client = SurfaceClient::new(runtime::Config::new(std::env::var(\"SURFACE_ENDPOINT\")?));\n\n    // Sample values generated from the model's types and constraints.\n    let input = ListThingsInput::builder()\n        .member_build(\"build\")\n        .build();\n\n    let output = client.list_things(input).await?;\n    println!(\"{:?}\", output.next_token());\n    println!(\"{:?}\", output.member_info());\n    println!(\"{:?}\", output.count());\n    Ok(())\n}\n```",
             "title": "Call an operation"
           },
           {
+            "html": "<p>A paginated operation also has a <code>&lt;operation&gt;_pages</code> method returning a paginator (<code>client.list_things_pages_2(input)</code>): call <code>next_page().await</code> until it returns <code>None</code>; each page is one response.</p>\n<pre><code class=\"language-rust\">use surface_sdk::*;\n\n#[tokio::main]\nasync fn main() -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {\n    // The client sends Crucible-Version: 1 on every request.\n    let client = SurfaceClient::new(runtime::Config::new(std::env::var(\"SURFACE_ENDPOINT\")?));\n\n    // Sample values generated from the model's types and constraints.\n    let input = ListThingsInput::builder()\n        .member_build(\"build\")\n        .build();\n\n    // Each page is one response; the paginator sends `nextToken` for the next.\n    let mut pages = client.list_things_pages_2(input);\n    while let Some(page) = pages.next_page().await {\n        let page = page?;\n        println!(\"{:?}\", page);\n    }\n    Ok(())\n}\n</code></pre>\n",
             "id": "pagination",
             "markdown": "A paginated operation also has a `<operation>_pages` method returning a paginator (`client.list_things_pages_2(input)`): call `next_page().await` until it returns `None`; each page is one response.\n\n```rust\nuse surface_sdk::*;\n\n#[tokio::main]\nasync fn main() -> Result<(), Box<dyn std::error::Error>> {\n    // The client sends Crucible-Version: 1 on every request.\n    let client = SurfaceClient::new(runtime::Config::new(std::env::var(\"SURFACE_ENDPOINT\")?));\n\n    // Sample values generated from the model's types and constraints.\n    let input = ListThingsInput::builder()\n        .member_build(\"build\")\n        .build();\n\n    // Each page is one response; the paginator sends `nextToken` for the next.\n    let mut pages = client.list_things_pages_2(input);\n    while let Some(page) = pages.next_page().await {\n        let page = page?;\n        println!(\"{:?}\", page);\n    }\n    Ok(())\n}\n```",
             "title": "Pagination"
           },
           {
+            "html": "<p>Calls are retried with backoff when a retry is safe: a modelled throttling error is retried for any operation; transport failures, HTTP 500, 502, 503 and 504 and other retryable modelled errors only for operations that are read-only, idempotent or carry an idempotency token. For operations that declare an idempotency token, an unset token is generated once per call and reused on every attempt; set it yourself to replay one logical request across calls. <code>runtime::Config::retry(runtime::Retry { .. })</code> changes the attempt limit (3, the first included) and backoff; <code>runtime::Retry::none()</code> turns retries off.</p>\n",
             "id": "retries",
             "markdown": "Calls are retried with backoff when a retry is safe: a modelled throttling error is retried for any operation; transport failures, HTTP 500, 502, 503 and 504 and other retryable modelled errors only for operations that are read-only, idempotent or carry an idempotency token. For operations that declare an idempotency token, an unset token is generated once per call and reused on every attempt; set it yourself to replay one logical request across calls. `runtime::Config::retry(runtime::Retry { .. })` changes the attempt limit (3, the first included) and backoff; `runtime::Retry::none()` turns retries off.",
             "title": "Retries and idempotency"
           },
           {
+            "html": "<ul>\n<li><a href=\"https://github.com/Operation-Leyline/crucible/blob/main/docs/clients/rust.md\">The Rust client guide</a></li>\n</ul>\n",
             "id": "links",
             "markdown": "- [The Rust client guide](<https://github.com/Operation-Leyline/crucible/blob/main/docs/clients/rust.md>)",
             "title": "Links"
@@ -269,7 +275,8 @@
         ],
         "name": "surface-sdk",
         "qualifier": ""
-      }
+      },
+      "released": false
     },
     "ts": {
       "audience": "external",
@@ -288,32 +295,38 @@
             "npm install @example/surface@0.0.0-dev"
           ],
           "manifest": null,
-          "note": null
+          "note": null,
+          "noteHtml": null
         },
         "language": "TypeScript",
         "refersTo": "@example/surface",
         "sections": [
           {
+            "html": "<pre><code class=\"language-ts\">import { SurfaceClient } from \"@example/surface\";\nimport type * as models from \"@example/surface\";\n\nconst client = new SurfaceClient();\n</code></pre>\n<p>The service declares no authentication. The client sends <code>Crucible-Version: 1</code> on every request, and <code>x-amz-content-sha256</code> (content-sha256) on every POST, PUT and PATCH (the empty body's digest when there is none) and any other request with a body.</p>\n",
             "id": "client",
             "markdown": "```ts\nimport { SurfaceClient } from \"@example/surface\";\nimport type * as models from \"@example/surface\";\n\nconst client = new SurfaceClient();\n```\n\nThe service declares no authentication. The client sends `Crucible-Version: 1` on every request, and `x-amz-content-sha256` (content-sha256) on every POST, PUT and PATCH (the empty body's digest when there is none) and any other request with a body.",
             "title": "Create a client"
           },
           {
+            "html": "<p><code>listThings</code> calls <code>ListThings</code>. Every operation has a method like it.</p>\n<pre><code class=\"language-ts\">import { SurfaceClient } from \"@example/surface\";\nimport type * as models from \"@example/surface\";\n\n// The client sends Crucible-Version: 1 on every request, and x-amz-content-sha256 (content-sha256) on every POST, PUT and PATCH (the empty body's digest when there is none) and any other request with a body.\nconst client = new SurfaceClient();\n\n// Sample values generated from the model's types and constraints.\nconst input: models.ListThingsInput = {\n  build: \"build\",\n};\n\nconst output = await client.listThings(input);\nconsole.log(output.nextToken);\nconsole.log(output.info);\nconsole.log(output.count);\n</code></pre>\n",
             "id": "call",
             "markdown": "`listThings` calls `ListThings`. Every operation has a method like it.\n\n```ts\nimport { SurfaceClient } from \"@example/surface\";\nimport type * as models from \"@example/surface\";\n\n// The client sends Crucible-Version: 1 on every request, and x-amz-content-sha256 (content-sha256) on every POST, PUT and PATCH (the empty body's digest when there is none) and any other request with a body.\nconst client = new SurfaceClient();\n\n// Sample values generated from the model's types and constraints.\nconst input: models.ListThingsInput = {\n  build: \"build\",\n};\n\nconst output = await client.listThings(input);\nconsole.log(output.nextToken);\nconsole.log(output.info);\nconsole.log(output.count);\n```",
             "title": "Call an operation"
           },
           {
+            "html": "<p>A paginated operation also has a <code>paginate&lt;Operation&gt;</code> method returning an async iterator of pages (<code>for await (const page of client.paginateListThings_2(input))</code>): each page is one response, and it stops when the response carries no next token.</p>\n<pre><code class=\"language-ts\">import { SurfaceClient } from \"@example/surface\";\nimport type * as models from \"@example/surface\";\n\n// The client sends Crucible-Version: 1 on every request, and x-amz-content-sha256 (content-sha256) on every POST, PUT and PATCH (the empty body's digest when there is none) and any other request with a body.\nconst client = new SurfaceClient();\n\n// Sample values generated from the model's types and constraints.\nconst input: models.ListThingsInput = {\n  build: \"build\",\n};\n\n// Each page is one response; the paginator sends `nextToken` for the next.\nfor await (const page of client.paginateListThings_2(input)) {\n  console.log(page);\n}\n</code></pre>\n",
             "id": "pagination",
             "markdown": "A paginated operation also has a `paginate<Operation>` method returning an async iterator of pages (`for await (const page of client.paginateListThings_2(input))`): each page is one response, and it stops when the response carries no next token.\n\n```ts\nimport { SurfaceClient } from \"@example/surface\";\nimport type * as models from \"@example/surface\";\n\n// The client sends Crucible-Version: 1 on every request, and x-amz-content-sha256 (content-sha256) on every POST, PUT and PATCH (the empty body's digest when there is none) and any other request with a body.\nconst client = new SurfaceClient();\n\n// Sample values generated from the model's types and constraints.\nconst input: models.ListThingsInput = {\n  build: \"build\",\n};\n\n// Each page is one response; the paginator sends `nextToken` for the next.\nfor await (const page of client.paginateListThings_2(input)) {\n  console.log(page);\n}\n```",
             "title": "Pagination"
           },
           {
+            "html": "<p>Calls are retried with backoff when a retry is safe: a modelled throttling error is retried for any operation; transport failures, HTTP 500, 502, 503 and 504 and other retryable modelled errors only for operations that are read-only, idempotent or carry an idempotency token. For operations that declare an idempotency token, an unset token is generated once per call and reused on every attempt; set it yourself to replay one logical request across calls. Set <code>retry: { maxAttempts }</code> in the client configuration to change the attempt limit (3, the first included), or <code>retry: false</code> to turn retries off.</p>\n",
             "id": "retries",
             "markdown": "Calls are retried with backoff when a retry is safe: a modelled throttling error is retried for any operation; transport failures, HTTP 500, 502, 503 and 504 and other retryable modelled errors only for operations that are read-only, idempotent or carry an idempotency token. For operations that declare an idempotency token, an unset token is generated once per call and reused on every attempt; set it yourself to replay one logical request across calls. Set `retry: { maxAttempts }` in the client configuration to change the attempt limit (3, the first included), or `retry: false` to turn retries off.",
             "title": "Retries and idempotency"
           },
           {
+            "html": "<ul>\n<li><a href=\"https://github.com/Operation-Leyline/crucible/blob/main/docs/clients/typescript.md\">The TypeScript client guide</a></li>\n</ul>\n",
             "id": "links",
             "markdown": "- [The TypeScript client guide](<https://github.com/Operation-Leyline/crucible/blob/main/docs/clients/typescript.md>)",
             "title": "Links"
@@ -446,7 +459,8 @@
         ],
         "name": "@example/surface",
         "qualifier": "models."
-      }
+      },
+      "released": false
     }
   },
   "service": "example.surface#Surface"

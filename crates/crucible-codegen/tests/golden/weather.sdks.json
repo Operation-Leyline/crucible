@@ -188,37 +188,44 @@
             "fence": "cmake",
             "text": "find_package(weather 0.0.0 CONFIG REQUIRED)\ntarget_link_libraries(app PRIVATE weather::weather)\n"
           },
-          "note": null
+          "note": null,
+          "noteHtml": null
         },
         "language": "C",
         "refersTo": "weather/client.h",
         "sections": [
           {
+            "html": "<pre><code class=\"language-c\">#include \"weather/client.h\"\n\n#include &lt;stdio.h&gt;\n#include &lt;stdlib.h&gt;\n\n/* The client asks for the token on every attempt, so a refreshed one is used. */\nstatic weather_status read_token(void *user, const weather_scope *scope, weather_arena *arena,\n    bool *present, weather_string *token, weather_error *error) {\n    const char *value = getenv(\"WEATHER_TOKEN\");\n    (void)user;\n    (void)scope;\n    (void)arena;\n    (void)error;\n    *present = value != NULL;\n    *token = weather_string_view(value);\n    return weather_ok;\n}\n\nint main(void) {\n    weather_error error = {0};\n    weather_client_config config = weather_client_defaults();\n    config.endpoint = weather_string_view(getenv(\"WEATHER_ENDPOINT\"));\n    config.token = read_token;\n    weather_client *client = NULL;\n    if (weather_client_new(&amp;config, &amp;client, &amp;error) != weather_ok) {\n        fprintf(stderr, \"weather_client_new: %s\\n\", error.message);\n        return 1;\n    }\n    /* Call operations with the client, then free it. */\n    weather_client_free(client);\n    return 0;\n}\n</code></pre>\n<p><code>config.token</code> is the bearer token callback: the client calls it on every attempt (with <code>config.token_user</code>), so a refreshed token is used, and sends no token when it sets <code>*present</code> to false. The client copies <code>config</code>'s strings; free it with <code>weather_client_free</code> after its calls and iterators finish. <code>config.endpoint</code> is the service's base URL. The client sends <code>Authorization: Bearer &lt;token&gt;</code> and <code>Crucible-Version: 2026-10-01</code> on every request.</p>\n",
             "id": "client",
             "markdown": "```c\n#include \"weather/client.h\"\n\n#include <stdio.h>\n#include <stdlib.h>\n\n/* The client asks for the token on every attempt, so a refreshed one is used. */\nstatic weather_status read_token(void *user, const weather_scope *scope, weather_arena *arena,\n    bool *present, weather_string *token, weather_error *error) {\n    const char *value = getenv(\"WEATHER_TOKEN\");\n    (void)user;\n    (void)scope;\n    (void)arena;\n    (void)error;\n    *present = value != NULL;\n    *token = weather_string_view(value);\n    return weather_ok;\n}\n\nint main(void) {\n    weather_error error = {0};\n    weather_client_config config = weather_client_defaults();\n    config.endpoint = weather_string_view(getenv(\"WEATHER_ENDPOINT\"));\n    config.token = read_token;\n    weather_client *client = NULL;\n    if (weather_client_new(&config, &client, &error) != weather_ok) {\n        fprintf(stderr, \"weather_client_new: %s\\n\", error.message);\n        return 1;\n    }\n    /* Call operations with the client, then free it. */\n    weather_client_free(client);\n    return 0;\n}\n```\n\n`config.token` is the bearer token callback: the client calls it on every attempt (with `config.token_user`), so a refreshed token is used, and sends no token when it sets `*present` to false. The client copies `config`'s strings; free it with `weather_client_free` after its calls and iterators finish. `config.endpoint` is the service's base URL. The client sends `Authorization: Bearer <token>` and `Crucible-Version: 2026-10-01` on every request.",
             "title": "Create a client"
           },
           {
+            "html": "<p><code>weather_operations_get_city</code> calls <code>GetCity</code>. Every operation has a method like it.</p>\n<pre><code class=\"language-c\">#include \"weather/client.h\"\n\n#include &lt;stdio.h&gt;\n#include &lt;stdlib.h&gt;\n\n/* The client asks for the token on every attempt, so a refreshed one is used. */\nstatic weather_status read_token(void *user, const weather_scope *scope, weather_arena *arena,\n    bool *present, weather_string *token, weather_error *error) {\n    const char *value = getenv(\"WEATHER_TOKEN\");\n    (void)user;\n    (void)scope;\n    (void)arena;\n    (void)error;\n    *present = value != NULL;\n    *token = weather_string_view(value);\n    return weather_ok;\n}\n\nint main(void) {\n    weather_error error = {0};\n    /* The client sends Authorization: Bearer &lt;token&gt; and Crucible-Version: 2026-10-01 on every request. */\n    weather_client_config config = weather_client_defaults();\n    config.endpoint = weather_string_view(getenv(\"WEATHER_ENDPOINT\"));\n    config.token = read_token;\n    weather_client *client = NULL;\n    if (weather_client_new(&amp;config, &amp;client, &amp;error) != weather_ok) {\n        fprintf(stderr, \"weather_client_new: %s\\n\", error.message);\n        return 1;\n    }\n\n    /* Values from the model's example \"Read a city\". */\n    weather_models_get_city_input input = {0};\n    weather_models_get_city_input_set_city_id(&amp;input, weather_string_view(\"c-0a1b2c3d\"));\n    weather_models_get_city_input_set_at(&amp;input, (weather_timestamp){1767323045, 0} /* 2026-01-02T03:04:05Z */);\n\n    weather_operations_get_city_result result = {0};\n    weather_status status = weather_operations_get_city(client, &amp;input, NULL, NULL, &amp;result, &amp;error);\n    if (status == weather_ok) {\n        weather_string text = {0};\n        if (weather_models_city_summary_debug(result.base.arena, weather_models_get_city_output_get_city(result.value), &amp;text, &amp;error) == weather_ok) printf(\"city: %.*s\\n\", (int)text.length, text.data);\n        if (weather_models_get_city_output_has_forecast(result.value) &amp;&amp; weather_models_forecast_debug(result.base.arena, weather_models_get_city_output_get_forecast(result.value), &amp;text, &amp;error) == weather_ok) printf(\"forecast: %.*s\\n\", (int)text.length, text.data);\n        if (weather_models_get_city_output_has_request_id(result.value)) {\n            text = weather_models_get_city_output_get_request_id(result.value);\n            printf(\"requestId: %.*s\\n\", (int)text.length, text.data);\n        }\n    } else if (weather_error_as_not_found_error(&amp;result.base) != NULL) {\n        weather_string text = {0};\n        const weather_models_not_found_error *failure = weather_error_as_not_found_error(&amp;result.base);\n        fprintf(stderr, \"NotFoundError (HTTP %d)\\n\", result.base.response.status);\n        text = weather_models_not_found_error_get_message(failure);\n        fprintf(stderr, \"message: %.*s\\n\", (int)text.length, text.data);\n    } else {\n        fprintf(stderr, \"GetCity failed: %s\\n\", error.message);\n    }\n    weather_operations_get_city_result_free(&amp;result);\n    weather_client_free(client);\n    return status == weather_ok ? 0 : 1;\n}\n</code></pre>\n",
             "id": "call",
             "markdown": "`weather_operations_get_city` calls `GetCity`. Every operation has a method like it.\n\n```c\n#include \"weather/client.h\"\n\n#include <stdio.h>\n#include <stdlib.h>\n\n/* The client asks for the token on every attempt, so a refreshed one is used. */\nstatic weather_status read_token(void *user, const weather_scope *scope, weather_arena *arena,\n    bool *present, weather_string *token, weather_error *error) {\n    const char *value = getenv(\"WEATHER_TOKEN\");\n    (void)user;\n    (void)scope;\n    (void)arena;\n    (void)error;\n    *present = value != NULL;\n    *token = weather_string_view(value);\n    return weather_ok;\n}\n\nint main(void) {\n    weather_error error = {0};\n    /* The client sends Authorization: Bearer <token> and Crucible-Version: 2026-10-01 on every request. */\n    weather_client_config config = weather_client_defaults();\n    config.endpoint = weather_string_view(getenv(\"WEATHER_ENDPOINT\"));\n    config.token = read_token;\n    weather_client *client = NULL;\n    if (weather_client_new(&config, &client, &error) != weather_ok) {\n        fprintf(stderr, \"weather_client_new: %s\\n\", error.message);\n        return 1;\n    }\n\n    /* Values from the model's example \"Read a city\". */\n    weather_models_get_city_input input = {0};\n    weather_models_get_city_input_set_city_id(&input, weather_string_view(\"c-0a1b2c3d\"));\n    weather_models_get_city_input_set_at(&input, (weather_timestamp){1767323045, 0} /* 2026-01-02T03:04:05Z */);\n\n    weather_operations_get_city_result result = {0};\n    weather_status status = weather_operations_get_city(client, &input, NULL, NULL, &result, &error);\n    if (status == weather_ok) {\n        weather_string text = {0};\n        if (weather_models_city_summary_debug(result.base.arena, weather_models_get_city_output_get_city(result.value), &text, &error) == weather_ok) printf(\"city: %.*s\\n\", (int)text.length, text.data);\n        if (weather_models_get_city_output_has_forecast(result.value) && weather_models_forecast_debug(result.base.arena, weather_models_get_city_output_get_forecast(result.value), &text, &error) == weather_ok) printf(\"forecast: %.*s\\n\", (int)text.length, text.data);\n        if (weather_models_get_city_output_has_request_id(result.value)) {\n            text = weather_models_get_city_output_get_request_id(result.value);\n            printf(\"requestId: %.*s\\n\", (int)text.length, text.data);\n        }\n    } else if (weather_error_as_not_found_error(&result.base) != NULL) {\n        weather_string text = {0};\n        const weather_models_not_found_error *failure = weather_error_as_not_found_error(&result.base);\n        fprintf(stderr, \"NotFoundError (HTTP %d)\\n\", result.base.response.status);\n        text = weather_models_not_found_error_get_message(failure);\n        fprintf(stderr, \"message: %.*s\\n\", (int)text.length, text.data);\n    } else {\n        fprintf(stderr, \"GetCity failed: %s\\n\", error.message);\n    }\n    weather_operations_get_city_result_free(&result);\n    weather_client_free(client);\n    return status == weather_ok ? 0 : 1;\n}\n```",
             "title": "Call an operation"
           },
           {
+            "html": "<p>A paginated operation also has <code>&lt;operation&gt;_pages_new</code> (<code>weather_operations_list_cities_pages_new</code>), which takes the input and returns a <code>weather_pages</code> iterator, and <code>&lt;operation&gt;_pages_next</code>, which fills one page's result and sets <code>has_page</code> to false after the last one. Free each page's result with <code>&lt;operation&gt;_result_free</code> and the iterator with <code>weather_pages_free</code>.</p>\n<pre><code class=\"language-c\">#include \"weather/client.h\"\n\n#include &lt;stdio.h&gt;\n#include &lt;stdlib.h&gt;\n\n/* The client asks for the token on every attempt, so a refreshed one is used. */\nstatic weather_status read_token(void *user, const weather_scope *scope, weather_arena *arena,\n    bool *present, weather_string *token, weather_error *error) {\n    const char *value = getenv(\"WEATHER_TOKEN\");\n    (void)user;\n    (void)scope;\n    (void)arena;\n    (void)error;\n    *present = value != NULL;\n    *token = weather_string_view(value);\n    return weather_ok;\n}\n\nint main(void) {\n    weather_error error = {0};\n    /* The client sends Authorization: Bearer &lt;token&gt; and Crucible-Version: 2026-10-01 on every request. */\n    weather_client_config config = weather_client_defaults();\n    config.endpoint = weather_string_view(getenv(\"WEATHER_ENDPOINT\"));\n    config.token = read_token;\n    weather_client *client = NULL;\n    if (weather_client_new(&amp;config, &amp;client, &amp;error) != weather_ok) {\n        fprintf(stderr, \"weather_client_new: %s\\n\", error.message);\n        return 1;\n    }\n\n    /* Values from the model's example \"List the first page\". */\n    weather_string const input_tags_items[] = {\n        weather_string_view(\"coastal\"),\n        weather_string_view(\"capital\"),\n    };\n    weather_models_tags input_tags = {2, input_tags_items};\n    weather_models_list_cities_input input = {0};\n    weather_models_list_cities_input_set_max_results(&amp;input, 2);\n    weather_models_list_cities_input_set_tags(&amp;input, &amp;input_tags);\n\n    /* Each page is one response; the iterator sends `nextToken` for the next. */\n    weather_pages *pages = NULL;\n    weather_status status = weather_operations_list_cities_pages_new(client, &amp;input, NULL, NULL, &amp;pages, &amp;error);\n    bool has_page = status == weather_ok;\n    while (has_page) {\n        weather_operations_list_cities_result page = {0};\n        status = weather_operations_list_cities_pages_next(pages, &amp;has_page, &amp;page, &amp;error);\n        if (status == weather_ok &amp;&amp; has_page) {\n            weather_string text = {0};\n            if (weather_models_city_summaries_debug(page.base.arena, weather_models_list_cities_output_get_cities(page.value), &amp;text, &amp;error) == weather_ok) printf(\"cities: %.*s\\n\", (int)text.length, text.data);\n        }\n        weather_operations_list_cities_result_free(&amp;page);\n        if (status != weather_ok) break;\n    }\n    if (status != weather_ok) fprintf(stderr, \"ListCities failed: %s\\n\", error.message);\n    weather_pages_free(pages);\n    weather_client_free(client);\n    return status == weather_ok ? 0 : 1;\n}\n</code></pre>\n",
             "id": "pagination",
             "markdown": "A paginated operation also has `<operation>_pages_new` (`weather_operations_list_cities_pages_new`), which takes the input and returns a `weather_pages` iterator, and `<operation>_pages_next`, which fills one page's result and sets `has_page` to false after the last one. Free each page's result with `<operation>_result_free` and the iterator with `weather_pages_free`.\n\n```c\n#include \"weather/client.h\"\n\n#include <stdio.h>\n#include <stdlib.h>\n\n/* The client asks for the token on every attempt, so a refreshed one is used. */\nstatic weather_status read_token(void *user, const weather_scope *scope, weather_arena *arena,\n    bool *present, weather_string *token, weather_error *error) {\n    const char *value = getenv(\"WEATHER_TOKEN\");\n    (void)user;\n    (void)scope;\n    (void)arena;\n    (void)error;\n    *present = value != NULL;\n    *token = weather_string_view(value);\n    return weather_ok;\n}\n\nint main(void) {\n    weather_error error = {0};\n    /* The client sends Authorization: Bearer <token> and Crucible-Version: 2026-10-01 on every request. */\n    weather_client_config config = weather_client_defaults();\n    config.endpoint = weather_string_view(getenv(\"WEATHER_ENDPOINT\"));\n    config.token = read_token;\n    weather_client *client = NULL;\n    if (weather_client_new(&config, &client, &error) != weather_ok) {\n        fprintf(stderr, \"weather_client_new: %s\\n\", error.message);\n        return 1;\n    }\n\n    /* Values from the model's example \"List the first page\". */\n    weather_string const input_tags_items[] = {\n        weather_string_view(\"coastal\"),\n        weather_string_view(\"capital\"),\n    };\n    weather_models_tags input_tags = {2, input_tags_items};\n    weather_models_list_cities_input input = {0};\n    weather_models_list_cities_input_set_max_results(&input, 2);\n    weather_models_list_cities_input_set_tags(&input, &input_tags);\n\n    /* Each page is one response; the iterator sends `nextToken` for the next. */\n    weather_pages *pages = NULL;\n    weather_status status = weather_operations_list_cities_pages_new(client, &input, NULL, NULL, &pages, &error);\n    bool has_page = status == weather_ok;\n    while (has_page) {\n        weather_operations_list_cities_result page = {0};\n        status = weather_operations_list_cities_pages_next(pages, &has_page, &page, &error);\n        if (status == weather_ok && has_page) {\n            weather_string text = {0};\n            if (weather_models_city_summaries_debug(page.base.arena, weather_models_list_cities_output_get_cities(page.value), &text, &error) == weather_ok) printf(\"cities: %.*s\\n\", (int)text.length, text.data);\n        }\n        weather_operations_list_cities_result_free(&page);\n        if (status != weather_ok) break;\n    }\n    if (status != weather_ok) fprintf(stderr, \"ListCities failed: %s\\n\", error.message);\n    weather_pages_free(pages);\n    weather_client_free(client);\n    return status == weather_ok ? 0 : 1;\n}\n```",
             "title": "Pagination"
           },
           {
+            "html": "<p>Every call returns a <code>weather_status</code>: <code>weather_service_error</code> for an HTTP error response, whose modelled error <code>weather_error_as_&lt;error&gt;(&amp;result.base)</code> returns (<code>NULL</code> for another error) and whose status is <code>result.base.response.status</code>; <code>weather_network</code>, <code>weather_deadline</code>, <code>weather_cancelled</code> or <code>weather_invalid</code> otherwise, with <code>error.message</code>. Free the result after a failure too: it owns the error's data.</p>\n",
             "id": "errors",
             "markdown": "Every call returns a `weather_status`: `weather_service_error` for an HTTP error response, whose modelled error `weather_error_as_<error>(&result.base)` returns (`NULL` for another error) and whose status is `result.base.response.status`; `weather_network`, `weather_deadline`, `weather_cancelled` or `weather_invalid` otherwise, with `error.message`. Free the result after a failure too: it owns the error's data.",
             "title": "Errors"
           },
           {
+            "html": "<p>Calls are retried with backoff when a retry is safe: a modelled throttling error is retried for any operation; transport failures, HTTP 500, 502, 503 and 504 and other retryable modelled errors only for operations that are read-only, idempotent or carry an idempotency token. For operations that declare an idempotency token, an unset token is generated once per call and reused on every attempt; set it yourself to replay one logical request across calls. These operations fill a token: <code>weather_operations_create_city</code> (<code>weather_models_create_city_input_set_client_token</code>). Set <code>config.max_attempts</code> (3, the first included; 1 turns retries off), <code>config.timeout</code> (the whole call's budget in seconds) and <code>config.base_delay</code> and <code>config.max_delay</code> before constructing the client.</p>\n",
             "id": "retries",
             "markdown": "Calls are retried with backoff when a retry is safe: a modelled throttling error is retried for any operation; transport failures, HTTP 500, 502, 503 and 504 and other retryable modelled errors only for operations that are read-only, idempotent or carry an idempotency token. For operations that declare an idempotency token, an unset token is generated once per call and reused on every attempt; set it yourself to replay one logical request across calls. These operations fill a token: `weather_operations_create_city` (`weather_models_create_city_input_set_client_token`). Set `config.max_attempts` (3, the first included; 1 turns retries off), `config.timeout` (the whole call's budget in seconds) and `config.base_delay` and `config.max_delay` before constructing the client.",
             "title": "Retries and idempotency"
           },
           {
+            "html": "<ul>\n<li><a href=\"https://weather.example/docs\">Home</a></li>\n<li><a href=\"https://github.com/Operation-Leyline/crucible/blob/main/docs/clients/c.md\">The C client guide</a></li>\n</ul>\n",
             "id": "links",
             "markdown": "- [Home](<https://weather.example/docs>)\n- [The C client guide](<https://github.com/Operation-Leyline/crucible/blob/main/docs/clients/c.md>)",
             "title": "Links"
@@ -514,7 +521,8 @@
         ],
         "name": "weather",
         "qualifier": ""
-      }
+      },
+      "released": false
     },
     "cpp": {
       "audience": "external",
@@ -538,37 +546,44 @@
             "fence": "cmake",
             "text": "find_package(weather 0.0.0 CONFIG REQUIRED)\ntarget_link_libraries(app PRIVATE weather::weather)\n"
           },
-          "note": null
+          "note": null,
+          "noteHtml": null
         },
         "language": "C++",
         "refersTo": "weather/client.hpp",
         "sections": [
           {
+            "html": "<pre><code class=\"language-cpp\">#include \"weather/client.hpp\"\n\nnamespace sdk = example::weather;\n\nsdk::runtime::ClientConfig config;\nif (const char* endpoint = std::getenv(\"WEATHER_ENDPOINT\")) config.endpoint = endpoint;\nconfig.token = [] {\n    const char* token = std::getenv(\"WEATHER_TOKEN\");\n    return token ? std::optional&lt;std::string&gt;(token) : std::nullopt;\n};\nsdk::WeatherClient client(config);\n</code></pre>\n<p><code>config.token</code> returns the bearer token, or <code>std::nullopt</code> to send none; it is called for every attempt, so a refreshed token is used. <code>config.endpoint</code> is the service's base URL. The client sends <code>Authorization: Bearer &lt;token&gt;</code> and <code>Crucible-Version: 2026-10-01</code> on every request.</p>\n",
             "id": "client",
             "markdown": "```cpp\n#include \"weather/client.hpp\"\n\nnamespace sdk = example::weather;\n\nsdk::runtime::ClientConfig config;\nif (const char* endpoint = std::getenv(\"WEATHER_ENDPOINT\")) config.endpoint = endpoint;\nconfig.token = [] {\n    const char* token = std::getenv(\"WEATHER_TOKEN\");\n    return token ? std::optional<std::string>(token) : std::nullopt;\n};\nsdk::WeatherClient client(config);\n```\n\n`config.token` returns the bearer token, or `std::nullopt` to send none; it is called for every attempt, so a refreshed token is used. `config.endpoint` is the service's base URL. The client sends `Authorization: Bearer <token>` and `Crucible-Version: 2026-10-01` on every request.",
             "title": "Create a client"
           },
           {
+            "html": "<p><code>get_city</code> calls <code>GetCity</code>. Every operation has a method like it.</p>\n<pre><code class=\"language-cpp\">#include \"weather/client.hpp\"\n\n#include &lt;cstdlib&gt;\n#include &lt;iostream&gt;\n#include &lt;optional&gt;\n#include &lt;string&gt;\n\nnamespace sdk = example::weather;\n\nint main() {\n    // The client sends Authorization: Bearer &lt;token&gt; and Crucible-Version: 2026-10-01 on every request.\n    sdk::runtime::ClientConfig config;\n    if (const char* endpoint = std::getenv(\"WEATHER_ENDPOINT\")) config.endpoint = endpoint;\n    config.token = [] {\n        const char* token = std::getenv(\"WEATHER_TOKEN\");\n        return token ? std::optional&lt;std::string&gt;(token) : std::nullopt;\n    };\n    sdk::WeatherClient client(config);\n\n    // Values from the model's example \"Read a city\".\n    const sdk::models::GetCityInput input(\n        \"c-0a1b2c3d\",\n        sdk::runtime::Timestamp::parse(\"2026-01-02T03:04:05Z\"));\n\n    try {\n        const auto output = client.get_city(input);\n        std::cout &lt;&lt; \"city: \" &lt;&lt; sdk::runtime::debug_value(output.city) &lt;&lt; '\\n';\n        std::cout &lt;&lt; \"forecast: \" &lt;&lt; sdk::runtime::debug_value(output.forecast) &lt;&lt; '\\n';\n        std::cout &lt;&lt; \"request_id: \" &lt;&lt; sdk::runtime::debug_value(output.request_id) &lt;&lt; '\\n';\n    } catch (const sdk::models::NotFoundError&amp; error) {\n        std::cerr &lt;&lt; \"NotFoundError (HTTP \" &lt;&lt; error.metadata().status &lt;&lt; \"): \" &lt;&lt; error.message &lt;&lt; '\\n';\n        return 1;\n    }\n    return 0;\n}\n</code></pre>\n",
             "id": "call",
             "markdown": "`get_city` calls `GetCity`. Every operation has a method like it.\n\n```cpp\n#include \"weather/client.hpp\"\n\n#include <cstdlib>\n#include <iostream>\n#include <optional>\n#include <string>\n\nnamespace sdk = example::weather;\n\nint main() {\n    // The client sends Authorization: Bearer <token> and Crucible-Version: 2026-10-01 on every request.\n    sdk::runtime::ClientConfig config;\n    if (const char* endpoint = std::getenv(\"WEATHER_ENDPOINT\")) config.endpoint = endpoint;\n    config.token = [] {\n        const char* token = std::getenv(\"WEATHER_TOKEN\");\n        return token ? std::optional<std::string>(token) : std::nullopt;\n    };\n    sdk::WeatherClient client(config);\n\n    // Values from the model's example \"Read a city\".\n    const sdk::models::GetCityInput input(\n        \"c-0a1b2c3d\",\n        sdk::runtime::Timestamp::parse(\"2026-01-02T03:04:05Z\"));\n\n    try {\n        const auto output = client.get_city(input);\n        std::cout << \"city: \" << sdk::runtime::debug_value(output.city) << '\\n';\n        std::cout << \"forecast: \" << sdk::runtime::debug_value(output.forecast) << '\\n';\n        std::cout << \"request_id: \" << sdk::runtime::debug_value(output.request_id) << '\\n';\n    } catch (const sdk::models::NotFoundError& error) {\n        std::cerr << \"NotFoundError (HTTP \" << error.metadata().status << \"): \" << error.message << '\\n';\n        return 1;\n    }\n    return 0;\n}\n```",
             "title": "Call an operation"
           },
           {
+            "html": "<p>A paginated operation also has a <code>&lt;method&gt;_pages</code> method returning a lazy <code>runtime::Pages&lt;Output&gt;</code> (<code>auto pages = client.list_cities_pages(input);</code>): <code>while (auto page = pages.next())</code> yields each response as a <code>std::optional</code>, and it ends when the response carries no next token.</p>\n<pre><code class=\"language-cpp\">#include \"weather/client.hpp\"\n\n#include &lt;cstdlib&gt;\n#include &lt;iostream&gt;\n#include &lt;optional&gt;\n#include &lt;string&gt;\n\nnamespace sdk = example::weather;\n\nint main() {\n    // The client sends Authorization: Bearer &lt;token&gt; and Crucible-Version: 2026-10-01 on every request.\n    sdk::runtime::ClientConfig config;\n    if (const char* endpoint = std::getenv(\"WEATHER_ENDPOINT\")) config.endpoint = endpoint;\n    config.token = [] {\n        const char* token = std::getenv(\"WEATHER_TOKEN\");\n        return token ? std::optional&lt;std::string&gt;(token) : std::nullopt;\n    };\n    sdk::WeatherClient client(config);\n\n    // Values from the model's example \"List the first page\".\n    const sdk::models::ListCitiesInput input(\n        {},\n        2,\n        std::vector&lt;std::string&gt;{\"coastal\", \"capital\"});\n\n    // Each page is one response; the paginator sends `nextToken` for the next.\n    try {\n        auto pages = client.list_cities_pages(input);\n        while (auto page = pages.next()) {\n            std::cout &lt;&lt; sdk::runtime::debug_value(page-&gt;cities) &lt;&lt; '\\n';\n        }\n    } catch (const sdk::models::ThrottlingError&amp; error) {\n        std::cerr &lt;&lt; \"ThrottlingError (HTTP \" &lt;&lt; error.metadata().status &lt;&lt; \"): \" &lt;&lt; error.message &lt;&lt; '\\n';\n        return 1;\n    }\n    return 0;\n}\n</code></pre>\n",
             "id": "pagination",
             "markdown": "A paginated operation also has a `<method>_pages` method returning a lazy `runtime::Pages<Output>` (`auto pages = client.list_cities_pages(input);`): `while (auto page = pages.next())` yields each response as a `std::optional`, and it ends when the response carries no next token.\n\n```cpp\n#include \"weather/client.hpp\"\n\n#include <cstdlib>\n#include <iostream>\n#include <optional>\n#include <string>\n\nnamespace sdk = example::weather;\n\nint main() {\n    // The client sends Authorization: Bearer <token> and Crucible-Version: 2026-10-01 on every request.\n    sdk::runtime::ClientConfig config;\n    if (const char* endpoint = std::getenv(\"WEATHER_ENDPOINT\")) config.endpoint = endpoint;\n    config.token = [] {\n        const char* token = std::getenv(\"WEATHER_TOKEN\");\n        return token ? std::optional<std::string>(token) : std::nullopt;\n    };\n    sdk::WeatherClient client(config);\n\n    // Values from the model's example \"List the first page\".\n    const sdk::models::ListCitiesInput input(\n        {},\n        2,\n        std::vector<std::string>{\"coastal\", \"capital\"});\n\n    // Each page is one response; the paginator sends `nextToken` for the next.\n    try {\n        auto pages = client.list_cities_pages(input);\n        while (auto page = pages.next()) {\n            std::cout << sdk::runtime::debug_value(page->cities) << '\\n';\n        }\n    } catch (const sdk::models::ThrottlingError& error) {\n        std::cerr << \"ThrottlingError (HTTP \" << error.metadata().status << \"): \" << error.message << '\\n';\n        return 1;\n    }\n    return 0;\n}\n```",
             "title": "Pagination"
           },
           {
+            "html": "<p>Each modelled error is a struct in <code>example::weather::models</code> deriving from <code>runtime::WeatherException</code> and <code>runtime::ServiceError</code>: catch it by <code>const&amp;</code> and read its fields and <code>metadata().status</code>. Transport failures throw <code>runtime::NetworkError</code>, an exhausted <code>timeout</code> throws <code>runtime::DeadlineError</code>, and a stopped <code>std::stop_token</code> throws <code>runtime::CancelledError</code>.</p>\n",
             "id": "errors",
             "markdown": "Each modelled error is a struct in `example::weather::models` deriving from `runtime::WeatherException` and `runtime::ServiceError`: catch it by `const&` and read its fields and `metadata().status`. Transport failures throw `runtime::NetworkError`, an exhausted `timeout` throws `runtime::DeadlineError`, and a stopped `std::stop_token` throws `runtime::CancelledError`.",
             "title": "Errors"
           },
           {
+            "html": "<p>Calls are retried with backoff when a retry is safe: a modelled throttling error is retried for any operation; transport failures, HTTP 500, 502, 503 and 504 and other retryable modelled errors only for operations that are read-only, idempotent or carry an idempotency token. For operations that declare an idempotency token, an unset token is generated once per call and reused on every attempt; set it yourself to replay one logical request across calls. These operations fill a token: <code>create_city</code> (<code>client_token</code>). Set <code>max_attempts</code> in <code>ClientConfig</code> to change the attempt limit (3, the first included; 1 turns retries off), and <code>base_delay</code> and <code>max_delay</code> for the backoff; <code>timeout</code> (30 seconds) bounds the whole call, retries included.</p>\n",
             "id": "retries",
             "markdown": "Calls are retried with backoff when a retry is safe: a modelled throttling error is retried for any operation; transport failures, HTTP 500, 502, 503 and 504 and other retryable modelled errors only for operations that are read-only, idempotent or carry an idempotency token. For operations that declare an idempotency token, an unset token is generated once per call and reused on every attempt; set it yourself to replay one logical request across calls. These operations fill a token: `create_city` (`client_token`). Set `max_attempts` in `ClientConfig` to change the attempt limit (3, the first included; 1 turns retries off), and `base_delay` and `max_delay` for the backoff; `timeout` (30 seconds) bounds the whole call, retries included.",
             "title": "Retries and idempotency"
           },
           {
+            "html": "<ul>\n<li><a href=\"https://weather.example/docs\">Home</a></li>\n<li><a href=\"https://github.com/Operation-Leyline/crucible/blob/main/docs/clients/cpp.md\">The C++ client guide</a></li>\n</ul>\n",
             "id": "links",
             "markdown": "- [Home](<https://weather.example/docs>)\n- [The C++ client guide](<https://github.com/Operation-Leyline/crucible/blob/main/docs/clients/cpp.md>)",
             "title": "Links"
@@ -863,7 +878,8 @@
         ],
         "name": "weather",
         "qualifier": "example::weather::"
-      }
+      },
+      "released": false
     },
     "csharp": {
       "audience": "external",
@@ -885,37 +901,44 @@
             "fence": "xml",
             "text": "<PackageReference Include=\"Example.Weather\" Version=\"0.0.0-dev\" />"
           },
-          "note": null
+          "note": null,
+          "noteHtml": null
         },
         "language": "C#",
         "refersTo": "Example.Weather",
         "sections": [
           {
+            "html": "<pre><code class=\"language-csharp\">using Example.Weather;\nusing Example.Weather.Models;\n\nusing var client = new WeatherClient(new ClientConfig\n{\n    Endpoint = Environment.GetEnvironmentVariable(\"WEATHER_ENDPOINT\"),\n    Token = _ =&gt; ValueTask.FromResult(Environment.GetEnvironmentVariable(\"WEATHER_TOKEN\")),\n});\n</code></pre>\n<p><code>ClientConfig.Token</code> returns the bearer token (a <code>ValueTask&lt;string?&gt;</code>), called for every attempt with the call's cancellation token, so a refreshed token is used. <code>ClientConfig.Endpoint</code> is the service's base URL. The client is <code>IDisposable</code>; share one instance. The client sends <code>Authorization: Bearer &lt;token&gt;</code> and <code>Crucible-Version: 2026-10-01</code> on every request.</p>\n",
             "id": "client",
             "markdown": "```csharp\nusing Example.Weather;\nusing Example.Weather.Models;\n\nusing var client = new WeatherClient(new ClientConfig\n{\n    Endpoint = Environment.GetEnvironmentVariable(\"WEATHER_ENDPOINT\"),\n    Token = _ => ValueTask.FromResult(Environment.GetEnvironmentVariable(\"WEATHER_TOKEN\")),\n});\n```\n\n`ClientConfig.Token` returns the bearer token (a `ValueTask<string?>`), called for every attempt with the call's cancellation token, so a refreshed token is used. `ClientConfig.Endpoint` is the service's base URL. The client is `IDisposable`; share one instance. The client sends `Authorization: Bearer <token>` and `Crucible-Version: 2026-10-01` on every request.",
             "title": "Create a client"
           },
           {
+            "html": "<p><code>GetCity</code> calls <code>GetCity</code>. Every operation has a method like it.</p>\n<pre><code class=\"language-csharp\">using System;\nusing System.Threading.Tasks;\nusing Example.Weather;\nusing Example.Weather.Models;\n\n// The client sends Authorization: Bearer &lt;token&gt; and Crucible-Version: 2026-10-01 on every request.\nusing var client = new WeatherClient(new ClientConfig\n{\n    Endpoint = Environment.GetEnvironmentVariable(\"WEATHER_ENDPOINT\"),\n    Token = _ =&gt; ValueTask.FromResult(Environment.GetEnvironmentVariable(\"WEATHER_TOKEN\")),\n});\n\n// Values from the model's example \"Read a city\".\nvar input = new GetCityInput\n{\n    CityId = \"c-0a1b2c3d\",\n    At = Timestamp.Parse(\"2026-01-02T03:04:05Z\"),\n};\n\ntry\n{\n    var output = await client.GetCityAsync(input);\n    Console.WriteLine(output.City);\n    Console.WriteLine(output.Forecast);\n    Console.WriteLine(output.RequestIdValue);\n}\ncatch (NotFoundError error)\n{\n    Console.Error.WriteLine($\"NotFoundError (HTTP {error.StatusCode}): {error.MessageValue}\");\n}\n</code></pre>\n",
             "id": "call",
             "markdown": "`GetCity` calls `GetCity`. Every operation has a method like it.\n\n```csharp\nusing System;\nusing System.Threading.Tasks;\nusing Example.Weather;\nusing Example.Weather.Models;\n\n// The client sends Authorization: Bearer <token> and Crucible-Version: 2026-10-01 on every request.\nusing var client = new WeatherClient(new ClientConfig\n{\n    Endpoint = Environment.GetEnvironmentVariable(\"WEATHER_ENDPOINT\"),\n    Token = _ => ValueTask.FromResult(Environment.GetEnvironmentVariable(\"WEATHER_TOKEN\")),\n});\n\n// Values from the model's example \"Read a city\".\nvar input = new GetCityInput\n{\n    CityId = \"c-0a1b2c3d\",\n    At = Timestamp.Parse(\"2026-01-02T03:04:05Z\"),\n};\n\ntry\n{\n    var output = await client.GetCityAsync(input);\n    Console.WriteLine(output.City);\n    Console.WriteLine(output.Forecast);\n    Console.WriteLine(output.RequestIdValue);\n}\ncatch (NotFoundError error)\n{\n    Console.Error.WriteLine($\"NotFoundError (HTTP {error.StatusCode}): {error.MessageValue}\");\n}\n```",
             "title": "Call an operation"
           },
           {
+            "html": "<p>A paginated operation also has a <code>&lt;Operation&gt;PagesAsync</code> method returning an <code>IAsyncEnumerable</code> of pages (<code>await foreach (var page in client.ListCitiesPagesAsync(input))</code>): each page is one response, and it stops when the response carries no next token. Every operation has an awaitable <code>&lt;Operation&gt;Async</code> method and a blocking <code>&lt;Operation&gt;</code> beside it, each taking an optional <code>CancellationToken</code>.</p>\n<pre><code class=\"language-csharp\">using System;\nusing System.Threading.Tasks;\nusing Example.Weather;\nusing Example.Weather.Models;\n\n// The client sends Authorization: Bearer &lt;token&gt; and Crucible-Version: 2026-10-01 on every request.\nusing var client = new WeatherClient(new ClientConfig\n{\n    Endpoint = Environment.GetEnvironmentVariable(\"WEATHER_ENDPOINT\"),\n    Token = _ =&gt; ValueTask.FromResult(Environment.GetEnvironmentVariable(\"WEATHER_TOKEN\")),\n});\n\n// Values from the model's example \"List the first page\".\nvar input = new ListCitiesInput\n{\n    MaxResults = 2,\n    Tags = [\"coastal\", \"capital\"],\n};\n\n// Each page is one response; the walker sends `nextToken` for the next.\nawait foreach (var page in client.ListCitiesPagesAsync(input))\n{\n    Console.WriteLine(page.Cities);\n}\n</code></pre>\n",
             "id": "pagination",
             "markdown": "A paginated operation also has a `<Operation>PagesAsync` method returning an `IAsyncEnumerable` of pages (`await foreach (var page in client.ListCitiesPagesAsync(input))`): each page is one response, and it stops when the response carries no next token. Every operation has an awaitable `<Operation>Async` method and a blocking `<Operation>` beside it, each taking an optional `CancellationToken`.\n\n```csharp\nusing System;\nusing System.Threading.Tasks;\nusing Example.Weather;\nusing Example.Weather.Models;\n\n// The client sends Authorization: Bearer <token> and Crucible-Version: 2026-10-01 on every request.\nusing var client = new WeatherClient(new ClientConfig\n{\n    Endpoint = Environment.GetEnvironmentVariable(\"WEATHER_ENDPOINT\"),\n    Token = _ => ValueTask.FromResult(Environment.GetEnvironmentVariable(\"WEATHER_TOKEN\")),\n});\n\n// Values from the model's example \"List the first page\".\nvar input = new ListCitiesInput\n{\n    MaxResults = 2,\n    Tags = [\"coastal\", \"capital\"],\n};\n\n// Each page is one response; the walker sends `nextToken` for the next.\nawait foreach (var page in client.ListCitiesPagesAsync(input))\n{\n    Console.WriteLine(page.Cities);\n}\n```",
             "title": "Pagination"
           },
           {
+            "html": "<p>Each modelled error is an exception class in <code>Example.Weather.Models</code>, deriving from <code>Example.Weather.WeatherException</code> and <code>ServiceError</code>: catch it and read its properties, and <code>StatusCode</code>, <code>RequestId</code> and <code>Headers</code>. A modelled member named like an <code>Exception</code> property takes a <code>Value</code> suffix (<code>MessageValue</code>). Transport failures throw <code>NetworkError</code>.</p>\n",
             "id": "errors",
             "markdown": "Each modelled error is an exception class in `Example.Weather.Models`, deriving from `Example.Weather.WeatherException` and `ServiceError`: catch it and read its properties, and `StatusCode`, `RequestId` and `Headers`. A modelled member named like an `Exception` property takes a `Value` suffix (`MessageValue`). Transport failures throw `NetworkError`.",
             "title": "Errors"
           },
           {
+            "html": "<p>Calls are retried with backoff when a retry is safe: a modelled throttling error is retried for any operation; transport failures, HTTP 500, 502, 503 and 504 and other retryable modelled errors only for operations that are read-only, idempotent or carry an idempotency token. For operations that declare an idempotency token, an unset token is generated once per call and reused on every attempt; set it yourself to replay one logical request across calls. These operations fill a token: <code>CreateCity</code> (<code>ClientToken</code>). Set <code>MaxAttempts</code> in <code>ClientConfig</code> to change the attempt limit (3, the first included; 1 turns retries off), <code>Timeout</code>, <code>BaseDelay</code> and <code>MaxDelay</code> for the call budget and backoff, and <code>RetryMode</code> to <code>RetryMode.Standard</code> or <code>RetryMode.Adaptive</code> for a shared retry quota or client-side rate limiting.</p>\n",
             "id": "retries",
             "markdown": "Calls are retried with backoff when a retry is safe: a modelled throttling error is retried for any operation; transport failures, HTTP 500, 502, 503 and 504 and other retryable modelled errors only for operations that are read-only, idempotent or carry an idempotency token. For operations that declare an idempotency token, an unset token is generated once per call and reused on every attempt; set it yourself to replay one logical request across calls. These operations fill a token: `CreateCity` (`ClientToken`). Set `MaxAttempts` in `ClientConfig` to change the attempt limit (3, the first included; 1 turns retries off), `Timeout`, `BaseDelay` and `MaxDelay` for the call budget and backoff, and `RetryMode` to `RetryMode.Standard` or `RetryMode.Adaptive` for a shared retry quota or client-side rate limiting.",
             "title": "Retries and idempotency"
           },
           {
+            "html": "<ul>\n<li><a href=\"https://weather.example/docs\">Home</a></li>\n<li><a href=\"https://github.com/Operation-Leyline/crucible/blob/main/docs/clients/csharp.md\">The C# client guide</a></li>\n</ul>\n",
             "id": "links",
             "markdown": "- [Home](<https://weather.example/docs>)\n- [The C# client guide](<https://github.com/Operation-Leyline/crucible/blob/main/docs/clients/csharp.md>)",
             "title": "Links"
@@ -1211,7 +1234,8 @@
         ],
         "name": "Example.Weather",
         "qualifier": ""
-      }
+      },
+      "released": false
     },
     "dart": {
       "audience": "external",
@@ -1233,37 +1257,44 @@
             "fence": "yaml",
             "text": "dependencies:\n  weather: 0.0.0-dev\n"
           },
-          "note": null
+          "note": null,
+          "noteHtml": null
         },
         "language": "Dart",
         "refersTo": "package:weather/weather.dart",
         "sections": [
           {
+            "html": "<pre><code class=\"language-dart\">import 'package:weather/weather.dart';\nimport 'dart:typed_data';\n\nimport 'dart:io' as io;\n\nfinal client = WeatherClient(ClientConfig(\n  endpoint: io.Platform.environment['WEATHER_ENDPOINT'],\n  token: () =&gt; io.Platform.environment['WEATHER_TOKEN'],\n));\n</code></pre>\n<p><code>token</code> returns the bearer token (or a <code>Future</code> of one, or <code>null</code> to send none); it is called for every attempt, so a refreshed token is used. <code>endpoint</code> is the service's base URL. The client sends <code>Authorization: Bearer &lt;token&gt;</code> and <code>Crucible-Version: 2026-10-01</code> on every request.</p>\n",
             "id": "client",
             "markdown": "```dart\nimport 'package:weather/weather.dart';\nimport 'dart:typed_data';\n\nimport 'dart:io' as io;\n\nfinal client = WeatherClient(ClientConfig(\n  endpoint: io.Platform.environment['WEATHER_ENDPOINT'],\n  token: () => io.Platform.environment['WEATHER_TOKEN'],\n));\n```\n\n`token` returns the bearer token (or a `Future` of one, or `null` to send none); it is called for every attempt, so a refreshed token is used. `endpoint` is the service's base URL. The client sends `Authorization: Bearer <token>` and `Crucible-Version: 2026-10-01` on every request.",
             "title": "Create a client"
           },
           {
+            "html": "<p><code>getCity</code> calls <code>GetCity</code>. Every operation has a method like it.</p>\n<pre><code class=\"language-dart\">import 'dart:io' as io;\n\nimport 'package:weather/weather.dart';\n\nFuture&lt;void&gt; main() async {\n  // The client sends Authorization: Bearer &lt;token&gt; and Crucible-Version: 2026-10-01 on every request.\n  final client = WeatherClient(ClientConfig(\n    endpoint: io.Platform.environment['WEATHER_ENDPOINT'],\n    token: () =&gt; io.Platform.environment['WEATHER_TOKEN'],\n  ));\n  // Values from the model's example \"Read a city\".\n  final input = GetCityInput(\n    cityId: \"c-0a1b2c3d\",\n    at: Timestamp.parse(\"2026-01-02T03:04:05Z\"),\n  );\n  try {\n    final output = await client.getCity(input);\n    print(output.city);\n    print(output.forecast);\n    print(output.requestId);\n  } on NotFoundError catch (error) {\n    print('NotFoundError (HTTP ${error.metadata.status}): ${error.message}');\n  } finally {\n    client.close();\n  }\n}\n</code></pre>\n",
             "id": "call",
             "markdown": "`getCity` calls `GetCity`. Every operation has a method like it.\n\n```dart\nimport 'dart:io' as io;\n\nimport 'package:weather/weather.dart';\n\nFuture<void> main() async {\n  // The client sends Authorization: Bearer <token> and Crucible-Version: 2026-10-01 on every request.\n  final client = WeatherClient(ClientConfig(\n    endpoint: io.Platform.environment['WEATHER_ENDPOINT'],\n    token: () => io.Platform.environment['WEATHER_TOKEN'],\n  ));\n  // Values from the model's example \"Read a city\".\n  final input = GetCityInput(\n    cityId: \"c-0a1b2c3d\",\n    at: Timestamp.parse(\"2026-01-02T03:04:05Z\"),\n  );\n  try {\n    final output = await client.getCity(input);\n    print(output.city);\n    print(output.forecast);\n    print(output.requestId);\n  } on NotFoundError catch (error) {\n    print('NotFoundError (HTTP ${error.metadata.status}): ${error.message}');\n  } finally {\n    client.close();\n  }\n}\n```",
             "title": "Call an operation"
           },
           {
+            "html": "<p>A paginated operation also has a <code>&lt;operation&gt;Pages</code> method returning a <code>Stream</code> of pages (<code>await for (final page in client.listCitiesPages(input))</code>): each page is one response, the stream ends when a response carries no next token, and cancelling the subscription cancels the call in flight.</p>\n<pre><code class=\"language-dart\">import 'dart:io' as io;\n\nimport 'package:weather/weather.dart';\n\nFuture&lt;void&gt; main() async {\n  // The client sends Authorization: Bearer &lt;token&gt; and Crucible-Version: 2026-10-01 on every request.\n  final client = WeatherClient(ClientConfig(\n    endpoint: io.Platform.environment['WEATHER_ENDPOINT'],\n    token: () =&gt; io.Platform.environment['WEATHER_TOKEN'],\n  ));\n  // Values from the model's example \"List the first page\".\n  final input = ListCitiesInput(\n    maxResults: 2,\n    tags: [\n      \"coastal\",\n      \"capital\",\n    ],\n  );\n  try {\n    // Each page is one response; the stream sends `nextToken` for the next.\n    await for (final page in client.listCitiesPages(input)) {\n      print(page.cities);\n    }\n  } finally {\n    client.close();\n  }\n}\n</code></pre>\n",
             "id": "pagination",
             "markdown": "A paginated operation also has a `<operation>Pages` method returning a `Stream` of pages (`await for (final page in client.listCitiesPages(input))`): each page is one response, the stream ends when a response carries no next token, and cancelling the subscription cancels the call in flight.\n\n```dart\nimport 'dart:io' as io;\n\nimport 'package:weather/weather.dart';\n\nFuture<void> main() async {\n  // The client sends Authorization: Bearer <token> and Crucible-Version: 2026-10-01 on every request.\n  final client = WeatherClient(ClientConfig(\n    endpoint: io.Platform.environment['WEATHER_ENDPOINT'],\n    token: () => io.Platform.environment['WEATHER_TOKEN'],\n  ));\n  // Values from the model's example \"List the first page\".\n  final input = ListCitiesInput(\n    maxResults: 2,\n    tags: [\n      \"coastal\",\n      \"capital\",\n    ],\n  );\n  try {\n    // Each page is one response; the stream sends `nextToken` for the next.\n    await for (final page in client.listCitiesPages(input)) {\n      print(page.cities);\n    }\n  } finally {\n    client.close();\n  }\n}\n```",
             "title": "Pagination"
           },
           {
+            "html": "<p>Each modelled error is a class exported from the package, extending <code>WeatherException</code> and <code>ServiceError</code>: catch it with <code>on NotFoundError catch (error)</code> and read its fields and <code>error.metadata.status</code>. An error response the model does not describe is an <code>UnknownServiceError</code>; a call that gets no response throws <code>NetworkException</code>, a cancelled one <code>CancelledException</code>, and one outlasting <code>ClientConfig.timeout</code> a <code>TimeoutException</code>.</p>\n",
             "id": "errors",
             "markdown": "Each modelled error is a class exported from the package, extending `WeatherException` and `ServiceError`: catch it with `on NotFoundError catch (error)` and read its fields and `error.metadata.status`. An error response the model does not describe is an `UnknownServiceError`; a call that gets no response throws `NetworkException`, a cancelled one `CancelledException`, and one outlasting `ClientConfig.timeout` a `TimeoutException`.",
             "title": "Errors"
           },
           {
+            "html": "<p>Calls are retried with backoff when a retry is safe: a modelled throttling error is retried for any operation; transport failures, HTTP 500, 502, 503 and 504 and other retryable modelled errors only for operations that are read-only, idempotent or carry an idempotency token. For operations that declare an idempotency token, an unset token is generated once per call and reused on every attempt; set it yourself to replay one logical request across calls. These operations fill a token: <code>createCity</code> (<code>clientToken</code>). Set <code>maxAttempts</code> in <code>ClientConfig</code> to change the attempt limit (3, the first included; 1 turns retries off), and <code>baseDelay</code> and <code>maxDelay</code> to change the backoff.</p>\n",
             "id": "retries",
             "markdown": "Calls are retried with backoff when a retry is safe: a modelled throttling error is retried for any operation; transport failures, HTTP 500, 502, 503 and 504 and other retryable modelled errors only for operations that are read-only, idempotent or carry an idempotency token. For operations that declare an idempotency token, an unset token is generated once per call and reused on every attempt; set it yourself to replay one logical request across calls. These operations fill a token: `createCity` (`clientToken`). Set `maxAttempts` in `ClientConfig` to change the attempt limit (3, the first included; 1 turns retries off), and `baseDelay` and `maxDelay` to change the backoff.",
             "title": "Retries and idempotency"
           },
           {
+            "html": "<ul>\n<li><a href=\"https://weather.example/docs\">Home</a></li>\n<li><a href=\"https://github.com/Operation-Leyline/crucible/blob/main/docs/clients/dart.md\">The Dart client guide</a></li>\n</ul>\n",
             "id": "links",
             "markdown": "- [Home](<https://weather.example/docs>)\n- [The Dart client guide](<https://github.com/Operation-Leyline/crucible/blob/main/docs/clients/dart.md>)",
             "title": "Links"
@@ -1559,7 +1590,8 @@
         ],
         "name": "weather",
         "qualifier": ""
-      }
+      },
+      "released": false
     },
     "go": {
       "audience": "external",
@@ -1578,37 +1610,44 @@
             "go get example.com/weather"
           ],
           "manifest": null,
-          "note": null
+          "note": null,
+          "noteHtml": null
         },
         "language": "Go",
         "refersTo": "weather",
         "sections": [
           {
+            "html": "<pre><code class=\"language-go\">import weather \"example.com/weather\"\n\nclient, err := weather.NewWeatherClient(weather.Config{\n\tEndpoint: os.Getenv(\"WEATHER_ENDPOINT\"),\n\tToken:    func(context.Context) (string, error) { return os.Getenv(\"WEATHER_TOKEN\"), nil },\n})\nif err != nil {\n\tlog.Fatal(err)\n}\n</code></pre>\n<p><code>Config.Token</code> returns the bearer token; it is called for every attempt with the call's context, so a refreshed token is used. <code>Config.Endpoint</code> is the service's base URL. The client sends <code>Authorization: Bearer &lt;token&gt;</code> and <code>Crucible-Version: 2026-10-01</code> on every request.</p>\n",
             "id": "client",
             "markdown": "```go\nimport weather \"example.com/weather\"\n\nclient, err := weather.NewWeatherClient(weather.Config{\n\tEndpoint: os.Getenv(\"WEATHER_ENDPOINT\"),\n\tToken:    func(context.Context) (string, error) { return os.Getenv(\"WEATHER_TOKEN\"), nil },\n})\nif err != nil {\n\tlog.Fatal(err)\n}\n```\n\n`Config.Token` returns the bearer token; it is called for every attempt with the call's context, so a refreshed token is used. `Config.Endpoint` is the service's base URL. The client sends `Authorization: Bearer <token>` and `Crucible-Version: 2026-10-01` on every request.",
             "title": "Create a client"
           },
           {
+            "html": "<p><code>GetCity</code> calls <code>GetCity</code>. Every operation has a method like it.</p>\n<pre><code class=\"language-go\">package main\n\nimport (\n\t\"context\"\n\t\"errors\"\n\t\"fmt\"\n\t\"log\"\n\t\"os\"\n\t\"time\"\n\n\t\"example.com/weather\"\n)\n\nfunc main() {\n\tctx := context.Background()\n\t// The client sends Authorization: Bearer &lt;token&gt; and Crucible-Version: 2026-10-01 on every request.\n\tclient, err := weather.NewWeatherClient(weather.Config{\n\t\tEndpoint: os.Getenv(\"WEATHER_ENDPOINT\"),\n\t\tToken:    func(context.Context) (string, error) { return os.Getenv(\"WEATHER_TOKEN\"), nil },\n\t})\n\tif err != nil {\n\t\tlog.Fatal(err)\n\t}\n\n\t// Values from the model's example \"Read a city\".\n\tinput := &amp;weather.GetCityInput{\n\t\tCityId: \"c-0a1b2c3d\",\n\t\tAt:     weather.Some(time.Date(2026, time.January, 2, 3, 4, 5, 0, time.UTC)),\n\t}\n\n\toutput, err := client.GetCity(ctx, input)\n\tvar notFoundError *weather.NotFoundError\n\tif errors.As(err, &amp;notFoundError) {\n\t\tfmt.Printf(\"NotFoundError (HTTP %d): %v\\n\", notFoundError.Metadata.Metadata.Status, notFoundError.Message)\n\t\treturn\n\t}\n\tif err != nil {\n\t\tlog.Fatal(err)\n\t}\n\tfmt.Println(output.City)\n\tfmt.Println(output.GetForecast())\n\tfmt.Println(output.GetRequestId())\n}\n</code></pre>\n",
             "id": "call",
             "markdown": "`GetCity` calls `GetCity`. Every operation has a method like it.\n\n```go\npackage main\n\nimport (\n\t\"context\"\n\t\"errors\"\n\t\"fmt\"\n\t\"log\"\n\t\"os\"\n\t\"time\"\n\n\t\"example.com/weather\"\n)\n\nfunc main() {\n\tctx := context.Background()\n\t// The client sends Authorization: Bearer <token> and Crucible-Version: 2026-10-01 on every request.\n\tclient, err := weather.NewWeatherClient(weather.Config{\n\t\tEndpoint: os.Getenv(\"WEATHER_ENDPOINT\"),\n\t\tToken:    func(context.Context) (string, error) { return os.Getenv(\"WEATHER_TOKEN\"), nil },\n\t})\n\tif err != nil {\n\t\tlog.Fatal(err)\n\t}\n\n\t// Values from the model's example \"Read a city\".\n\tinput := &weather.GetCityInput{\n\t\tCityId: \"c-0a1b2c3d\",\n\t\tAt:     weather.Some(time.Date(2026, time.January, 2, 3, 4, 5, 0, time.UTC)),\n\t}\n\n\toutput, err := client.GetCity(ctx, input)\n\tvar notFoundError *weather.NotFoundError\n\tif errors.As(err, &notFoundError) {\n\t\tfmt.Printf(\"NotFoundError (HTTP %d): %v\\n\", notFoundError.Metadata.Metadata.Status, notFoundError.Message)\n\t\treturn\n\t}\n\tif err != nil {\n\t\tlog.Fatal(err)\n\t}\n\tfmt.Println(output.City)\n\tfmt.Println(output.GetForecast())\n\tfmt.Println(output.GetRequestId())\n}\n```",
             "title": "Call an operation"
           },
           {
+            "html": "<p>A paginated operation also has a <code>&lt;Operation&gt;Pages</code> method (<code>client.ListCitiesPages(input)</code>) returning a paginator: call <code>NextPage(ctx)</code> while <code>HasMorePages()</code> is true. Each page is one response; a repeated token stops it with an error. A paginator is for one goroutine at a time. Every method takes a <code>context.Context</code> first; an operation without input takes <code>weather.Unit{}</code>.</p>\n<pre><code class=\"language-go\">package main\n\nimport (\n\t\"context\"\n\t\"fmt\"\n\t\"log\"\n\t\"os\"\n\n\t\"example.com/weather\"\n)\n\nfunc main() {\n\tctx := context.Background()\n\t// The client sends Authorization: Bearer &lt;token&gt; and Crucible-Version: 2026-10-01 on every request.\n\tclient, err := weather.NewWeatherClient(weather.Config{\n\t\tEndpoint: os.Getenv(\"WEATHER_ENDPOINT\"),\n\t\tToken:    func(context.Context) (string, error) { return os.Getenv(\"WEATHER_TOKEN\"), nil },\n\t})\n\tif err != nil {\n\t\tlog.Fatal(err)\n\t}\n\n\t// Values from the model's example \"List the first page\".\n\tinput := &amp;weather.ListCitiesInput{\n\t\tMaxResults: weather.Some(int32(2)),\n\t\tTags:       weather.Some(weather.Tags{\"coastal\", \"capital\"}),\n\t}\n\n\t// Each page is one response; the paginator sends `nextToken` for the next.\n\tpages, err := client.ListCitiesPages(input)\n\tif err != nil {\n\t\tlog.Fatal(err)\n\t}\n\tfor pages.HasMorePages() {\n\t\tpage, err := pages.NextPage(ctx)\n\t\tif err != nil {\n\t\t\tlog.Fatal(err)\n\t\t}\n\t\tfmt.Println(page.Cities)\n\t}\n}\n</code></pre>\n",
             "id": "pagination",
             "markdown": "A paginated operation also has a `<Operation>Pages` method (`client.ListCitiesPages(input)`) returning a paginator: call `NextPage(ctx)` while `HasMorePages()` is true. Each page is one response; a repeated token stops it with an error. A paginator is for one goroutine at a time. Every method takes a `context.Context` first; an operation without input takes `weather.Unit{}`.\n\n```go\npackage main\n\nimport (\n\t\"context\"\n\t\"fmt\"\n\t\"log\"\n\t\"os\"\n\n\t\"example.com/weather\"\n)\n\nfunc main() {\n\tctx := context.Background()\n\t// The client sends Authorization: Bearer <token> and Crucible-Version: 2026-10-01 on every request.\n\tclient, err := weather.NewWeatherClient(weather.Config{\n\t\tEndpoint: os.Getenv(\"WEATHER_ENDPOINT\"),\n\t\tToken:    func(context.Context) (string, error) { return os.Getenv(\"WEATHER_TOKEN\"), nil },\n\t})\n\tif err != nil {\n\t\tlog.Fatal(err)\n\t}\n\n\t// Values from the model's example \"List the first page\".\n\tinput := &weather.ListCitiesInput{\n\t\tMaxResults: weather.Some(int32(2)),\n\t\tTags:       weather.Some(weather.Tags{\"coastal\", \"capital\"}),\n\t}\n\n\t// Each page is one response; the paginator sends `nextToken` for the next.\n\tpages, err := client.ListCitiesPages(input)\n\tif err != nil {\n\t\tlog.Fatal(err)\n\t}\n\tfor pages.HasMorePages() {\n\t\tpage, err := pages.NextPage(ctx)\n\t\tif err != nil {\n\t\t\tlog.Fatal(err)\n\t\t}\n\t\tfmt.Println(page.Cities)\n\t}\n}\n```",
             "title": "Pagination"
           },
           {
+            "html": "<p>Each modelled error is a struct such as <code>*weather.NotFoundError</code>, matched with <code>errors.As(err, &amp;target)</code>; its <code>Metadata</code> (<code>*weather.ServiceError</code>) carries the HTTP status, request ID and headers. Every service error satisfies <code>weather.WeatherException</code>; an unmodelled one is a <code>*weather.ServiceError</code>, a transport failure a <code>*weather.NetworkError</code>, and cancellation and deadlines keep their context errors.</p>\n",
             "id": "errors",
             "markdown": "Each modelled error is a struct such as `*weather.NotFoundError`, matched with `errors.As(err, &target)`; its `Metadata` (`*weather.ServiceError`) carries the HTTP status, request ID and headers. Every service error satisfies `weather.WeatherException`; an unmodelled one is a `*weather.ServiceError`, a transport failure a `*weather.NetworkError`, and cancellation and deadlines keep their context errors.",
             "title": "Errors"
           },
           {
+            "html": "<p>Calls are retried with backoff when a retry is safe: a modelled throttling error is retried for any operation; transport failures, HTTP 500, 502, 503 and 504 and other retryable modelled errors only for operations that are read-only, idempotent or carry an idempotency token. For operations that declare an idempotency token, an unset token is generated once per call and reused on every attempt; set it yourself to replay one logical request across calls. These operations fill a token: <code>CreateCity</code> (<code>ClientToken</code>). Set <code>Config.MaxAttempts</code> to change the attempt limit (3, the first included; 1 turns retries off) and <code>Config.RetryMode</code> to <code>weather.RetryModeStandard</code> or <code>weather.RetryModeAdaptive</code> for a shared retry quota or client-side rate limiting.</p>\n",
             "id": "retries",
             "markdown": "Calls are retried with backoff when a retry is safe: a modelled throttling error is retried for any operation; transport failures, HTTP 500, 502, 503 and 504 and other retryable modelled errors only for operations that are read-only, idempotent or carry an idempotency token. For operations that declare an idempotency token, an unset token is generated once per call and reused on every attempt; set it yourself to replay one logical request across calls. These operations fill a token: `CreateCity` (`ClientToken`). Set `Config.MaxAttempts` to change the attempt limit (3, the first included; 1 turns retries off) and `Config.RetryMode` to `weather.RetryModeStandard` or `weather.RetryModeAdaptive` for a shared retry quota or client-side rate limiting.",
             "title": "Retries and idempotency"
           },
           {
+            "html": "<ul>\n<li><a href=\"https://weather.example/docs\">Home</a></li>\n<li><a href=\"https://github.com/Operation-Leyline/crucible/blob/main/docs/clients/go.md\">The Go client guide</a></li>\n</ul>\n",
             "id": "links",
             "markdown": "- [Home](<https://weather.example/docs>)\n- [The Go client guide](<https://github.com/Operation-Leyline/crucible/blob/main/docs/clients/go.md>)",
             "title": "Links"
@@ -1903,7 +1942,8 @@
         ],
         "name": "example.com/weather",
         "qualifier": "weather."
-      }
+      },
+      "released": false
     },
     "java": {
       "audience": "external",
@@ -1923,37 +1963,44 @@
             "fence": "xml",
             "text": "<dependency><groupId>com.example</groupId><artifactId>weather</artifactId><version>0.0.0-SNAPSHOT</version></dependency>"
           },
-          "note": null
+          "note": null,
+          "noteHtml": null
         },
         "language": "Java",
         "refersTo": "com.example.weather",
         "sections": [
           {
+            "html": "<pre><code class=\"language-java\">import com.example.weather.ClientConfig;\nimport com.example.weather.WeatherClient;\n\nClientConfig config = new ClientConfig();\nconfig.endpoint = System.getenv(\"WEATHER_ENDPOINT\");\nconfig.token = () -&gt; System.getenv(\"WEATHER_TOKEN\");\nWeatherClient client = new WeatherClient(config);\n</code></pre>\n<p><code>ClientConfig.token</code> is a <code>Supplier&lt;String&gt;</code> of the bearer token, called for every attempt, so a refreshed token is used. <code>ClientConfig.endpoint</code> is the service's base URL. The client sends <code>Authorization: Bearer &lt;token&gt;</code> and <code>Crucible-Version: 2026-10-01</code> on every request.</p>\n",
             "id": "client",
             "markdown": "```java\nimport com.example.weather.ClientConfig;\nimport com.example.weather.WeatherClient;\n\nClientConfig config = new ClientConfig();\nconfig.endpoint = System.getenv(\"WEATHER_ENDPOINT\");\nconfig.token = () -> System.getenv(\"WEATHER_TOKEN\");\nWeatherClient client = new WeatherClient(config);\n```\n\n`ClientConfig.token` is a `Supplier<String>` of the bearer token, called for every attempt, so a refreshed token is used. `ClientConfig.endpoint` is the service's base URL. The client sends `Authorization: Bearer <token>` and `Crucible-Version: 2026-10-01` on every request.",
             "title": "Create a client"
           },
           {
+            "html": "<p><code>getCity</code> calls <code>GetCity</code>. Every operation has a method like it.</p>\n<pre><code class=\"language-java\">import com.example.weather.ClientConfig;\nimport com.example.weather.WeatherClient;\nimport com.example.weather.model.GetCityInput;\nimport com.example.weather.model.GetCityOutput;\nimport com.example.weather.model.NotFoundError;\nimport java.time.Instant;\n\npublic class GetCityExample {\n    public static void main(String[] args) {\n        // The client sends Authorization: Bearer &lt;token&gt; and Crucible-Version: 2026-10-01 on every request.\n        ClientConfig config = new ClientConfig();\n        config.endpoint = System.getenv(\"WEATHER_ENDPOINT\");\n        config.token = () -&gt; System.getenv(\"WEATHER_TOKEN\");\n        WeatherClient client = new WeatherClient(config);\n\n        // Values from the model's example \"Read a city\".\n        GetCityInput input = GetCityInput.builder()\n            .cityId(\"c-0a1b2c3d\")\n            .at(Instant.parse(\"2026-01-02T03:04:05Z\"))\n            .build();\n\n        try {\n            GetCityOutput output = client.getCity(input);\n            System.out.println(output.city());\n            System.out.println(output.forecast());\n            System.out.println(output.requestId());\n        } catch (NotFoundError error) {\n            System.err.println(\"NotFoundError (HTTP \" + error.status() + \"): \" + error.message());\n        }\n    }\n}\n</code></pre>\n",
             "id": "call",
             "markdown": "`getCity` calls `GetCity`. Every operation has a method like it.\n\n```java\nimport com.example.weather.ClientConfig;\nimport com.example.weather.WeatherClient;\nimport com.example.weather.model.GetCityInput;\nimport com.example.weather.model.GetCityOutput;\nimport com.example.weather.model.NotFoundError;\nimport java.time.Instant;\n\npublic class GetCityExample {\n    public static void main(String[] args) {\n        // The client sends Authorization: Bearer <token> and Crucible-Version: 2026-10-01 on every request.\n        ClientConfig config = new ClientConfig();\n        config.endpoint = System.getenv(\"WEATHER_ENDPOINT\");\n        config.token = () -> System.getenv(\"WEATHER_TOKEN\");\n        WeatherClient client = new WeatherClient(config);\n\n        // Values from the model's example \"Read a city\".\n        GetCityInput input = GetCityInput.builder()\n            .cityId(\"c-0a1b2c3d\")\n            .at(Instant.parse(\"2026-01-02T03:04:05Z\"))\n            .build();\n\n        try {\n            GetCityOutput output = client.getCity(input);\n            System.out.println(output.city());\n            System.out.println(output.forecast());\n            System.out.println(output.requestId());\n        } catch (NotFoundError error) {\n            System.err.println(\"NotFoundError (HTTP \" + error.status() + \"): \" + error.message());\n        }\n    }\n}\n```",
             "title": "Call an operation"
           },
           {
+            "html": "<p>A paginated operation also has a <code>&lt;operation&gt;Pages</code> method returning a lazy <code>java.util.Iterator</code> of pages (<code>client.listCitiesPages(input)</code>), and <code>&lt;operation&gt;PagesAsync</code> returning a <code>Flow.Publisher</code>: each page is one response, and it stops when the response carries no next token. Each operation also has an <code>&lt;operation&gt;Async</code> method returning a <code>CompletableFuture</code>, and an overload taking a <code>Consumer</code> of the input's builder.</p>\n<pre><code class=\"language-java\">import com.example.weather.ClientConfig;\nimport com.example.weather.WeatherClient;\nimport com.example.weather.model.ListCitiesInput;\nimport com.example.weather.model.ListCitiesOutput;\nimport java.util.Iterator;\nimport java.util.List;\n\npublic class ListCitiesPagesExample {\n    public static void main(String[] args) {\n        // The client sends Authorization: Bearer &lt;token&gt; and Crucible-Version: 2026-10-01 on every request.\n        ClientConfig config = new ClientConfig();\n        config.endpoint = System.getenv(\"WEATHER_ENDPOINT\");\n        config.token = () -&gt; System.getenv(\"WEATHER_TOKEN\");\n        WeatherClient client = new WeatherClient(config);\n\n        // Values from the model's example \"List the first page\".\n        ListCitiesInput input = ListCitiesInput.builder()\n            .maxResults(2)\n            .tags(List.of(\"coastal\", \"capital\"))\n            .build();\n\n        // Each page is one response; the iterator sends `nextToken` for the next.\n        Iterator&lt;ListCitiesOutput&gt; pages = client.listCitiesPages(input);\n        while (pages.hasNext()) {\n            ListCitiesOutput page = pages.next();\n            System.out.println(page.cities());\n        }\n    }\n}\n</code></pre>\n",
             "id": "pagination",
             "markdown": "A paginated operation also has a `<operation>Pages` method returning a lazy `java.util.Iterator` of pages (`client.listCitiesPages(input)`), and `<operation>PagesAsync` returning a `Flow.Publisher`: each page is one response, and it stops when the response carries no next token. Each operation also has an `<operation>Async` method returning a `CompletableFuture`, and an overload taking a `Consumer` of the input's builder.\n\n```java\nimport com.example.weather.ClientConfig;\nimport com.example.weather.WeatherClient;\nimport com.example.weather.model.ListCitiesInput;\nimport com.example.weather.model.ListCitiesOutput;\nimport java.util.Iterator;\nimport java.util.List;\n\npublic class ListCitiesPagesExample {\n    public static void main(String[] args) {\n        // The client sends Authorization: Bearer <token> and Crucible-Version: 2026-10-01 on every request.\n        ClientConfig config = new ClientConfig();\n        config.endpoint = System.getenv(\"WEATHER_ENDPOINT\");\n        config.token = () -> System.getenv(\"WEATHER_TOKEN\");\n        WeatherClient client = new WeatherClient(config);\n\n        // Values from the model's example \"List the first page\".\n        ListCitiesInput input = ListCitiesInput.builder()\n            .maxResults(2)\n            .tags(List.of(\"coastal\", \"capital\"))\n            .build();\n\n        // Each page is one response; the iterator sends `nextToken` for the next.\n        Iterator<ListCitiesOutput> pages = client.listCitiesPages(input);\n        while (pages.hasNext()) {\n            ListCitiesOutput page = pages.next();\n            System.out.println(page.cities());\n        }\n    }\n}\n```",
             "title": "Pagination"
           },
           {
+            "html": "<p>Each modelled error is an unchecked exception class in <code>com.example.weather.model</code>, extending <code>com.example.weather.WeatherException</code> and <code>ServiceError</code>: catch it and read its accessors, and <code>status()</code>, <code>requestId()</code> and <code>headers()</code>. Transport failures throw <code>NetworkError</code>.</p>\n",
             "id": "errors",
             "markdown": "Each modelled error is an unchecked exception class in `com.example.weather.model`, extending `com.example.weather.WeatherException` and `ServiceError`: catch it and read its accessors, and `status()`, `requestId()` and `headers()`. Transport failures throw `NetworkError`.",
             "title": "Errors"
           },
           {
+            "html": "<p>Calls are retried with backoff when a retry is safe: a modelled throttling error is retried for any operation; transport failures, HTTP 500, 502, 503 and 504 and other retryable modelled errors only for operations that are read-only, idempotent or carry an idempotency token. For operations that declare an idempotency token, an unset token is generated once per call and reused on every attempt; set it yourself to replay one logical request across calls. These operations fill a token: <code>createCity</code> (<code>clientToken</code>). Set <code>ClientConfig.maxAttempts</code> to change the attempt limit (3, the first included; 1 turns retries off), and <code>timeout</code>, <code>baseDelay</code> and <code>maxDelay</code> for the call budget and backoff.</p>\n",
             "id": "retries",
             "markdown": "Calls are retried with backoff when a retry is safe: a modelled throttling error is retried for any operation; transport failures, HTTP 500, 502, 503 and 504 and other retryable modelled errors only for operations that are read-only, idempotent or carry an idempotency token. For operations that declare an idempotency token, an unset token is generated once per call and reused on every attempt; set it yourself to replay one logical request across calls. These operations fill a token: `createCity` (`clientToken`). Set `ClientConfig.maxAttempts` to change the attempt limit (3, the first included; 1 turns retries off), and `timeout`, `baseDelay` and `maxDelay` for the call budget and backoff.",
             "title": "Retries and idempotency"
           },
           {
+            "html": "<ul>\n<li><a href=\"https://weather.example/docs\">Home</a></li>\n<li><a href=\"https://github.com/Operation-Leyline/crucible/blob/main/docs/clients/java.md\">The Java client guide</a></li>\n</ul>\n",
             "id": "links",
             "markdown": "- [Home](<https://weather.example/docs>)\n- [The Java client guide](<https://github.com/Operation-Leyline/crucible/blob/main/docs/clients/java.md>)",
             "title": "Links"
@@ -2250,7 +2297,8 @@
         ],
         "name": "com.example:weather",
         "qualifier": "com.example.weather.model."
-      }
+      },
+      "released": false
     },
     "kotlin": {
       "audience": "external",
@@ -2270,37 +2318,44 @@
             "fence": "kotlin",
             "text": "implementation(\"com.example:weather-kotlin:0.0.0-SNAPSHOT\")"
           },
-          "note": null
+          "note": null,
+          "noteHtml": null
         },
         "language": "Kotlin",
         "refersTo": "com.example.weather",
         "sections": [
           {
+            "html": "<pre><code class=\"language-kotlin\">import com.example.weather.WeatherClient\nimport com.example.weather.ClientConfig\nimport com.example.weather.model.*\n\nval client = WeatherClient(\n    ClientConfig(\n        endpoint = System.getenv(\"WEATHER_ENDPOINT\"),\n        token = { System.getenv(\"WEATHER_TOKEN\") },\n    ),\n)\n</code></pre>\n<p><code>ClientConfig.token</code> is a <code>suspend</code> function returning the bearer token, called for every attempt, so a refreshed token is used. <code>ClientConfig.endpoint</code> is the service's base URL. The client is <code>AutoCloseable</code>; share one instance. The client sends <code>Authorization: Bearer &lt;token&gt;</code> and <code>Crucible-Version: 2026-10-01</code> on every request.</p>\n",
             "id": "client",
             "markdown": "```kotlin\nimport com.example.weather.WeatherClient\nimport com.example.weather.ClientConfig\nimport com.example.weather.model.*\n\nval client = WeatherClient(\n    ClientConfig(\n        endpoint = System.getenv(\"WEATHER_ENDPOINT\"),\n        token = { System.getenv(\"WEATHER_TOKEN\") },\n    ),\n)\n```\n\n`ClientConfig.token` is a `suspend` function returning the bearer token, called for every attempt, so a refreshed token is used. `ClientConfig.endpoint` is the service's base URL. The client is `AutoCloseable`; share one instance. The client sends `Authorization: Bearer <token>` and `Crucible-Version: 2026-10-01` on every request.",
             "title": "Create a client"
           },
           {
+            "html": "<p><code>getCity</code> calls <code>GetCity</code>. Every operation has a method like it.</p>\n<pre><code class=\"language-kotlin\">import com.example.weather.ClientConfig\nimport com.example.weather.WeatherClient\nimport com.example.weather.model.*\nimport kotlin.time.ExperimentalTime\nimport kotlin.time.Instant\n\n@OptIn(ExperimentalTime::class)\nsuspend fun main() {\n    // The client sends Authorization: Bearer &lt;token&gt; and Crucible-Version: 2026-10-01 on every request.\n    val client = WeatherClient(\n        ClientConfig(\n            endpoint = System.getenv(\"WEATHER_ENDPOINT\"),\n            token = { System.getenv(\"WEATHER_TOKEN\") },\n        ),\n    )\n\n    // Values from the model's example \"Read a city\".\n    val input = GetCityInput {\n        cityId = \"c-0a1b2c3d\"\n        at = Instant.parse(\"2026-01-02T03:04:05Z\")\n    }\n\n    try {\n        val output = client.getCity(input)\n        println(output.city)\n        println(output.forecast)\n        println(output.requestIdValue)\n    } catch (error: NotFoundError) {\n        System.err.println(\"NotFoundError (HTTP ${error.status}): ${error.messageValue}\")\n    }\n}\n</code></pre>\n",
             "id": "call",
             "markdown": "`getCity` calls `GetCity`. Every operation has a method like it.\n\n```kotlin\nimport com.example.weather.ClientConfig\nimport com.example.weather.WeatherClient\nimport com.example.weather.model.*\nimport kotlin.time.ExperimentalTime\nimport kotlin.time.Instant\n\n@OptIn(ExperimentalTime::class)\nsuspend fun main() {\n    // The client sends Authorization: Bearer <token> and Crucible-Version: 2026-10-01 on every request.\n    val client = WeatherClient(\n        ClientConfig(\n            endpoint = System.getenv(\"WEATHER_ENDPOINT\"),\n            token = { System.getenv(\"WEATHER_TOKEN\") },\n        ),\n    )\n\n    // Values from the model's example \"Read a city\".\n    val input = GetCityInput {\n        cityId = \"c-0a1b2c3d\"\n        at = Instant.parse(\"2026-01-02T03:04:05Z\")\n    }\n\n    try {\n        val output = client.getCity(input)\n        println(output.city)\n        println(output.forecast)\n        println(output.requestIdValue)\n    } catch (error: NotFoundError) {\n        System.err.println(\"NotFoundError (HTTP ${error.status}): ${error.messageValue}\")\n    }\n}\n```",
             "title": "Call an operation"
           },
           {
+            "html": "<p>A paginated operation also has a <code>&lt;operation&gt;Pages</code> method returning a cold <code>Flow</code> of pages (<code>client.listCitiesPages(input).collect { page -&gt; ... }</code>): each page is one response, and it stops when the response carries no next token. Every operation is a <code>suspend</code> function, called from a coroutine; each also takes the input's DSL block (<code>client.getCity { ... }</code>).</p>\n<pre><code class=\"language-kotlin\">import com.example.weather.ClientConfig\nimport com.example.weather.WeatherClient\nimport com.example.weather.model.*\n\nsuspend fun main() {\n    // The client sends Authorization: Bearer &lt;token&gt; and Crucible-Version: 2026-10-01 on every request.\n    val client = WeatherClient(\n        ClientConfig(\n            endpoint = System.getenv(\"WEATHER_ENDPOINT\"),\n            token = { System.getenv(\"WEATHER_TOKEN\") },\n        ),\n    )\n\n    // Values from the model's example \"List the first page\".\n    val input = ListCitiesInput {\n        maxResults = 2\n        tags = listOf(\"coastal\", \"capital\")\n    }\n\n    // Each page is one response; the flow sends `nextToken` for the next.\n    client.listCitiesPages(input).collect { page -&gt;\n        println(page.cities)\n    }\n}\n</code></pre>\n",
             "id": "pagination",
             "markdown": "A paginated operation also has a `<operation>Pages` method returning a cold `Flow` of pages (`client.listCitiesPages(input).collect { page -> ... }`): each page is one response, and it stops when the response carries no next token. Every operation is a `suspend` function, called from a coroutine; each also takes the input's DSL block (`client.getCity { ... }`).\n\n```kotlin\nimport com.example.weather.ClientConfig\nimport com.example.weather.WeatherClient\nimport com.example.weather.model.*\n\nsuspend fun main() {\n    // The client sends Authorization: Bearer <token> and Crucible-Version: 2026-10-01 on every request.\n    val client = WeatherClient(\n        ClientConfig(\n            endpoint = System.getenv(\"WEATHER_ENDPOINT\"),\n            token = { System.getenv(\"WEATHER_TOKEN\") },\n        ),\n    )\n\n    // Values from the model's example \"List the first page\".\n    val input = ListCitiesInput {\n        maxResults = 2\n        tags = listOf(\"coastal\", \"capital\")\n    }\n\n    // Each page is one response; the flow sends `nextToken` for the next.\n    client.listCitiesPages(input).collect { page ->\n        println(page.cities)\n    }\n}\n```",
             "title": "Pagination"
           },
           {
+            "html": "<p>Each modelled error is an exception class in <code>com.example.weather.model</code>, extending <code>com.example.weather.WeatherException</code> and <code>ServiceError</code>: catch it and read its properties, and <code>status</code>, <code>requestId</code> and <code>headers</code>. A modelled member named like an exception property takes a <code>Value</code> suffix (<code>messageValue</code>). Transport failures throw <code>NetworkError</code>.</p>\n",
             "id": "errors",
             "markdown": "Each modelled error is an exception class in `com.example.weather.model`, extending `com.example.weather.WeatherException` and `ServiceError`: catch it and read its properties, and `status`, `requestId` and `headers`. A modelled member named like an exception property takes a `Value` suffix (`messageValue`). Transport failures throw `NetworkError`.",
             "title": "Errors"
           },
           {
+            "html": "<p>Calls are retried with backoff when a retry is safe: a modelled throttling error is retried for any operation; transport failures, HTTP 500, 502, 503 and 504 and other retryable modelled errors only for operations that are read-only, idempotent or carry an idempotency token. For operations that declare an idempotency token, an unset token is generated once per call and reused on every attempt; set it yourself to replay one logical request across calls. These operations fill a token: <code>createCity</code> (<code>clientToken</code>). Set <code>maxAttempts</code> in <code>ClientConfig</code> to change the attempt limit (3, the first included; 1 turns retries off), <code>timeout</code>, <code>baseDelay</code> and <code>maxDelay</code> for the call budget and backoff, and <code>retryMode</code> to <code>RetryMode.STANDARD</code> or <code>RetryMode.ADAPTIVE</code> for a shared retry quota or client-side rate limiting.</p>\n",
             "id": "retries",
             "markdown": "Calls are retried with backoff when a retry is safe: a modelled throttling error is retried for any operation; transport failures, HTTP 500, 502, 503 and 504 and other retryable modelled errors only for operations that are read-only, idempotent or carry an idempotency token. For operations that declare an idempotency token, an unset token is generated once per call and reused on every attempt; set it yourself to replay one logical request across calls. These operations fill a token: `createCity` (`clientToken`). Set `maxAttempts` in `ClientConfig` to change the attempt limit (3, the first included; 1 turns retries off), `timeout`, `baseDelay` and `maxDelay` for the call budget and backoff, and `retryMode` to `RetryMode.STANDARD` or `RetryMode.ADAPTIVE` for a shared retry quota or client-side rate limiting.",
             "title": "Retries and idempotency"
           },
           {
+            "html": "<ul>\n<li><a href=\"https://weather.example/docs\">Home</a></li>\n<li><a href=\"https://github.com/Operation-Leyline/crucible/blob/main/docs/clients/kotlin.md\">The Kotlin client guide</a></li>\n</ul>\n",
             "id": "links",
             "markdown": "- [Home](<https://weather.example/docs>)\n- [The Kotlin client guide](<https://github.com/Operation-Leyline/crucible/blob/main/docs/clients/kotlin.md>)",
             "title": "Links"
@@ -2597,7 +2652,8 @@
         ],
         "name": "com.example:weather-kotlin",
         "qualifier": ""
-      }
+      },
+      "released": false
     },
     "php": {
       "audience": "external",
@@ -2616,37 +2672,44 @@
             "composer require example/weather:0.0.0"
           ],
           "manifest": null,
-          "note": null
+          "note": null,
+          "noteHtml": null
         },
         "language": "PHP",
         "refersTo": "Example\\Weather",
         "sections": [
           {
+            "html": "<pre><code class=\"language-php\">$client = new \\Example\\Weather\\WeatherClient(new \\Example\\Weather\\Runtime\\ClientConfig(\n    endpoint: getenv('WEATHER_ENDPOINT') ?: null,\n    token: fn (): ?string =&gt; getenv('WEATHER_TOKEN') ?: null,\n));\n</code></pre>\n<p><code>Example\\Weather\\Runtime\\ClientConfig</code>'s <code>token</code> is a closure returning the bearer token, or null to send none; it is called for every attempt, so a refreshed token is used. <code>endpoint</code> is the service's base URL. The client sends <code>Authorization: Bearer &lt;token&gt;</code> and <code>Crucible-Version: 2026-10-01</code> on every request.</p>\n",
             "id": "client",
             "markdown": "```php\n$client = new \\Example\\Weather\\WeatherClient(new \\Example\\Weather\\Runtime\\ClientConfig(\n    endpoint: getenv('WEATHER_ENDPOINT') ?: null,\n    token: fn (): ?string => getenv('WEATHER_TOKEN') ?: null,\n));\n```\n\n`Example\\Weather\\Runtime\\ClientConfig`'s `token` is a closure returning the bearer token, or null to send none; it is called for every attempt, so a refreshed token is used. `endpoint` is the service's base URL. The client sends `Authorization: Bearer <token>` and `Crucible-Version: 2026-10-01` on every request.",
             "title": "Create a client"
           },
           {
+            "html": "<p><code>getCity</code> calls <code>GetCity</code>. Every operation has a method like it.</p>\n<pre><code class=\"language-php\">&lt;?php\ndeclare(strict_types=1);\n\nrequire __DIR__ . '/vendor/autoload.php';\n\n// The client sends Authorization: Bearer &lt;token&gt; and Crucible-Version: 2026-10-01 on every request.\n$client = new \\Example\\Weather\\WeatherClient(new \\Example\\Weather\\Runtime\\ClientConfig(\n    endpoint: getenv('WEATHER_ENDPOINT') ?: null,\n    token: fn (): ?string =&gt; getenv('WEATHER_TOKEN') ?: null,\n));\n\n// Values from the model's example \"Read a city\".\n$input = new \\Example\\Weather\\GetCityInput(\n    cityId: 'c-0a1b2c3d',\n    at: \\Example\\Weather\\Runtime\\Timestamp::parse('2026-01-02T03:04:05Z'),\n);\n\ntry {\n    $output = $client-&gt;getCity($input);\n    var_dump($output-&gt;city);\n    var_dump($output-&gt;forecast);\n    var_dump($output-&gt;requestId);\n} catch (\\Example\\Weather\\NotFoundError $error) {\n    fwrite(STDERR, 'NotFoundError (HTTP ' . $error-&gt;metadata-&gt;status . '): ' . $error-&gt;messageValue . PHP_EOL);\n}\n</code></pre>\n",
             "id": "call",
             "markdown": "`getCity` calls `GetCity`. Every operation has a method like it.\n\n```php\n<?php\ndeclare(strict_types=1);\n\nrequire __DIR__ . '/vendor/autoload.php';\n\n// The client sends Authorization: Bearer <token> and Crucible-Version: 2026-10-01 on every request.\n$client = new \\Example\\Weather\\WeatherClient(new \\Example\\Weather\\Runtime\\ClientConfig(\n    endpoint: getenv('WEATHER_ENDPOINT') ?: null,\n    token: fn (): ?string => getenv('WEATHER_TOKEN') ?: null,\n));\n\n// Values from the model's example \"Read a city\".\n$input = new \\Example\\Weather\\GetCityInput(\n    cityId: 'c-0a1b2c3d',\n    at: \\Example\\Weather\\Runtime\\Timestamp::parse('2026-01-02T03:04:05Z'),\n);\n\ntry {\n    $output = $client->getCity($input);\n    var_dump($output->city);\n    var_dump($output->forecast);\n    var_dump($output->requestId);\n} catch (\\Example\\Weather\\NotFoundError $error) {\n    fwrite(STDERR, 'NotFoundError (HTTP ' . $error->metadata->status . '): ' . $error->messageValue . PHP_EOL);\n}\n```",
             "title": "Call an operation"
           },
           {
+            "html": "<p>A paginated operation also has a <code>&lt;method&gt;Pages</code> method returning a <code>Generator</code> of pages (<code>foreach ($client-&gt;listCitiesPages($input) as $page)</code>): each page is one response, requested as the loop reaches it, and it stops when the response carries no next token.</p>\n<pre><code class=\"language-php\">&lt;?php\ndeclare(strict_types=1);\n\nrequire __DIR__ . '/vendor/autoload.php';\n\n// The client sends Authorization: Bearer &lt;token&gt; and Crucible-Version: 2026-10-01 on every request.\n$client = new \\Example\\Weather\\WeatherClient(new \\Example\\Weather\\Runtime\\ClientConfig(\n    endpoint: getenv('WEATHER_ENDPOINT') ?: null,\n    token: fn (): ?string =&gt; getenv('WEATHER_TOKEN') ?: null,\n));\n\n// Values from the model's example \"List the first page\".\n$input = new \\Example\\Weather\\ListCitiesInput(\n    maxResults: 2,\n    tags: [\n        'coastal',\n        'capital',\n    ],\n);\n\n// Each page is one response; the paginator sends `nextToken` for the next.\nforeach ($client-&gt;listCitiesPages($input) as $page) {\n    var_dump($page-&gt;cities);\n}\n</code></pre>\n",
             "id": "pagination",
             "markdown": "A paginated operation also has a `<method>Pages` method returning a `Generator` of pages (`foreach ($client->listCitiesPages($input) as $page)`): each page is one response, requested as the loop reaches it, and it stops when the response carries no next token.\n\n```php\n<?php\ndeclare(strict_types=1);\n\nrequire __DIR__ . '/vendor/autoload.php';\n\n// The client sends Authorization: Bearer <token> and Crucible-Version: 2026-10-01 on every request.\n$client = new \\Example\\Weather\\WeatherClient(new \\Example\\Weather\\Runtime\\ClientConfig(\n    endpoint: getenv('WEATHER_ENDPOINT') ?: null,\n    token: fn (): ?string => getenv('WEATHER_TOKEN') ?: null,\n));\n\n// Values from the model's example \"List the first page\".\n$input = new \\Example\\Weather\\ListCitiesInput(\n    maxResults: 2,\n    tags: [\n        'coastal',\n        'capital',\n    ],\n);\n\n// Each page is one response; the paginator sends `nextToken` for the next.\nforeach ($client->listCitiesPages($input) as $page) {\n    var_dump($page->cities);\n}\n```",
             "title": "Pagination"
           },
           {
+            "html": "<p>Each modelled error is a class in <code>Example\\Weather</code>, extending <code>WeatherException</code> (a <code>Runtime\\ServiceError</code>, itself a <code>RuntimeException</code>): catch it and read its properties and <code>$error-&gt;metadata-&gt;status</code>. A modelled <code>message</code> member is the <code>messageValue</code> property, since <code>getMessage()</code> belongs to the exception. A failure without a response throws <code>Runtime\\NetworkException</code>; a call that outlasts the configured <code>timeout</code> throws <code>Runtime\\TimeoutException</code>.</p>\n",
             "id": "errors",
             "markdown": "Each modelled error is a class in `Example\\Weather`, extending `WeatherException` (a `Runtime\\ServiceError`, itself a `RuntimeException`): catch it and read its properties and `$error->metadata->status`. A modelled `message` member is the `messageValue` property, since `getMessage()` belongs to the exception. A failure without a response throws `Runtime\\NetworkException`; a call that outlasts the configured `timeout` throws `Runtime\\TimeoutException`.",
             "title": "Errors"
           },
           {
+            "html": "<p>Calls are retried with backoff when a retry is safe: a modelled throttling error is retried for any operation; transport failures, HTTP 500, 502, 503 and 504 and other retryable modelled errors only for operations that are read-only, idempotent or carry an idempotency token. For operations that declare an idempotency token, an unset token is generated once per call and reused on every attempt; set it yourself to replay one logical request across calls. These operations fill a token: <code>createCity</code> (<code>clientToken</code>). Pass <code>maxAttempts</code> to <code>Example\\Weather\\Runtime\\ClientConfig</code> to change the attempt limit (3, the first included); 1 turns retries off.</p>\n",
             "id": "retries",
             "markdown": "Calls are retried with backoff when a retry is safe: a modelled throttling error is retried for any operation; transport failures, HTTP 500, 502, 503 and 504 and other retryable modelled errors only for operations that are read-only, idempotent or carry an idempotency token. For operations that declare an idempotency token, an unset token is generated once per call and reused on every attempt; set it yourself to replay one logical request across calls. These operations fill a token: `createCity` (`clientToken`). Pass `maxAttempts` to `Example\\Weather\\Runtime\\ClientConfig` to change the attempt limit (3, the first included); 1 turns retries off.",
             "title": "Retries and idempotency"
           },
           {
+            "html": "<ul>\n<li><a href=\"https://weather.example/docs\">Home</a></li>\n<li><a href=\"https://github.com/Operation-Leyline/crucible/blob/main/docs/clients/php.md\">The PHP client guide</a></li>\n</ul>\n",
             "id": "links",
             "markdown": "- [Home](<https://weather.example/docs>)\n- [The PHP client guide](<https://github.com/Operation-Leyline/crucible/blob/main/docs/clients/php.md>)",
             "title": "Links"
@@ -2939,7 +3002,8 @@
         "imports": [],
         "name": "example/weather",
         "qualifier": "\\Example\\Weather\\"
-      }
+      },
+      "released": false
     },
     "python": {
       "audience": "external",
@@ -2958,37 +3022,44 @@
             "pip install example-weather==0.0.0.dev0"
           ],
           "manifest": null,
-          "note": null
+          "note": null,
+          "noteHtml": null
         },
         "language": "Python",
         "refersTo": "example_weather",
         "sections": [
           {
+            "html": "<pre><code class=\"language-python\">import example_weather\n\nimport os\n\nclient = example_weather.WeatherClient(token=os.environ[\"WEATHER_TOKEN\"])\n</code></pre>\n<p><code>token</code> is the bearer token: a string, or a function returning one, called for every attempt so a refreshed token is used (the async client also awaits an async one). <code>AsyncWeatherClient</code> has the same constructor and methods, to <code>await</code>. The client sends <code>Authorization: Bearer &lt;token&gt;</code> and <code>Crucible-Version: 2026-10-01</code> on every request.</p>\n",
             "id": "client",
             "markdown": "```python\nimport example_weather\n\nimport os\n\nclient = example_weather.WeatherClient(token=os.environ[\"WEATHER_TOKEN\"])\n```\n\n`token` is the bearer token: a string, or a function returning one, called for every attempt so a refreshed token is used (the async client also awaits an async one). `AsyncWeatherClient` has the same constructor and methods, to `await`. The client sends `Authorization: Bearer <token>` and `Crucible-Version: 2026-10-01` on every request.",
             "title": "Create a client"
           },
           {
+            "html": "<p><code>get_city</code> calls <code>GetCity</code>. Every operation has a method like it.</p>\n<pre><code class=\"language-python\">import os\nfrom datetime import datetime, timezone\n\nimport example_weather\n\n# The client sends Authorization: Bearer &lt;token&gt; and Crucible-Version: 2026-10-01 on every request.\nclient = example_weather.WeatherClient(token=os.environ[\"WEATHER_TOKEN\"])\n\n# Values from the model's example \"Read a city\".\nrequest = example_weather.GetCityInput(\n    city_id=\"c-0a1b2c3d\",\n    at=datetime(2026, 1, 2, 3, 4, 5, tzinfo=timezone.utc),\n)\n\ntry:\n    output = client.get_city(request)\n    print(output.city)\n    print(output.forecast)\n    print(output.request_id)\nexcept example_weather.NotFoundError as error:\n    print(f\"NotFoundError (HTTP {error.metadata.status}): {error.message}\")\n</code></pre>\n",
             "id": "call",
             "markdown": "`get_city` calls `GetCity`. Every operation has a method like it.\n\n```python\nimport os\nfrom datetime import datetime, timezone\n\nimport example_weather\n\n# The client sends Authorization: Bearer <token> and Crucible-Version: 2026-10-01 on every request.\nclient = example_weather.WeatherClient(token=os.environ[\"WEATHER_TOKEN\"])\n\n# Values from the model's example \"Read a city\".\nrequest = example_weather.GetCityInput(\n    city_id=\"c-0a1b2c3d\",\n    at=datetime(2026, 1, 2, 3, 4, 5, tzinfo=timezone.utc),\n)\n\ntry:\n    output = client.get_city(request)\n    print(output.city)\n    print(output.forecast)\n    print(output.request_id)\nexcept example_weather.NotFoundError as error:\n    print(f\"NotFoundError (HTTP {error.metadata.status}): {error.message}\")\n```",
             "title": "Call an operation"
           },
           {
+            "html": "<p>A paginated operation also has a <code>&lt;operation&gt;_pages</code> method returning an iterator of pages (<code>for page in client.list_cities_pages(request)</code>; <code>async for</code> on the async client): each page is one response, and it stops when the response carries no next token.</p>\n<pre><code class=\"language-python\">import os\n\nimport example_weather\n\n# The client sends Authorization: Bearer &lt;token&gt; and Crucible-Version: 2026-10-01 on every request.\nclient = example_weather.WeatherClient(token=os.environ[\"WEATHER_TOKEN\"])\n\n# Values from the model's example \"List the first page\".\nrequest = example_weather.ListCitiesInput(\n    max_results=2,\n    tags=[\n        \"coastal\",\n        \"capital\",\n    ],\n)\n\n# Each page is one response; the paginator sends `next_token` for the next.\nfor page in client.list_cities_pages(request):\n    print(page.cities)\n</code></pre>\n",
             "id": "pagination",
             "markdown": "A paginated operation also has a `<operation>_pages` method returning an iterator of pages (`for page in client.list_cities_pages(request)`; `async for` on the async client): each page is one response, and it stops when the response carries no next token.\n\n```python\nimport os\n\nimport example_weather\n\n# The client sends Authorization: Bearer <token> and Crucible-Version: 2026-10-01 on every request.\nclient = example_weather.WeatherClient(token=os.environ[\"WEATHER_TOKEN\"])\n\n# Values from the model's example \"List the first page\".\nrequest = example_weather.ListCitiesInput(\n    max_results=2,\n    tags=[\n        \"coastal\",\n        \"capital\",\n    ],\n)\n\n# Each page is one response; the paginator sends `next_token` for the next.\nfor page in client.list_cities_pages(request):\n    print(page.cities)\n```",
             "title": "Pagination"
           },
           {
+            "html": "<p>Each modelled error is a class exported from the package, subclassing <code>WeatherException</code> and <code>ServiceError</code>: catch it with <code>except</code> and read its fields and <code>metadata.status</code>. Transport failures raise <code>NetworkError</code>; an exhausted <code>timeout</code> raises <code>TimeoutError</code>.</p>\n",
             "id": "errors",
             "markdown": "Each modelled error is a class exported from the package, subclassing `WeatherException` and `ServiceError`: catch it with `except` and read its fields and `metadata.status`. Transport failures raise `NetworkError`; an exhausted `timeout` raises `TimeoutError`.",
             "title": "Errors"
           },
           {
+            "html": "<p>Calls are retried with backoff when a retry is safe: a modelled throttling error is retried for any operation; transport failures, HTTP 500, 502, 503 and 504 and other retryable modelled errors only for operations that are read-only, idempotent or carry an idempotency token. For operations that declare an idempotency token, an unset token is generated once per call and reused on every attempt; set it yourself to replay one logical request across calls. These operations fill a token: <code>create_city</code> (<code>client_token</code>). Pass <code>max_attempts=</code> to the client to change the attempt limit (3, the first included; 1 turns retries off), and <code>retry_mode=\"standard\"</code> or <code>\"adaptive\"</code> for a retry quota.</p>\n",
             "id": "retries",
             "markdown": "Calls are retried with backoff when a retry is safe: a modelled throttling error is retried for any operation; transport failures, HTTP 500, 502, 503 and 504 and other retryable modelled errors only for operations that are read-only, idempotent or carry an idempotency token. For operations that declare an idempotency token, an unset token is generated once per call and reused on every attempt; set it yourself to replay one logical request across calls. These operations fill a token: `create_city` (`client_token`). Pass `max_attempts=` to the client to change the attempt limit (3, the first included; 1 turns retries off), and `retry_mode=\"standard\"` or `\"adaptive\"` for a retry quota.",
             "title": "Retries and idempotency"
           },
           {
+            "html": "<ul>\n<li><a href=\"https://weather.example/docs\">Home</a></li>\n<li><a href=\"https://github.com/Operation-Leyline/crucible/blob/main/docs/clients/python.md\">The Python client guide</a></li>\n</ul>\n",
             "id": "links",
             "markdown": "- [Home](<https://weather.example/docs>)\n- [The Python client guide](<https://github.com/Operation-Leyline/crucible/blob/main/docs/clients/python.md>)",
             "title": "Links"
@@ -3283,7 +3354,8 @@
         ],
         "name": "example-weather",
         "qualifier": "example_weather."
-      }
+      },
+      "released": false
     },
     "r": {
       "audience": "external",
@@ -3302,37 +3374,44 @@
             "R CMD INSTALL weather_0.0.0.tar.gz"
           ],
           "manifest": null,
-          "note": null
+          "note": null,
+          "noteHtml": null
         },
         "language": "R",
         "refersTo": "weather",
         "sections": [
           {
+            "html": "<pre><code class=\"language-r\">library(weather)\n\nclient &lt;- WeatherClient(client_config(\n  endpoint = Sys.getenv(\"WEATHER_ENDPOINT\"),\n  token = function() Sys.getenv(\"WEATHER_TOKEN\")\n))\n</code></pre>\n<p><code>token</code> in <code>client_config()</code> is a function returning the bearer token, called for every attempt so a refreshed token is used. <code>endpoint</code> is the service's base URL. Call <code>client$close()</code> when finished. The client sends <code>Authorization: Bearer &lt;token&gt;</code> and <code>Crucible-Version: 2026-10-01</code> on every request.</p>\n",
             "id": "client",
             "markdown": "```r\nlibrary(weather)\n\nclient <- WeatherClient(client_config(\n  endpoint = Sys.getenv(\"WEATHER_ENDPOINT\"),\n  token = function() Sys.getenv(\"WEATHER_TOKEN\")\n))\n```\n\n`token` in `client_config()` is a function returning the bearer token, called for every attempt so a refreshed token is used. `endpoint` is the service's base URL. Call `client$close()` when finished. The client sends `Authorization: Bearer <token>` and `Crucible-Version: 2026-10-01` on every request.",
             "title": "Create a client"
           },
           {
+            "html": "<p><code>get_city</code> calls <code>GetCity</code>. Every operation has a method like it.</p>\n<pre><code class=\"language-r\">library(weather)\n\n# The client sends Authorization: Bearer &lt;token&gt; and Crucible-Version: 2026-10-01 on every request.\nclient &lt;- WeatherClient(client_config(\n  endpoint = Sys.getenv(\"WEATHER_ENDPOINT\"),\n  token = function() Sys.getenv(\"WEATHER_TOKEN\")\n))\n\n# Values from the model's example \"Read a city\".\ninput &lt;- GetCityInput(\n  city_id = \"c-0a1b2c3d\",\n  # 2026-01-02T03:04:05Z\n  at = timestamp(1767323045)\n)\n\ntryCatch(\n  {\n    output &lt;- client$get_city(input)\n    print(output$city)\n    print(output$forecast)\n    print(output$request_id)\n  },\n  NotFoundError = function(error) {\n    message(\"NotFoundError (HTTP \", error$metadata$status, \"): \", conditionMessage(error))\n  }\n)\n\nclient$close()\n</code></pre>\n",
             "id": "call",
             "markdown": "`get_city` calls `GetCity`. Every operation has a method like it.\n\n```r\nlibrary(weather)\n\n# The client sends Authorization: Bearer <token> and Crucible-Version: 2026-10-01 on every request.\nclient <- WeatherClient(client_config(\n  endpoint = Sys.getenv(\"WEATHER_ENDPOINT\"),\n  token = function() Sys.getenv(\"WEATHER_TOKEN\")\n))\n\n# Values from the model's example \"Read a city\".\ninput <- GetCityInput(\n  city_id = \"c-0a1b2c3d\",\n  # 2026-01-02T03:04:05Z\n  at = timestamp(1767323045)\n)\n\ntryCatch(\n  {\n    output <- client$get_city(input)\n    print(output$city)\n    print(output$forecast)\n    print(output$request_id)\n  },\n  NotFoundError = function(error) {\n    message(\"NotFoundError (HTTP \", error$metadata$status, \"): \", conditionMessage(error))\n  }\n)\n\nclient$close()\n```",
             "title": "Call an operation"
           },
           {
+            "html": "<p>A paginated operation also has a <code>&lt;method&gt;_pages</code> method returning a function: each call sends one request and returns that page, and <code>NULL</code> once a response carries no next token (<code>next_page &lt;- client$list_cities_pages(input)</code>, then <code>while (!is.null(page &lt;- next_page())) ...</code>).</p>\n<pre><code class=\"language-r\">library(weather)\n\n# The client sends Authorization: Bearer &lt;token&gt; and Crucible-Version: 2026-10-01 on every request.\nclient &lt;- WeatherClient(client_config(\n  endpoint = Sys.getenv(\"WEATHER_ENDPOINT\"),\n  token = function() Sys.getenv(\"WEATHER_TOKEN\")\n))\n\n# Values from the model's example \"List the first page\".\ninput &lt;- ListCitiesInput(\n  max_results = 2,\n  tags = list(\"coastal\", \"capital\")\n)\n\n# Each page is one response; the paginator sends `next_token` for the next.\nnext_page &lt;- client$list_cities_pages(input)\nwhile (!is.null(page &lt;- next_page())) {\n  print(page$cities)\n}\n\nclient$close()\n</code></pre>\n",
             "id": "pagination",
             "markdown": "A paginated operation also has a `<method>_pages` method returning a function: each call sends one request and returns that page, and `NULL` once a response carries no next token (`next_page <- client$list_cities_pages(input)`, then `while (!is.null(page <- next_page())) ...`).\n\n```r\nlibrary(weather)\n\n# The client sends Authorization: Bearer <token> and Crucible-Version: 2026-10-01 on every request.\nclient <- WeatherClient(client_config(\n  endpoint = Sys.getenv(\"WEATHER_ENDPOINT\"),\n  token = function() Sys.getenv(\"WEATHER_TOKEN\")\n))\n\n# Values from the model's example \"List the first page\".\ninput <- ListCitiesInput(\n  max_results = 2,\n  tags = list(\"coastal\", \"capital\")\n)\n\n# Each page is one response; the paginator sends `next_token` for the next.\nnext_page <- client$list_cities_pages(input)\nwhile (!is.null(page <- next_page())) {\n  print(page$cities)\n}\n\nclient$close()\n```",
             "title": "Pagination"
           },
           {
+            "html": "<p>A modelled error is signalled as a condition classed with the error's name, then <code>WeatherException</code>, <code>crucible_service_error</code> and <code>crucible_error</code>: handle it with <code>tryCatch(..., ConflictError = function(error) ...)</code> and read <code>conditionMessage(error)</code>, <code>error$metadata$status</code> and its decoded members in <code>error$model</code>. Transport failures signal <code>crucible_network</code>, an exhausted <code>timeout</code> <code>crucible_deadline</code>, and a cancelled call <code>crucible_cancelled</code>.</p>\n",
             "id": "errors",
             "markdown": "A modelled error is signalled as a condition classed with the error's name, then `WeatherException`, `crucible_service_error` and `crucible_error`: handle it with `tryCatch(..., ConflictError = function(error) ...)` and read `conditionMessage(error)`, `error$metadata$status` and its decoded members in `error$model`. Transport failures signal `crucible_network`, an exhausted `timeout` `crucible_deadline`, and a cancelled call `crucible_cancelled`.",
             "title": "Errors"
           },
           {
+            "html": "<p>Calls are retried with backoff when a retry is safe: a modelled throttling error is retried for any operation; transport failures, HTTP 500, 502, 503 and 504 and other retryable modelled errors only for operations that are read-only, idempotent or carry an idempotency token. For operations that declare an idempotency token, an unset token is generated once per call and reused on every attempt; set it yourself to replay one logical request across calls. These operations fill a token: <code>create_city</code> (<code>client_token</code>). Set <code>max_attempts</code> in <code>client_config()</code> to change the attempt limit (3, the first included); <code>max_attempts = 1</code> turns retries off.</p>\n",
             "id": "retries",
             "markdown": "Calls are retried with backoff when a retry is safe: a modelled throttling error is retried for any operation; transport failures, HTTP 500, 502, 503 and 504 and other retryable modelled errors only for operations that are read-only, idempotent or carry an idempotency token. For operations that declare an idempotency token, an unset token is generated once per call and reused on every attempt; set it yourself to replay one logical request across calls. These operations fill a token: `create_city` (`client_token`). Set `max_attempts` in `client_config()` to change the attempt limit (3, the first included); `max_attempts = 1` turns retries off.",
             "title": "Retries and idempotency"
           },
           {
+            "html": "<ul>\n<li><a href=\"https://weather.example/docs\">Home</a></li>\n<li><a href=\"https://github.com/Operation-Leyline/crucible/blob/main/docs/clients/r.md\">The R client guide</a></li>\n</ul>\n",
             "id": "links",
             "markdown": "- [Home](<https://weather.example/docs>)\n- [The R client guide](<https://github.com/Operation-Leyline/crucible/blob/main/docs/clients/r.md>)",
             "title": "Links"
@@ -3627,7 +3706,8 @@
         ],
         "name": "weather",
         "qualifier": ""
-      }
+      },
+      "released": false
     },
     "ruby": {
       "audience": "external",
@@ -3646,37 +3726,44 @@
             "gem install example_weather -v 0.0.0"
           ],
           "manifest": null,
-          "note": null
+          "note": null,
+          "noteHtml": null
         },
         "language": "Ruby",
         "refersTo": "example_weather",
         "sections": [
           {
+            "html": "<pre><code class=\"language-ruby\">require 'example_weather'\n\nclient = ExampleWeather::WeatherClient.new(ExampleWeather::Runtime::ClientConfig.new(endpoint: ENV.fetch('WEATHER_ENDPOINT'), token: -&gt; { ENV.fetch('WEATHER_TOKEN') }))\n</code></pre>\n<p><code>token:</code> in <code>ExampleWeather::Runtime::ClientConfig</code> is the bearer token's source: a callable returning the token (or nil to send none), called on every attempt so a refreshed token is used. <code>endpoint:</code> is the service's base URL. The client sends <code>Authorization: Bearer &lt;token&gt;</code> and <code>Crucible-Version: 2026-10-01</code> on every request.</p>\n",
             "id": "client",
             "markdown": "```ruby\nrequire 'example_weather'\n\nclient = ExampleWeather::WeatherClient.new(ExampleWeather::Runtime::ClientConfig.new(endpoint: ENV.fetch('WEATHER_ENDPOINT'), token: -> { ENV.fetch('WEATHER_TOKEN') }))\n```\n\n`token:` in `ExampleWeather::Runtime::ClientConfig` is the bearer token's source: a callable returning the token (or nil to send none), called on every attempt so a refreshed token is used. `endpoint:` is the service's base URL. The client sends `Authorization: Bearer <token>` and `Crucible-Version: 2026-10-01` on every request.",
             "title": "Create a client"
           },
           {
+            "html": "<p><code>get_city</code> calls <code>GetCity</code>. Every operation has a method like it.</p>\n<pre><code class=\"language-ruby\">require 'example_weather'\n\n# The client sends Authorization: Bearer &lt;token&gt; and Crucible-Version: 2026-10-01 on every request.\nclient = ExampleWeather::WeatherClient.new(ExampleWeather::Runtime::ClientConfig.new(endpoint: ENV.fetch('WEATHER_ENDPOINT'), token: -&gt; { ENV.fetch('WEATHER_TOKEN') }))\n\n# Values from the model's example \"Read a city\".\ninput = ExampleWeather::GetCityInput.new(\n  city_id: 'c-0a1b2c3d',\n  at: ExampleWeather::Runtime::Timestamp.parse('2026-01-02T03:04:05Z'),\n)\n\nbegin\n  output = client.get_city(input)\n  p output.city\n  p output.forecast\n  p output.request_id\nrescue ExampleWeather::NotFoundError =&gt; error\n  warn \"NotFoundError (HTTP #{error.metadata.status}): #{error.message_value}\"\nend\n</code></pre>\n",
             "id": "call",
             "markdown": "`get_city` calls `GetCity`. Every operation has a method like it.\n\n```ruby\nrequire 'example_weather'\n\n# The client sends Authorization: Bearer <token> and Crucible-Version: 2026-10-01 on every request.\nclient = ExampleWeather::WeatherClient.new(ExampleWeather::Runtime::ClientConfig.new(endpoint: ENV.fetch('WEATHER_ENDPOINT'), token: -> { ENV.fetch('WEATHER_TOKEN') }))\n\n# Values from the model's example \"Read a city\".\ninput = ExampleWeather::GetCityInput.new(\n  city_id: 'c-0a1b2c3d',\n  at: ExampleWeather::Runtime::Timestamp.parse('2026-01-02T03:04:05Z'),\n)\n\nbegin\n  output = client.get_city(input)\n  p output.city\n  p output.forecast\n  p output.request_id\nrescue ExampleWeather::NotFoundError => error\n  warn \"NotFoundError (HTTP #{error.metadata.status}): #{error.message_value}\"\nend\n```",
             "title": "Call an operation"
           },
           {
+            "html": "<p>A paginated operation also has a <code>&lt;operation&gt;_pages</code> method returning an <code>Enumerator</code> of pages (<code>client.list_cities_pages(input).each do |page| ... end</code>): each page is one response, fetched as the enumerator is consumed, and it stops when the response carries no next token.</p>\n<pre><code class=\"language-ruby\">require 'example_weather'\n\n# The client sends Authorization: Bearer &lt;token&gt; and Crucible-Version: 2026-10-01 on every request.\nclient = ExampleWeather::WeatherClient.new(ExampleWeather::Runtime::ClientConfig.new(endpoint: ENV.fetch('WEATHER_ENDPOINT'), token: -&gt; { ENV.fetch('WEATHER_TOKEN') }))\n\n# Values from the model's example \"List the first page\".\ninput = ExampleWeather::ListCitiesInput.new(\n  max_results: 2,\n  tags: [\n    'coastal',\n    'capital',\n  ],\n)\n\n# Each page is one response; the paginator sends `next_token` for the next.\nclient.list_cities_pages(input).each do |page|\n  p page.cities\nend\n</code></pre>\n",
             "id": "pagination",
             "markdown": "A paginated operation also has a `<operation>_pages` method returning an `Enumerator` of pages (`client.list_cities_pages(input).each do |page| ... end`): each page is one response, fetched as the enumerator is consumed, and it stops when the response carries no next token.\n\n```ruby\nrequire 'example_weather'\n\n# The client sends Authorization: Bearer <token> and Crucible-Version: 2026-10-01 on every request.\nclient = ExampleWeather::WeatherClient.new(ExampleWeather::Runtime::ClientConfig.new(endpoint: ENV.fetch('WEATHER_ENDPOINT'), token: -> { ENV.fetch('WEATHER_TOKEN') }))\n\n# Values from the model's example \"List the first page\".\ninput = ExampleWeather::ListCitiesInput.new(\n  max_results: 2,\n  tags: [\n    'coastal',\n    'capital',\n  ],\n)\n\n# Each page is one response; the paginator sends `next_token` for the next.\nclient.list_cities_pages(input).each do |page|\n  p page.cities\nend\n```",
             "title": "Pagination"
           },
           {
+            "html": "<p>Each modelled error is a class under <code>ExampleWeather</code>, a subclass of <code>ExampleWeather::WeatherException</code>: <code>rescue</code> it and read its members and <code>metadata.status</code> (a modelled <code>message</code> member is <code>message_value</code>). An error response the model does not describe raises <code>ExampleWeather::WeatherException</code> itself; no response raises <code>ExampleWeather::Runtime::NetworkError</code>, and a call outlasting <code>timeout:</code> raises <code>ExampleWeather::Runtime::DeadlineError</code>.</p>\n",
             "id": "errors",
             "markdown": "Each modelled error is a class under `ExampleWeather`, a subclass of `ExampleWeather::WeatherException`: `rescue` it and read its members and `metadata.status` (a modelled `message` member is `message_value`). An error response the model does not describe raises `ExampleWeather::WeatherException` itself; no response raises `ExampleWeather::Runtime::NetworkError`, and a call outlasting `timeout:` raises `ExampleWeather::Runtime::DeadlineError`.",
             "title": "Errors"
           },
           {
+            "html": "<p>Calls are retried with backoff when a retry is safe: a modelled throttling error is retried for any operation; transport failures, HTTP 500, 502, 503 and 504 and other retryable modelled errors only for operations that are read-only, idempotent or carry an idempotency token. For operations that declare an idempotency token, an unset token is generated once per call and reused on every attempt; set it yourself to replay one logical request across calls. These operations fill a token: <code>create_city</code> (<code>client_token</code>). Set <code>max_attempts:</code> in <code>ExampleWeather::Runtime::ClientConfig</code> to change the attempt limit (3, the first included; 1 turns retries off), and <code>base_delay:</code> and <code>max_delay:</code> for the backoff.</p>\n",
             "id": "retries",
             "markdown": "Calls are retried with backoff when a retry is safe: a modelled throttling error is retried for any operation; transport failures, HTTP 500, 502, 503 and 504 and other retryable modelled errors only for operations that are read-only, idempotent or carry an idempotency token. For operations that declare an idempotency token, an unset token is generated once per call and reused on every attempt; set it yourself to replay one logical request across calls. These operations fill a token: `create_city` (`client_token`). Set `max_attempts:` in `ExampleWeather::Runtime::ClientConfig` to change the attempt limit (3, the first included; 1 turns retries off), and `base_delay:` and `max_delay:` for the backoff.",
             "title": "Retries and idempotency"
           },
           {
+            "html": "<ul>\n<li><a href=\"https://weather.example/docs\">Home</a></li>\n<li><a href=\"https://github.com/Operation-Leyline/crucible/blob/main/docs/clients/ruby.md\">The Ruby client guide</a></li>\n</ul>\n",
             "id": "links",
             "markdown": "- [Home](<https://weather.example/docs>)\n- [The Ruby client guide](<https://github.com/Operation-Leyline/crucible/blob/main/docs/clients/ruby.md>)",
             "title": "Links"
@@ -3971,7 +4058,8 @@
         ],
         "name": "example_weather",
         "qualifier": "ExampleWeather::"
-      }
+      },
+      "released": false
     },
     "rust": {
       "audience": "external",
@@ -3994,37 +4082,44 @@
             "fence": "toml",
             "text": "[dependencies]\nweather-sdk = \"0.9.0\"\ntokio = { version = \"1\", features = [\"macros\", \"rt-multi-thread\"] }"
           },
-          "note": null
+          "note": null,
+          "noteHtml": null
         },
         "language": "Rust",
         "refersTo": "weather_sdk",
         "sections": [
           {
+            "html": "<pre><code class=\"language-rust\">use weather_sdk::*;\n\nlet client = WeatherClient::new(\n    runtime::Config::new(std::env::var(\"WEATHER_ENDPOINT\")?)\n        .token(runtime::Token::fixed(std::env::var(\"WEATHER_TOKEN\")?)),\n);\n</code></pre>\n<p><code>runtime::Token::fixed</code> sends one bearer token; <code>runtime::Token::provider</code> takes an async function called for every attempt, so a refreshed token is used. Methods are <code>async</code>: run them on an async runtime such as Tokio. The client sends <code>Authorization: Bearer &lt;token&gt;</code> and <code>Crucible-Version: 2026-10-01</code> on every request.</p>\n",
             "id": "client",
             "markdown": "```rust\nuse weather_sdk::*;\n\nlet client = WeatherClient::new(\n    runtime::Config::new(std::env::var(\"WEATHER_ENDPOINT\")?)\n        .token(runtime::Token::fixed(std::env::var(\"WEATHER_TOKEN\")?)),\n);\n```\n\n`runtime::Token::fixed` sends one bearer token; `runtime::Token::provider` takes an async function called for every attempt, so a refreshed token is used. Methods are `async`: run them on an async runtime such as Tokio. The client sends `Authorization: Bearer <token>` and `Crucible-Version: 2026-10-01` on every request.",
             "title": "Create a client"
           },
           {
+            "html": "<p><code>get_city</code> calls <code>GetCity</code>. Every operation has a method like it.</p>\n<pre><code class=\"language-rust\">use weather_sdk::*;\n\n#[tokio::main]\nasync fn main() -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {\n    // The client sends Authorization: Bearer &lt;token&gt; and Crucible-Version: 2026-10-01 on every request.\n    let client = WeatherClient::new(\n        runtime::Config::new(std::env::var(\"WEATHER_ENDPOINT\")?)\n            .token(runtime::Token::fixed(std::env::var(\"WEATHER_TOKEN\")?)),\n    );\n\n    // Values from the model's example \"Read a city\".\n    let input = GetCityInput::builder()\n        .city_id(\"c-0a1b2c3d\")\n        .at(runtime::time::parse_date_time(\"2026-01-02T03:04:05Z\").ok_or(\"an RFC 3339 instant\")?)\n        .build()?;\n\n    match client.get_city(input).await {\n        Ok(output) =&gt; {\n            println!(\"{:?}\", output.city());\n            println!(\"{:?}\", output.forecast());\n            println!(\"{:?}\", output.request_id());\n        }\n        Err(runtime::Error::Service(runtime::ServiceError {\n            error: GetCityError::NotFoundError(error),\n            metadata,\n        })) =&gt; {\n            eprintln!(\"NotFoundError (HTTP {}): {:?}\", metadata.status, error.message());\n        }\n        Err(error) =&gt; return Err(error.into()),\n    }\n    Ok(())\n}\n</code></pre>\n",
             "id": "call",
             "markdown": "`get_city` calls `GetCity`. Every operation has a method like it.\n\n```rust\nuse weather_sdk::*;\n\n#[tokio::main]\nasync fn main() -> Result<(), Box<dyn std::error::Error>> {\n    // The client sends Authorization: Bearer <token> and Crucible-Version: 2026-10-01 on every request.\n    let client = WeatherClient::new(\n        runtime::Config::new(std::env::var(\"WEATHER_ENDPOINT\")?)\n            .token(runtime::Token::fixed(std::env::var(\"WEATHER_TOKEN\")?)),\n    );\n\n    // Values from the model's example \"Read a city\".\n    let input = GetCityInput::builder()\n        .city_id(\"c-0a1b2c3d\")\n        .at(runtime::time::parse_date_time(\"2026-01-02T03:04:05Z\").ok_or(\"an RFC 3339 instant\")?)\n        .build()?;\n\n    match client.get_city(input).await {\n        Ok(output) => {\n            println!(\"{:?}\", output.city());\n            println!(\"{:?}\", output.forecast());\n            println!(\"{:?}\", output.request_id());\n        }\n        Err(runtime::Error::Service(runtime::ServiceError {\n            error: GetCityError::NotFoundError(error),\n            metadata,\n        })) => {\n            eprintln!(\"NotFoundError (HTTP {}): {:?}\", metadata.status, error.message());\n        }\n        Err(error) => return Err(error.into()),\n    }\n    Ok(())\n}\n```",
             "title": "Call an operation"
           },
           {
+            "html": "<p>A paginated operation also has a <code>&lt;operation&gt;_pages</code> method returning a paginator (<code>client.list_cities_pages(input)</code>): call <code>next_page().await</code> until it returns <code>None</code>; each page is one response.</p>\n<pre><code class=\"language-rust\">use weather_sdk::*;\n\n#[tokio::main]\nasync fn main() -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {\n    // The client sends Authorization: Bearer &lt;token&gt; and Crucible-Version: 2026-10-01 on every request.\n    let client = WeatherClient::new(\n        runtime::Config::new(std::env::var(\"WEATHER_ENDPOINT\")?)\n            .token(runtime::Token::fixed(std::env::var(\"WEATHER_TOKEN\")?)),\n    );\n\n    // Values from the model's example \"List the first page\".\n    let input = ListCitiesInput::builder()\n        .max_results(2)\n        .tags(vec![\n            \"coastal\".to_owned(),\n            \"capital\".to_owned(),\n        ])\n        .build();\n\n    // Each page is one response; the paginator sends `nextToken` for the next.\n    let mut pages = client.list_cities_pages(input);\n    while let Some(page) = pages.next_page().await {\n        let page = page?;\n        println!(\"{:?}\", page.cities());\n    }\n    Ok(())\n}\n</code></pre>\n",
             "id": "pagination",
             "markdown": "A paginated operation also has a `<operation>_pages` method returning a paginator (`client.list_cities_pages(input)`): call `next_page().await` until it returns `None`; each page is one response.\n\n```rust\nuse weather_sdk::*;\n\n#[tokio::main]\nasync fn main() -> Result<(), Box<dyn std::error::Error>> {\n    // The client sends Authorization: Bearer <token> and Crucible-Version: 2026-10-01 on every request.\n    let client = WeatherClient::new(\n        runtime::Config::new(std::env::var(\"WEATHER_ENDPOINT\")?)\n            .token(runtime::Token::fixed(std::env::var(\"WEATHER_TOKEN\")?)),\n    );\n\n    // Values from the model's example \"List the first page\".\n    let input = ListCitiesInput::builder()\n        .max_results(2)\n        .tags(vec![\n            \"coastal\".to_owned(),\n            \"capital\".to_owned(),\n        ])\n        .build();\n\n    // Each page is one response; the paginator sends `nextToken` for the next.\n    let mut pages = client.list_cities_pages(input);\n    while let Some(page) = pages.next_page().await {\n        let page = page?;\n        println!(\"{:?}\", page.cities());\n    }\n    Ok(())\n}\n```",
             "title": "Pagination"
           },
           {
+            "html": "<p>A call returns <code>Result&lt;Output, runtime::Error&lt;OperationError&gt;&gt;</code>. A modelled error is <code>runtime::Error::Service(runtime::ServiceError { error, metadata })</code>, where <code>error</code> is the operation's error enum (<code>GetCityError::NotFoundError(..)</code>, say) and <code>metadata</code> holds the HTTP status and request ID; <code>WeatherException</code> unifies every operation's errors. Other variants are transport, decoding, timeout and cancellation failures.</p>\n",
             "id": "errors",
             "markdown": "A call returns `Result<Output, runtime::Error<OperationError>>`. A modelled error is `runtime::Error::Service(runtime::ServiceError { error, metadata })`, where `error` is the operation's error enum (`GetCityError::NotFoundError(..)`, say) and `metadata` holds the HTTP status and request ID; `WeatherException` unifies every operation's errors. Other variants are transport, decoding, timeout and cancellation failures.",
             "title": "Errors"
           },
           {
+            "html": "<p>Calls are retried with backoff when a retry is safe: a modelled throttling error is retried for any operation; transport failures, HTTP 500, 502, 503 and 504 and other retryable modelled errors only for operations that are read-only, idempotent or carry an idempotency token. For operations that declare an idempotency token, an unset token is generated once per call and reused on every attempt; set it yourself to replay one logical request across calls. These operations fill a token: <code>create_city</code> (<code>client_token</code>). <code>runtime::Config::retry(runtime::Retry { .. })</code> changes the attempt limit (3, the first included) and backoff; <code>runtime::Retry::none()</code> turns retries off.</p>\n",
             "id": "retries",
             "markdown": "Calls are retried with backoff when a retry is safe: a modelled throttling error is retried for any operation; transport failures, HTTP 500, 502, 503 and 504 and other retryable modelled errors only for operations that are read-only, idempotent or carry an idempotency token. For operations that declare an idempotency token, an unset token is generated once per call and reused on every attempt; set it yourself to replay one logical request across calls. These operations fill a token: `create_city` (`client_token`). `runtime::Config::retry(runtime::Retry { .. })` changes the attempt limit (3, the first included) and backoff; `runtime::Retry::none()` turns retries off.",
             "title": "Retries and idempotency"
           },
           {
+            "html": "<ul>\n<li><a href=\"https://weather.example/docs\">Home</a></li>\n<li><a href=\"https://github.com/Operation-Leyline/crucible/blob/main/docs/clients/rust.md\">The Rust client guide</a></li>\n</ul>\n",
             "id": "links",
             "markdown": "- [Home](<https://weather.example/docs>)\n- [The Rust client guide](<https://github.com/Operation-Leyline/crucible/blob/main/docs/clients/rust.md>)",
             "title": "Links"
@@ -4319,7 +4414,8 @@
         ],
         "name": "weather-sdk",
         "qualifier": ""
-      }
+      },
+      "released": false
     },
     "swift": {
       "audience": "external",
@@ -4336,37 +4432,44 @@
         "install": {
           "commands": [],
           "manifest": null,
-          "note": "Add the package with SwiftPM's `.package(url:from:)` from the Git repository it is released to, and its `Weather` product to the target that calls the API."
+          "note": "Add the package with SwiftPM's `.package(url:from:)` from the Git repository it is released to, and its `Weather` product to the target that calls the API.",
+          "noteHtml": "<p>Add the package with SwiftPM's <code>.package(url:from:)</code> from the Git repository it is released to, and its <code>Weather</code> product to the target that calls the API.</p>\n"
         },
         "language": "Swift",
         "refersTo": "Weather",
         "sections": [
           {
+            "html": "<pre><code class=\"language-swift\">import Foundation\nimport Weather\n\nlet client = try WeatherClient(ClientConfig(\n    endpoint: ProcessInfo.processInfo.environment[\"WEATHER_ENDPOINT\"],\n    token: { ProcessInfo.processInfo.environment[\"WEATHER_TOKEN\"] }\n))\n</code></pre>\n<p><code>token</code> is the bearer token source: an <code>async throws</code> closure returning the token, or <code>nil</code> to send none, called on every attempt so a refreshed token is used. <code>endpoint</code> is the service's base URL. The initializer throws for an invalid configuration; share one client, and call <code>close()</code> when finished. The client sends <code>Authorization: Bearer &lt;token&gt;</code> and <code>Crucible-Version: 2026-10-01</code> on every request.</p>\n",
             "id": "client",
             "markdown": "```swift\nimport Foundation\nimport Weather\n\nlet client = try WeatherClient(ClientConfig(\n    endpoint: ProcessInfo.processInfo.environment[\"WEATHER_ENDPOINT\"],\n    token: { ProcessInfo.processInfo.environment[\"WEATHER_TOKEN\"] }\n))\n```\n\n`token` is the bearer token source: an `async throws` closure returning the token, or `nil` to send none, called on every attempt so a refreshed token is used. `endpoint` is the service's base URL. The initializer throws for an invalid configuration; share one client, and call `close()` when finished. The client sends `Authorization: Bearer <token>` and `Crucible-Version: 2026-10-01` on every request.",
             "title": "Create a client"
           },
           {
+            "html": "<p><code>getCity</code> calls <code>GetCity</code>. Every operation has a method like it.</p>\n<pre><code class=\"language-swift\">import Foundation\nimport Weather\n\n// The client sends Authorization: Bearer &lt;token&gt; and Crucible-Version: 2026-10-01 on every request.\nlet client = try WeatherClient(ClientConfig(\n    endpoint: ProcessInfo.processInfo.environment[\"WEATHER_ENDPOINT\"],\n    token: { ProcessInfo.processInfo.environment[\"WEATHER_TOKEN\"] }\n))\n\n// Values from the model's example \"Read a city\".\nlet input = try GetCityInput(\n    cityId: \"c-0a1b2c3d\",\n    at: Timestamp(seconds: 1767323045 /* 2026-01-02T03:04:05Z */)\n)\n\ndo {\n    let output = try await client.getCity(input)\n    print(\"city:\", output.city)\n    if let forecast = output.forecast { print(\"forecast:\", forecast) }\n    if let requestId = output.requestId { print(\"requestId:\", requestId) }\n} catch let error as NotFoundError {\n    print(\"NotFoundError (HTTP \\(error.metadata.status)):\", error.message)\n}\nclient.close()\n</code></pre>\n",
             "id": "call",
             "markdown": "`getCity` calls `GetCity`. Every operation has a method like it.\n\n```swift\nimport Foundation\nimport Weather\n\n// The client sends Authorization: Bearer <token> and Crucible-Version: 2026-10-01 on every request.\nlet client = try WeatherClient(ClientConfig(\n    endpoint: ProcessInfo.processInfo.environment[\"WEATHER_ENDPOINT\"],\n    token: { ProcessInfo.processInfo.environment[\"WEATHER_TOKEN\"] }\n))\n\n// Values from the model's example \"Read a city\".\nlet input = try GetCityInput(\n    cityId: \"c-0a1b2c3d\",\n    at: Timestamp(seconds: 1767323045 /* 2026-01-02T03:04:05Z */)\n)\n\ndo {\n    let output = try await client.getCity(input)\n    print(\"city:\", output.city)\n    if let forecast = output.forecast { print(\"forecast:\", forecast) }\n    if let requestId = output.requestId { print(\"requestId:\", requestId) }\n} catch let error as NotFoundError {\n    print(\"NotFoundError (HTTP \\(error.metadata.status)):\", error.message)\n}\nclient.close()\n```",
             "title": "Call an operation"
           },
           {
+            "html": "<p>A paginated operation also has a <code>&lt;operation&gt;Pages</code> method returning <code>Pages&lt;Output&gt;</code>, an <code>AsyncSequence</code> of pages (<code>for try await page in try client.listCitiesPages(input)</code>): each page is one response, each step makes one call, and it stops when the response carries no next token.</p>\n<pre><code class=\"language-swift\">import Foundation\nimport Weather\n\n// The client sends Authorization: Bearer &lt;token&gt; and Crucible-Version: 2026-10-01 on every request.\nlet client = try WeatherClient(ClientConfig(\n    endpoint: ProcessInfo.processInfo.environment[\"WEATHER_ENDPOINT\"],\n    token: { ProcessInfo.processInfo.environment[\"WEATHER_TOKEN\"] }\n))\n\n// Values from the model's example \"List the first page\".\nlet input = ListCitiesInput(\n    maxResults: 2,\n    tags: [\n        \"coastal\",\n        \"capital\",\n    ]\n)\n\n// Each page is one response; the paginator sends `nextToken` for the next.\nfor try await page in try client.listCitiesPages(input) {\n    print(page.cities)\n}\nclient.close()\n</code></pre>\n",
             "id": "pagination",
             "markdown": "A paginated operation also has a `<operation>Pages` method returning `Pages<Output>`, an `AsyncSequence` of pages (`for try await page in try client.listCitiesPages(input)`): each page is one response, each step makes one call, and it stops when the response carries no next token.\n\n```swift\nimport Foundation\nimport Weather\n\n// The client sends Authorization: Bearer <token> and Crucible-Version: 2026-10-01 on every request.\nlet client = try WeatherClient(ClientConfig(\n    endpoint: ProcessInfo.processInfo.environment[\"WEATHER_ENDPOINT\"],\n    token: { ProcessInfo.processInfo.environment[\"WEATHER_TOKEN\"] }\n))\n\n// Values from the model's example \"List the first page\".\nlet input = ListCitiesInput(\n    maxResults: 2,\n    tags: [\n        \"coastal\",\n        \"capital\",\n    ]\n)\n\n// Each page is one response; the paginator sends `nextToken` for the next.\nfor try await page in try client.listCitiesPages(input) {\n    print(page.cities)\n}\nclient.close()\n```",
             "title": "Pagination"
           },
           {
+            "html": "<p>Each modelled error is a struct conforming to <code>WeatherException</code> and <code>ServiceError</code>: catch it with <code>catch let error as NotFoundError</code> and read its properties and <code>metadata.status</code>. An error the client does not model is <code>UnknownServiceError</code>; a failure without a response throws <code>NetworkError</code>, and a call outlasting <code>ClientConfig.timeout</code> throws <code>TimeoutError</code>.</p>\n",
             "id": "errors",
             "markdown": "Each modelled error is a struct conforming to `WeatherException` and `ServiceError`: catch it with `catch let error as NotFoundError` and read its properties and `metadata.status`. An error the client does not model is `UnknownServiceError`; a failure without a response throws `NetworkError`, and a call outlasting `ClientConfig.timeout` throws `TimeoutError`.",
             "title": "Errors"
           },
           {
+            "html": "<p>Calls are retried with backoff when a retry is safe: a modelled throttling error is retried for any operation; transport failures, HTTP 500, 502, 503 and 504 and other retryable modelled errors only for operations that are read-only, idempotent or carry an idempotency token. For operations that declare an idempotency token, an unset token is generated once per call and reused on every attempt; set it yourself to replay one logical request across calls. These operations fill a token: <code>createCity</code> (<code>clientToken</code>). Set <code>maxAttempts</code> in <code>ClientConfig</code> to change the attempt limit (3, the first included; 1 turns retries off), and <code>baseDelay</code> and <code>maxDelay</code> for the backoff.</p>\n",
             "id": "retries",
             "markdown": "Calls are retried with backoff when a retry is safe: a modelled throttling error is retried for any operation; transport failures, HTTP 500, 502, 503 and 504 and other retryable modelled errors only for operations that are read-only, idempotent or carry an idempotency token. For operations that declare an idempotency token, an unset token is generated once per call and reused on every attempt; set it yourself to replay one logical request across calls. These operations fill a token: `createCity` (`clientToken`). Set `maxAttempts` in `ClientConfig` to change the attempt limit (3, the first included; 1 turns retries off), and `baseDelay` and `maxDelay` for the backoff.",
             "title": "Retries and idempotency"
           },
           {
+            "html": "<ul>\n<li><a href=\"https://weather.example/docs\">Home</a></li>\n<li><a href=\"https://github.com/Operation-Leyline/crucible/blob/main/docs/clients/swift.md\">The Swift client guide</a></li>\n</ul>\n",
             "id": "links",
             "markdown": "- [Home](<https://weather.example/docs>)\n- [The Swift client guide](<https://github.com/Operation-Leyline/crucible/blob/main/docs/clients/swift.md>)",
             "title": "Links"
@@ -4662,7 +4765,8 @@
         ],
         "name": "Weather",
         "qualifier": ""
-      }
+      },
+      "released": false
     },
     "ts": {
       "audience": "external",
@@ -4681,37 +4785,44 @@
             "npm install @example/weather@0.0.0-dev"
           ],
           "manifest": null,
-          "note": null
+          "note": null,
+          "noteHtml": null
         },
         "language": "TypeScript",
         "refersTo": "@example/weather",
         "sections": [
           {
+            "html": "<pre><code class=\"language-ts\">import { WeatherClient } from \"@example/weather\";\nimport type * as models from \"@example/weather\";\n\nconst client = new WeatherClient({ token: process.env.WEATHER_TOKEN });\n</code></pre>\n<p><code>token</code> is the bearer token: a string, or a function returning one or a promise of one, called for every attempt so a refreshed token is used. The client sends <code>Authorization: Bearer &lt;token&gt;</code> and <code>Crucible-Version: 2026-10-01</code> on every request, and <code>x-amz-content-sha256</code> (content-sha256) on every POST, PUT and PATCH (the empty body's digest when there is none) and any other request with a body.</p>\n",
             "id": "client",
             "markdown": "```ts\nimport { WeatherClient } from \"@example/weather\";\nimport type * as models from \"@example/weather\";\n\nconst client = new WeatherClient({ token: process.env.WEATHER_TOKEN });\n```\n\n`token` is the bearer token: a string, or a function returning one or a promise of one, called for every attempt so a refreshed token is used. The client sends `Authorization: Bearer <token>` and `Crucible-Version: 2026-10-01` on every request, and `x-amz-content-sha256` (content-sha256) on every POST, PUT and PATCH (the empty body's digest when there is none) and any other request with a body.",
             "title": "Create a client"
           },
           {
+            "html": "<p><code>getCity</code> calls <code>GetCity</code>. Every operation has a method like it.</p>\n<pre><code class=\"language-ts\">import { NotFoundError, WeatherClient } from \"@example/weather\";\nimport type * as models from \"@example/weather\";\n\n// The client sends Authorization: Bearer &lt;token&gt; and Crucible-Version: 2026-10-01 on every request, and x-amz-content-sha256 (content-sha256) on every POST, PUT and PATCH (the empty body's digest when there is none) and any other request with a body.\nconst client = new WeatherClient({ token: process.env.WEATHER_TOKEN });\n\n// Values from the model's example \"Read a city\".\nconst input: models.GetCityInput = {\n  cityId: \"c-0a1b2c3d\",\n  at: new Date(\"2026-01-02T03:04:05Z\"),\n};\n\ntry {\n  const output = await client.getCity(input);\n  console.log(output.city);\n  console.log(output.forecast);\n  console.log(output.requestId);\n} catch (error) {\n  if (error instanceof NotFoundError) {\n    console.error(`NotFoundError (HTTP ${error.$metadata.status}):`, error.message);\n  } else {\n    throw error;\n  }\n}\n</code></pre>\n",
             "id": "call",
             "markdown": "`getCity` calls `GetCity`. Every operation has a method like it.\n\n```ts\nimport { NotFoundError, WeatherClient } from \"@example/weather\";\nimport type * as models from \"@example/weather\";\n\n// The client sends Authorization: Bearer <token> and Crucible-Version: 2026-10-01 on every request, and x-amz-content-sha256 (content-sha256) on every POST, PUT and PATCH (the empty body's digest when there is none) and any other request with a body.\nconst client = new WeatherClient({ token: process.env.WEATHER_TOKEN });\n\n// Values from the model's example \"Read a city\".\nconst input: models.GetCityInput = {\n  cityId: \"c-0a1b2c3d\",\n  at: new Date(\"2026-01-02T03:04:05Z\"),\n};\n\ntry {\n  const output = await client.getCity(input);\n  console.log(output.city);\n  console.log(output.forecast);\n  console.log(output.requestId);\n} catch (error) {\n  if (error instanceof NotFoundError) {\n    console.error(`NotFoundError (HTTP ${error.$metadata.status}):`, error.message);\n  } else {\n    throw error;\n  }\n}\n```",
             "title": "Call an operation"
           },
           {
+            "html": "<p>A paginated operation also has a <code>paginate&lt;Operation&gt;</code> method returning an async iterator of pages (<code>for await (const page of client.paginateListCities(input))</code>): each page is one response, and it stops when the response carries no next token.</p>\n<pre><code class=\"language-ts\">import { WeatherClient } from \"@example/weather\";\nimport type * as models from \"@example/weather\";\n\n// The client sends Authorization: Bearer &lt;token&gt; and Crucible-Version: 2026-10-01 on every request, and x-amz-content-sha256 (content-sha256) on every POST, PUT and PATCH (the empty body's digest when there is none) and any other request with a body.\nconst client = new WeatherClient({ token: process.env.WEATHER_TOKEN });\n\n// Values from the model's example \"List the first page\".\nconst input: models.ListCitiesInput = {\n  maxResults: 2,\n  tags: [\n    \"coastal\",\n    \"capital\",\n  ],\n};\n\n// Each page is one response; the paginator sends `nextToken` for the next.\nfor await (const page of client.paginateListCities(input)) {\n  console.log(page.cities);\n}\n</code></pre>\n",
             "id": "pagination",
             "markdown": "A paginated operation also has a `paginate<Operation>` method returning an async iterator of pages (`for await (const page of client.paginateListCities(input))`): each page is one response, and it stops when the response carries no next token.\n\n```ts\nimport { WeatherClient } from \"@example/weather\";\nimport type * as models from \"@example/weather\";\n\n// The client sends Authorization: Bearer <token> and Crucible-Version: 2026-10-01 on every request, and x-amz-content-sha256 (content-sha256) on every POST, PUT and PATCH (the empty body's digest when there is none) and any other request with a body.\nconst client = new WeatherClient({ token: process.env.WEATHER_TOKEN });\n\n// Values from the model's example \"List the first page\".\nconst input: models.ListCitiesInput = {\n  maxResults: 2,\n  tags: [\n    \"coastal\",\n    \"capital\",\n  ],\n};\n\n// Each page is one response; the paginator sends `nextToken` for the next.\nfor await (const page of client.paginateListCities(input)) {\n  console.log(page.cities);\n}\n```",
             "title": "Pagination"
           },
           {
+            "html": "<p>Each modelled error is a class exported from the package, extending <code>WeatherException</code> and <code>ServiceError</code>: test it with <code>instanceof</code> and read its fields and <code>$metadata.status</code>. Transport failures throw <code>NetworkError</code>; an exhausted <code>timeoutMs</code> throws <code>TimeoutError</code>.</p>\n",
             "id": "errors",
             "markdown": "Each modelled error is a class exported from the package, extending `WeatherException` and `ServiceError`: test it with `instanceof` and read its fields and `$metadata.status`. Transport failures throw `NetworkError`; an exhausted `timeoutMs` throws `TimeoutError`.",
             "title": "Errors"
           },
           {
+            "html": "<p>Calls are retried with backoff when a retry is safe: a modelled throttling error is retried for any operation; transport failures, HTTP 500, 502, 503 and 504 and other retryable modelled errors only for operations that are read-only, idempotent or carry an idempotency token. For operations that declare an idempotency token, an unset token is generated once per call and reused on every attempt; set it yourself to replay one logical request across calls. These operations fill a token: <code>createCity</code> (<code>clientToken</code>). Set <code>retry: { maxAttempts }</code> in the client configuration to change the attempt limit (3, the first included), or <code>retry: false</code> to turn retries off.</p>\n",
             "id": "retries",
             "markdown": "Calls are retried with backoff when a retry is safe: a modelled throttling error is retried for any operation; transport failures, HTTP 500, 502, 503 and 504 and other retryable modelled errors only for operations that are read-only, idempotent or carry an idempotency token. For operations that declare an idempotency token, an unset token is generated once per call and reused on every attempt; set it yourself to replay one logical request across calls. These operations fill a token: `createCity` (`clientToken`). Set `retry: { maxAttempts }` in the client configuration to change the attempt limit (3, the first included), or `retry: false` to turn retries off.",
             "title": "Retries and idempotency"
           },
           {
+            "html": "<ul>\n<li><a href=\"https://weather.example/docs\">Home</a></li>\n<li><a href=\"https://github.com/Operation-Leyline/crucible/blob/main/docs/clients/typescript.md\">The TypeScript client guide</a></li>\n</ul>\n",
             "id": "links",
             "markdown": "- [Home](<https://weather.example/docs>)\n- [The TypeScript client guide](<https://github.com/Operation-Leyline/crucible/blob/main/docs/clients/typescript.md>)",
             "title": "Links"
@@ -5014,7 +5125,8 @@
         ],
         "name": "@example/weather",
         "qualifier": "models."
-      }
+      },
+      "released": false
     }
   },
   "service": "example.weather#Weather"

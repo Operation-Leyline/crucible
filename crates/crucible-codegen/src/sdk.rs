@@ -19,7 +19,7 @@ use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 
 #[cfg(feature = "docs")]
-pub use docs::package as docs_package;
+pub use docs::{OPENAPI_FILE, package as docs_package};
 pub use language::Language;
 pub use revision::{Pin, check_revision, pinned_revisions};
 pub use source::{docs_source, source};
@@ -61,6 +61,11 @@ pub struct Docs {
     pub out: String,
     /// The version floor, as an SDK's.
     pub version: Option<String>,
+    /// Whether the package also holds `openapi.json`, the service as an
+    /// OpenAPI 3.1 document, for tools that read one.
+    pub openapi: bool,
+    /// The API server URL `openapi.json` names; relative paths without one.
+    pub endpoint: Option<String>,
     pub description: Option<String>,
     pub repository: Option<String>,
     pub homepage: Option<String>,
@@ -115,6 +120,8 @@ impl Docs {
             }),
         );
         map.insert("schemas".into(), json!(self.schemas.name()));
+        map.insert("openapi".into(), json!(self.openapi));
+        map.insert("endpoint".into(), json!(self.endpoint));
         map.insert("out".into(), json!(self.out));
         map.insert("version".into(), json!(self.version));
         map.insert("description".into(), json!(self.description));

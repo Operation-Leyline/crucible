@@ -17,6 +17,21 @@ version's section when it is prepared.
 
 ### Added
 
+- The API reference can carry the service's OpenAPI document: `crucible
+  generate docs --openapi [--endpoint <url>]` writes `openapi.json` beside
+  `describe.json`, and `[docs]` in `crucible-sdk.toml` takes `openapi = true`
+  and `endpoint`, so the released reference package holds it for a site to
+  offer as a download.
+- `crucible.sdks/1`: each SDK carries `released`, whether a released version
+  was named for it. A documentation site shows install steps only for a
+  release: a development build's version is on no registry.
+- `crucible.sdks/1`: a guide section carries `html`, and its install note
+  `noteHtml`: the Markdown rendered and sanitized as documentation's `html`
+  is, so a site inserts a guide without a Markdown renderer of its own.
+- Generated SDK guides say how a private package is read: a private
+  TypeScript package on its own npm registry names the token npm needs, and
+  a private Rust crate released by Git tag says Cargo fetches it with the
+  caller's Git credentials (`CARGO_NET_GIT_FETCH_WITH_CLI`).
 - `crucible-sdk.toml` takes `[docs]`: the API reference as an npm package,
   versioned and published by `crucible sdk plan|build|verify|publish` beside
   the SDKs it describes. It holds what `crucible generate docs --sdks` writes,

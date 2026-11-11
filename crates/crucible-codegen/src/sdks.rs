@@ -268,5 +268,10 @@ fn entry(
         }),
     );
     object.insert("endpointEnv".into(), json!(endpoint_env));
+    // Whether the description is of a release: with a version named for
+    // it, the guide's install steps fetch that release. Without one it
+    // describes a development build, whose version is on no registry, so a
+    // site shows its steps only as how the package is built, not installed.
+    object.insert("released".into(), json!(version.is_some()));
     Ok(entry)
 }

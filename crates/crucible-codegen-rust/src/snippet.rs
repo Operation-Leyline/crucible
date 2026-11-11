@@ -364,11 +364,24 @@ pub(crate) fn guide(service: &Service, options: &ClientOptions) -> Guide {
     // registry (docs/sdk-releases.md): a Git-released one is depended on at
     // its tag, and a private one without a channel names no source at all.
     let source = match &options.metadata.git {
-        Some(git) => Some(format!(
-            "{{ git = {}, tag = {} }}",
-            literal(&cargo_git_url(&git.url)),
-            literal(&git.tag)
-        )),
+        Some(git) => {
+            // Cargo reads a private repository with the caller's own Git
+            // credentials, which it does not use by default.
+            if options.metadata.private {
+                guide.install_note = Some(
+                    "The repository is private: Cargo fetches it with your Git credentials. Set \
+                     `CARGO_NET_GIT_FETCH_WITH_CLI=true` (or `net.git-fetch-with-cli = true` in \
+                     `.cargo/config.toml`) so it uses your Git sign-in, pin the tag and commit \
+                     your `Cargo.lock`. Keep credentials out of the dependency URL."
+                        .to_owned(),
+                );
+            }
+            Some(format!(
+                "{{ git = {}, tag = {} }}",
+                literal(&cargo_git_url(&git.url)),
+                literal(&git.tag)
+            ))
+        }
         None if guide.published() => {
             guide.install = vec![
                 match &version {

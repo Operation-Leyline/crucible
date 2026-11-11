@@ -406,6 +406,35 @@ fn a_reference_describes_the_sdks_of_its_release() {
     }
 }
 
+/// With `--openapi`, every release's directory holds that release's own
+/// OpenAPI document: its release as `info.version`, and the server named.
+#[test]
+fn every_releases_reference_holds_its_own_openapi_document() {
+    let directory = repository();
+    let root = directory.path();
+    success(crucible(
+        root,
+        &[
+            "generate",
+            "docs",
+            "shop",
+            "--out",
+            "all",
+            "--all-releases",
+            "--openapi",
+            "--endpoint",
+            "https://api.example.com",
+        ],
+    ));
+    for release in ["v1", "v2", "v3", "v4"] {
+        let document = json(&root.join(format!("all/{release}/openapi.json")));
+        assert_eq!(document["info"]["version"], release);
+        assert_eq!(document["servers"][0]["url"], "https://api.example.com");
+    }
+    // The root lists the releases; the document is each release's.
+    assert!(!root.join("all/openapi.json").exists());
+}
+
 /// `generate docs --all-releases`: each supported release's reference in a
 /// directory of its own, the same files `--api-version <release>` writes
 /// with that release's SDKs in its `sdks.json`, and an index of them at the
