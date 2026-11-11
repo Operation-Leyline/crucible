@@ -1112,6 +1112,16 @@ fn sender_operations_have_no_snippet_request_or_guide() {
         "{}",
         document["http"]
     );
+    // The reference lists the sender-signed operations, whose bodies are
+    // payloads of their own: the raw request's guide names neither, and
+    // does not say every body is JSON.
+    let request = document["http"]["guide"]["sections"][0]["markdown"]
+        .as_str()
+        .unwrap();
+    assert!(
+        request.contains("is JSON, except where an operation's page names another media type"),
+        "{request}"
+    );
     let file = sdk::load(&path).unwrap();
     let service = common::load("sender-signed");
     for sdk in file.sdks.values() {

@@ -190,9 +190,11 @@ pub(super) fn document(
 ) -> Result<Value, String> {
     // As every client sees it: a sender-signed operation is called by a
     // third party, never by a caller of the API, so it has no request here.
-    let service = crucible_ir::client_view(
-        &crucible_ir::project(service, audience).map_err(|d| d.to_string())?,
-    );
+    let projected = crucible_ir::project(service, audience).map_err(|d| d.to_string())?;
+    // Asked of every operation the reference lists, before those a third
+    // party calls are left out.
+    let other_bodies = guide::has_payload(&projected);
+    let service = crucible_ir::client_view(&projected);
     let description =
         crucible_codegen_common::describe::describe(&service).map_err(|d| d.to_string())?;
     let endpoint_env = env_var(&service, "ENDPOINT");
@@ -315,6 +317,7 @@ pub(super) fn document(
         endpoint_env: &endpoint_env,
         token_env: &token,
         endpoint,
+        other_bodies,
     });
     Ok(json!({
         "endpointEnv": endpoint_env,

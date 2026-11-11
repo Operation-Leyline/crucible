@@ -34,6 +34,11 @@ pub(super) struct Facts<'a> {
     pub token_env: &'a str,
     /// The endpoint the described SDKs call, where they name one.
     pub endpoint: Option<&'a str>,
+    /// Some operation of the reference sends or answers a body that is
+    /// not JSON, one a third party calls included: the reference lists
+    /// that operation too, so "a body is JSON" must not read as a rule
+    /// without exception.
+    pub other_bodies: bool,
 }
 
 /// `{language, fence, sections}`: an SDK guide without a package.
@@ -71,7 +76,9 @@ fn bearer(service: &Service, operation: &Operation) -> bool {
     !operation.public && operation.auth.iter().any(|s| service.is_bearer(s))
 }
 
-fn has_payload(service: &Service) -> bool {
+/// Whether any operation's request or response body is a payload of its
+/// own rather than JSON.
+pub(super) fn has_payload(service: &Service) -> bool {
     service
         .operations
         .iter()
@@ -84,7 +91,7 @@ fn request(facts: &Facts) -> Draft {
     let mut out = format!(
         "Every operation is one HTTP request to the API's endpoint. A body, in a request or a \
          response, is JSON{}. The commands here read the endpoint from {}",
-        if has_payload(service) {
+        if facts.other_bodies {
             ", except where an operation's page names another media type"
         } else {
             ""
