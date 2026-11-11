@@ -1183,18 +1183,16 @@ fn generate(target: Target, audience: crucible_codegen::Audience) -> Result<(), 
             if let Some(file) = sdks {
                 if all_releases {
                     // Each release's reference describes that release's SDKs.
-                    for release in crucible_ir::versions::releases(&full) {
-                        let line = crucible_ir::versions::line(&full, release)
-                            .map_err(|e| e.to_string())?;
+                    files.extend(each_release(&full, |release, line| {
                         let mut sdks =
-                            crucible_codegen::sdks::file_at(&file, &line, audience, &versions)?;
+                            crucible_codegen::sdks::file_at(&file, line, audience, &versions)?;
                         sdks.path = format!(
                             "{}/{}",
                             crucible_codegen_docs::release_directory(release),
                             sdks.path
                         );
-                        files.push(sdks);
-                    }
+                        Ok(vec![sdks])
+                    })?);
                 } else {
                     files.push(crucible_codegen::sdks::file_at(
                         &file, &full, audience, &versions,
@@ -1212,18 +1210,17 @@ fn generate(target: Target, audience: crucible_codegen::Audience) -> Result<(), 
                 };
                 if all_releases {
                     // Each release's reference holds that release's document.
-                    for release in crucible_ir::versions::releases(&full) {
-                        let line = crucible_ir::versions::line(&full, release)
-                            .map_err(|e| e.to_string())?;
-                        for mut file in document(&line)? {
+                    files.extend(each_release(&full, |release, line| {
+                        let mut files = document(line)?;
+                        for file in &mut files {
                             file.path = format!(
                                 "{}/{}",
                                 crucible_codegen_docs::release_directory(release),
                                 file.path
                             );
-                            files.push(file);
                         }
-                    }
+                        Ok(files)
+                    })?);
                 } else {
                     files.extend(document(&full)?);
                 }
@@ -1900,6 +1897,101 @@ fn custom_traits(service: &Service) -> BTreeMap<&ShapeId, usize> {
         *uses.entry(id).or_default() += 1;
     }
     uses
+}
+
+/// What `generate` writes for every supported release of `full`, each
+/// from that release's line. Every release is tried, and the failures are
+/// reported together, each under its release, so one run lists them all.
+fn each_release(
+    full: &crucible_ir::ir::Service,
+    generate: impl FnMut(&str, &crucible_ir::ir::Service) -> Result<Vec<crucible_codegen::File>, String>,
+) -> Result<Vec<crucible_codegen::File>, String> {
+    let releases = crucible_ir::versions::releases(full);
+    collect_releases(&releases, full, generate, |full, release| {
+        crucible_ir::versions::line(full, release).map_err(|diagnostics| diagnostics.to_string())
+    })
+}
+
+/// [`each_release`] over `releases`, with `line` giving each one's model.
+fn collect_releases<M, T>(
+    releases: &[&str],
+    full: &M,
+    mut generate: impl FnMut(&str, &M) -> Result<Vec<T>, String>,
+    line: impl Fn(&M, &str) -> Result<M, String>,
+) -> Result<Vec<T>, String> {
+    let mut files = Vec::new();
+    let mut errors = Vec::new();
+    for release in releases {
+        match line(full, release).and_then(|line| generate(release, &line)) {
+            Ok(written) => files.extend(written),
+            Err(error) => errors.push(format!("release {release}:\n{error}")),
+        }
+    }
+    if errors.is_empty() {
+        Ok(files)
+    } else {
+        Err(errors.join("\n"))
+    }
+}
+
+#[cfg(test)]
+mod release_tests {
+    use super::collect_releases;
+
+    /// A release that fails does not hide the next one's failure: every
+    /// release is tried, and each failure is reported under its release.
+    #[test]
+    fn every_releases_failure_is_reported_in_one_run() {
+        let releases = ["v1", "v2", "v3"];
+        // The model is a word; release v2's line is a model that generates.
+        let failed = collect_releases(
+            &releases,
+            &"broken".to_owned(),
+            |release, model: &String| {
+                if model == "broken" {
+                    Err(format!("{release} cannot be written"))
+                } else {
+                    Ok(vec![release.to_owned()])
+                }
+            },
+            |model, release| {
+                Ok(if release == "v2" {
+                    "fine".to_owned()
+                } else {
+                    model.clone()
+                })
+            },
+        )
+        .unwrap_err();
+        assert_eq!(
+            failed,
+            "release v1:\nv1 cannot be written\nrelease v3:\nv3 cannot be written"
+        );
+        // A release whose line cannot be made is a failure of that release.
+        let failed = collect_releases(
+            &releases,
+            &"model".to_owned(),
+            |release, _: &String| Ok(vec![release.to_owned()]),
+            |model, release| {
+                if release == "v1" {
+                    Err("no such line".to_owned())
+                } else {
+                    Ok(model.clone())
+                }
+            },
+        )
+        .unwrap_err();
+        assert_eq!(failed, "release v1:\nno such line");
+        // Without a failure, every release's files, oldest first.
+        let written = collect_releases(
+            &releases,
+            &"model".to_owned(),
+            |release, _: &String| Ok(vec![release.to_owned()]),
+            |model, _| Ok(model.clone()),
+        )
+        .unwrap();
+        assert_eq!(written, ["v1", "v2", "v3"]);
+    }
 }
 
 #[cfg(test)]
