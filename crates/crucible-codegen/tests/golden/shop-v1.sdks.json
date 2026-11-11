@@ -454,7 +454,8 @@
         ],
         "name": "shop_v1",
         "qualifier": ""
-      }
+      },
+      "released": false
     },
     "cpp-v1": {
       "audience": "external",
@@ -792,7 +793,8 @@
         ],
         "name": "shop_v1",
         "qualifier": "example::shop_v1::"
-      }
+      },
+      "released": false
     },
     "csharp-v1": {
       "audience": "external",
@@ -1129,7 +1131,8 @@
         ],
         "name": "Example.Shop.V1",
         "qualifier": ""
-      }
+      },
+      "released": false
     },
     "dart-v1": {
       "audience": "external",
@@ -1465,7 +1468,8 @@
         ],
         "name": "shop_v1",
         "qualifier": ""
-      }
+      },
+      "released": false
     },
     "go-v1": {
       "audience": "external",
@@ -1798,7 +1802,8 @@
         ],
         "name": "example.com/shop/v1",
         "qualifier": "shop."
-      }
+      },
+      "released": false
     },
     "java-v1": {
       "audience": "external",
@@ -2133,7 +2138,8 @@
         ],
         "name": "com.example:shop-v1",
         "qualifier": "com.example.shop.v1.model."
-      }
+      },
+      "released": false
     },
     "kotlin-v1": {
       "audience": "external",
@@ -2469,7 +2475,8 @@
         ],
         "name": "com.example:shop-v1-kotlin",
         "qualifier": ""
-      }
+      },
+      "released": false
     },
     "php-v1": {
       "audience": "external",
@@ -2800,7 +2807,8 @@
         "imports": [],
         "name": "example/shop-v1",
         "qualifier": "\\Example\\ShopV1\\"
-      }
+      },
+      "released": false
     },
     "python-v1": {
       "audience": "external",
@@ -3133,7 +3141,8 @@
         ],
         "name": "shop-v1",
         "qualifier": "shop_v1."
-      }
+      },
+      "released": false
     },
     "r-v1": {
       "audience": "external",
@@ -3466,7 +3475,8 @@
         ],
         "name": "shopv1",
         "qualifier": ""
-      }
+      },
+      "released": false
     },
     "ruby-v1": {
       "audience": "external",
@@ -3799,7 +3809,8 @@
         ],
         "name": "example_shop_v1",
         "qualifier": "ExampleShopV1::"
-      }
+      },
+      "released": false
     },
     "rust-v1": {
       "audience": "external",
@@ -4136,7 +4147,8 @@
         ],
         "name": "shop-sdk",
         "qualifier": ""
-      }
+      },
+      "released": false
     },
     "swift-v1": {
       "audience": "external",
@@ -4468,7 +4480,8 @@
         ],
         "name": "ShopV1",
         "qualifier": ""
-      }
+      },
+      "released": false
     },
     "ts-v1": {
       "audience": "external",
@@ -4802,7 +4815,8 @@
         ],
         "name": "@example/shop-v1",
         "qualifier": "models."
-      }
+      },
+      "released": false
     }
   },
   "service": "example.shop#Shop"

@@ -269,7 +269,8 @@
         ],
         "name": "surface-sdk",
         "qualifier": ""
-      }
+      },
+      "released": false
     },
     "ts": {
       "audience": "external",
@@ -446,7 +447,8 @@
         ],
         "name": "@example/surface",
         "qualifier": "models."
-      }
+      },
+      "released": false
     }
   },
   "service": "example.surface#Surface"

@@ -649,6 +649,8 @@ channel = { git = "git@github.com:example/weather-go.git", tag = "v{version}" }
     // released version the SDKs are development packages, naming none.
     let development = sdks::file(&file, &service, Audience::External).unwrap();
     assert!(!development.contents.contains("1.2.0"));
+    let unreleased: serde_json::Value = serde_json::from_str(&development.contents).unwrap();
+    assert_eq!(unreleased["sdks"]["ts"]["released"], false);
     let versions: sdks::Versions = [("ts", "1.2.3"), ("rust", "1.2.3")]
         .into_iter()
         .map(|(name, version)| (name.to_owned(), version.to_owned()))
@@ -657,8 +659,18 @@ channel = { git = "git@github.com:example/weather-go.git", tag = "v{version}" }
         .unwrap()
         .contents;
     let document: serde_json::Value = serde_json::from_str(&text).unwrap();
+    assert_eq!(document["sdks"]["ts"]["released"], true);
+    // Only an SDK a version was named for is a release.
+    assert_eq!(document["sdks"]["go"]["released"], false);
     let ts = &document["sdks"]["ts"]["guide"];
     assert_eq!(ts["version"], "1.2.3");
+    // A private package's registry and repository need the caller's own
+    // credentials, which the guide says once, without holding any.
+    let note = ts["install"]["note"].as_str().unwrap();
+    assert!(
+        note.contains("npm login --registry https://npm.pkg.github.com"),
+        "{note}"
+    );
     assert_eq!(
         ts["install"]["commands"],
         serde_json::json!([
@@ -673,6 +685,10 @@ channel = { git = "git@github.com:example/weather-go.git", tag = "v{version}" }
     assert!(steps.contains("weather-rs"), "{steps}");
     assert!(steps.contains("v1.2.3"), "{steps}");
     assert!(!steps.contains("cargo add weather-sdk@"), "{steps}");
+    assert!(
+        steps.contains("CARGO_NET_GIT_FETCH_WITH_CLI=true"),
+        "{steps}"
+    );
     // Go has no package version of its own: its release is its tag. The
     // guide still reports the release it installs, and none without one.
     assert!(document["sdks"]["go"]["guide"]["version"].is_null());

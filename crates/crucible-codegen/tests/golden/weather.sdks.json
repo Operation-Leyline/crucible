@@ -514,7 +514,8 @@
         ],
         "name": "weather",
         "qualifier": ""
-      }
+      },
+      "released": false
     },
     "cpp": {
       "audience": "external",
@@ -863,7 +864,8 @@
         ],
         "name": "weather",
         "qualifier": "example::weather::"
-      }
+      },
+      "released": false
     },
     "csharp": {
       "audience": "external",
@@ -1211,7 +1213,8 @@
         ],
         "name": "Example.Weather",
         "qualifier": ""
-      }
+      },
+      "released": false
     },
     "dart": {
       "audience": "external",
@@ -1559,7 +1562,8 @@
         ],
         "name": "weather",
         "qualifier": ""
-      }
+      },
+      "released": false
     },
     "go": {
       "audience": "external",
@@ -1903,7 +1907,8 @@
         ],
         "name": "example.com/weather",
         "qualifier": "weather."
-      }
+      },
+      "released": false
     },
     "java": {
       "audience": "external",
@@ -2250,7 +2255,8 @@
         ],
         "name": "com.example:weather",
         "qualifier": "com.example.weather.model."
-      }
+      },
+      "released": false
     },
     "kotlin": {
       "audience": "external",
@@ -2597,7 +2603,8 @@
         ],
         "name": "com.example:weather-kotlin",
         "qualifier": ""
-      }
+      },
+      "released": false
     },
     "php": {
       "audience": "external",
@@ -2939,7 +2946,8 @@
         "imports": [],
         "name": "example/weather",
         "qualifier": "\\Example\\Weather\\"
-      }
+      },
+      "released": false
     },
     "python": {
       "audience": "external",
@@ -3283,7 +3291,8 @@
         ],
         "name": "example-weather",
         "qualifier": "example_weather."
-      }
+      },
+      "released": false
     },
     "r": {
       "audience": "external",
@@ -3627,7 +3636,8 @@
         ],
         "name": "weather",
         "qualifier": ""
-      }
+      },
+      "released": false
     },
     "ruby": {
       "audience": "external",
@@ -3971,7 +3981,8 @@
         ],
         "name": "example_weather",
         "qualifier": "ExampleWeather::"
-      }
+      },
+      "released": false
     },
     "rust": {
       "audience": "external",
@@ -4319,7 +4330,8 @@
         ],
         "name": "weather-sdk",
         "qualifier": ""
-      }
+      },
+      "released": false
     },
     "swift": {
       "audience": "external",
@@ -4662,7 +4674,8 @@
         ],
         "name": "Weather",
         "qualifier": ""
-      }
+      },
+      "released": false
     },
     "ts": {
       "audience": "external",
@@ -5014,7 +5027,8 @@
         ],
         "name": "@example/weather",
         "qualifier": "models."
-      }
+      },
+      "released": false
     }
   },
   "service": "example.weather#Weather"
