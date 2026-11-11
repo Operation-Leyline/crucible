@@ -78,8 +78,9 @@ pub const OPENAPI_FILE: &str = "openapi.json";
 /// diagnostics, since the file was asked for.
 #[cfg(feature = "openapi")]
 fn openapi(docs: &Docs, service: &Service) -> Result<File, String> {
-    let mut options = crate::OpenApiOptions::default();
-    options.endpoint = docs.endpoint.clone();
+    let options = crate::OpenApiOptions {
+        endpoint: docs.endpoint.clone(),
+    };
     crate::Generator::OpenApi(options)
         .emit_for_audience(service, docs.audience)
         .map_err(|diagnostics| format!("docs.openapi:\n{diagnostics}"))?

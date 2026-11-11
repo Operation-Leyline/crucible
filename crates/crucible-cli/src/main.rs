@@ -1203,8 +1203,9 @@ fn generate(target: Target, audience: crucible_codegen::Audience) -> Result<(), 
             }
             if openapi {
                 let document = |service: &crucible_ir::ir::Service| {
-                    let mut options = crucible_codegen::OpenApiOptions::default();
-                    options.endpoint = endpoint.clone();
+                    let options = crucible_codegen::OpenApiOptions {
+                        endpoint: endpoint.clone(),
+                    };
                     crucible_codegen::Generator::OpenApi(options)
                         .emit_for_audience(service, audience)
                         .map_err(|diagnostics| format!("cannot generate OpenAPI:\n{diagnostics}"))
