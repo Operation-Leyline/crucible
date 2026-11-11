@@ -1122,6 +1122,8 @@ channel = { npm = "https://npm.pkg.github.com", access = "restricted" }
 [docs]
 package = "@example/weather-reference"
 schemas = "shared"
+openapi = true
+endpoint = "https://api.weather.example"
 version = "0.3.0"
 out = "generated/docs"
 channel = { npm = "https://npm.pkg.github.com", access = "restricted" }
@@ -1137,6 +1139,11 @@ fn the_reference_is_declared_beside_the_sdks() {
     let docs = file.docs.as_ref().unwrap();
     assert_eq!(docs.package, "@example/weather-reference");
     assert_eq!(docs.schemas, sdk::DocsSchemas::Shared);
+    assert!(docs.openapi);
+    assert_eq!(
+        docs.endpoint.as_deref(),
+        Some("https://api.weather.example")
+    );
     assert_eq!(docs.audience, crucible_ir::Audience::External);
     assert_eq!(docs.version.as_deref(), Some("0.3.0"));
     assert_eq!(
@@ -1177,6 +1184,18 @@ fn the_reference_is_declared_beside_the_sdks() {
     assert_eq!((sdks.len(), docs.is_some()), (0, true));
     let (sdks, docs) = file.selection(&names(&["ts"])).unwrap();
     assert_eq!((sdks.len(), docs.is_some()), (1, false));
+    // The OpenAPI document is asked for, never assumed.
+    let (_directory, path) = repository(
+        &REFERENCE
+            .replace("openapi = true\n", "")
+            .replace("endpoint = \"https://api.weather.example\"\n", ""),
+    );
+    let without = sdk::load(&path).unwrap();
+    assert!(!without.docs.as_ref().unwrap().openapi);
+    assert_ne!(
+        without.docs.as_ref().unwrap().config_sha256(&without),
+        digest
+    );
     // A file without `[docs]` has no such name.
     let (_directory, path) = repository(&REFERENCE[..REFERENCE.find("[docs]").unwrap()]);
     let plain = sdk::load(&path).unwrap();
@@ -1237,6 +1256,24 @@ private = true
         "docs.channel",
         "a private reference names its channel",
     );
+
+    // The server URL is the OpenAPI document's, and carries no credential.
+    let openapi = |keys: &str| {
+        errors(&format!(
+            "schema_version = 1\nmodel = \"model\"\n\n[docs]\npackage = \"weather-reference\"\nout = \"generated/docs\"\n{keys}\n"
+        ))
+    };
+    assert_error(
+        &openapi("endpoint = \"https://api.weather.example\""),
+        "docs.endpoint",
+        "set `openapi = true` with it",
+    );
+    assert!(
+        !openapi("openapi = true\nendpoint = \"https://user:secret@api.weather.example\"")
+            .is_empty()
+    );
+    assert!(!openapi("openapi = \"yes\"").is_empty());
+    assert!(openapi("openapi = true\nendpoint = \"https://api.weather.example\"").is_empty());
 
     let found = errors("schema_version = 1\nmodel = \"model\"\n\n[docs]\nschemas = \"omit\"\n");
     assert_error(&found, "docs", "set `package`");

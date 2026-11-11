@@ -17,6 +17,11 @@ version's section when it is prepared.
 
 ### Added
 
+- The API reference can carry the service's OpenAPI document: `crucible
+  generate docs --openapi [--endpoint <url>]` writes `openapi.json` beside
+  `describe.json`, and `[docs]` in `crucible-sdk.toml` takes `openapi = true`
+  and `endpoint`, so the released reference package holds it for a site to
+  offer as a download.
 - `crucible.sdks/1`: each SDK carries `released`, whether a released version
   was named for it. A documentation site shows install steps only for a
   release: a development build's version is on no registry.

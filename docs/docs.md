@@ -56,6 +56,12 @@ or `--sdks` on `crucible generate docs`:
 crucible generate docs model --out generated/reference --sdks crucible-sdk.toml
 ```
 
+`--openapi` also writes `openapi.json` beside `describe.json`: the same
+API, for the same audience, as an OpenAPI 3.1 document
+([openapi.md](openapi.md)), for a site to offer as a download to tools
+that read one. `--endpoint <url>` is the server URL it names. With
+`--all-releases` each release's directory holds that release's document.
+
 Name the SDK releases the reference ships with, so its install steps pin
 them: `--sdk-version ts=1.4.0 --sdk-version rust=0.2.3`. The output then
 also holds `sdks.json`, the [`crucible.sdks/1`](#the-cruciblesdks1-contract)
@@ -96,6 +102,7 @@ changes.json
 llms.txt
 llms-full.txt
 sdks.json           (with an SDK file)
+openapi.json        (with --openapi)
 book.toml
 src/
   SUMMARY.md

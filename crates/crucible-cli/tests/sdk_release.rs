@@ -755,6 +755,8 @@ const DOCS: &str = r#"
 [docs]
 package = "@example/weather-reference"
 schemas = "shared"
+openapi = true
+endpoint = "https://api.weather.example"
 out = "generated/docs"
 "#;
 
@@ -772,6 +774,7 @@ fn the_reference_is_exported_and_planned_beside_the_sdks() {
     for file in [
         "describe.json",
         "sdks.json",
+        "openapi.json",
         "changes.json",
         "llms.txt",
         "src/SUMMARY.md",
@@ -789,6 +792,11 @@ fn the_reference_is_exported_and_planned_beside_the_sdks() {
     assert_eq!(provenance["package"], "@example/weather-reference");
     let description = json(&fs::read_to_string(docs.join("describe.json")).unwrap());
     assert_eq!(description["schemas"]["mode"], "shared");
+    // The OpenAPI document it asked for names the declared server.
+    let openapi = json(&fs::read_to_string(docs.join("openapi.json")).unwrap());
+    assert_eq!(openapi["servers"][0]["url"], "https://api.weather.example");
+    let readme = fs::read_to_string(docs.join("README.md")).unwrap();
+    assert!(readme.contains("`openapi.json`"), "{readme}");
     // A development export names no SDK release.
     let sdks = json(&fs::read_to_string(docs.join("sdks.json")).unwrap());
     assert!(sdks["sdks"]["rust"]["guide"]["install"]["manifest"].is_null());

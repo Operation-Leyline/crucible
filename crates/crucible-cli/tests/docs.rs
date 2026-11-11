@@ -135,3 +135,58 @@ fn docs_cli_shares_or_omits_operation_schemas() {
     assert!(omitted["operations"][get].get("inputSchema").is_none());
     assert_eq!(omitted["schemas"], serde_json::json!({"mode": "omit"}));
 }
+
+/// `--openapi` writes the same API as an OpenAPI document beside the
+/// reference, for a site to offer as a download; without it there is none,
+/// and one written before is removed with the other generated files.
+#[test]
+fn docs_cli_writes_an_openapi_document_on_request() {
+    let dir = tempfile::tempdir().unwrap();
+    let root = dir.path();
+    common::install_shared(root, "service-docs-weather");
+    let model = root.join("service-docs-weather");
+    let out = root.join("reference");
+    let run = |extra: &[&str]| {
+        let result = Command::new(env!("CARGO_BIN_EXE_crucible"))
+            .args(["generate", "docs"])
+            .arg(&model)
+            .arg("--out")
+            .arg(&out)
+            .args(extra)
+            .output()
+            .unwrap();
+        (
+            result.status.success(),
+            String::from_utf8_lossy(&result.stderr).into_owned(),
+        )
+    };
+    let (ok, stderr) = run(&["--openapi", "--endpoint", "https://api.example.com"]);
+    assert!(ok, "{stderr}");
+    let document: Value =
+        serde_json::from_slice(&fs::read(out.join("openapi.json")).unwrap()).unwrap();
+    assert!(
+        document["openapi"].as_str().unwrap().starts_with("3.1"),
+        "{}",
+        document["openapi"]
+    );
+    assert_eq!(document["servers"][0]["url"], "https://api.example.com");
+    // The document is the external audience's, as the reference is.
+    let describe: Value =
+        serde_json::from_slice(&fs::read(out.join("describe.json")).unwrap()).unwrap();
+    let operations = describe["operations"].as_object().unwrap().len();
+    let documented: usize = document["paths"]
+        .as_object()
+        .unwrap()
+        .values()
+        .map(|path| path.as_object().unwrap().len())
+        .sum();
+    assert_eq!(documented, operations);
+
+    let (ok, stderr) = run(&[]);
+    assert!(ok, "{stderr}");
+    assert!(!out.join("openapi.json").exists());
+    // The server URL belongs to the document it names.
+    let (ok, stderr) = run(&["--endpoint", "https://api.example.com"]);
+    assert!(!ok);
+    assert!(stderr.contains("--openapi"), "{stderr}");
+}

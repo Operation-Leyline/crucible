@@ -18,7 +18,7 @@ name = "crucible"
 path = "src/main.rs"
 
 [dependencies]
-crucible-codegen = { workspace = true, features = ["all-clients", "docs"] }
+crucible-codegen = { workspace = true, features = ["all-clients", "docs", "openapi"] }
 crucible-build.workspace = true
 crucible-lang.workspace = true
 crucible-codegen-cli.workspace = true

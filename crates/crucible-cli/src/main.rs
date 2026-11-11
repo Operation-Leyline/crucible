@@ -262,6 +262,15 @@ enum Target {
         /// described as a development package.
         #[arg(long = "sdk-version", value_name = "NAME=VERSION", requires = "sdks")]
         sdk_versions: Vec<String>,
+        /// Also write openapi.json beside describe.json: the same API as
+        /// an OpenAPI 3.1 document (`crucible generate openapi`), for a
+        /// site to offer as a download.
+        #[arg(long)]
+        openapi: bool,
+        /// The API server URL openapi.json names, including any deployment
+        /// path prefix; relative paths without it.
+        #[arg(long, requires = "openapi")]
+        endpoint: Option<String>,
         /// Where describe.json carries each operation's inputSchema and
         /// outputSchema; every mode is crucible.describe/1.
         #[arg(long, value_enum, default_value = "inline")]
@@ -1104,6 +1113,8 @@ fn generate(target: Target, audience: crucible_codegen::Audience) -> Result<(), 
             out,
             sdks,
             sdk_versions,
+            openapi,
+            endpoint,
             schemas,
             all_releases,
         } => {
@@ -1188,6 +1199,32 @@ fn generate(target: Target, audience: crucible_codegen::Audience) -> Result<(), 
                     files.push(crucible_codegen::sdks::file_at(
                         &file, &full, audience, &versions,
                     )?);
+                }
+            }
+            if openapi {
+                let document = |service: &crucible_ir::ir::Service| {
+                    let mut options = crucible_codegen::OpenApiOptions::default();
+                    options.endpoint = endpoint.clone();
+                    crucible_codegen::Generator::OpenApi(options)
+                        .emit_for_audience(service, audience)
+                        .map_err(|diagnostics| format!("cannot generate OpenAPI:\n{diagnostics}"))
+                };
+                if all_releases {
+                    // Each release's reference holds that release's document.
+                    for release in crucible_ir::versions::releases(&full) {
+                        let line = crucible_ir::versions::line(&full, release)
+                            .map_err(|e| e.to_string())?;
+                        for mut file in document(&line)? {
+                            file.path = format!(
+                                "{}/{}",
+                                crucible_codegen_docs::release_directory(release),
+                                file.path
+                            );
+                            files.push(file);
+                        }
+                    }
+                } else {
+                    files.extend(document(&full)?);
                 }
             }
             crucible_codegen::write(&out, &files).map_err(|e| e.to_string())?;
