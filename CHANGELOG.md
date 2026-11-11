@@ -20,6 +20,9 @@ version's section when it is prepared.
 - `crucible.sdks/1`: each SDK carries `released`, whether a released version
   was named for it. A documentation site shows install steps only for a
   release: a development build's version is on no registry.
+- `crucible.sdks/1`: a guide section carries `html`, and its install note
+  `noteHtml`: the Markdown rendered and sanitized as documentation's `html`
+  is, so a site inserts a guide without a Markdown renderer of its own.
 - Generated SDK guides say how a private package is read: a private
   TypeScript package on its own npm registry names the token npm needs, and
   a private Rust crate released by Git tag says Cargo fetches it with the

@@ -594,6 +594,20 @@ fn an_sdk_guide_is_the_generated_readme_section_by_section() {
             "{language}"
         );
         for section in &guide.sections {
+            // The HTML is the Markdown rendered: its code survives, fenced
+            // as the language's, and no fence or backtick is left as text.
+            assert!(
+                !section.html.contains("```"),
+                "{language}: {}",
+                section.html
+            );
+            if section.markdown.contains("```") {
+                assert!(
+                    section.html.contains("<pre><code class=\"language-"),
+                    "{language}: {}",
+                    section.html
+                );
+            }
             assert!(
                 readme.contains(&format!("## {}\n\n{}\n", section.title, section.markdown)),
                 "{language}: section {} is not in its README:\n{readme}",

@@ -391,6 +391,10 @@ pub struct Section {
     pub title: String,
     /// The section's body, without its heading or a trailing newline.
     pub markdown: String,
+    /// `markdown` as HTML, rendered and sanitized as documentation is
+    /// (`crucible.describe/1`): a reader inserts it without a Markdown
+    /// renderer of its own.
+    pub html: String,
 }
 
 /// How a package is added to a project, as its release channel allows.
@@ -404,6 +408,9 @@ pub struct InstallSteps {
     /// Where an unpublished package is released, or what a package
     /// without an install line does instead: one Markdown paragraph.
     pub note: Option<String>,
+    /// `note` as sanitized HTML, as a section's `html`.
+    #[serde(rename = "noteHtml")]
+    pub note_html: Option<String>,
 }
 
 /// A manifest entry and its Markdown code fence (`toml`, `xml`).
@@ -452,6 +459,7 @@ pub fn document(service: &Service, surface: &Surface, guide: &Guide) -> Document
             manifest: install
                 .manifest
                 .map(|(fence, text)| Manifest { fence, text }),
+            note_html: install.note.as_deref().map(crate::documentation::html),
             note: install.note,
         },
         sections: sections(service, surface, guide),
@@ -459,10 +467,12 @@ pub fn document(service: &Service, surface: &Surface, guide: &Guide) -> Document
 }
 
 fn section(id: &str, title: &str, markdown: String) -> Section {
+    let markdown = markdown.trim_end_matches('\n').to_owned();
     Section {
         id: id.to_owned(),
         title: title.to_owned(),
-        markdown: markdown.trim_end_matches('\n').to_owned(),
+        html: crate::documentation::html(&markdown),
+        markdown,
     }
 }
 
