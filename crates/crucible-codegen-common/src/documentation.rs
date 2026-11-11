@@ -9,7 +9,16 @@ use pulldown_cmark::{BrokenLink, CowStr, Event, LinkType, Options, Parser, Tag, 
 /// Build-time HTML rendering for API references. Raw HTML remains text, just as
 /// in the native doc dialects; active URL schemes never become links or images.
 pub fn html(markdown: &str) -> String {
-    render_html(markdown, None)
+    render_html(markdown, None, Options::empty())
+}
+
+/// [`html`] for Markdown the generators write themselves (a package
+/// guide's sections), which may hold a table: a pipe table becomes a
+/// `<table>`. Model documentation is rendered without them, as before, so
+/// a comment that happens to hold pipes keeps reading as its author wrote
+/// it.
+pub fn html_with_tables(markdown: &str) -> String {
+    render_html(markdown, None, Options::ENABLE_TABLES)
 }
 
 /// [`html`] with doc links (decision 80): a `[Name]` the service has a
@@ -17,7 +26,7 @@ pub fn html(markdown: &str) -> String {
 /// with no address that a reader maps to its own page for the id; any
 /// other doc link is its text. `[text][Name]` keeps its text.
 pub fn html_linked(service: &Service, markdown: &str) -> String {
-    render_html(markdown, Some(service))
+    render_html(markdown, Some(service), Options::empty())
 }
 
 /// A parser that resolves the service's doc links, or, without a service,
@@ -27,6 +36,7 @@ pub fn html_linked(service: &Service, markdown: &str) -> String {
 fn parser<'a>(
     markdown: &'a str,
     service: Option<&'a Service>,
+    options: Options,
 ) -> Parser<'a, impl FnMut(BrokenLink<'a>) -> Option<(CowStr<'a>, CowStr<'a>)>> {
     let callback = move |link: BrokenLink<'a>| {
         let service = service?;
@@ -42,7 +52,7 @@ fn parser<'a>(
             .unwrap_or_default();
         Some((id.into(), operation.into()))
     };
-    Parser::new_with_broken_link_callback(markdown, Options::empty(), Some(callback))
+    Parser::new_with_broken_link_callback(markdown, options, Some(callback))
 }
 
 /// The id a doc link was parsed with, empty for one that is plain text;
@@ -57,10 +67,10 @@ fn doc_link_id(link_type: LinkType, dest: &str) -> Option<&str> {
     .then_some(dest)
 }
 
-fn render_html(markdown: &str, service: Option<&Service>) -> String {
+fn render_html(markdown: &str, service: Option<&Service>, options: Options) -> String {
     // Whether each open link is a doc link, and one rendered as an anchor.
     let mut open: Vec<Option<bool>> = Vec::new();
-    let events = parser(markdown, service).filter_map(|event| {
+    let events = parser(markdown, service, options).filter_map(|event| {
         Some(match event {
             Event::Html(value) | Event::InlineHtml(value) => Event::Text(value),
             Event::Start(Tag::Link {
@@ -270,7 +280,7 @@ fn render_text(markdown: &str, service: Option<&Service>) -> String {
     let mut out = String::new();
     let mut links = Vec::new();
     let mut code = false;
-    for event in parser(markdown, service) {
+    for event in parser(markdown, service, Options::empty()) {
         match event {
             Event::Text(value)
             | Event::Code(value)

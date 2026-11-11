@@ -466,6 +466,7 @@ fn hostile_model_text_never_restructures_package_guides() {
                     "Install",
                     "Create a client",
                     "Call an operation",
+                    "Types",
                     "Pagination",
                     "Errors",
                     "Retries and idempotency",

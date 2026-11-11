@@ -432,6 +432,32 @@ pub(crate) fn guide(service: &Service, options: &ClientOptions) -> Guide {
     guide.retries = "`runtime::Config::retry(runtime::Retry { .. })` changes the attempt limit \
         (3, the first included) and backoff; `runtime::Retry::none()` turns retries off."
         .to_owned();
+    // The types a caller reads and writes, as the crate's surface spells
+    // them.
+    guide.scalar_types = [
+        SimpleKind::Boolean,
+        SimpleKind::String,
+        SimpleKind::Byte,
+        SimpleKind::Short,
+        SimpleKind::Integer,
+        SimpleKind::Long,
+        SimpleKind::Float,
+        SimpleKind::Double,
+        SimpleKind::BigInteger,
+        SimpleKind::BigDecimal,
+        SimpleKind::Timestamp,
+        SimpleKind::Document,
+        SimpleKind::Blob,
+    ]
+    .into_iter()
+    .map(|kind| (kind, crate::types::public_builtin(kind).to_owned()))
+    .collect();
+    guide.types_note = "A list is `Vec<T>` and a map `BTreeMap<K, V>`, under the API's own name \
+        for it where it has one. An optional member is a `runtime::Field<T>`: `Field::Absent` \
+        leaves it out, `Field::Null` sends an explicit null, and `Field::Value(value)` sends a \
+        value. A builder's setter takes the value itself, so only a member you set appears in \
+        the request."
+        .to_owned();
     if service
         .operations
         .iter()

@@ -305,6 +305,23 @@ fn unindent(text: &str) -> String {
         .collect()
 }
 
+/// Every simple kind, in the order a guide lists them.
+const SIMPLE_KINDS: [SimpleKind; 13] = [
+    SimpleKind::Boolean,
+    SimpleKind::String,
+    SimpleKind::Byte,
+    SimpleKind::Short,
+    SimpleKind::Integer,
+    SimpleKind::Long,
+    SimpleKind::Float,
+    SimpleKind::Double,
+    SimpleKind::BigInteger,
+    SimpleKind::BigDecimal,
+    SimpleKind::Timestamp,
+    SimpleKind::Document,
+    SimpleKind::Blob,
+];
+
 /// The language's facts for the package's README and `AGENTS.md`.
 pub(crate) fn guide(service: &Service, options: &Options) -> Guide {
     let client = crate::client_name(service, options);
@@ -368,6 +385,42 @@ pub(crate) fn guide(service: &Service, options: &Options) -> Guide {
     guide.retries = "Set `retry: { maxAttempts }` in the client configuration to change the \
         attempt limit (3, the first included), or `retry: false` to turn retries off."
         .to_owned();
+    // The types a caller reads and writes, as the package's surface spells
+    // them: a global without the `globalThis.` the generated code reaches
+    // it through.
+    guide.scalar_types = SIMPLE_KINDS
+        .into_iter()
+        .map(|kind| {
+            let native = crate::names::builtin(kind);
+            (
+                kind,
+                native
+                    .strip_prefix("globalThis.")
+                    .unwrap_or(native)
+                    .to_owned(),
+            )
+        })
+        .collect();
+    guide.types_note = "Each named API type is exported under its own name, and a simple one is an \
+        alias of the type above (an API string named `Id` is `type Id = string`). A list is `T[]`, a \
+        map `Record<string, V>`, and an enum a `const` object with a type of its values. An optional \
+        member is an optional property: leave it out, and pass `null` only where the API accepts it."
+        .to_owned();
+    // Only what the service has: a note on a type it does not use is noise.
+    let used = crucible_codegen_common::guide::used_kinds(service);
+    if used.contains(&SimpleKind::Long) || used.contains(&SimpleKind::BigInteger) {
+        guide.types_note.push_str(
+            " A `bigint` holds the integers a `number` cannot hold exactly; `stringifyJson`, \
+             exported from the package, serializes values that contain one, which \
+             `JSON.stringify` refuses.",
+        );
+    }
+    if used.contains(&SimpleKind::Timestamp) {
+        guide.types_note.push_str(
+            " A timestamp read from a response is a `PreciseDate`, a `Date` that keeps the \
+             nanoseconds.",
+        );
+    }
     guide.links.push((
         "The TypeScript client guide".to_owned(),
         "https://github.com/Operation-Leyline/crucible/blob/main/docs/clients/typescript.md"

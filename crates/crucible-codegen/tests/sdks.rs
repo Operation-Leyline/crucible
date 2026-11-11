@@ -587,7 +587,14 @@ fn an_sdk_guide_is_the_generated_readme_section_by_section() {
             .find(|file| file.path.ends_with("README.md"))
             .unwrap_or_else(|| panic!("{language}: no README.md"))
             .contents;
-        let ids: Vec<_> = guide.sections.iter().map(|s| s.id.as_str()).collect();
+        // Every guide has these, in this order; a generator that names
+        // its language's types adds `types` after the call that shows them.
+        let ids: Vec<_> = guide
+            .sections
+            .iter()
+            .map(|s| s.id.as_str())
+            .filter(|id| *id != "types")
+            .collect();
         assert_eq!(
             ids,
             ["client", "call", "pagination", "errors", "retries", "links"],
@@ -620,6 +627,66 @@ fn an_sdk_guide_is_the_generated_readme_section_by_section() {
         if let Some(manifest) = &guide.install.manifest {
             assert!(readme.contains(&manifest.text), "{language}: manifest");
         }
+    }
+}
+
+/// A guide says how the API's types are written in its language, from the
+/// generator's own mapping, and only for the types the service uses.
+#[test]
+fn an_sdk_guide_names_the_languages_type_for_each_api_type() {
+    let (_directory, path) = repository("weather", TS_AND_RUST);
+    let file = sdk::load(&path).unwrap();
+    let service = common::load("weather");
+    let text = sdks::file(&file, &service, Audience::External)
+        .unwrap()
+        .contents;
+    let document: serde_json::Value = serde_json::from_str(&text).unwrap();
+    let types = |sdk: &str| {
+        document["sdks"][sdk]["guide"]["sections"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|section| section["id"] == "types")
+            .unwrap_or_else(|| panic!("{sdk} has no types section"))["markdown"]
+            .as_str()
+            .unwrap()
+            .to_owned()
+    };
+    // The table is a table in the HTML too, for a site that inserts it.
+    let html = document["sdks"]["ts"]["guide"]["sections"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|section| section["id"] == "types")
+        .unwrap()["html"]
+        .as_str()
+        .unwrap();
+    assert!(
+        html.contains("<table>") && html.contains("<td><code>bigint</code></td>"),
+        "{html}"
+    );
+    assert!(!html.contains("|---|"), "{html}");
+    // The same API type, each language's own.
+    let ts = types("ts");
+    assert!(
+        ts.contains("| 64-bit integer (`long`) | `bigint` |"),
+        "{ts}"
+    );
+    assert!(ts.contains("| timestamp | `Date` |"), "{ts}");
+    assert!(ts.contains("`PreciseDate`"), "{ts}");
+    let rust = types("rust");
+    assert!(
+        rust.contains("| 64-bit integer (`long`) | `i64` |"),
+        "{rust}"
+    );
+    assert!(
+        rust.contains("| 32-bit integer (`integer`) | `i32` |"),
+        "{rust}"
+    );
+    assert!(rust.contains("`runtime::Field<T>`"), "{rust}");
+    // Weather has no 16-bit integer or decimal: neither is listed.
+    for unused in ["`short`", "`bigDecimal`"] {
+        assert!(!ts.contains(unused) && !rust.contains(unused), "{unused}");
     }
 }
 

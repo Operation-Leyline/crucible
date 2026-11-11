@@ -17,6 +17,12 @@ version's section when it is prepared.
 
 ### Added
 
+- Rust and TypeScript SDK guides (`README.md`, and `guide` in
+  `crucible.sdks/1`) gain a `types` section after the first call: the
+  language's type for each simple API type the service uses, from the
+  generator's own mapping (a 64-bit integer is `i64` in Rust and `bigint` in
+  TypeScript), then how the language writes named types, lists, maps and
+  optional members.
 - The API reference can carry the service's OpenAPI document: `crucible
   generate docs --openapi [--endpoint <url>]` writes `openapi.json` beside
   `describe.json`, and `[docs]` in `crucible-sdk.toml` takes `openapi = true`
@@ -101,6 +107,9 @@ version's section when it is prepared.
 
 ### Changed
 
+- Generated SDK guides name at most six operations that fill an idempotency
+  token; past that they name three and count the rest. `AGENTS.md` still
+  lists every one.
 - Generated SDK guides (`README.md`, `AGENTS.md`, and `guide` in
   `crucible.sdks/1`) page through the first paginated operation that has an
   example input, where there is one, rather than the first paginated operation
