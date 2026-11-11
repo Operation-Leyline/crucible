@@ -827,6 +827,14 @@ fn the_raw_requests_guide_quotes_the_endpoint_for_the_shell() {
         request.contains(r"export WEATHER_ENDPOINT='https://api.example/o'\''brien;id'"),
         "{request}"
     );
+    // Trailing slashes go, as the SDKs' runtimes drop them: the commands
+    // append a URI that starts with one.
+    let sdk = "schema_version = 1\nmodel = \"model\"\n\n[sdk.ts]\npackage = \"@example/x\"\nendpoint = \"https://api.example/v1//\"\nout = \"generated/ts\"\n";
+    let request = http_guide_section("weather", sdk, "request");
+    assert!(
+        request.contains("export WEATHER_ENDPOINT='https://api.example/v1'\n"),
+        "{request}"
+    );
 }
 
 /// A guide says how the API's types are written in its language, from the

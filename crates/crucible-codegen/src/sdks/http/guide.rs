@@ -138,13 +138,14 @@ fn request(facts: &Facts) -> Draft {
         code_span(facts.endpoint_env),
     );
     let with_bearer = service.operations.iter().any(|op| bearer(service, op));
+    // Without trailing slashes, as the SDKs' runtimes take it: the commands
+    // append a URI that starts with one, and `/v1//cities` is another path.
     // Quoted as the commands quote model text: an endpoint may hold an
     // apostrophe, which would otherwise end the string and run what follows.
-    let mut exports = format!(
-        "export {}={}\n",
-        facts.endpoint_env,
-        quoted(facts.endpoint.unwrap_or("https://<endpoint>"))
-    );
+    let endpoint = facts.endpoint.map_or("https://<endpoint>", |endpoint| {
+        endpoint.trim_end_matches('/')
+    });
+    let mut exports = format!("export {}={}\n", facts.endpoint_env, quoted(endpoint));
     if with_bearer {
         out.push_str(&format!(
             " and the token from {}, so that none holds a credential",
