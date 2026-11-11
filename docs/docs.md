@@ -904,7 +904,7 @@ neither the environment nor the SDKs' README and license files.
   "format": "crucible.sdks/1",
   "service": "example.weather#Weather",
   "sdks": { "ts": {} },
-  "http": { "endpointEnv": "WEATHER_ENDPOINT", "tokenEnv": "WEATHER_TOKEN", "operations": {} },
+  "http": { "endpointEnv": "WEATHER_ENDPOINT", "tokenEnv": "WEATHER_TOKEN", "operations": {}, "guide": {} },
   "lines": { "v1": ["ts-v1"] }
 }
 ```
@@ -942,7 +942,7 @@ configured in the SDK file replaces the package's file, never this.
 | `version` | The package version the install steps name, or null. `--sdk-version <name>=<version>` on `crucible generate docs` (`crucible_codegen::sdks::file_at`) names each SDK's released version, and its guide then installs that version from its release channel, a Git channel's tag included. Without one the SDK is described as a development package (`0.0.0-dev`, no Git tag): the file's own `version` is a floor a release may raise ([sdk-releases.md](sdk-releases.md)), so it is never assumed. Go has no package version of its own: its version is the Git tag `go get` selects (`go get module@v1.2.3` reports `1.2.3`), and beside an unpinned `go get`, which installs the latest release, it is null. A version for an SDK the file does not declare is refused |
 | `refersTo` | How source code names the package: `package.import`, or the alias the language uses (Go) |
 | `install` | `{commands, manifest, note, noteHtml}`: shell lines that add the package, version included; null or `{fence, text}`, a manifest entry to add instead of or beside them (a `Cargo.toml` dependency, a Maven `<dependency>`); and null or one Markdown paragraph, with `noteHtml` the same as sanitized HTML. The steps follow the SDK's release channel: a private package, or one released by Git tag, has a `note` naming where it is released and no command that would install its name from the public registry; a scoped npm package on another registry configures its scope's registry first. A private TypeScript package on its own registry, and a private Rust crate released by Git tag, also say in `note` that the caller's own credentials are needed, and how npm or Cargo is given them |
-| `sections` | Ordered `{id, title, markdown, html}`: `client` (the imports and statements that construct the client, and how it authenticates), `call` (one complete call), `pagination`, `errors`, `retries` and `links`. A section the service has no use for (no paginated operation, no modelled error, no link) is absent. `markdown` is the section's body without its heading; its code blocks are fenced with `fence`. `html` is the same body rendered and sanitized as documentation's `html` is ([Common documentation and notes](#common-documentation-and-notes)): raw HTML is escaped, active URL schemes are removed, and a code block is `<pre><code class="language-<fence>">`, so a reader inserts it without a Markdown renderer. Consumers must ignore an `id` they do not know |
+| `sections` | Ordered `{id, title, markdown, html}`: `client` (the imports and statements that construct the client, and how it authenticates), `call` (one complete call), `types` (the language's type for each simple API type the service uses, as its generator spells it, then how the language writes named types, lists, maps and optional members; from the generators that provide it, Rust and TypeScript so far), `pagination`, `errors`, `retries` and `links`. A section the service has no use for (no paginated operation, no modelled error, no link) is absent. `markdown` is the section's body without its heading; its code blocks are fenced with `fence`. `html` is the same body rendered and sanitized as documentation's `html` is ([Common documentation and notes](#common-documentation-and-notes)): raw HTML is escaped, active URL schemes are removed, a code block is `<pre><code class="language-<fence>">` and a table a `<table>`, so a reader inserts it without a Markdown renderer. Consumers must ignore an `id` they do not know |
 
 Model text in a guide is escaped as in the README: a title or a link name
 cannot add a heading, a link or an HTML comment.
@@ -1069,6 +1069,20 @@ the widest audience among the listed SDKs. Like every SDK, it leaves out a
 |---|---|
 | `endpointEnv`, `tokenEnv` | The environment variables the snippets read the endpoint and bearer token from; `tokenEnv` is null for a service without bearer auth |
 | `operations` | Operation ID to `{method, uri, headers, body, bodyEncoding, example, omitted, snippet}` |
+| `guide` | `{language, fence, sections}`: how to call the API without an SDK, in sections of the shape an SDK's `guide` has (`id`, `title`, `markdown`, `html`) |
+
+`guide` is to a caller without an SDK what an SDK's `guide` is to its
+language, so a site shows both with one page. `language` is `HTTP` and
+`fence` `sh`; it has no `install`. Its sections, by `id`:
+
+| `id` | Says |
+|---|---|
+| `request` | The endpoint and token variables the commands read (the endpoint is the one the listed SDKs call, where those that name one agree), and each header to send with its value and the requests it goes on: the ones every command here sends |
+| `call` | The operation the SDK guides call, as a command, and its response: the example's the command sends, else the generated sample's. A payload of bytes is named by its media type, and a stream as server-sent events |
+| `types` | The JSON each simple API type the service uses is written as, then structures, lists, maps, enums and unions |
+| `pagination` | How to follow the pages, naming where the token is read from and sent (a query parameter or header by the name it is bound to, else the member in the JSON body) where every paginated operation agrees; absent without a paginated operation |
+| `errors` | An error on the wire (one with a JSON body where the service has one: the model's first example, else a generated sample) and how to tell errors apart; absent without a modelled error |
+| `retries` | When a retry is safe, and the idempotency token a caller sends itself, placed as a page token is where every operation that takes one agrees |
 
 The request is the one `describe.json` shows: the first example with an
 input, else the generated sample, either way without its idempotency

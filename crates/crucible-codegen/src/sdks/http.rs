@@ -26,6 +26,8 @@ use crucible_ir::ir::{Operation, Service};
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 
+mod guide;
+
 /// The middleware whose header is the body's SHA-256, in lowercase hex.
 const CONTENT_SHA256: &str = "content-sha256";
 
@@ -176,21 +178,26 @@ fn unsendable(value: &str) -> Option<&'static str> {
     }
 }
 
-/// The `http` object: `{endpointEnv, tokenEnv, operations}`, operations by
-/// absolute ID. `middleware` is each default middleware's `(name, header)`.
+/// The `http` object: `{endpointEnv, tokenEnv, operations, guide}`,
+/// operations by absolute ID. `middleware` is each default middleware's
+/// `(name, header)`, and `endpoint` the one the described SDKs call, which
+/// the guide's commands export.
 pub(super) fn document(
     service: &Service,
     audience: Audience,
     middleware: &[(String, String)],
+    endpoint: Option<&str>,
 ) -> Result<Value, String> {
     // As every client sees it: a sender-signed operation is called by a
     // third party, never by a caller of the API, so it has no request here.
-    let service = crucible_ir::client_view(
-        &crucible_ir::project(service, audience).map_err(|d| d.to_string())?,
-    );
+    let projected = crucible_ir::project(service, audience).map_err(|d| d.to_string())?;
+    // Asked of every operation the reference lists, before those a third
+    // party calls are left out.
+    let other_bodies = guide::has_payload(&projected);
+    let service = crucible_ir::client_view(&projected);
     let description =
         crucible_codegen_common::describe::describe(&service).map_err(|d| d.to_string())?;
-    let endpoint = env_var(&service, "ENDPOINT");
+    let endpoint_env = env_var(&service, "ENDPOINT");
     let token = env_var(&service, "TOKEN");
     let mut operations = serde_json::Map::new();
     for operation in &service.operations {
@@ -262,7 +269,7 @@ pub(super) fn document(
         // The endpoint is the caller's variable, expanded in double quotes;
         // the path and query are literal, in single quotes, where neither
         // `$` nor `!` expands.
-        command.push_str(&format!(" \"${endpoint}\"{}", quoted(uri)));
+        command.push_str(&format!(" \"${endpoint_env}\"{}", quoted(uri)));
         let mut prefix = String::new();
         if let Some(body) = &body
             && body.encoding == "base64"
@@ -302,9 +309,20 @@ pub(super) fn document(
             }),
         );
     }
+    let guide = guide::guide(&guide::Facts {
+        service: &service,
+        description: &description,
+        operations: &operations,
+        middleware,
+        endpoint_env: &endpoint_env,
+        token_env: &token,
+        endpoint,
+        other_bodies,
+    });
     Ok(json!({
-        "endpointEnv": endpoint,
+        "endpointEnv": endpoint_env,
         "tokenEnv": service.auth.iter().any(|s| service.is_bearer(s)).then_some(token),
         "operations": operations,
+        "guide": guide,
     }))
 }

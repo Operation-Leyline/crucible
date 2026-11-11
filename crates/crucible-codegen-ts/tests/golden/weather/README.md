@@ -54,6 +54,22 @@ try {
 }
 ```
 
+## Types
+
+Every value is typed. The API's simple types are these in TypeScript:
+
+| API type | TypeScript |
+|---|---|
+| string | `string` |
+| 32-bit integer (`integer`) | `number` |
+| 64-bit integer (`long`) | `bigint` |
+| 64-bit float (`double`) | `number` |
+| timestamp | `Date` |
+| any JSON value (`document`) | `Document` |
+| bytes (`blob`) | `Uint8Array` |
+
+Each named API type is exported under its own name, and a simple one is an alias of the type above (an API string named `Id` is `type Id = string`). A list is `T[]`, a map `Record<string, V>`, and an enum a `const` object with a type of its values. An optional member is an optional property: leave it out, and pass `null` only where the API accepts it. A `bigint` holds the integers a `number` cannot hold exactly; `stringifyJson`, exported from the package, serializes values that contain one, which `JSON.stringify` refuses. A timestamp read from a response is a `PreciseDate`, a `Date` that keeps the nanoseconds.
+
 ## Pagination
 
 A paginated operation also has a `paginate<Operation>` method returning an async iterator of pages (`for await (const page of client.paginateListCities(input))`): each page is one response, and it stops when the response carries no next token.

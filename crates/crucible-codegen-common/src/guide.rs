@@ -19,7 +19,7 @@
 //! instructions, so a title must not be able to add a heading, a paragraph,
 //! a link or an HTML comment to it.
 
-use crucible_ir::ir::Service;
+use crucible_ir::ir::{Service, Shape, SimpleKind};
 
 use crate::Registry;
 use crate::metadata::PackageMetadata;
@@ -72,6 +72,13 @@ pub struct Guide {
     pub errors: String,
     /// The language's retry configuration, after the shared retry rules.
     pub retries: String,
+    /// The language's type for each simple API type, as the generator
+    /// spells it in the package's public surface. The guide's Types section
+    /// lists those the service uses; empty, the section is left out.
+    pub scalar_types: Vec<(SimpleKind, String)>,
+    /// After the table: how the language writes what is not a scalar (a
+    /// named type, a list, a map, an optional member). Markdown.
+    pub types_note: String,
     /// Further links: the language guide.
     pub links: Vec<(String, String)>,
     /// The package's common metadata: a configured README or `AGENTS.md`
@@ -253,6 +260,95 @@ fn links(service: &Service, guide: &Guide) -> Vec<String> {
         .chain(guide.links.iter().cloned())
         .filter_map(|(name, url)| Some(format!("- [{name}](<{}>)\n", markdown_url(&url)?)))
         .collect()
+}
+
+/// How many token-filling operations a guide names before it counts them.
+const NAMED_TOKEN_FILLERS: usize = 6;
+
+/// The sentence naming the operations that fill an idempotency token. A
+/// reader wants the rule and a few examples: past a handful it names the
+/// first few and counts the rest, since each operation's own documentation
+/// says whether it takes a token. `AGENTS.md` lists them all.
+fn token_fillers(idempotent: &[String]) -> String {
+    match idempotent.len() {
+        0 => String::new(),
+        count if count <= NAMED_TOKEN_FILLERS => {
+            format!(" These operations fill a token: {}.", idempotent.join(", "))
+        }
+        count => format!(
+            " {count} operations fill a token, among them {}; an operation's own documentation says whether it takes one.",
+            idempotent[..3].join(", ")
+        ),
+    }
+}
+
+/// What a reader calls each simple API type, with the model's own name
+/// for it where the two differ.
+fn kind_label(kind: SimpleKind) -> &'static str {
+    match kind {
+        SimpleKind::Boolean => "boolean",
+        SimpleKind::String => "string",
+        SimpleKind::Byte => "8-bit integer (`byte`)",
+        SimpleKind::Short => "16-bit integer (`short`)",
+        SimpleKind::Integer => "32-bit integer (`integer`)",
+        SimpleKind::Long => "64-bit integer (`long`)",
+        SimpleKind::Float => "32-bit float (`float`)",
+        SimpleKind::Double => "64-bit float (`double`)",
+        SimpleKind::BigInteger => "integer of any size (`bigInteger`)",
+        SimpleKind::BigDecimal => "decimal of any precision (`bigDecimal`)",
+        SimpleKind::Timestamp => "timestamp",
+        SimpleKind::Document => "any JSON value (`document`)",
+        SimpleKind::Blob => "bytes (`blob`)",
+    }
+}
+
+/// The simple types the service's API uses: those of its shapes, and of
+/// the built-in types its members target directly. A generator reads it to
+/// say only what applies to the service (a note on 64-bit integers where
+/// it has one).
+pub fn used_kinds(service: &Service) -> Vec<SimpleKind> {
+    let mut used = Vec::new();
+    let mut note = |shape: Option<&Shape>| {
+        if let Some(Shape::Simple(simple)) = shape
+            && !used.contains(&simple.kind)
+        {
+            used.push(simple.kind);
+        }
+    };
+    for shape in service.shapes.values() {
+        note(Some(shape));
+        for member in shape.members() {
+            note(service.shape(&member.target));
+        }
+    }
+    used
+}
+
+/// The guide's Types section: the language's type for each simple API
+/// type the service uses, in the order the generator lists them, then how
+/// the language writes the rest. `None` when the generator names none.
+fn types(service: &Service, guide: &Guide) -> Option<String> {
+    let used = used_kinds(service);
+    let rows: Vec<String> = guide
+        .scalar_types
+        .iter()
+        .filter(|(kind, _)| used.contains(kind))
+        .map(|(kind, native)| format!("| {} | {} |\n", kind_label(*kind), code_span(native)))
+        .collect();
+    if rows.is_empty() {
+        return None;
+    }
+    let mut out = format!(
+        "Every value is typed. The API's simple types are these in {}:\n\n| API type | {} |\n|---|---|\n{}",
+        guide.language,
+        guide.language,
+        rows.concat()
+    );
+    if !guide.types_note.is_empty() {
+        out.push('\n');
+        out.push_str(&guide.types_note);
+    }
+    Some(out)
 }
 
 fn idempotent_operations(service: &Service, surface: &Surface) -> Vec<String> {
@@ -466,14 +562,22 @@ pub fn document(service: &Service, surface: &Surface, guide: &Guide) -> Document
     }
 }
 
-fn section(id: &str, title: &str, markdown: String) -> Section {
-    let markdown = markdown.trim_end_matches('\n').to_owned();
-    Section {
-        id: id.to_owned(),
-        title: title.to_owned(),
-        html: crate::documentation::html(&markdown),
-        markdown,
+impl Section {
+    /// A section of `markdown`, with its HTML: how every guide's section
+    /// is made, an SDK's or the raw request's.
+    pub fn new(id: &str, title: &str, markdown: String) -> Self {
+        let markdown = markdown.trim_end_matches('\n').to_owned();
+        Self {
+            id: id.to_owned(),
+            title: title.to_owned(),
+            html: crate::documentation::html_with_tables(&markdown),
+            markdown,
+        }
     }
+}
+
+fn section(id: &str, title: &str, markdown: String) -> Section {
+    Section::new(id, title, markdown)
 }
 
 /// The guide's sections after the install lines, in the README's order.
@@ -502,6 +606,9 @@ fn sections(service: &Service, surface: &Surface, guide: &Guide) -> Vec<Section>
             ),
         ));
     }
+    if let Some(types) = types(service, guide) {
+        out.push(section("types", "Types", types));
+    }
     if let Some(mut pagination) = fill(&guide.pagination, service, surface) {
         if let Some(operation) = crate::snippet::paginated(service)
             && let Some(snippet) = surface
@@ -520,13 +627,7 @@ fn sections(service: &Service, surface: &Surface, guide: &Guide) -> Vec<Section>
         out.push(section("errors", "Errors", errors));
     }
     let mut retries = RETRY_RULES.to_owned();
-    let idempotent = idempotent_operations(service, surface);
-    if !idempotent.is_empty() {
-        retries.push_str(&format!(
-            " These operations fill a token: {}.",
-            idempotent.join(", ")
-        ));
-    }
+    retries.push_str(&token_fillers(&idempotent_operations(service, surface)));
     if !guide.retries.is_empty() {
         retries.push(' ');
         retries.push_str(&guide.retries);
@@ -747,6 +848,31 @@ pub fn agents(service: &Service, surface: &Surface, guide: &Guide) -> String {
         out.push_str(&links.concat());
     }
     out
+}
+
+#[cfg(test)]
+mod token_tests {
+    use super::token_fillers;
+
+    /// A handful of operations are named; past that the guide names a few
+    /// and counts the rest, so the rule is not buried under a list.
+    #[test]
+    fn many_token_filling_operations_are_counted_not_listed() {
+        let names = |count: usize| -> Vec<String> {
+            (1..=count).map(|n| format!("`op{n}` (`token`)")).collect()
+        };
+        assert_eq!(token_fillers(&[]), "");
+        assert_eq!(
+            token_fillers(&names(2)),
+            " These operations fill a token: `op1` (`token`), `op2` (`token`)."
+        );
+        assert!(token_fillers(&names(6)).contains("`op6`"));
+        let many = token_fillers(&names(27));
+        assert_eq!(
+            many,
+            " 27 operations fill a token, among them `op1` (`token`), `op2` (`token`), `op3` (`token`); an operation's own documentation says whether it takes one."
+        );
+    }
 }
 
 #[cfg(test)]

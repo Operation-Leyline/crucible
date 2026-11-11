@@ -73,6 +73,22 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 ```
 
+## Types
+
+Every value is typed. The API's simple types are these in Rust:
+
+| API type | Rust |
+|---|---|
+| string | `String` |
+| 32-bit integer (`integer`) | `i32` |
+| 64-bit integer (`long`) | `i64` |
+| 64-bit float (`double`) | `f64` |
+| timestamp | `runtime::time::Timestamp` |
+| any JSON value (`document`) | `runtime::Document` |
+| bytes (`blob`) | `runtime::Blob` |
+
+A list is `Vec<T>` and a map `BTreeMap<K, V>`, under the API's own name for it where it has one. An optional member is a `runtime::Field<T>`: `Field::Absent` leaves it out, `Field::Null` sends an explicit null, and `Field::Value(value)` sends a value. A builder's setter takes the value itself, so only a member you set appears in the request.
+
 ## Pagination
 
 A paginated operation also has a `<operation>_pages` method returning a paginator (`client.list_cities_pages(input)`): call `next_page().await` until it returns `None`; each page is one response.

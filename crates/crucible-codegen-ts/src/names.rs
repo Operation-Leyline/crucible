@@ -16,21 +16,7 @@ pub(crate) fn ts_type(service: &Service, target: &ShapeId, prefix: &str) -> Stri
     if target.is_prelude() {
         let builtin = match service.shape(target) {
             Some(Shape::Unit { .. }) => Some("Unit"),
-            Some(Shape::Simple(simple)) => Some(match simple.kind {
-                SimpleKind::BigInteger => "bigint",
-                SimpleKind::BigDecimal => "Decimal",
-                SimpleKind::Boolean => "boolean",
-                SimpleKind::String => "string",
-                SimpleKind::Byte
-                | SimpleKind::Short
-                | SimpleKind::Integer
-                | SimpleKind::Float
-                | SimpleKind::Double => "number",
-                SimpleKind::Long => "bigint",
-                SimpleKind::Timestamp => "globalThis.Date",
-                SimpleKind::Document => "Document",
-                SimpleKind::Blob => "globalThis.Uint8Array",
-            }),
+            Some(Shape::Simple(simple)) => Some(builtin(simple.kind)),
             _ => None,
         };
         if let Some(builtin) = builtin {
@@ -38,6 +24,26 @@ pub(crate) fn ts_type(service: &Service, target: &ShapeId, prefix: &str) -> Stri
         }
     }
     format!("{prefix}{}", service.name_of(target))
+}
+
+/// The TypeScript type of a simple kind: what [`ts_type`] writes for a
+/// built-in, and what the package's guide lists as the language's types.
+pub(crate) fn builtin(kind: SimpleKind) -> &'static str {
+    match kind {
+        SimpleKind::BigInteger => "bigint",
+        SimpleKind::BigDecimal => "Decimal",
+        SimpleKind::Boolean => "boolean",
+        SimpleKind::String => "string",
+        SimpleKind::Byte
+        | SimpleKind::Short
+        | SimpleKind::Integer
+        | SimpleKind::Float
+        | SimpleKind::Double => "number",
+        SimpleKind::Long => "bigint",
+        SimpleKind::Timestamp => "globalThis.Date",
+        SimpleKind::Document => "Document",
+        SimpleKind::Blob => "globalThis.Uint8Array",
+    }
 }
 
 /// Whether a member may be left out of a TypeScript value. In an input only

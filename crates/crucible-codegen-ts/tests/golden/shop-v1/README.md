@@ -51,6 +51,18 @@ try {
 }
 ```
 
+## Types
+
+Every value is typed. The API's simple types are these in TypeScript:
+
+| API type | TypeScript |
+|---|---|
+| boolean | `boolean` |
+| string | `string` |
+| 32-bit integer (`integer`) | `number` |
+
+Each named API type is exported under its own name, and a simple one is an alias of the type above (an API string named `Id` is `type Id = string`). A list is `T[]`, a map `Record<string, V>`, and an enum a `const` object with a type of its values. An optional member is an optional property: leave it out, and pass `null` only where the API accepts it.
+
 ## Errors
 
 Each modelled error is a class exported from the package, extending `ShopException` and `ServiceError`: test it with `instanceof` and read its fields and `$metadata.status`. Transport failures throw `NetworkError`; an exhausted `timeoutMs` throws `TimeoutError`.

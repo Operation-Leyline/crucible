@@ -587,7 +587,14 @@ fn an_sdk_guide_is_the_generated_readme_section_by_section() {
             .find(|file| file.path.ends_with("README.md"))
             .unwrap_or_else(|| panic!("{language}: no README.md"))
             .contents;
-        let ids: Vec<_> = guide.sections.iter().map(|s| s.id.as_str()).collect();
+        // Every guide has these, in this order; a generator that names
+        // its language's types adds `types` after the call that shows them.
+        let ids: Vec<_> = guide
+            .sections
+            .iter()
+            .map(|s| s.id.as_str())
+            .filter(|id| *id != "types")
+            .collect();
         assert_eq!(
             ids,
             ["client", "call", "pagination", "errors", "retries", "links"],
@@ -620,6 +627,273 @@ fn an_sdk_guide_is_the_generated_readme_section_by_section() {
         if let Some(manifest) = &guide.install.manifest {
             assert!(readme.contains(&manifest.text), "{language}: manifest");
         }
+    }
+}
+
+/// A caller without an SDK gets a guide of the SDK guides' shape, written
+/// from the model: the headers the commands send, the call the SDK guides
+/// make with its response, the JSON of each type, and the wire's rules.
+#[test]
+fn the_raw_request_has_a_guide_of_the_sdk_guides_shape() {
+    let (_directory, path) = repository("weather", TS_AND_RUST);
+    let file = sdk::load(&path).unwrap();
+    let service = common::load("weather");
+    let text = sdks::file(&file, &service, Audience::External)
+        .unwrap()
+        .contents;
+    let document: serde_json::Value = serde_json::from_str(&text).unwrap();
+    let guide = &document["http"]["guide"];
+    assert_eq!(guide["language"], "HTTP");
+    assert_eq!(guide["fence"], "sh");
+    let sections = guide["sections"].as_array().unwrap();
+    let ids: Vec<&str> = sections
+        .iter()
+        .map(|section| section["id"].as_str().unwrap())
+        .collect();
+    assert_eq!(
+        ids,
+        [
+            "request",
+            "call",
+            "types",
+            "pagination",
+            "errors",
+            "retries"
+        ]
+    );
+    let section = |id: &str| {
+        let section = sections.iter().find(|s| s["id"] == id).unwrap();
+        // Every section is ready to insert: titled, and rendered.
+        assert!(!section["title"].as_str().unwrap().is_empty(), "{id}");
+        assert!(!section["html"].as_str().unwrap().is_empty(), "{id}");
+        section["markdown"].as_str().unwrap().to_owned()
+    };
+
+    // The variables and headers are the ones the commands use.
+    let request = section("request");
+    assert!(request.contains("export WEATHER_ENDPOINT="), "{request}");
+    assert!(
+        request.contains("export WEATHER_TOKEN='<token>'"),
+        "{request}"
+    );
+    assert!(
+        request.contains("| `Crucible-Version` | `2026-10-01` | every request |"),
+        "{request}"
+    );
+    assert!(request.contains("| `x-amz-content-sha256` |"), "{request}");
+    // No credential, and no placeholder a shell would expand.
+    assert!(!request.contains("Bearer <"), "{request}");
+
+    // The first call is the operation's own command, with a response.
+    let showcase = crucible_codegen_common::snippet::showcase(&service).unwrap();
+    let command = document["http"]["operations"][showcase.id.to_string()]["snippet"]
+        .as_str()
+        .unwrap();
+    let call = section("call");
+    assert!(call.contains(command.trim_end()), "{call}");
+    assert!(call.contains("```json"), "{call}");
+
+    // JSON's form for a type, in a table that is a table in the HTML.
+    let types = section("types");
+    assert!(
+        types.contains("| 64-bit integer (`long`) | a whole number, every digit written |"),
+        "{types}"
+    );
+    assert!(types.contains("RFC 3339"), "{types}");
+    let html = sections.iter().find(|s| s["id"] == "types").unwrap()["html"]
+        .as_str()
+        .unwrap();
+    assert!(html.contains("<table>"), "{html}");
+
+    // The wire's rules name the model's members and the protocol's header.
+    let pagination = section("pagination");
+    assert!(pagination.contains("`nextToken`"), "{pagination}");
+    let errors = section("errors");
+    assert!(errors.contains("`X-Crucible-Error`"), "{errors}");
+    assert!(errors.contains("\"__type\""), "{errors}");
+    let retries = section("retries");
+    assert!(retries.contains("idempotency token"), "{retries}");
+    assert!(!retries.contains("SDKs send this"), "{retries}");
+}
+
+const TS_ONLY: &str = "schema_version = 1\nmodel = \"model\"\n\n[sdk.ts]\npackage = \"@example/x\"\nout = \"generated/ts\"\n";
+
+/// One section of the raw request's guide for `model`, as Markdown.
+fn http_guide_section(model: &str, sdk_file: &str, id: &str) -> String {
+    let (_directory, path) = repository(model, sdk_file);
+    let text = describe(&path, model, Audience::External).unwrap();
+    let document: serde_json::Value = serde_json::from_str(&text).unwrap();
+    document["http"]["guide"]["sections"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|section| section["id"] == id)
+        .unwrap_or_else(|| panic!("{model} has no {id} section"))["markdown"]
+        .as_str()
+        .unwrap()
+        .to_owned()
+}
+
+/// A page token travels where the operation binds it, under the name it is
+/// bound to, not under its member's name: `version-projection` sends
+/// `nextCursor` as the query parameter `cursor`. Where the paginated
+/// operations disagree (`page-tokens`: the body, a header, the payload, the
+/// query), the guide names no place and sends the reader to each page.
+#[test]
+fn the_raw_requests_guide_says_where_a_page_token_travels() {
+    let bound = http_guide_section("version-projection", TS_ONLY, "pagination");
+    assert!(
+        bound.contains("(`nextCursor` in the JSON body)")
+            && bound.contains("send it as the query parameter `cursor`"),
+        "{bound}"
+    );
+    let mixed = http_guide_section("page-tokens", TS_ONLY, "pagination");
+    assert!(
+        mixed.contains("differs between operations") && !mixed.contains("pageToken"),
+        "{mixed}"
+    );
+}
+
+/// An idempotency token is placed the same way: `page-tokens` binds
+/// `clientToken` to the query parameter `client[token]`, and the commands
+/// leave the token out, so the guide is the only place a caller learns
+/// where it goes. Weather's is a member of the JSON body.
+#[test]
+fn the_raw_requests_guide_says_where_an_idempotency_token_travels() {
+    let bound = http_guide_section("page-tokens", TS_ONLY, "retries");
+    assert!(
+        bound.contains("sent as the query parameter `client[token]`")
+            && !bound.contains("`clientToken`"),
+        "{bound}"
+    );
+    let body = http_guide_section("weather", TS_AND_RUST, "retries");
+    assert!(
+        body.contains("sent as `clientToken` in the JSON body"),
+        "{body}"
+    );
+}
+
+/// The first call's response is shown whatever carries it: a payload of
+/// bytes is named by its media type, never dumped or left out
+/// (`version-projection-payload` answers with a PDF).
+#[test]
+fn the_raw_requests_guide_shows_a_payload_response() {
+    let call = http_guide_section("version-projection-payload", TS_ONLY, "call");
+    assert!(
+        call.contains("with a body of `application/pdf`: the bytes themselves, not JSON."),
+        "{call}"
+    );
+}
+
+/// A service with streams does not call every response body JSON, and an
+/// error whose body is its own payload is not said to carry `__type`
+/// (`server-stream`, `error-payloads`).
+#[test]
+fn the_raw_requests_guide_does_not_call_a_stream_or_a_payload_error_json() {
+    let request = http_guide_section("server-stream", TS_ONLY, "request");
+    assert!(
+        request.contains("answers with server-sent events (`text/event-stream`)"),
+        "{request}"
+    );
+    let errors = http_guide_section("error-payloads", TS_ONLY, "errors");
+    assert!(
+        !errors.contains("repeats the name") && errors.contains("has no `__type`"),
+        "{errors}"
+    );
+    // A service whose only bodies that are not JSON are its errors' does
+    // not call every body JSON either (`error-docs`).
+    let request = http_guide_section("error-docs", TS_ONLY, "request");
+    assert!(
+        request
+            .contains("is JSON, except where its page in the reference names another media type"),
+        "{request}"
+    );
+    // Where an error does have a JSON body, that is the one shown.
+    let json = http_guide_section("weather", TS_AND_RUST, "errors");
+    assert!(
+        json.contains("an error's JSON body repeats the name in `__type`")
+            && json.contains("\"__type\""),
+        "{json}"
+    );
+}
+
+/// The endpoint is quoted for the shell as the commands quote model text:
+/// an apostrophe in it neither ends the string nor runs what follows.
+#[test]
+fn the_raw_requests_guide_quotes_the_endpoint_for_the_shell() {
+    let sdk = "schema_version = 1\nmodel = \"model\"\n\n[sdk.ts]\npackage = \"@example/x\"\nendpoint = \"https://api.example/o'brien;id\"\nout = \"generated/ts\"\n";
+    let request = http_guide_section("weather", sdk, "request");
+    assert!(
+        request.contains(r"export WEATHER_ENDPOINT='https://api.example/o'\''brien;id'"),
+        "{request}"
+    );
+    // Trailing slashes go, as the SDKs' runtimes drop them: the commands
+    // append a URI that starts with one.
+    let sdk = "schema_version = 1\nmodel = \"model\"\n\n[sdk.ts]\npackage = \"@example/x\"\nendpoint = \"https://api.example/v1//\"\nout = \"generated/ts\"\n";
+    let request = http_guide_section("weather", sdk, "request");
+    assert!(
+        request.contains("export WEATHER_ENDPOINT='https://api.example/v1'\n"),
+        "{request}"
+    );
+}
+
+/// A guide says how the API's types are written in its language, from the
+/// generator's own mapping, and only for the types the service uses.
+#[test]
+fn an_sdk_guide_names_the_languages_type_for_each_api_type() {
+    let (_directory, path) = repository("weather", TS_AND_RUST);
+    let file = sdk::load(&path).unwrap();
+    let service = common::load("weather");
+    let text = sdks::file(&file, &service, Audience::External)
+        .unwrap()
+        .contents;
+    let document: serde_json::Value = serde_json::from_str(&text).unwrap();
+    let types = |sdk: &str| {
+        document["sdks"][sdk]["guide"]["sections"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|section| section["id"] == "types")
+            .unwrap_or_else(|| panic!("{sdk} has no types section"))["markdown"]
+            .as_str()
+            .unwrap()
+            .to_owned()
+    };
+    // The table is a table in the HTML too, for a site that inserts it.
+    let html = document["sdks"]["ts"]["guide"]["sections"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|section| section["id"] == "types")
+        .unwrap()["html"]
+        .as_str()
+        .unwrap();
+    assert!(
+        html.contains("<table>") && html.contains("<td><code>bigint</code></td>"),
+        "{html}"
+    );
+    assert!(!html.contains("|---|"), "{html}");
+    // The same API type, each language's own.
+    let ts = types("ts");
+    assert!(
+        ts.contains("| 64-bit integer (`long`) | `bigint` |"),
+        "{ts}"
+    );
+    assert!(ts.contains("| timestamp | `Date` |"), "{ts}");
+    assert!(ts.contains("`PreciseDate`"), "{ts}");
+    let rust = types("rust");
+    assert!(
+        rust.contains("| 64-bit integer (`long`) | `i64` |"),
+        "{rust}"
+    );
+    assert!(
+        rust.contains("| 32-bit integer (`integer`) | `i32` |"),
+        "{rust}"
+    );
+    assert!(rust.contains("`runtime::Field<T>`"), "{rust}");
+    // Weather has no 16-bit integer or decimal: neither is listed.
+    for unused in ["`short`", "`bigDecimal`"] {
+        assert!(!ts.contains(unused) && !rust.contains(unused), "{unused}");
     }
 }
 
@@ -958,6 +1232,17 @@ fn sender_operations_have_no_snippet_request_or_guide() {
             .contains_key("example.hooks#GetAccount"),
         "{}",
         document["http"]
+    );
+    // The reference lists the sender-signed operations, whose bodies are
+    // payloads of their own: the raw request's guide names neither, and
+    // does not say every body is JSON.
+    let request = document["http"]["guide"]["sections"][0]["markdown"]
+        .as_str()
+        .unwrap();
+    assert!(
+        request
+            .contains("is JSON, except where its page in the reference names another media type"),
+        "{request}"
     );
     let file = sdk::load(&path).unwrap();
     let service = common::load("sender-signed");

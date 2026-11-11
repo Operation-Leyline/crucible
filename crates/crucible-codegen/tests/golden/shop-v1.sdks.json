@@ -2,6 +2,42 @@
   "format": "crucible.sdks/1",
   "http": {
     "endpointEnv": "SHOP_ENDPOINT",
+    "guide": {
+      "fence": "sh",
+      "language": "HTTP",
+      "sections": [
+        {
+          "html": "<p>Every operation is one HTTP request to the API's endpoint. A body, in a request or a response, is JSON. The commands here read the endpoint from <code>SHOP_ENDPOINT</code>:</p>\n<pre><code class=\"language-sh\">export SHOP_ENDPOINT='https://&lt;endpoint&gt;'\n</code></pre>\n<p>Send these headers:</p>\n<table><thead><tr><th>Header</th><th>Value</th><th>On</th></tr></thead><tbody>\n<tr><td><code>Content-Type</code></td><td><code>application/json</code></td><td>a request with a JSON body</td></tr>\n<tr><td><code>Crucible-Version</code></td><td><code>v1</code></td><td>every request</td></tr>\n</tbody></table>\n<p><code>Crucible-Version</code> names the release this reference documents. A request without it is served at a release the service chooses, which may be an older one.</p>\n",
+          "id": "request",
+          "markdown": "Every operation is one HTTP request to the API's endpoint. A body, in a request or a response, is JSON. The commands here read the endpoint from `SHOP_ENDPOINT`:\n\n```sh\nexport SHOP_ENDPOINT='https://<endpoint>'\n```\n\nSend these headers:\n\n| Header | Value | On |\n|---|---|---|\n| `Content-Type` | `application/json` | a request with a JSON body |\n| `Crucible-Version` | `v1` | every request |\n\n`Crucible-Version` names the release this reference documents. A request without it is served at a release the service chooses, which may be an older one.",
+          "title": "Send a request"
+        },
+        {
+          "html": "<p><code>CountItems</code> is <code>GET /count</code>:</p>\n<pre><code class=\"language-sh\">curl \"$SHOP_ENDPOINT\"'/count?shelf=shelf' \\\n  -H 'Crucible-Version: v1'\n</code></pre>\n<p>It answers <code>200</code> with a JSON body:</p>\n<pre><code class=\"language-json\">{\n  \"count\": 1\n}\n</code></pre>\n<p>Every operation's page has its request, its response and a command like this one.</p>\n",
+          "id": "call",
+          "markdown": "`CountItems` is `GET /count`:\n\n```sh\ncurl \"$SHOP_ENDPOINT\"'/count?shelf=shelf' \\\n  -H 'Crucible-Version: v1'\n```\n\nIt answers `200` with a JSON body:\n\n```json\n{\n  \"count\": 1\n}\n```\n\nEvery operation's page has its request, its response and a command like this one.",
+          "title": "Call an operation"
+        },
+        {
+          "html": "<p>Each of the API's simple types is written in JSON like this:</p>\n<table><thead><tr><th>API type</th><th>JSON</th></tr></thead><tbody>\n<tr><td>boolean</td><td><code>true</code> or <code>false</code></td></tr>\n<tr><td>string</td><td>a string</td></tr>\n<tr><td>32-bit integer (<code>integer</code>)</td><td>a whole number</td></tr>\n</tbody></table>\n<p>A structure is an object with a member for each of its members, a list is an array, and an enum is its value as a string. Leave an optional member out to send nothing for it. In a path, a query string or a header, a value is written as text.</p>\n",
+          "id": "types",
+          "markdown": "Each of the API's simple types is written in JSON like this:\n\n| API type | JSON |\n|---|---|\n| boolean | `true` or `false` |\n| string | a string |\n| 32-bit integer (`integer`) | a whole number |\n\nA structure is an object with a member for each of its members, a list is an array, and an enum is its value as a string. Leave an optional member out to send nothing for it. In a path, a query string or a header, a value is written as text.",
+          "title": "Types"
+        },
+        {
+          "html": "<p>A request that fails answers with a 4xx or 5xx status. The <code>X-Crucible-Error</code> header names the error, and an error's JSON body repeats the name in <code>__type</code>, beside the error's members:</p>\n<pre><code class=\"language-http\">HTTP/1.1 503\nContent-Type: application/json\nX-Crucible-Error: CountUnavailableException\n\n{\n  \"__type\": \"CountUnavailableException\",\n  \"message\": \"message\"\n}\n</code></pre>\n<p>Tell errors apart by that name, not by the message. Each operation's page lists the errors it returns, with the status of each and whether a retry can succeed. Every response carries the request's ID in <code>x-request-id</code>: quote it when you report a failure.</p>\n",
+          "id": "errors",
+          "markdown": "A request that fails answers with a 4xx or 5xx status. The `X-Crucible-Error` header names the error, and an error's JSON body repeats the name in `__type`, beside the error's members:\n\n```http\nHTTP/1.1 503\nContent-Type: application/json\nX-Crucible-Error: CountUnavailableException\n\n{\n  \"__type\": \"CountUnavailableException\",\n  \"message\": \"message\"\n}\n```\n\nTell errors apart by that name, not by the message. Each operation's page lists the errors it returns, with the status of each and whether a retry can succeed. Every response carries the request's ID in `x-request-id`: quote it when you report a failure.",
+          "title": "Errors"
+        },
+        {
+          "html": "<p>Retry with backoff, and only where a retry is safe: a throttling error for any operation; a connection failure, HTTP 500, 502, 503 or 504, or another error marked retryable, only for an operation that is read-only, idempotent or takes an idempotency token.</p>\n",
+          "id": "retries",
+          "markdown": "Retry with backoff, and only where a retry is safe: a throttling error for any operation; a connection failure, HTTP 500, 502, 503 or 504, or another error marked retryable, only for an operation that is read-only, idempotent or takes an idempotency token.",
+          "title": "Retries and idempotency"
+        }
+      ]
+    },
     "operations": {
       "example.shop#CountItems": {
         "body": null,
@@ -3918,6 +3954,12 @@
             "title": "Call an operation"
           },
           {
+            "html": "<p>Every value is typed. The API's simple types are these in Rust:</p>\n<table><thead><tr><th>API type</th><th>Rust</th></tr></thead><tbody>\n<tr><td>boolean</td><td><code>bool</code></td></tr>\n<tr><td>string</td><td><code>String</code></td></tr>\n<tr><td>32-bit integer (<code>integer</code>)</td><td><code>i32</code></td></tr>\n</tbody></table>\n<p>A list is <code>Vec&lt;T&gt;</code> and a map <code>BTreeMap&lt;K, V&gt;</code>, under the API's own name for it where it has one. An optional member is a <code>runtime::Field&lt;T&gt;</code>: <code>Field::Absent</code> leaves it out, <code>Field::Null</code> sends an explicit null, and <code>Field::Value(value)</code> sends a value. A builder's setter takes the value itself, so only a member you set appears in the request.</p>\n",
+            "id": "types",
+            "markdown": "Every value is typed. The API's simple types are these in Rust:\n\n| API type | Rust |\n|---|---|\n| boolean | `bool` |\n| string | `String` |\n| 32-bit integer (`integer`) | `i32` |\n\nA list is `Vec<T>` and a map `BTreeMap<K, V>`, under the API's own name for it where it has one. An optional member is a `runtime::Field<T>`: `Field::Absent` leaves it out, `Field::Null` sends an explicit null, and `Field::Value(value)` sends a value. A builder's setter takes the value itself, so only a member you set appears in the request.",
+            "title": "Types"
+          },
+          {
             "html": "<p>A call returns <code>Result&lt;Output, runtime::Error&lt;OperationError&gt;&gt;</code>. A modelled error is <code>runtime::Error::Service(runtime::ServiceError { error, metadata })</code>, where <code>error</code> is the operation's error enum (<code>CountItemsError::CountUnavailableException(..)</code>, say) and <code>metadata</code> holds the HTTP status and request ID; <code>ShopException</code> unifies every operation's errors. Other variants are transport, decoding, timeout and cancellation failures.</p>\n",
             "id": "errors",
             "markdown": "A call returns `Result<Output, runtime::Error<OperationError>>`. A modelled error is `runtime::Error::Service(runtime::ServiceError { error, metadata })`, where `error` is the operation's error enum (`CountItemsError::CountUnavailableException(..)`, say) and `metadata` holds the HTTP status and request ID; `ShopException` unifies every operation's errors. Other variants are transport, decoding, timeout and cancellation failures.",
@@ -4595,6 +4637,12 @@
             "id": "call",
             "markdown": "`countItems` calls `CountItems`. Every operation has a method like it.\n\n```ts\nimport { CountUnavailableException, ShopClient } from \"@example/shop-v1\";\nimport type * as models from \"@example/shop-v1\";\n\n// The client sends Crucible-Version: v1 on every request.\nconst client = new ShopClient({ endpoint: process.env.SHOP_ENDPOINT });\n\n// Sample values generated from the model's types and constraints.\nconst input: models.CountItemsInput = {\n  shelf: \"shelf\",\n};\n\ntry {\n  const output = await client.countItems(input);\n  console.log(output.count);\n} catch (error) {\n  if (error instanceof CountUnavailableException) {\n    console.error(`CountUnavailableException (HTTP ${error.$metadata.status}):`, error.message);\n  } else {\n    throw error;\n  }\n}\n```",
             "title": "Call an operation"
+          },
+          {
+            "html": "<p>Every value is typed. The API's simple types are these in TypeScript:</p>\n<table><thead><tr><th>API type</th><th>TypeScript</th></tr></thead><tbody>\n<tr><td>boolean</td><td><code>boolean</code></td></tr>\n<tr><td>string</td><td><code>string</code></td></tr>\n<tr><td>32-bit integer (<code>integer</code>)</td><td><code>number</code></td></tr>\n</tbody></table>\n<p>Each named API type is exported under its own name, and a simple one is an alias of the type above (an API string named <code>Id</code> is <code>type Id = string</code>). A list is <code>T[]</code>, a map <code>Record&lt;string, V&gt;</code>, and an enum a <code>const</code> object with a type of its values. An optional member is an optional property: leave it out, and pass <code>null</code> only where the API accepts it.</p>\n",
+            "id": "types",
+            "markdown": "Every value is typed. The API's simple types are these in TypeScript:\n\n| API type | TypeScript |\n|---|---|\n| boolean | `boolean` |\n| string | `string` |\n| 32-bit integer (`integer`) | `number` |\n\nEach named API type is exported under its own name, and a simple one is an alias of the type above (an API string named `Id` is `type Id = string`). A list is `T[]`, a map `Record<string, V>`, and an enum a `const` object with a type of its values. An optional member is an optional property: leave it out, and pass `null` only where the API accepts it.",
+            "title": "Types"
           },
           {
             "html": "<p>Each modelled error is a class exported from the package, extending <code>ShopException</code> and <code>ServiceError</code>: test it with <code>instanceof</code> and read its fields and <code>$metadata.status</code>. Transport failures throw <code>NetworkError</code>; an exhausted <code>timeoutMs</code> throws <code>TimeoutError</code>.</p>\n",
