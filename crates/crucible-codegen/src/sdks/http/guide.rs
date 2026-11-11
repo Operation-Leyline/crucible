@@ -606,20 +606,23 @@ fn retries(service: &Service) -> Draft {
                    error marked retryable, only for an operation that is read-only, idempotent \
                    or takes an idempotency token."
         .to_owned();
-    let tokens: Vec<&String> = service
+    // Where each operation's token travels, as for a page token: one bound
+    // to a query parameter or a header is sent under that name, not its
+    // member's.
+    let places: Vec<String> = service
         .operations
         .iter()
-        .filter_map(|op| op.idempotency_token.as_ref())
+        .filter_map(|op| Some(place(&op.request, op.idempotency_token.as_ref()?)))
         .collect();
-    if !tokens.is_empty() {
-        let names: BTreeSet<_> = tokens.iter().collect();
-        let count = match tokens.len() {
+    if !places.is_empty() {
+        let distinct: BTreeSet<_> = places.iter().collect();
+        let count = match places.len() {
             1 => "One operation takes an idempotency token".to_owned(),
             n => format!("{n} operations take an idempotency token"),
         };
-        let named = match names.iter().next().filter(|_| names.len() == 1) {
-            Some(name) => format!(", {}", code_span(name)),
-            None => ", which its page names".to_owned(),
+        let named = match distinct.iter().next().filter(|_| distinct.len() == 1) {
+            Some(place) => format!(", sent as {place}"),
+            None => ", sent where each one's page says".to_owned(),
         };
         // The shared note opens with what an SDK does; a caller without
         // one needs the rest.

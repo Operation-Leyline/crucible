@@ -754,6 +754,25 @@ fn the_raw_requests_guide_says_where_a_page_token_travels() {
     );
 }
 
+/// An idempotency token is placed the same way: `page-tokens` binds
+/// `clientToken` to the query parameter `client[token]`, and the commands
+/// leave the token out, so the guide is the only place a caller learns
+/// where it goes. Weather's is a member of the JSON body.
+#[test]
+fn the_raw_requests_guide_says_where_an_idempotency_token_travels() {
+    let bound = http_guide_section("page-tokens", TS_ONLY, "retries");
+    assert!(
+        bound.contains("sent as the query parameter `client[token]`")
+            && !bound.contains("`clientToken`"),
+        "{bound}"
+    );
+    let body = http_guide_section("weather", TS_AND_RUST, "retries");
+    assert!(
+        body.contains("sent as `clientToken` in the JSON body"),
+        "{body}"
+    );
+}
+
 /// The first call's response is shown whatever carries it: a payload of
 /// bytes is named by its media type, never dumped or left out
 /// (`version-projection-payload` answers with a PDF).

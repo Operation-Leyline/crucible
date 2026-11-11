@@ -1082,7 +1082,7 @@ language, so a site shows both with one page. `language` is `HTTP` and
 | `types` | The JSON each simple API type the service uses is written as, then structures, lists, maps, enums and unions |
 | `pagination` | How to follow the pages, naming where the token is read from and sent (a query parameter or header by the name it is bound to, else the member in the JSON body) where every paginated operation agrees; absent without a paginated operation |
 | `errors` | An error on the wire (one with a JSON body where the service has one: the model's first example, else a generated sample) and how to tell errors apart; absent without a modelled error |
-| `retries` | When a retry is safe, and the idempotency token a caller sends itself |
+| `retries` | When a retry is safe, and the idempotency token a caller sends itself, placed as a page token is where every operation that takes one agrees |
 
 The request is the one `describe.json` shows: the first example with an
 input, else the generated sample, either way without its idempotency
