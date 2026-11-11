@@ -804,7 +804,8 @@ fn the_raw_requests_guide_does_not_call_a_stream_or_a_payload_error_json() {
     // not call every body JSON either (`error-docs`).
     let request = http_guide_section("error-docs", TS_ONLY, "request");
     assert!(
-        request.contains("is JSON, except where an operation's page names another media type"),
+        request
+            .contains("is JSON, except where its page in the reference names another media type"),
         "{request}"
     );
     // Where an error does have a JSON body, that is the one shown.
@@ -1231,7 +1232,8 @@ fn sender_operations_have_no_snippet_request_or_guide() {
         .as_str()
         .unwrap();
     assert!(
-        request.contains("is JSON, except where an operation's page names another media type"),
+        request
+            .contains("is JSON, except where its page in the reference names another media type"),
         "{request}"
     );
     let file = sdk::load(&path).unwrap();

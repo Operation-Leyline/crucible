@@ -123,7 +123,7 @@ fn request(facts: &Facts) -> Draft {
         // An error's payload counts: a caller must not expect to decode
         // every failure as JSON either.
         if facts.other_bodies || has_payload_errors(facts.description) {
-            ", except where an operation's page names another media type"
+            ", except where its page in the reference names another media type"
         } else {
             ""
         },
