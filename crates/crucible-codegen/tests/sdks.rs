@@ -800,6 +800,13 @@ fn the_raw_requests_guide_does_not_call_a_stream_or_a_payload_error_json() {
         !errors.contains("repeats the name") && errors.contains("has no `__type`"),
         "{errors}"
     );
+    // A service whose only bodies that are not JSON are its errors' does
+    // not call every body JSON either (`error-docs`).
+    let request = http_guide_section("error-docs", TS_ONLY, "request");
+    assert!(
+        request.contains("is JSON, except where an operation's page names another media type"),
+        "{request}"
+    );
     // Where an error does have a JSON body, that is the one shown.
     let json = http_guide_section("weather", TS_AND_RUST, "errors");
     assert!(

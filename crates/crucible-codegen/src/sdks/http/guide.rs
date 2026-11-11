@@ -105,13 +105,24 @@ pub(super) fn has_payload(service: &Service) -> bool {
         .any(|op| op.request.payload.is_some() || op.response.payload.is_some())
 }
 
+/// Whether any error's body is a payload of its own rather than JSON.
+fn has_payload_errors(description: &Description) -> bool {
+    description.shapes.values().any(|shape| {
+        !shape["error"].is_null()
+            && (shape["error"]["bodyDiscriminator"].is_null()
+                || !shape["error"]["bindings"]["payload"].is_null())
+    })
+}
+
 /// The endpoint, the credential and the headers every request sends.
 fn request(facts: &Facts) -> Draft {
     let service = facts.service;
     let mut out = format!(
         "Every operation is one HTTP request to the API's endpoint. A body, in a request or a \
          response, is JSON{}.{} The commands here read the endpoint from {}",
-        if facts.other_bodies {
+        // An error's payload counts: a caller must not expect to decode
+        // every failure as JSON either.
+        if facts.other_bodies || has_payload_errors(facts.description) {
             ", except where an operation's page names another media type"
         } else {
             ""
@@ -367,7 +378,12 @@ fn json_form(service: &Service, kind: SimpleKind) -> String {
             form
         }
         SimpleKind::Document => "any JSON value".into(),
-        SimpleKind::Blob => "a string of base64".into(),
+        // Base64 only inside JSON: as an operation's whole body the bytes
+        // travel as they are.
+        SimpleKind::Blob => {
+            "a string of base64 in a JSON body; the bytes themselves where it is the whole body"
+                .into()
+        }
     }
 }
 
@@ -582,11 +598,7 @@ fn errors(facts: &Facts) -> Option<Draft> {
         "\nTell errors apart by that name, not by the message. Each operation's page lists the \
          errors it returns, with the status of each and whether a retry can succeed.",
     );
-    if description.shapes.values().any(|shape| {
-        !shape["error"].is_null()
-            && (shape["error"]["bodyDiscriminator"].is_null()
-                || !shape["error"]["bindings"]["payload"].is_null())
-    }) {
+    if has_payload_errors(description) {
         out.push_str(
             " An error whose body is a payload of its own has no `__type`: the header alone \
              names it.",
