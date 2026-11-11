@@ -207,6 +207,55 @@ fn request(facts: &Facts) -> Draft {
     ("request", "Send a request", out)
 }
 
+/// What the first call answers, after its command: `None` where the
+/// description has no response to show.
+///
+/// `response` is a described message, whose `payload` holds the modelled
+/// value and its kind, not the bytes that travel. So the kind decides the
+/// form: a document is JSON whatever its value (a string is `"hello"`, a
+/// null is `null`), a string payload is the text itself, and a blob is
+/// named by its media type, since base64 of it is not what is sent.
+fn answer(response: &Value, status: &str, stream: bool) -> Option<String> {
+    let status = code_span(status);
+    let json = |value: &Value| {
+        fenced(
+            "json",
+            &serde_json::to_string_pretty(value).expect("a document serializes"),
+        )
+    };
+    if stream {
+        return Some(format!(
+            "\nIt answers {status} with a stream of server-sent events ({}); its page says what \
+             each event carries.\n",
+            code_span(stream_media_type())
+        ));
+    }
+    if !response["body"].is_null() {
+        return Some(format!(
+            "\nIt answers {status} with a JSON body:\n\n{}",
+            json(&response["body"])
+        ));
+    }
+    let payload = response["payload"].as_object()?;
+    // A payload's media type, where the model names one.
+    let media = payload
+        .get("mediaType")
+        .and_then(Value::as_str)
+        .map(|media| format!(" of {}", code_span(media)))
+        .unwrap_or_default();
+    let value = payload.get("value").unwrap_or(&Value::Null);
+    Some(match payload.get("kind").and_then(Value::as_str) {
+        Some("blob") => {
+            format!("\nIt answers {status} with a body{media}: the bytes themselves, not JSON.\n")
+        }
+        Some("string") => format!(
+            "\nIt answers {status} with a body{media}:\n\n{}",
+            fenced("text", value.as_str().unwrap_or_default())
+        ),
+        _ => format!("\nIt answers {status} with a JSON body:\n\n{}", json(value)),
+    })
+}
+
 /// The operation the SDK guides call, as a command, and what it answers.
 fn call(facts: &Facts) -> Option<Draft> {
     let operation = showcase(facts.service)?;
@@ -234,45 +283,9 @@ fn call(facts: &Facts) -> Option<Draft> {
         Value::Null => &described["status"],
         code => code,
     };
-    let status = code_span(&status.to_string());
-    let json = |value: &Value| {
-        fenced(
-            "json",
-            &serde_json::to_string_pretty(value).expect("a document serializes"),
-        )
-    };
-    let payload = &response["payload"];
-    // A payload's media type, where the model names one.
-    let media = payload["mediaType"]
-        .as_str()
-        .map(|media| format!(" of {}", code_span(media)))
-        .unwrap_or_default();
-    if operation.response_mode == ResponseMode::ServerStream {
-        out.push_str(&format!(
-            "\nIt answers {status} with a stream of server-sent events ({}); its page says what \
-             each event carries.\n",
-            code_span(stream_media_type())
-        ));
-    } else if !response["body"].is_null() {
-        out.push_str(&format!(
-            "\nIt answers {status} with a JSON body:\n\n{}",
-            json(&response["body"])
-        ));
-    } else if payload["encoding"] == "base64" {
-        // Bytes are not shown: base64 of them is not what travels.
-        out.push_str(&format!(
-            "\nIt answers {status} with a body{media}: the bytes themselves, not JSON.\n"
-        ));
-    } else if let Some(text) = payload["value"].as_str() {
-        out.push_str(&format!(
-            "\nIt answers {status} with a body{media}:\n\n{}",
-            fenced("text", text)
-        ));
-    } else if !payload["value"].is_null() {
-        out.push_str(&format!(
-            "\nIt answers {status} with a JSON body:\n\n{}",
-            json(&payload["value"])
-        ));
+    let stream = operation.response_mode == ResponseMode::ServerStream;
+    if let Some(answer) = answer(response, &status.to_string(), stream) {
+        out.push_str(&answer);
     }
     out.push_str(
         "\nEvery operation's page has its request, its response and a command like this one.",
@@ -426,7 +439,8 @@ fn types(service: &Service) -> Option<Draft> {
 
 /// Where `member` of a request or response travels, as a phrase: a query
 /// parameter or header by the name it is bound to, the whole body for a
-/// payload, else the member in the JSON body. `member` may be a path into
+/// payload, its segment of the path for a label, else the member in the
+/// JSON body. `member` may be a path into
 /// the output (`result.next`); only a top-level member can be bound.
 fn place(bindings: &Bindings, member: &str) -> String {
     if let Some(binding) = bindings.query.iter().find(|b| b.member == member) {
@@ -441,6 +455,12 @@ fn place(bindings: &Bindings, member: &str) -> String {
         .is_some_and(|p| p.member == member)
     {
         return "the whole body".to_owned();
+    }
+    if bindings.labels.iter().any(|label| label == member) {
+        return format!(
+            "the {} segment of the path",
+            code_span(&format!("{{{member}}}"))
+        );
     }
     format!("{} in the JSON body", code_span(member))
 }
@@ -613,4 +633,64 @@ fn retries(service: &Service) -> Draft {
         ));
     }
     ("retries", "Retries and idempotency", out)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{answer, place};
+    use crucible_ir::ir::{Binding, Bindings};
+    use serde_json::json;
+
+    /// A payload's kind, not its value's type, decides how the response is
+    /// shown: a document that is a string or a null is still JSON.
+    #[test]
+    fn a_payload_is_shown_as_its_kind_travels() {
+        let payload = |kind: &str, value: serde_json::Value| json!({"body": null, "payload": {"kind": kind, "mediaType": "x/y", "value": value}});
+        let document = answer(&payload("document", json!("hello")), "200", false).unwrap();
+        assert!(
+            document.contains("with a JSON body") && document.contains("\"hello\""),
+            "{document}"
+        );
+        let null = answer(&payload("document", json!(null)), "200", false).unwrap();
+        assert!(null.contains("```json\nnull\n```"), "{null}");
+        let text = answer(&payload("string", json!("hello")), "200", false).unwrap();
+        assert!(
+            text.contains("a body of `x/y`") && text.contains("```text\nhello\n```"),
+            "{text}"
+        );
+        let bytes = answer(&payload("blob", json!("aGVsbG8=")), "200", false).unwrap();
+        assert!(
+            bytes.contains("the bytes themselves") && !bytes.contains("aGVsbG8="),
+            "{bytes}"
+        );
+        // Nothing described, nothing claimed.
+        assert_eq!(
+            answer(&json!({"body": null, "payload": null}), "204", false),
+            None
+        );
+    }
+
+    /// A member is placed where its binding sends it, a path label included.
+    #[test]
+    fn a_member_is_placed_where_it_is_bound() {
+        let bindings = Bindings {
+            labels: vec!["limit".into()],
+            query: vec![Binding {
+                member: "nextToken".into(),
+                name: "token".into(),
+            }],
+            headers: vec![Binding {
+                member: "cursor".into(),
+                name: "X-Cursor".into(),
+            }],
+            ..Bindings::default()
+        };
+        assert_eq!(
+            place(&bindings, "limit"),
+            "the `{limit}` segment of the path"
+        );
+        assert_eq!(place(&bindings, "nextToken"), "the query parameter `token`");
+        assert_eq!(place(&bindings, "cursor"), "the `X-Cursor` header");
+        assert_eq!(place(&bindings, "next"), "`next` in the JSON body");
+    }
 }
