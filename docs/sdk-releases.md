@@ -435,9 +435,15 @@ for a bump on a model break or a new service version.
 **Build and publish.** `build` generates it into `docs/package`, packs it
 with `npm pack --ignore-scripts` (there is nothing to compile, so no
 compiler is installed), and writes the release into its `out`. `publish`
-uploads it last, after every SDK, and not at all when an SDK failed: its
-install steps name those releases, so it must not reach its channel before
-they do. Publish again once they are there; the journal resumes.
+uploads it last, after every SDK, and only once each SDK release it names
+is on its channel: its install steps name those releases, so it must not
+reach its channel before they do. An SDK this run uploaded counts; one
+whose upload failed does not; and one this run did not try, because
+`--sdk` left it out or the reference is being retried alone, is looked up
+on its channel (journalled, or there with the tested bytes). The releases
+it names are those in this release of the SDKs its audience sees; an SDK
+the release does not hold is unchanged, and its last release is already
+published. Publish again once they are there; the journal resumes.
 
 `crucible sdk generate` writes a development export, version `0.0.0-dev`,
 which names no SDK release.
