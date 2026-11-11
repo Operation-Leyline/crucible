@@ -25,9 +25,9 @@
           "title": "Types"
         },
         {
-          "html": "<p>One operation returns its results in pages. A response carries <code>nextToken</code> when another page follows: send its value as <code>nextToken</code> in the next request, with the other parameters unchanged, until a response has none. A token is opaque: do not read or build one, and stop if the service returns the same token twice.</p>\n",
+          "html": "<p>One operation returns its results in pages. A response carries the next page's token (<code>nextToken</code> in the JSON body) when another page follows: send it as the query parameter <code>token</code> in the next request, with the other parameters unchanged, until a response has none. A token is opaque: do not read or build one, and stop if the service returns the same token twice.</p>\n",
           "id": "pagination",
-          "markdown": "One operation returns its results in pages. A response carries `nextToken` when another page follows: send its value as `nextToken` in the next request, with the other parameters unchanged, until a response has none. A token is opaque: do not read or build one, and stop if the service returns the same token twice.",
+          "markdown": "One operation returns its results in pages. A response carries the next page's token (`nextToken` in the JSON body) when another page follows: send it as the query parameter `token` in the next request, with the other parameters unchanged, until a response has none. A token is opaque: do not read or build one, and stop if the service returns the same token twice.",
           "title": "Pagination"
         },
         {

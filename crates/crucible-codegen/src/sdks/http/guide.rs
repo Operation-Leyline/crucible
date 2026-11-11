@@ -16,10 +16,13 @@ use crucible_codegen_common::docs::IDEMPOTENCY_TOKEN_NOTE;
 use crucible_codegen_common::guide::{Section, code_span, used_kinds};
 use crucible_codegen_common::snippet::{paginated, showcase};
 use crucible_codegen_common::surface::Middleware;
-use crucible_ir::ir::{Operation, Service, Shape, SimpleKind, TimestampFormat};
+use crucible_ir::Protocol;
+use crucible_ir::ir::{
+    Bindings, Operation, ResponseMode, Service, Shape, SimpleKind, TimestampFormat,
+};
 use serde_json::{Value, json};
 
-use super::CONTENT_SHA256;
+use super::{CONTENT_SHA256, quoted};
 
 /// What the guide is written from.
 pub(super) struct Facts<'a> {
@@ -39,6 +42,23 @@ pub(super) struct Facts<'a> {
     /// that operation too, so "a body is JSON" must not read as a rule
     /// without exception.
     pub other_bodies: bool,
+}
+
+/// Whether any operation answers with a stream of events rather than one
+/// body.
+fn has_streams(service: &Service) -> bool {
+    service
+        .operations
+        .iter()
+        .any(|op| op.response_mode == ResponseMode::ServerStream)
+}
+
+/// The stream's media type without its parameters: what a reader looks for.
+fn stream_media_type() -> &'static str {
+    Protocol::STREAM_CONTENT_TYPE
+        .split(';')
+        .next()
+        .unwrap_or(Protocol::STREAM_CONTENT_TYPE)
 }
 
 /// `{language, fence, sections}`: an SDK guide without a package.
@@ -90,19 +110,29 @@ fn request(facts: &Facts) -> Draft {
     let service = facts.service;
     let mut out = format!(
         "Every operation is one HTTP request to the API's endpoint. A body, in a request or a \
-         response, is JSON{}. The commands here read the endpoint from {}",
+         response, is JSON{}.{} The commands here read the endpoint from {}",
         if facts.other_bodies {
             ", except where an operation's page names another media type"
         } else {
             ""
         },
+        if has_streams(service) {
+            format!(
+                " A streaming operation answers with server-sent events ({}) instead of one body.",
+                code_span(stream_media_type())
+            )
+        } else {
+            String::new()
+        },
         code_span(facts.endpoint_env),
     );
     let with_bearer = service.operations.iter().any(|op| bearer(service, op));
+    // Quoted as the commands quote model text: an endpoint may hold an
+    // apostrophe, which would otherwise end the string and run what follows.
     let mut exports = format!(
-        "export {}='{}'\n",
+        "export {}={}\n",
         facts.endpoint_env,
-        facts.endpoint.unwrap_or("https://<endpoint>")
+        quoted(facts.endpoint.unwrap_or("https://<endpoint>"))
     );
     if with_bearer {
         out.push_str(&format!(
@@ -204,16 +234,45 @@ fn call(facts: &Facts) -> Option<Draft> {
         Value::Null => &described["status"],
         code => code,
     };
-    match &response["body"] {
-        Value::Null => {}
-        body => out.push_str(&format!(
-            "\nIt answers {} with a JSON body:\n\n{}",
-            code_span(&status.to_string()),
-            fenced(
-                "json",
-                &serde_json::to_string_pretty(body).expect("a document serializes")
-            ),
-        )),
+    let status = code_span(&status.to_string());
+    let json = |value: &Value| {
+        fenced(
+            "json",
+            &serde_json::to_string_pretty(value).expect("a document serializes"),
+        )
+    };
+    let payload = &response["payload"];
+    // A payload's media type, where the model names one.
+    let media = payload["mediaType"]
+        .as_str()
+        .map(|media| format!(" of {}", code_span(media)))
+        .unwrap_or_default();
+    if operation.response_mode == ResponseMode::ServerStream {
+        out.push_str(&format!(
+            "\nIt answers {status} with a stream of server-sent events ({}); its page says what \
+             each event carries.\n",
+            code_span(stream_media_type())
+        ));
+    } else if !response["body"].is_null() {
+        out.push_str(&format!(
+            "\nIt answers {status} with a JSON body:\n\n{}",
+            json(&response["body"])
+        ));
+    } else if payload["encoding"] == "base64" {
+        // Bytes are not shown: base64 of them is not what travels.
+        out.push_str(&format!(
+            "\nIt answers {status} with a body{media}: the bytes themselves, not JSON.\n"
+        ));
+    } else if let Some(text) = payload["value"].as_str() {
+        out.push_str(&format!(
+            "\nIt answers {status} with a body{media}:\n\n{}",
+            fenced("text", text)
+        ));
+    } else if !payload["value"].is_null() {
+        out.push_str(&format!(
+            "\nIt answers {status} with a JSON body:\n\n{}",
+            json(&payload["value"])
+        ));
     }
     out.push_str(
         "\nEvery operation's page has its request, its response and a command like this one.",
@@ -365,41 +424,70 @@ fn types(service: &Service) -> Option<Draft> {
     Some(("types", "Types", out))
 }
 
-/// How a caller follows the pages, with the members' names where every
-/// paginated operation shares them.
+/// Where `member` of a request or response travels, as a phrase: a query
+/// parameter or header by the name it is bound to, the whole body for a
+/// payload, else the member in the JSON body. `member` may be a path into
+/// the output (`result.next`); only a top-level member can be bound.
+fn place(bindings: &Bindings, member: &str) -> String {
+    if let Some(binding) = bindings.query.iter().find(|b| b.member == member) {
+        return format!("the query parameter {}", code_span(&binding.name));
+    }
+    if let Some(binding) = bindings.headers.iter().find(|b| b.member == member) {
+        return format!("the {} header", code_span(&binding.name));
+    }
+    if bindings
+        .payload
+        .as_ref()
+        .is_some_and(|p| p.member == member)
+    {
+        return "the whole body".to_owned();
+    }
+    format!("{} in the JSON body", code_span(member))
+}
+
+/// How a caller follows the pages, naming where the tokens travel where
+/// every paginated operation agrees on it.
 fn pagination(service: &Service) -> Option<Draft> {
     paginated(service)?;
-    let pages: Vec<_> = service
+    // Where each member travels, not its name in the model: a token bound
+    // to a renamed query parameter or a header is sent under that name.
+    let places: Vec<(String, String, Option<String>)> = service
         .operations
         .iter()
-        .filter_map(|op| op.paginated.as_ref())
+        .filter_map(|op| {
+            let pages = op.paginated.as_ref()?;
+            Some((
+                place(&op.request, &pages.input_token),
+                place(&op.response, &pages.output_token),
+                pages
+                    .page_size
+                    .as_ref()
+                    .map(|size| place(&op.request, size)),
+            ))
+        })
         .collect();
-    let names: BTreeSet<_> = pages
-        .iter()
-        .map(|p| (&p.input_token, &p.output_token, &p.page_size))
-        .collect();
-    let count = match pages.len() {
+    let distinct: BTreeSet<_> = places.iter().collect();
+    let count = match places.len() {
         1 => "One operation returns its results in pages".to_owned(),
         n => format!("{n} operations return their results in pages"),
     };
-    let mut out = match names.iter().next().filter(|_| names.len() == 1) {
+    let mut out = match distinct.iter().next().filter(|_| distinct.len() == 1) {
         Some((input, output, size)) => {
             let mut text = format!(
-                "{count}. A response carries {} when another page follows: send its value as {} \
-                 in the next request, with the other parameters unchanged, until a response has \
-                 none.",
-                code_span(output),
-                code_span(input),
+                "{count}. A response carries the next page's token ({output}) when another page \
+                 follows: send it as {input} in the next request, with the other parameters \
+                 unchanged, until a response has none."
             );
             if let Some(size) = size {
-                text.push_str(&format!(" {} asks for a page size.", code_span(size)));
+                text.push_str(&format!(" A page size is asked for with {size}."));
             }
             text
         }
         None => format!(
-            "{count}. A response carries a token when another page follows: send it in the next \
-             request, with the other parameters unchanged, until a response has none. Each \
-             paginated operation's page names the two members."
+            "{count}. A response carries the next page's token when another page follows: send \
+             it in the next request, with the other parameters unchanged, until a response has \
+             none. Where the token is read from and sent differs between operations: each \
+             paginated operation's page says."
         ),
     };
     out.push_str(
@@ -417,20 +505,32 @@ fn errors(facts: &Facts) -> Option<Draft> {
         .into_iter()
         .chain(&facts.service.operations)
         .find(|op| !op.errors.is_empty())?;
-    let modelled = description
+    // Every error the guide could show: the model's examples, then each
+    // error's generated sample. One with a JSON body is shown first, since
+    // that is the form most errors have.
+    let examples = description
         .operations
         .values()
         .flat_map(|op| op["examples"].as_array().into_iter().flatten())
         .map(|example| &example["error"])
-        .find(|error| !error.is_null())
+        .filter(|error| !error.is_null())
         .map(|error| (&error["message"], error["status"].clone()));
-    let (message, status) = modelled.or_else(|| {
-        let shape = description.shapes.get(&first.errors.first()?.to_string())?;
-        Some((
-            &shape["error"]["sample"]["message"],
-            shape["error"]["status"].clone(),
-        ))
-    })?;
+    let samples = first
+        .errors
+        .iter()
+        .chain(facts.service.operations.iter().flat_map(|op| &op.errors))
+        .filter_map(|id| description.shapes.get(&id.to_string()))
+        .map(|shape| {
+            (
+                &shape["error"]["sample"]["message"],
+                shape["error"]["status"].clone(),
+            )
+        });
+    let candidates: Vec<_> = examples.chain(samples).collect();
+    let (message, status) = candidates
+        .iter()
+        .find(|(message, _)| !message["body"].is_null())
+        .or_else(|| candidates.first())?;
     let header = description
         .shapes
         .values()
@@ -439,16 +539,23 @@ fn errors(facts: &Facts) -> Option<Draft> {
     for (name, value) in message["headers"].as_object().into_iter().flatten() {
         wire.push_str(&format!("\n{name}: {}", value.as_str().unwrap_or_default()));
     }
-    if !message["body"].is_null() {
+    let json_body = !message["body"].is_null();
+    if json_body {
         wire.push_str(&format!(
             "\n\n{}",
             serde_json::to_string_pretty(&message["body"]).expect("a document serializes")
         ));
     }
+    // `__type` is said only of an error that has a JSON body: one whose
+    // body is its own payload has none to look in.
     let mut out = format!(
-        "A request that fails answers with a 4xx or 5xx status. The {} header names the error, \
-         and the JSON body repeats the name in `__type`, beside the error's members:\n\n{}",
+        "A request that fails answers with a 4xx or 5xx status. The {} header names the error{}:\n\n{}",
         code_span(header),
+        if json_body {
+            ", and an error's JSON body repeats the name in `__type`, beside the error's members"
+        } else {
+            ""
+        },
         fenced("http", &wire),
     );
     out.push_str(
@@ -460,7 +567,10 @@ fn errors(facts: &Facts) -> Option<Draft> {
             && (shape["error"]["bodyDiscriminator"].is_null()
                 || !shape["error"]["bindings"]["payload"].is_null())
     }) {
-        out.push_str(" An error whose body is a payload of its own is named by the header alone.");
+        out.push_str(
+            " An error whose body is a payload of its own has no `__type`: the header alone \
+             names it.",
+        );
     }
     out.push_str(
         " Every response carries the request's ID in `x-request-id`: quote it when you report a \

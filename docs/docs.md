@@ -1078,10 +1078,10 @@ language, so a site shows both with one page. `language` is `HTTP` and
 | `id` | Says |
 |---|---|
 | `request` | The endpoint and token variables the commands read (the endpoint is the one the listed SDKs call, where those that name one agree), and each header to send with its value and the requests it goes on: the ones every command here sends |
-| `call` | The operation the SDK guides call, as a command, and its response: the example's the command sends, else the generated sample's |
+| `call` | The operation the SDK guides call, as a command, and its response: the example's the command sends, else the generated sample's. A payload of bytes is named by its media type, and a stream as server-sent events |
 | `types` | The JSON each simple API type the service uses is written as, then structures, lists, maps, enums and unions |
-| `pagination` | How to follow the pages, with the token members' names where every paginated operation shares them; absent without a paginated operation |
-| `errors` | An error on the wire (the model's first example of one, else an error's generated sample) and how to tell errors apart; absent without a modelled error |
+| `pagination` | How to follow the pages, naming where the token is read from and sent (a query parameter or header by the name it is bound to, else the member in the JSON body) where every paginated operation agrees; absent without a paginated operation |
+| `errors` | An error on the wire (one with a JSON body where the service has one: the model's first example, else a generated sample) and how to tell errors apart; absent without a modelled error |
 | `retries` | When a retry is safe, and the idempotency token a caller sends itself |
 
 The request is the one `describe.json` shows: the first example with an

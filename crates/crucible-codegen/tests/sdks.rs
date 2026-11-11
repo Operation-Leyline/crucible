@@ -716,6 +716,92 @@ fn the_raw_request_has_a_guide_of_the_sdk_guides_shape() {
     assert!(!retries.contains("SDKs send this"), "{retries}");
 }
 
+const TS_ONLY: &str = "schema_version = 1\nmodel = \"model\"\n\n[sdk.ts]\npackage = \"@example/x\"\nout = \"generated/ts\"\n";
+
+/// One section of the raw request's guide for `model`, as Markdown.
+fn http_guide_section(model: &str, sdk_file: &str, id: &str) -> String {
+    let (_directory, path) = repository(model, sdk_file);
+    let text = describe(&path, model, Audience::External).unwrap();
+    let document: serde_json::Value = serde_json::from_str(&text).unwrap();
+    document["http"]["guide"]["sections"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|section| section["id"] == id)
+        .unwrap_or_else(|| panic!("{model} has no {id} section"))["markdown"]
+        .as_str()
+        .unwrap()
+        .to_owned()
+}
+
+/// A page token travels where the operation binds it, under the name it is
+/// bound to, not under its member's name: `version-projection` sends
+/// `nextCursor` as the query parameter `cursor`. Where the paginated
+/// operations disagree (`page-tokens`: the body, a header, the payload, the
+/// query), the guide names no place and sends the reader to each page.
+#[test]
+fn the_raw_requests_guide_says_where_a_page_token_travels() {
+    let bound = http_guide_section("version-projection", TS_ONLY, "pagination");
+    assert!(
+        bound.contains("(`nextCursor` in the JSON body)")
+            && bound.contains("send it as the query parameter `cursor`"),
+        "{bound}"
+    );
+    let mixed = http_guide_section("page-tokens", TS_ONLY, "pagination");
+    assert!(
+        mixed.contains("differs between operations") && !mixed.contains("pageToken"),
+        "{mixed}"
+    );
+}
+
+/// The first call's response is shown whatever carries it: a payload of
+/// bytes is named by its media type, never dumped or left out
+/// (`version-projection-payload` answers with a PDF).
+#[test]
+fn the_raw_requests_guide_shows_a_payload_response() {
+    let call = http_guide_section("version-projection-payload", TS_ONLY, "call");
+    assert!(
+        call.contains("with a body of `application/pdf`: the bytes themselves, not JSON."),
+        "{call}"
+    );
+}
+
+/// A service with streams does not call every response body JSON, and an
+/// error whose body is its own payload is not said to carry `__type`
+/// (`server-stream`, `error-payloads`).
+#[test]
+fn the_raw_requests_guide_does_not_call_a_stream_or_a_payload_error_json() {
+    let request = http_guide_section("server-stream", TS_ONLY, "request");
+    assert!(
+        request.contains("answers with server-sent events (`text/event-stream`)"),
+        "{request}"
+    );
+    let errors = http_guide_section("error-payloads", TS_ONLY, "errors");
+    assert!(
+        !errors.contains("repeats the name") && errors.contains("has no `__type`"),
+        "{errors}"
+    );
+    // Where an error does have a JSON body, that is the one shown.
+    let json = http_guide_section("weather", TS_AND_RUST, "errors");
+    assert!(
+        json.contains("an error's JSON body repeats the name in `__type`")
+            && json.contains("\"__type\""),
+        "{json}"
+    );
+}
+
+/// The endpoint is quoted for the shell as the commands quote model text:
+/// an apostrophe in it neither ends the string nor runs what follows.
+#[test]
+fn the_raw_requests_guide_quotes_the_endpoint_for_the_shell() {
+    let sdk = "schema_version = 1\nmodel = \"model\"\n\n[sdk.ts]\npackage = \"@example/x\"\nendpoint = \"https://api.example/o'brien;id\"\nout = \"generated/ts\"\n";
+    let request = http_guide_section("weather", sdk, "request");
+    assert!(
+        request.contains(r"export WEATHER_ENDPOINT='https://api.example/o'\''brien;id'"),
+        "{request}"
+    );
+}
+
 /// A guide says how the API's types are written in its language, from the
 /// generator's own mapping, and only for the types the service uses.
 #[test]
