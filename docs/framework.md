@@ -1487,28 +1487,35 @@ unchanged):
   outright (`grants`) and `by service` (`by_service`), as `PermissionSet`
   bitsets whose bit `i` is `Permission::ALL[i]`; per scope its kind
   (`Service`, `Instance`, `Every`), resource, the identifiers an instance
-  carries, and the resources whose instances (`instances`) or wildcards
+  carries, the resources whose instances (`instances`) or wildcards
   (`every`) a binding there covers, which is `crucible_ir::roles::covers`
-  tabulated at build time;
+  tabulated at build time, and the scopes whose instances it covers
+  (`covers_scopes`, for assignment);
 - `Role` and `Scope`, closed enums in catalogue order with `ALL`,
   `index`, `info`, `as_str` and `parse` (`None` for a value the model does
   not declare, so an old binding grants nothing). `Role::allows(permission)`
   answers `Grant::{Yes, ByService, No}`; `scopes`, `holders`,
-  `valid_for(scope, holder)`, `assigned_by`, `may_assign(assigners)` and
-  `description` read the table. With `roles [..] custom`, the closed enum
-  is `PredefinedRole` and `Role` is `Predefined(PredefinedRole) |
-  Custom(String)`.
+  `valid_for(scope, holder)`, `assigned_by`, `may_assign(assigner, kind,
+  at)` and `description` read the table. With `roles [..] custom`, the
+  closed enum is `PredefinedRole` and `Role` is
+  `Predefined(PredefinedRole) | Custom(String)`;
+- `roles::authorizer(source)`, with the `roles` feature: the framework's
+  `RoleAuthorizer` over `CATALOGUE`, bounded by `BindingSource`, plus
+  `ServiceGrants` when any role grants `by service` and `CustomRoles` with
+  `custom`. A hook the model needs is a compile-time obligation: forgetting
+  it is a type error at this call, never a silent refusal.
 
 A `ListRoles` handler returns the catalogue (skipping `internal` roles for
 a public answer), and a service that keeps its own `Authorizer` reads the
 same tables.
 
 **`RoleAuthorizer`.** The service implements `BindingSource`, for what
-only it knows, and installs `RoleAuthorizer` as its Authorizer:
+only it knows, plus the hatch traits its model needs, and installs the
+generated `roles::authorizer` as its Authorizer:
 
 ```rust
 use crucible_server_runtime_rust::permissions::Permissions;
-use crucible_server_runtime_rust::roles::{BindingSource, ByService, RoleAuthorizer, RoleBinding, Root, Unavailable};
+use crucible_server_runtime_rust::roles::{BindingSource, ByService, RoleBinding, Root, ServiceGrants, Unavailable};
 
 impl BindingSource for Bindings {
     type Principal = Caller;              // as authentication left it on the context
@@ -1521,38 +1528,42 @@ impl BindingSource for Bindings {
         -> Result<Arc<[RoleBinding]>, Unavailable> {
         self.store.bindings(&caller.id, root, fresh).await.map_err(Unavailable::new)
     }
+}
 
-    // `grants GraphHistory [read] by service`: the history of a graph the
-    // binding names, while the graph is live.
+// Leyline's `grants GraphHistory [read] by service`: the history of a graph
+// the binding names, while the graph is live. Without this impl,
+// `leyline::roles::authorizer(bindings)` does not compile.
+impl ServiceGrants for Bindings {
     async fn decide_by_service(&self, _: &Caller, grant: ByService<'_>) -> Result<bool, Unavailable> {
         self.graphs.history_is_live(grant.binding, grant.target).await.map_err(Unavailable::new)
     }
 }
 
-builder.interceptor(Permissions::new(RoleAuthorizer::new(&leyline::roles::CATALOGUE, bindings)))
+builder.interceptor(Permissions::new(leyline::roles::authorizer(bindings)))
 ```
 
 For each batch of checks it asks `bindings` once per root (the tenant: the
 target's first identifier; `fresh` when the operation is not read-only),
 and per check:
 
-1. keeps the bindings under the root whose scope the catalogue knows and
-   whose role it knows and finds valid there for the principal's `kind`
-   (a custom role's permissions come from `custom_role`, asked once per id
-   per batch, and only grantable ones count); a role or scope the model
-   no longer has, or a role bound where it may not be (`owner` held by an
-   API key, an organization role at a graph scope), grants nothing;
+1. keeps the well-formed bindings: under the root, at a scope the
+   catalogue knows, with that scope's count of identifiers, naming a role
+   it knows and finds valid there for the principal's `kind` (a custom
+   role's permissions come from `CustomRoles::custom_role`, asked once per
+   id per batch and only for such bindings, and only grantable ones
+   count). A malformed binding, a role or scope the model no longer has, or
+   a role bound where it may not be (`owner` held by an API key, an
+   organization role at a graph scope) grants nothing on either path;
 2. allows when a kept binding whose scope instance covers the target
    grants the permission outright. Coverage is a table read (does the
    scope cover the target's resource, one instance or `R(*)`) and an
    identifier-prefix comparison (are the binding's identifiers the
    target's first ones);
-3. otherwise asks `decide_by_service` for each kept binding whose role
-   grants the permission `by service`, whether or not it covers the
-   target, since the relationship it follows is the service's (a graph
-   binding reaching that graph's history, which is not beneath the
-   graph), and allows on the first yes. The default answers no, so a `by
-   service` grant is never a silent allow;
+3. otherwise asks `ServiceGrants::decide_by_service` for each kept binding
+   whose role grants the permission `by service`, whether or not it
+   covers the target, since the relationship it follows is the service's
+   (a graph binding reaching that graph's history, which is not beneath
+   the graph), and allows on the first yes;
 4. otherwise refuses with `refusal(covered)`: by default Hidden when no
    kept binding covers the target, Denied when one does.
 
@@ -1567,14 +1578,25 @@ the same, and `capabilities(principal, target, fresh)` answers "what may
 I do here?" for every permission of the target's resource with the same
 walk. A `filters` listing stays the service's (`BindingSource::visible`).
 
+**Assignment.** `RoleCatalogue::may_assign(assigner, kind, role, at)` (and
+`Role::may_assign`) is pure: a role without `assignedBy` may be assigned
+by whoever the binding operation's `requires` admits; otherwise one of the
+assigner's bindings must name an assigning role, be valid at its scope for
+the assigner's kind, and sit at a scope instance that covers `at`, the
+scope instance of the binding being written (`ScopeRef`), so an `owner`
+of one organization assigns nothing in another.
+`RoleAuthorizer::may_assign(principal, role, at, fresh)` reads the
+assigner's bindings under `at`'s root itself, for the binding operation's
+handler.
+
 Per check the work is a scan of the principal's bindings with a string
 comparison or two and a bitset test each; the bindings are an
 `Arc<[RoleBinding]>`, so a source that caches them hands them out without
-copying, and `BindingSource` is not boxed per call. `benches/roles` in
+copying, and the hooks are not boxed per call. `benches/roles` in
 `e2e/weather-service` measures a decision against Leyline's catalogue
 with a three-binding in-memory store: one allocation per decision (the
 verdict vector the `Authorizer` API returns), and on a shared development
-machine 120 to 250 ns per decision (one check allowed, denied or hidden,
+machine 80 to 190 ns per decision (one check allowed, denied or hidden,
 two checks, or a `by service` grant through the hook).
 
 **Moving onto it.** Two tools let a service that already has its own

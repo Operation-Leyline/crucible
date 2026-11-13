@@ -25,8 +25,8 @@ use crucible_server_runtime_rust::permissions::{
     Check, PermissionInfo, ResourceRef, Target, Verdict,
 };
 use crucible_server_runtime_rust::roles::{
-    BindingSource, ByService, PermissionSet, RoleAuthorizer, RoleBinding, RoleCatalogue, Root,
-    Unavailable,
+    BindingSource, BothHatches, ByService, CustomRoles, PermissionSet, RoleBinding, RoleCatalogue,
+    Root, ServiceGrants, Unavailable,
 };
 use proptest::prelude::*;
 use proptest::strategy::ValueTree;
@@ -383,7 +383,9 @@ impl BindingSource for Source {
         // the root holds.
         Ok(principal.bindings.clone())
     }
+}
 
+impl ServiceGrants for Source {
     async fn decide_by_service(
         &self,
         _: &Principal,
@@ -391,7 +393,9 @@ impl BindingSource for Source {
     ) -> Result<bool, Unavailable> {
         Ok(related(grant.binding, grant.target))
     }
+}
 
+impl CustomRoles for Source {
     async fn custom_role(&self, role: &str) -> Result<Option<PermissionSet>, Unavailable> {
         Ok(defines(role, "").map(|_| {
             self.catalogue.permission_set(
@@ -485,6 +489,13 @@ fn oracle(
         else {
             continue;
         };
+        // A binding names its scope instance by all of the instance's
+        // identifiers, or it is malformed and grants nothing, by service
+        // included.
+        let k = instance_identifiers(service, &scope.on);
+        if binding.identifiers.len() != k {
+            continue;
+        }
         enum Held<'s> {
             Role(&'s crucible_ir::ir::Role),
             Custom(bool),
@@ -509,9 +520,7 @@ fn oracle(
             }
             None => continue,
         };
-        let k = instance_identifiers(service, &scope.on);
         let reaches = covers(service, &scope.on, shape)
-            && binding.identifiers.len() == k
             && ids.len() >= k
             && ids[..k]
                 .iter()
@@ -599,7 +608,10 @@ fn run(service: &Service, input: &Input) -> Result<(), TestCaseError> {
         kind,
         bindings: bindings.clone().into(),
     };
-    let authorizer = RoleAuthorizer::new(catalogue, Source { catalogue });
+    let authorizer = crucible_server_runtime_rust::roles::role_authorizer::<_, BothHatches>(
+        catalogue,
+        Source { catalogue },
+    );
     let verdicts = futures_executor(authorizer.decide_for(&principal, &checks, false)).unwrap();
     for (check, verdict) in checks.iter().zip(verdicts) {
         let expected = oracle(service, kind, &bindings, check.permission, &check.resource);

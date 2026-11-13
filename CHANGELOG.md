@@ -42,11 +42,12 @@ version's section when it is prepared.
   `Grant`, `RoleBinding`) without a feature. The new `roles` feature (which
   enables `permissions`) adds `RoleAuthorizer<B: BindingSource>`, the
   framework's `Authorizer` for a model with roles (`decide_for`,
-  `explain_for`, `capabilities`); `BindingSource` (`bindings`, and
-  `principal`, `kind`, `decide_by_service`, `custom_role`, `refusal` and
-  `visible` with defaults; a `by service` grant is refused unless the source
-  answers it), `Root`, `ByService`, `Refusal`, `Unavailable` and
-  `Capabilities`; `ShadowAuthorizer` with `ShadowCounts`, which enforces one
+  `explain_for`, `capabilities`, `may_assign`), built by the generated
+  `roles::authorizer(source)`; `BindingSource` (`bindings`, and
+  `principal`, `kind`, `refusal` and `visible` with defaults), and
+  `ServiceGrants` and `CustomRoles`, which `roles::authorizer` requires of
+  a model with `by service` grants or custom roles; `Root`, `ByService`,
+  `ScopeRef`, `Refusal`, `Unavailable` and `Capabilities`; `ShadowAuthorizer` with `ShadowCounts`, which enforces one
   Authorizer and logs and counts where another disagrees; and
   `roles::conformance` (`Conformance`, `Subject`, `Report`, `Disagreement`),
   which compares any Authorizer with `RoleAuthorizer` over every case of a
@@ -193,6 +194,11 @@ version's section when it is prepared.
 
 ### Fixed
 
+- Rust server bindings of a model with typed permissions compile on the
+  MSRV (Rust 1.88): an operation's `REQUIREMENTS` names its clauses as a
+  `static` array instead of a `&[..]` temporary referring to
+  `PermissionInfo` statics, which only newer compilers promote. Generated
+  output changes for every operation that declares requirements.
 - `crucible-build`: with Cargo 1.100 or newer, a build that wrote
   `generate_into` exports or a `model_output` export no longer reruns the
   build script on the next build. Cargo 1.100's build directory keeps the

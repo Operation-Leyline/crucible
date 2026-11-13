@@ -254,6 +254,20 @@ service that wants it writes `assignedBy holders` (decision 6).
 holders` is refused as not supported yet, since no consumer needs it and
 its predicate belongs with the generated code (R2).
 
+*As built (R2).* The predicate checks where the assigner holds its role,
+not only which role: `RoleCatalogue::may_assign(assigner, kind, role, at)`
+(and the generated `Role::may_assign(assigner, kind, at)`) is true when
+the role names no assigners, and otherwise only when one of the assigner's
+bindings names a role in its `assignedBy`, is valid at its own scope for
+the assigner's kind, and sits at a scope instance that covers `at`, the
+scope instance of the binding being written (a `ScopeRef`). Which scopes'
+instances a scope covers is tabulated at build time
+(`ScopeInfo::covers_scopes`, from `crucible_ir::roles::covers_scope`), and
+the instances are compared by identifier prefix, so an `owner` of
+organization A admits nothing in organization B. The helper is pure;
+`RoleAuthorizer::may_assign(principal, role, at, fresh)` reads the
+assigner's bindings under `at`'s root itself.
+
 ### 4.6 Grants the service decides
 
 Some grants follow a relationship the resource tree does not have.
@@ -446,8 +460,9 @@ which under a parent (`every`) a binding there covers: `covers` from
 `crucible_ir::roles` tabulated over the resources that declare permissions
 (`crucible_ir::roles::coverage`), with the identifiers an instance carries
 (`scope_identifiers`); generation fails if those identifiers do not begin
-a covered resource's, since the runtime compares by prefix. `may_assign`
-is generated too (§4.5). The accessors are implemented once, on
+a covered resource's, since the runtime compares by prefix. Each scope also
+lists the scopes whose instances it covers (`covers_scopes`), for
+`may_assign` (§4.5). The accessors are implemented once, on
 `RoleCatalogue`, and the generated methods forward to it. With `custom`,
 `PredefinedRole` is the closed enum. The catalogue also carries
 `principals`, `custom` and `grantable` (what a custom role may hold:
@@ -506,7 +521,18 @@ is no path that allows on error.
 The service keeps storage, caching, freshness, tenancy and its 403/404
 policy. A service may also keep its own `Authorizer` and use only §7.1.
 
-*As built (R2).* Behind the runtime's `roles` feature. `BindingSource` has
+*As built (R2).* Behind the runtime's `roles` feature. The hooks are
+compile-time obligations, as above: `ServiceGrants::decide_by_service` and
+`CustomRoles::custom_role` have no default, and the generated
+`roles::authorizer(source)` (a runtime macro the `roles` module calls, so
+bindings generated without the feature carry no authorizer) is bounded by
+`BindingSource` plus each the model needs. `RoleAuthorizer`'s second type
+parameter records which hooks it calls (`NoHatches`, `ServiceHatch`,
+`CustomHatch`, `BothHatches`), since without specialization the runtime
+cannot ask whether a source implements a trait; the framework's own
+constructor, `roles::role_authorizer`, is `#[doc(hidden)]` and re-exported
+under `__generated`. A doctest on `ServiceGrants` fails to compile
+(`E0277`) for Leyline's model with a source that lacks it. `BindingSource` has
 an associated `Principal` (read from the request context by
 `principal`, by default its typed attribute) and `kind` (a `principals`
 value, for `holders`; `None` makes a role limited to some kinds grant
@@ -515,9 +541,11 @@ nothing). Its methods are native `async fn`s, not boxed per call.
 a target that names none) and answers `Arc<[RoleBinding]>`, so a cached
 answer is not copied; bindings the root does not hold are ignored, so
 returning more is harmless. A `RoleBinding` is the stored strings (role,
-scope, identifiers), parsed against the catalogue per check, so an
-unknown role or scope, or a count of identifiers that is not the scope's,
-grants nothing.
+scope, identifiers), parsed against the catalogue per check. A binding is
+kept only when well formed (under the root, at a scope the catalogue
+knows, with that scope's count of identifiers) before either path reads
+it, so a malformed binding neither covers a target nor reaches
+`decide_by_service`.
 
 `by service` grants are not filtered by coverage (corrected after review
 of this design): a graph binding never covers a `GraphHistory`, which is
@@ -527,11 +555,12 @@ asked for every binding under the root whose role is valid at its scope
 and grants the permission `by service`, with a `ByService` naming the
 role, the binding (scope instance included), the permission and the
 target; the service decides whether the binding's relationship reaches
-the target. Its default answers no. `covered`, for `refusal`, counts only
+the target. `covered`, for `refusal`, counts only
 ordinary coverage by a binding whose role is valid where it is bound (a
 binding that grants nothing reveals nothing). `custom_role` is asked once
-per unknown role id per batch, and only grantable permissions of its
-answer count. A `filters` listing is `BindingSource::visible`, by default
+per unknown role id per batch, only for well-formed bindings under the
+root (so another tenant's role, or one at a scope the model lacks, cannot
+fail the batch), and only grantable permissions of its answer count. A `filters` listing is `BindingSource::visible`, by default
 the internal error, since a listing's visibility (who may list an empty
 set) is policy; `capabilities` answers the per-instance question.
 

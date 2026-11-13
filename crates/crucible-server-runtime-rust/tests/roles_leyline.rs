@@ -14,7 +14,9 @@ use crucible_server_runtime_rust::roles::conformance::{Conformance, Subject};
 use crucible_server_runtime_rust::roles::{
     BindingSource, ByService, Grant, RoleBinding, Root, ScopeKind, Unavailable,
 };
-use crucible_server_runtime_rust::roles::{RoleAuthorizer, RoleCatalogue, RoleInfo};
+use crucible_server_runtime_rust::roles::{
+    RoleAuthorizer, RoleCatalogue, RoleInfo, ScopeRef, ServiceGrants, ServiceHatch,
+};
 
 include!("../../crucible-codegen-rust/tests/golden/roles_leyline.rs");
 
@@ -100,11 +102,9 @@ fn api_keys_cannot_become_human_administrators() {
             assert_eq!(role.holders(), [USER]);
             // Only an owner assigns them.
             assert_eq!(role.assigned_by().collect::<Vec<_>>(), [Role::Owner]);
-            assert!(role.may_assign([Role::Owner]));
-            assert!(!role.may_assign([Role::AccessAdmin, Role::GraphAdmin]));
         } else {
             assert!(role.holders().is_empty());
-            assert!(role.may_assign([]));
+            assert!(role.assigned_by().next().is_none());
         }
     }
 }
@@ -340,10 +340,11 @@ async fn graph_admin_reads_a_history_only_as_the_service_decides() {
         )
     };
     let checks = [history("history-of-g-1"), history("history-of-g-2")];
-    // The default hook refuses: a `by service` grant is never a silent
-    // allow. GraphHistory is beside Graph, so no graph binding covers it:
-    // the refusal is Hidden.
-    let refusing = RoleAuthorizer::new(&CATALOGUE, Memory::default());
+    // A hook that relates nothing refuses: a `by service` grant is never a
+    // silent allow (and a source without `ServiceGrants` cannot build
+    // Leyline's authorizer at all: the `ServiceGrants` doctest). GraphHistory
+    // is beside Graph, so no graph binding covers it: the refusal is Hidden.
+    let refusing = leyline::roles::authorizer(Memory::default());
     assert_eq!(
         refusing.decide_for(&admin, &checks, false).await.unwrap(),
         [Verdict::Hidden, Verdict::Hidden]
@@ -417,13 +418,10 @@ async fn an_unavailable_source_never_allows() {
         OrganizationPermission::OrganizationRead,
         OrganizationRef::new("o-1"),
     )];
-    let failing = RoleAuthorizer::new(
-        &CATALOGUE,
-        Memory {
-            fail_bindings: true,
-            ..Memory::default()
-        },
-    );
+    let failing = leyline::roles::authorizer(Memory {
+        fail_bindings: true,
+        ..Memory::default()
+    });
     assert!(failing.decide_for(&caller, &checks, false).await.is_err());
     assert!(
         failing
@@ -436,14 +434,11 @@ async fn an_unavailable_source_never_allows() {
         USER,
         [binding(Role::GraphAdmin, Scope::Graph, &["o-1", "g-1"])],
     );
-    let failing = RoleAuthorizer::new(
-        &CATALOGUE,
-        Memory {
-            fail_by_service: true,
-            relate: true,
-            ..Memory::default()
-        },
-    );
+    let failing = leyline::roles::authorizer(Memory {
+        fail_by_service: true,
+        relate: true,
+        ..Memory::default()
+    });
     let history = [check(
         GraphHistoryPermission::Read,
         GraphHistoryRef::new("o-1", "history-of-g-1"),
@@ -470,7 +465,7 @@ async fn one_read_per_root_per_batch() {
         ..Memory::default()
     };
     let reads = memory.reads.clone();
-    let authorizer = RoleAuthorizer::new(&CATALOGUE, memory);
+    let authorizer = leyline::roles::authorizer(memory);
     let caller = caller(
         USER,
         [binding(Role::GraphReader, Scope::AllGraphs, &["o-1"])],
@@ -491,6 +486,112 @@ async fn one_read_per_root_per_batch() {
     assert_eq!(verdicts[..2], [Verdict::Allowed, Verdict::Allowed]);
     let reads = reads.lock().unwrap().clone();
     assert_eq!(reads, [("o-1".to_owned(), true), ("o-2".to_owned(), true)]);
+}
+
+#[tokio::test]
+async fn a_malformed_binding_never_reaches_the_hook() {
+    let memory = Memory {
+        relate: true,
+        ..Memory::default()
+    };
+    let asked = memory.asked.clone();
+    let authorizer = leyline::roles::authorizer(memory);
+    // A graph binding with an extra identifier, one with too few, one at a
+    // scope the model does not have, and one under another organization:
+    // none is well formed under o-1, so none is asked about (and none would
+    // relate, though `history-of-g-1` names the graph of the first).
+    let caller = caller(
+        USER,
+        [
+            RoleBinding::new("graphAdmin", "graph", ["o-1", "g-1", "extra"]),
+            RoleBinding::new("graphAdmin", "graph", ["o-1"]),
+            RoleBinding::new("graphAdmin", "graphGroup", ["o-1", "g-1"]),
+            RoleBinding::new("graphAdmin", "graph", ["o-2", "g-1"]),
+        ],
+    );
+    let history = check(
+        GraphHistoryPermission::Read,
+        GraphHistoryRef::new("o-1", "history-of-g-1"),
+    );
+    assert_eq!(
+        authorizer
+            .decide_for(&caller, &[history], false)
+            .await
+            .unwrap(),
+        [Verdict::Hidden]
+    );
+    let capabilities = authorizer
+        .capabilities(
+            &caller,
+            &GraphHistoryRef::new("o-1", "history-of-g-1").into(),
+            false,
+        )
+        .await
+        .unwrap();
+    assert!(capabilities.allowed.is_empty());
+    // Nor does a malformed binding allow anything outright.
+    let graph = check(GraphPermission::Read, GraphRef::new("o-1", "g-1"));
+    assert_eq!(
+        authorizer
+            .decide_for(&caller, &[graph], false)
+            .await
+            .unwrap(),
+        [Verdict::Hidden]
+    );
+    assert!(
+        asked.lock().unwrap().is_empty(),
+        "{:?}",
+        asked.lock().unwrap()
+    );
+}
+
+#[tokio::test]
+async fn only_an_owner_of_the_same_organization_assigns_owner() {
+    let at = |ids: &[&str]| ids.iter().map(|id| (*id).to_owned()).collect::<Vec<_>>();
+    let org_1 = at(&["o-1"]);
+    let graph_1 = at(&["o-1", "g-1"]);
+    let owner = [binding(Role::Owner, Scope::Organization, &["o-1"])];
+    let organization = |ids| ScopeRef::new("organization", ids);
+    // The catalogue's helper, pure.
+    assert!(Role::Owner.may_assign(&owner, Some(USER), organization(&org_1)));
+    assert!(Role::AccessAdmin.may_assign(&owner, Some(USER), organization(&org_1)));
+    let other = at(&["o-2"]);
+    assert!(!Role::Owner.may_assign(&owner, Some(USER), organization(&other)));
+    // An owner binding invalid for its kind, or bound where owner is not.
+    assert!(!Role::Owner.may_assign(&owner, Some(API_KEY), organization(&org_1)));
+    let misbound = [binding(Role::Owner, Scope::Graph, &["o-1", "g-1"])];
+    assert!(!Role::Owner.may_assign(&misbound, Some(USER), organization(&org_1)));
+    // Another role assigns nothing assigned by owners.
+    let admin = [binding(Role::AccessAdmin, Scope::Organization, &["o-1"])];
+    assert!(!Role::Owner.may_assign(&admin, Some(USER), organization(&org_1)));
+    // A role without `assignedBy`: whoever the operation's `requires`
+    // admits, owner or not.
+    assert!(Role::GraphReader.may_assign(&[], Some(USER), ScopeRef::new("graph", &graph_1)));
+    // A malformed scope instance admits nothing.
+    assert!(!Role::GraphReader.may_assign(&owner, Some(USER), ScopeRef::new("graph", &org_1)));
+
+    // Through the authorizer, which reads the assigner's bindings itself.
+    let authorizer = authorizer();
+    let user = caller(USER, owner.clone());
+    assert!(
+        authorizer
+            .may_assign(&user, Role::Owner.index(), organization(&org_1), true)
+            .await
+            .unwrap()
+    );
+    assert!(
+        !authorizer
+            .may_assign(&user, Role::Owner.index(), organization(&other), true)
+            .await
+            .unwrap()
+    );
+    let key = caller(API_KEY, owner);
+    assert!(
+        !authorizer
+            .may_assign(&key, Role::AuditAdmin.index(), organization(&org_1), true)
+            .await
+            .unwrap()
+    );
 }
 
 #[test]
@@ -529,7 +630,7 @@ struct Seeded {
 
 impl Subject for Seeded {
     type Principal = Caller;
-    type Authorizer = RoleAuthorizer<Memory>;
+    type Authorizer = RoleAuthorizer<Memory, ServiceHatch>;
 
     fn seed(
         &self,
@@ -537,7 +638,7 @@ impl Subject for Seeded {
         bindings: &[RoleBinding],
     ) -> (Self::Authorizer, Caller) {
         (
-            RoleAuthorizer::new(self.catalogue, Memory::default()),
+            crucible_server_runtime_rust::roles::role_authorizer(self.catalogue, Memory::default()),
             Caller {
                 kind: kind.unwrap_or_default(),
                 bindings: bindings.to_vec().into(),
@@ -656,14 +757,11 @@ fn check(permission: impl Into<Permission>, resource: impl Into<ResourceRef>) ->
     Check::handler(permission.into(), resource.into())
 }
 
-fn authorizer() -> RoleAuthorizer<Memory> {
-    RoleAuthorizer::new(
-        &CATALOGUE,
-        Memory {
-            relate: true,
-            ..Memory::default()
-        },
-    )
+fn authorizer() -> RoleAuthorizer<Memory, ServiceHatch> {
+    leyline::roles::authorizer(Memory {
+        relate: true,
+        ..Memory::default()
+    })
 }
 
 #[derive(Default)]
@@ -674,6 +772,8 @@ struct Memory {
     fail_bindings: bool,
     fail_by_service: bool,
     reads: Arc<std::sync::Mutex<Vec<(String, bool)>>>,
+    /// The bindings `decide_by_service` was asked about.
+    asked: Arc<std::sync::Mutex<Vec<RoleBinding>>>,
 }
 
 impl BindingSource for Memory {
@@ -697,12 +797,15 @@ impl BindingSource for Memory {
         }
         Ok(principal.bindings.clone())
     }
+}
 
+impl ServiceGrants for Memory {
     async fn decide_by_service(
         &self,
         _: &Caller,
         grant: ByService<'_>,
     ) -> Result<bool, Unavailable> {
+        self.asked.lock().unwrap().push(grant.binding.clone());
         if self.fail_by_service {
             return Err(Unavailable::new("the graph table is unreachable"));
         }

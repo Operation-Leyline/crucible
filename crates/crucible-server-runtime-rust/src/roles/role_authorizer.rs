@@ -1,8 +1,9 @@
+use std::marker::PhantomData;
 use std::sync::Arc;
 
 use super::{
-    BindingSource, ByService, Capabilities, PermissionSet, RoleBinding, RoleCatalogue, Root,
-    Unavailable,
+    BindingSource, ByService, Capabilities, Hatches, NoHatches, PermissionSet, RoleBinding,
+    RoleCatalogue, Root, ScopeRef, Unavailable,
 };
 use crate::permissions::{
     AuthorizationRequest, Authorizer, Check, Listing, ResourceRef, Verdict, Visibility,
@@ -13,15 +14,21 @@ use crate::{Context, Error, Result};
 /// §7.2): it decides from the generated [`RoleCatalogue`] and the bindings
 /// the service's [`BindingSource`] reads.
 ///
+/// Build it with the generated `roles::authorizer(source)`, which requires
+/// [`ServiceGrants`](super::ServiceGrants) of a model with `by service`
+/// grants and [`CustomRoles`](super::CustomRoles) of one with custom roles
+/// (`H` records which).
+///
 /// For each batch of checks it reads the principal's bindings once per
 /// root (tenant), then per check:
 ///
-/// 1. keeps the bindings under the root whose scope and role the catalogue
-///    knows (a custom role's through [`BindingSource::custom_role`]) and
-///    whose role is valid at that scope for the principal's kind;
+/// 1. keeps the well-formed bindings: under the root, at a scope the
+///    catalogue knows with that scope's count of identifiers, naming a
+///    role the catalogue knows and finds valid at that scope for the
+///    principal's kind (or a custom role the service defines);
 /// 2. allows when a kept binding whose scope instance covers the target
 ///    grants the permission outright, and names that binding;
-/// 3. otherwise asks [`BindingSource::decide_by_service`] for each kept
+/// 3. otherwise asks `ServiceGrants::decide_by_service` for each kept
 ///    binding whose role grants the permission `by service`, covering or
 ///    not (the relationship it follows is the service's), and allows on
 ///    the first yes;
@@ -32,9 +39,26 @@ use crate::{Context, Error, Result};
 /// answers it with the internal error, never an allow. Per check the work
 /// is a scan of the bindings with an identifier-prefix comparison and a
 /// bitset test each; nothing is built that the catalogue holds.
-pub struct RoleAuthorizer<B> {
+pub struct RoleAuthorizer<B, H = NoHatches> {
     catalogue: &'static RoleCatalogue,
     source: B,
+    hatches: PhantomData<fn() -> H>,
+}
+
+/// A `RoleAuthorizer` over `catalogue` answering the hatches `H` names:
+/// what the generated `roles::authorizer` calls. Generated-code support;
+/// services call `roles::authorizer`, whose bounds require the hooks the
+/// model needs.
+#[doc(hidden)]
+pub fn role_authorizer<B: BindingSource, H: Hatches<B>>(
+    catalogue: &'static RoleCatalogue,
+    source: B,
+) -> RoleAuthorizer<B, H> {
+    RoleAuthorizer {
+        catalogue,
+        source,
+        hatches: PhantomData,
+    }
 }
 
 /// A kept binding's role: the catalogue's, by index, or a custom role's
@@ -54,11 +78,7 @@ struct Batch<'c> {
     customs: Vec<(String, Option<PermissionSet>)>,
 }
 
-impl<B: BindingSource> RoleAuthorizer<B> {
-    pub fn new(catalogue: &'static RoleCatalogue, source: B) -> Self {
-        Self { catalogue, source }
-    }
-
+impl<B: BindingSource, H: Hatches<B>> RoleAuthorizer<B, H> {
     pub fn catalogue(&self) -> &'static RoleCatalogue {
         self.catalogue
     }
@@ -120,8 +140,8 @@ impl<B: BindingSource> RoleAuthorizer<B> {
         let bindings = batch.bindings(self, principal, root, fresh).await?;
         let range = catalogue.bits_of(target.resource());
         let mut by_service = false;
-        for binding in bindings.iter().filter(|b| root.holds(&b.identifiers)) {
-            let Some((scope, kept)) = self.kept(binding, kind, &batch.customs) else {
+        for binding in bindings.iter() {
+            let Some((scope, kept)) = self.kept(binding, root, kind, &batch.customs) else {
                 continue;
             };
             if let Kept::Role(role) = kept {
@@ -140,8 +160,9 @@ impl<B: BindingSource> RoleAuthorizer<B> {
             }
         }
         if by_service {
-            for binding in bindings.iter().filter(|b| root.holds(&b.identifiers)) {
-                let Some((_, Kept::Role(role))) = self.kept(binding, kind, &batch.customs) else {
+            for binding in bindings.iter() {
+                let Some((_, Kept::Role(role))) = self.kept(binding, root, kind, &batch.customs)
+                else {
                     continue;
                 };
                 let info = &catalogue.roles[role];
@@ -155,13 +176,40 @@ impl<B: BindingSource> RoleAuthorizer<B> {
                         permission: catalogue.permissions[bit],
                         target,
                     };
-                    if self.source.decide_by_service(principal, grant).await? {
+                    if H::by_service(&self.source, principal, grant).await? {
                         capabilities.allowed.insert(bit);
                     }
                 }
             }
         }
         Ok(capabilities)
+    }
+
+    /// Whether `principal` may grant or revoke `role` (an index into the
+    /// catalogue's roles, `Role::index()`) at the scope instance `at`: its
+    /// bindings under `at`'s root, read once, judged by
+    /// [`RoleCatalogue::may_assign`]. For the handler of the operation that
+    /// writes bindings, after its own `requires` passed.
+    pub async fn may_assign(
+        &self,
+        principal: &B::Principal,
+        role: usize,
+        at: ScopeRef<'_>,
+        fresh: bool,
+    ) -> std::result::Result<bool, Unavailable> {
+        let catalogue = self.catalogue;
+        let Some(scope) = catalogue.find_scope(at.scope) else {
+            return Ok(false);
+        };
+        let root = match (
+            at.identifiers.first(),
+            catalogue.scopes[scope].identifiers.first(),
+        ) {
+            (Some(id), Some(identifier)) => Root::Instance { identifier, id },
+            _ => Root::Service,
+        };
+        let bindings = self.source.bindings(principal, root, fresh).await?;
+        Ok(catalogue.may_assign(&bindings, self.source.kind(principal), role, at))
     }
 
     async fn decide_naming(
@@ -208,10 +256,7 @@ impl<B: BindingSource> RoleAuthorizer<B> {
         let mut covered = false;
         let mut by_service = false;
         for (index, binding) in bindings.iter().enumerate() {
-            if !root.holds(&binding.identifiers) {
-                continue;
-            }
-            let Some((scope, kept)) = self.kept(binding, kind, customs) else {
+            let Some((scope, kept)) = self.kept(binding, root, kind, customs) else {
                 continue;
             };
             if let (Some(bit), Kept::Role(role)) = (bit, kept) {
@@ -227,10 +272,7 @@ impl<B: BindingSource> RoleAuthorizer<B> {
         }
         if let (true, Some(bit)) = (by_service, bit) {
             for (index, binding) in bindings.iter().enumerate() {
-                if !root.holds(&binding.identifiers) {
-                    continue;
-                }
-                let Some((_, Kept::Role(role))) = self.kept(binding, kind, customs) else {
+                let Some((_, Kept::Role(role))) = self.kept(binding, root, kind, customs) else {
                     continue;
                 };
                 let info = &catalogue.roles[role];
@@ -243,7 +285,7 @@ impl<B: BindingSource> RoleAuthorizer<B> {
                     permission: catalogue.permissions[bit],
                     target,
                 };
-                if self.source.decide_by_service(principal, grant).await? {
+                if H::by_service(&self.source, principal, grant).await? {
                     return Ok((Verdict::Allowed, Some(index)));
                 }
             }
@@ -251,17 +293,20 @@ impl<B: BindingSource> RoleAuthorizer<B> {
         Ok((self.source.refusal(covered).into(), None))
     }
 
-    /// The binding's scope and role, if it grants anything: the catalogue
-    /// knows the scope, and the role is the catalogue's and valid there for
-    /// `kind`, or a custom role the service defines.
+    /// The binding's scope and role, if it grants anything, before either
+    /// path reads it: it is well formed (under `root`, at a scope the
+    /// catalogue knows, with that scope's count of identifiers), and its
+    /// role is the catalogue's and valid there for `kind`, or a custom role
+    /// the service defines.
     fn kept<'a>(
         &self,
         binding: &RoleBinding,
+        root: Root<'_>,
         kind: Option<&str>,
         customs: &'a [(String, Option<PermissionSet>)],
     ) -> Option<(usize, Kept<'a>)> {
         let catalogue = self.catalogue;
-        let scope = catalogue.find_scope(&binding.scope)?;
+        let scope = well_formed(catalogue, binding, root)?;
         match catalogue.find_role(&binding.role) {
             Some(role) => catalogue
                 .valid_for(role, scope, kind)
@@ -293,12 +338,24 @@ impl<B: BindingSource> RoleAuthorizer<B> {
     }
 }
 
+/// The scope of a binding that is under `root`, at a scope the catalogue
+/// knows, with that scope's count of identifiers; `None` for any other,
+/// which grants nothing on either path.
+fn well_formed(catalogue: &RoleCatalogue, binding: &RoleBinding, root: Root<'_>) -> Option<usize> {
+    if !root.holds(&binding.identifiers) {
+        return None;
+    }
+    let scope = catalogue.find_scope(&binding.scope)?;
+    (binding.identifiers.len() == catalogue.scopes[scope].identifiers.len()).then_some(scope)
+}
+
 impl<'c> Batch<'c> {
     /// The bindings under `root`, read on first use, and the custom roles
-    /// they name resolved.
-    async fn bindings<B: BindingSource>(
+    /// that its well-formed bindings name resolved: never one under another
+    /// root or at an unknown scope, whose failure must not fail this batch.
+    async fn bindings<B: BindingSource, H: Hatches<B>>(
         &mut self,
-        authorizer: &RoleAuthorizer<B>,
+        authorizer: &RoleAuthorizer<B, H>,
         principal: &B::Principal,
         root: Root<'c>,
         fresh: bool,
@@ -314,12 +371,13 @@ impl<'c> Batch<'c> {
         let bindings = authorizer.source.bindings(principal, root, fresh).await?;
         if authorizer.catalogue.custom {
             for binding in bindings.iter() {
-                if authorizer.catalogue.find_role(&binding.role).is_some()
+                if well_formed(authorizer.catalogue, binding, root).is_none()
+                    || authorizer.catalogue.find_role(&binding.role).is_some()
                     || self.customs.iter().any(|(id, _)| *id == binding.role)
                 {
                     continue;
                 }
-                let set = authorizer.source.custom_role(&binding.role).await?;
+                let set = H::custom_role(&authorizer.source, &binding.role).await?;
                 self.customs.push((binding.role.clone(), set));
             }
         }
@@ -333,7 +391,7 @@ impl<'c> Batch<'c> {
 }
 
 #[async_trait::async_trait]
-impl<B: BindingSource> Authorizer for RoleAuthorizer<B> {
+impl<B: BindingSource, H: Hatches<B>> Authorizer for RoleAuthorizer<B, H> {
     async fn decide(
         &self,
         request: &AuthorizationRequest<'_>,

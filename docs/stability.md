@@ -242,18 +242,23 @@ The `roles` module is part of the documented surface. Its catalogue
 types are always present, since generated bindings state them:
 `RoleCatalogue` (with `find_role`, `find_scope`, `bit`, `allows`,
 `valid_for`, `may_assign`, `bits_of`, `permission_set`, `permissions_in`),
-`RoleInfo`, `ScopeInfo` (`covers`), `ScopeKind`, `PermissionSet`, `Grant`
-and the non-exhaustive `RoleBinding` (`new`). Generated bindings own the
+`RoleInfo`, `ScopeInfo` (`covers`), `ScopeKind`, `PermissionSet`, `Grant`,
+`ScopeRef` (`new`, `of`) and the non-exhaustive `RoleBinding` (`new`). Generated bindings own the
 `'static` catalogue and the `Role` and `Scope` enums over it; services read
 them. A field added to `RoleCatalogue`, `RoleInfo` or `ScopeInfo` is a
 generated-code change (regenerate with the runtime), not a break.
 
 Behind the `roles` feature (which enables `permissions`),
 `BindingSource` is the interface a service implements: `bindings`, with
-`principal`, `kind`, `decide_by_service`, `custom_role`, `refusal` and
-`visible` provided (a later provided method keeps a default).
-`RoleAuthorizer::{new, catalogue, source, decide_for, explain_for,
-capabilities}`, `ShadowAuthorizer::{new, counts}`, `ShadowCounts`,
+`principal`, `kind`, `refusal` and `visible` provided (a later provided
+method keeps a default). `ServiceGrants::decide_by_service` and
+`CustomRoles::custom_role` have no default: the generated
+`roles::authorizer(source)` requires each the model needs. Services build
+the authorizer only through it; `RoleAuthorizer`'s second type parameter
+and the hatch types (`NoHatches`, `ServiceHatch`, `CustomHatch`,
+`BothHatches`, `Hatches`) and `role_authorizer` are generated-code support.
+`RoleAuthorizer::{catalogue, source, decide_for, explain_for,
+capabilities, may_assign}`, `ShadowAuthorizer::{new, counts}`, `ShadowCounts`,
 `Refusal`, `Unavailable` and `roles::conformance::{Conformance, Subject,
 UNKNOWN_ROLE}` complete it; `Root`, `ByService`, `Capabilities`, `Report`
 and `Disagreement` are non-exhaustive: the runtime constructs them and

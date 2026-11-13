@@ -9,13 +9,15 @@
 //!
 //! With the `roles` feature (which enables `permissions`),
 //! [`RoleAuthorizer`] is the `Authorizer` that decides from them: the
-//! service implements [`BindingSource`] (who the caller is, which bindings
-//! it holds, and the `by service` and custom-role hatches) and nothing
-//! else. [`ShadowAuthorizer`] runs it beside a service's own Authorizer,
+//! service implements [`BindingSource`] (who the caller is and which
+//! bindings it holds), plus [`ServiceGrants`] when the model has `by
+//! service` grants and [`CustomRoles`] when it has custom roles, and builds
+//! it with the generated `roles::authorizer(source)`, which requires
+//! exactly those. [`ShadowAuthorizer`] runs it beside a service's own Authorizer,
 //! and [`conformance`] compares the two over every case a catalogue has.
 //!
 //! ```ignore
-//! let authorizer = RoleAuthorizer::new(&leyline::roles::CATALOGUE, Bindings::new(store));
+//! let authorizer = leyline::roles::authorizer(Bindings::new(store));
 //! builder.interceptor(Permissions::new(authorizer))
 //! ```
 
@@ -26,6 +28,7 @@ mod role_binding;
 mod role_info;
 mod scope_info;
 mod scope_kind;
+mod scope_ref;
 
 #[cfg(feature = "roles")]
 mod binding_source;
@@ -35,6 +38,8 @@ mod by_service;
 mod capabilities;
 #[cfg(feature = "roles")]
 pub mod conformance;
+#[cfg(feature = "roles")]
+mod hatches;
 #[cfg(feature = "roles")]
 mod refusal;
 #[cfg(feature = "roles")]
@@ -53,6 +58,7 @@ pub use role_binding::RoleBinding;
 pub use role_info::RoleInfo;
 pub use scope_info::ScopeInfo;
 pub use scope_kind::ScopeKind;
+pub use scope_ref::ScopeRef;
 
 #[cfg(feature = "roles")]
 pub use binding_source::BindingSource;
@@ -61,9 +67,13 @@ pub use by_service::ByService;
 #[cfg(feature = "roles")]
 pub use capabilities::Capabilities;
 #[cfg(feature = "roles")]
+pub use hatches::{
+    BothHatches, CustomHatch, CustomRoles, Hatches, NoHatches, ServiceGrants, ServiceHatch,
+};
+#[cfg(feature = "roles")]
 pub use refusal::Refusal;
 #[cfg(feature = "roles")]
-pub use role_authorizer::RoleAuthorizer;
+pub use role_authorizer::{RoleAuthorizer, role_authorizer};
 #[cfg(feature = "roles")]
 pub use root::Root;
 #[cfg(feature = "roles")]

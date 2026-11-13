@@ -136,6 +136,18 @@ pub struct Coverage<'s> {
     pub every: Vec<&'s ShapeId>,
 }
 
+/// Whether a binding at an instance of `scope` covers an instance of
+/// `other` beneath it (docs/roles.md §4.5: an assigner's binding must cover
+/// the scope of the binding it writes): what `other`'s instance names is
+/// covered by `scope`. `on service` is covered only by `on service`.
+pub fn covers_scope(service: &Service, scope: &ScopeTarget, other: &ScopeTarget) -> bool {
+    match other {
+        ScopeTarget::Service => *scope == ScopeTarget::Service,
+        ScopeTarget::Instance(resource) => covers(service, scope, Target::Instance(resource)),
+        ScopeTarget::Every(resource) => covers(service, scope, Target::Every(resource)),
+    }
+}
+
 /// [`Coverage`] for `scope`.
 pub fn coverage<'s>(service: &'s Service, scope: &ScopeTarget) -> Coverage<'s> {
     let mut out = Coverage::default();
@@ -551,6 +563,32 @@ mod tests {
                 vec!["Graph".into(), "History".into()]
             )
         );
+    }
+
+    #[test]
+    fn a_scope_covers_the_scopes_beneath_it() {
+        let service = leyline();
+        let on = |s: &str| scope_on(&service, s);
+        assert!(covers_scope(&service, &on("organization"), &on("graph")));
+        assert!(covers_scope(
+            &service,
+            &on("organization"),
+            &on("allGraphs")
+        ));
+        assert!(covers_scope(
+            &service,
+            &on("organization"),
+            &on("organization")
+        ));
+        assert!(covers_scope(&service, &on("allGraphs"), &on("graph")));
+        assert!(!covers_scope(&service, &on("graph"), &on("allGraphs")));
+        assert!(!covers_scope(&service, &on("graph"), &on("organization")));
+        assert!(covers_scope(&service, &on("everything"), &on("everything")));
+        assert!(!covers_scope(
+            &service,
+            &on("organization"),
+            &on("everything")
+        ));
     }
 
     #[test]

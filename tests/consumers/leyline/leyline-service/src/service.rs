@@ -2,7 +2,6 @@ use std::sync::Arc;
 
 use crucible_auth::{Authenticator, AuthenticatorChain};
 use crucible_server_runtime_rust::permissions::Permissions;
-use crucible_server_runtime_rust::roles::RoleAuthorizer;
 use crucible_server_runtime_rust::{Crucible, InvokeProtocol, JsonProtocol};
 
 use crate::leyline::{self, AccessDeniedException};
@@ -25,10 +24,9 @@ pub fn service(authenticators: Vec<Arc<dyn Authenticator>>, audit: Audit) -> Cru
         .operation_middleware(chain)
         // The model's roles, decided by the framework from the caller's
         // bindings: a refused call never reaches the audit trail.
-        .interceptor(Permissions::new(RoleAuthorizer::new(
-            &leyline::roles::CATALOGUE,
-            ScopeBindings,
-        )))
+        // The generated constructor requires the hooks the model needs:
+        // none beyond `BindingSource` here.
+        .interceptor(Permissions::new(leyline::roles::authorizer(ScopeBindings)))
         .interceptor(audit)
         .protocol(JsonProtocol)
         // Direct Lambda invokes: `{"operation": .., "input": ..}`.

@@ -1,6 +1,6 @@
 use std::ops::Range;
 
-use super::{Grant, PermissionSet, RoleInfo, ScopeInfo};
+use super::{Grant, PermissionSet, RoleBinding, RoleInfo, ScopeInfo, ScopeRef};
 use crate::permissions::{PermissionInfo, ResourceInfo};
 
 /// A service's roles and scopes (docs/roles.md §7.1), as generated code
@@ -87,18 +87,48 @@ impl RoleCatalogue {
             && (info.holders.is_empty() || holder.is_some_and(|h| info.holders.contains(&h)))
     }
 
-    /// Whether a principal holding `assigners` may grant or revoke `role`:
-    /// the role names no assigners, or one of them is held. Whether the
-    /// assigner's binding covers the binding's scope is the caller's to
-    /// check, with [`ScopeInfo::covers`].
-    pub fn may_assign(&self, assigners: impl IntoIterator<Item = usize>, role: usize) -> bool {
-        let Some(info) = self.roles.get(role) else {
+    /// Whether a principal of kind `kind` holding the bindings `assigner`
+    /// may grant or revoke `role` at the scope instance `at` (docs/roles.md
+    /// §4.5). `at` must be well formed (a scope the catalogue knows, with
+    /// its count of identifiers). Then: true when the role names no
+    /// assigners (whoever the binding operation's `requires` admits);
+    /// otherwise only when one of the assigner's bindings names a role in
+    /// the role's `assignedBy`, is valid at its own scope for `kind`, and
+    /// its scope instance covers `at`, so an owner of one organization
+    /// assigns nothing in another.
+    pub fn may_assign(
+        &self,
+        assigner: &[RoleBinding],
+        kind: Option<&str>,
+        role: usize,
+        at: ScopeRef<'_>,
+    ) -> bool {
+        let (Some(info), Some(target)) = (self.roles.get(role), self.find_scope(at.scope)) else {
             return false;
         };
-        info.assigned_by.is_empty()
-            || assigners
-                .into_iter()
-                .any(|a| info.assigned_by.iter().any(|b| usize::from(*b) == a))
+        if at.identifiers.len() != self.scopes[target].identifiers.len() {
+            return false;
+        }
+        if info.assigned_by.is_empty() {
+            return true;
+        }
+        assigner.iter().any(|binding| {
+            let (Some(held), Some(scope)) = (
+                self.find_role(&binding.role),
+                self.find_scope(&binding.scope),
+            ) else {
+                return false;
+            };
+            let instance = &self.scopes[scope];
+            info.assigned_by.iter().any(|a| usize::from(*a) == held)
+                && self.valid_for(held, scope, kind)
+                && binding.identifiers.len() == instance.identifiers.len()
+                && instance
+                    .covers_scopes
+                    .iter()
+                    .any(|s| usize::from(*s) == target)
+                && at.identifiers.starts_with(&binding.identifiers)
+        })
     }
 
     /// The bits of `resource`'s permissions (contiguous); empty for a

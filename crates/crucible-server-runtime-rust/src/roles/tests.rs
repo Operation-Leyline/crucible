@@ -8,8 +8,8 @@ use std::sync::{Arc, Mutex};
 use axum::http::{HeaderValue, Request};
 
 use super::{
-    BindingSource, PermissionSet, RoleAuthorizer, RoleBinding, RoleCatalogue, RoleInfo, Root,
-    ScopeInfo, ScopeKind, ShadowAuthorizer, Unavailable,
+    BindingSource, NoHatches, PermissionSet, RoleBinding, RoleCatalogue, RoleInfo, Root, ScopeInfo,
+    ScopeKind, ShadowAuthorizer, Unavailable, role_authorizer,
 };
 use crate::Context;
 use crate::permissions::{
@@ -65,6 +65,7 @@ static CATALOGUE: RoleCatalogue = RoleCatalogue {
         identifiers: &["orgId"],
         instances: &[&ORG, &DOC],
         every: &[&DOC],
+        covers_scopes: &[0],
     }],
     permissions: &[&DOC_READ, &ORG_READ],
     principals: &[],
@@ -149,7 +150,7 @@ fn checks() -> [Check; 2] {
 async fn it_decides_for_the_principal_on_the_request() {
     let source = Source::default();
     let fresh = source.fresh.clone();
-    let authorizer = RoleAuthorizer::new(&CATALOGUE, source);
+    let authorizer = role_authorizer::<_, NoHatches>(&CATALOGUE, source);
     let context = context(Some(reader()));
     for readonly in [true, false] {
         let request = AuthorizationRequest::new(&context, facts(readonly));
@@ -175,7 +176,7 @@ async fn it_decides_for_the_principal_on_the_request() {
 async fn no_principal_and_no_bindings_are_errors_not_allows() {
     let source = Source::default();
     let fail = source.fail.clone();
-    let authorizer = RoleAuthorizer::new(&CATALOGUE, source);
+    let authorizer = role_authorizer::<_, NoHatches>(&CATALOGUE, source);
     let anonymous = context(None);
     let request = AuthorizationRequest::new(&anonymous, facts(true));
     assert!(authorizer.decide(&request, &checks()).await.is_err());
@@ -200,7 +201,7 @@ async fn shadow_enforces_the_primary_and_counts_disagreements() {
     let request = AuthorizationRequest::new(&context, facts(true));
     // The candidate denies both: it disagrees on the allowed one.
     let shadow = ShadowAuthorizer::new(
-        RoleAuthorizer::new(&CATALOGUE, Source::default()),
+        role_authorizer::<_, NoHatches>(&CATALOGUE, Source::default()),
         Fixed(Some(Verdict::Hidden)),
     );
     let counts = shadow.counts();
@@ -239,7 +240,12 @@ fn the_catalogue_reads_its_tables() {
     assert_eq!(CATALOGUE.allows(1, &ORG_READ), super::Grant::No);
     assert!(CATALOGUE.valid_for(0, 0, None));
     assert!(!CATALOGUE.valid_for(0, 1, None));
-    assert!(CATALOGUE.may_assign([], 0));
+    assert!(CATALOGUE.may_assign(
+        &[],
+        None,
+        0,
+        super::ScopeRef::new("org", &["o-1".to_owned()])
+    ));
     let scope = &CATALOGUE.scopes[0];
     let at = |id: &str| vec![id.to_owned()];
     assert!(scope.covers(&at("o-1"), &ResourceRef::new(&DOC, ["o-1", "d-1"])));

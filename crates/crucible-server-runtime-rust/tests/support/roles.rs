@@ -157,6 +157,17 @@ pub fn catalogue(service: &Service) -> &'static RoleCatalogue {
                 identifiers: texts(crucible_ir::roles::scope_identifiers(service, &scope.on)),
                 instances: slice(coverage.instances.iter().map(|id| info_of(id)).collect()),
                 every: slice(coverage.every.iter().map(|id| info_of(id)).collect()),
+                covers_scopes: slice(
+                    service
+                        .role_scopes
+                        .iter()
+                        .enumerate()
+                        .filter(|(_, other)| {
+                            crucible_ir::roles::covers_scope(service, &scope.on, &other.on)
+                        })
+                        .map(|(i, _)| i as u16)
+                        .collect(),
+                ),
             }
         })
         .collect();
@@ -216,6 +227,7 @@ pub fn same(a: &RoleCatalogue, b: &RoleCatalogue) -> Result<(), String> {
             y.identifiers,
         ) || names(x.instances) != names(y.instances)
             || names(x.every) != names(y.every)
+            || x.covers_scopes != y.covers_scopes
         {
             return Err(format!("scope {} differs", x.symbol));
         }

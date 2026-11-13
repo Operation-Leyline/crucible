@@ -26,6 +26,11 @@ pub struct ScopeInfo {
     /// The resources every instance of which under one parent (`R(*)`) a
     /// binding here covers, likewise.
     pub every: &'static [&'static ResourceInfo],
+    /// The scopes (indexes into
+    /// [`RoleCatalogue::scopes`](super::RoleCatalogue::scopes)) an instance
+    /// of which a binding here covers, likewise: where an assigner holding
+    /// its role here may write a binding (docs/roles.md §4.5).
+    pub covers_scopes: &'static [u16],
 }
 
 impl ScopeInfo {

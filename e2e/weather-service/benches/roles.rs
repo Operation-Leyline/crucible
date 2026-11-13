@@ -2,52 +2,33 @@
 //! bindings from an in-memory store (a map lookup and an `Arc` clone), then
 //! per check the bindings' identifier-prefix comparisons and bitset tests
 //! against the catalogue generated from `tests/models/roles-leyline`.
-//! Prints heap allocations per decision first (deterministic), then
-//! criterion timings.
+//! Prints heap allocations per decision first (deterministic; counted by
+//! `stats_alloc`'s instrumented system allocator, so no `unsafe` here),
+//! then criterion timings.
 //!
 //! `cargo bench --manifest-path e2e/Cargo.toml --bench roles`
 
-use std::alloc::{GlobalAlloc, Layout, System};
+use std::alloc::System;
 use std::collections::HashMap;
 use std::hint::black_box;
 use std::sync::Arc;
-use std::sync::atomic::{AtomicU64, Ordering};
 
 use criterion::Criterion;
 use crucible_server_runtime_rust::permissions::{Check, ResourceRef, Verdict};
 use crucible_server_runtime_rust::roles::{
-    BindingSource, ByService, RoleAuthorizer, RoleBinding, Root, Unavailable,
+    BindingSource, ByService, RoleAuthorizer, RoleBinding, Root, ServiceGrants, ServiceHatch,
+    Unavailable,
 };
 use futures_util::FutureExt;
+use stats_alloc::{INSTRUMENTED_SYSTEM, Region, StatsAlloc};
 
 include!(concat!(env!("OUT_DIR"), "/roles_leyline.rs"));
 
 use leyline::permissions::{GraphHistoryPermission, GraphHistoryRef, GraphPermission, GraphRef};
-use leyline::roles::{CATALOGUE, Role, Scope};
-
-struct Counting;
-
-static ALLOCATIONS: AtomicU64 = AtomicU64::new(0);
-
-// SAFETY: forwards to the system allocator, counting on the way.
-unsafe impl GlobalAlloc for Counting {
-    unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
-        ALLOCATIONS.fetch_add(1, Ordering::Relaxed);
-        unsafe { System.alloc(layout) }
-    }
-
-    unsafe fn dealloc(&self, ptr: *mut u8, layout: Layout) {
-        unsafe { System.dealloc(ptr, layout) }
-    }
-
-    unsafe fn realloc(&self, ptr: *mut u8, layout: Layout, new_size: usize) -> *mut u8 {
-        ALLOCATIONS.fetch_add(1, Ordering::Relaxed);
-        unsafe { System.realloc(ptr, layout, new_size) }
-    }
-}
+use leyline::roles::{Role, Scope};
 
 #[global_allocator]
-static GLOBAL: Counting = Counting;
+static GLOBAL: &StatsAlloc<System> = &INSTRUMENTED_SYSTEM;
 
 #[derive(Clone)]
 struct Caller {
@@ -77,7 +58,9 @@ impl BindingSource for Store {
             .cloned()
             .unwrap_or_else(|| Arc::from([])))
     }
+}
 
+impl ServiceGrants for Store {
     async fn decide_by_service(
         &self,
         _: &Caller,
@@ -97,7 +80,11 @@ fn binding(role: Role, scope: Scope, ids: &[&str]) -> RoleBinding {
     RoleBinding::new(role.as_str(), scope.as_str(), ids.iter().copied())
 }
 
-fn decide(authorizer: &RoleAuthorizer<Store>, caller: &Caller, checks: &[Check]) -> Vec<Verdict> {
+fn decide(
+    authorizer: &RoleAuthorizer<Store, ServiceHatch>,
+    caller: &Caller,
+    checks: &[Check],
+) -> Vec<Verdict> {
     authorizer
         .decide_for(caller, checks, false)
         .now_or_never()
@@ -115,7 +102,7 @@ fn main() {
             binding(Role::GraphAdmin, Scope::Graph, &["o-1", "g-7"]),
         ]),
     )]));
-    let authorizer = RoleAuthorizer::new(&CATALOGUE, store);
+    let authorizer = leyline::roles::authorizer(store);
     let member = Caller {
         id: "member",
         kind: "user",
@@ -161,11 +148,12 @@ fn main() {
 
     const ROUNDS: u64 = 10_000;
     for (name, checks) in &cases {
-        let before = ALLOCATIONS.load(Ordering::Relaxed);
+        let region = Region::new(GLOBAL);
         for _ in 0..ROUNDS {
             black_box(decide(&authorizer, &member, black_box(checks)));
         }
-        let allocations = (ALLOCATIONS.load(Ordering::Relaxed) - before) as f64 / ROUNDS as f64;
+        let change = region.change();
+        let allocations = (change.allocations + change.reallocations) as f64 / ROUNDS as f64;
         println!("{name:<30} {allocations:>4} allocations per decision");
     }
 

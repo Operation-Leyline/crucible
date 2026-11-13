@@ -27,6 +27,7 @@ tracing-subscriber = { version = "0.3", features = ["json"] }
 serde = "1"
 axum = "0.8"
 criterion = { version = "0.7", default-features = false, features = ["async_tokio"] }
+stats_alloc = "0.1"
 base64 = "0.22"
 flate2 = "1"
 futures-util = "0.3"
@@ -48,3 +49,6 @@ harness = false
 [[bench]]
 name = "roles"
 harness = false
+
+[lints]
+workspace = true

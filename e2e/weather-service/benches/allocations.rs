@@ -3,42 +3,22 @@
 //! per request kind; `bare_axum_get_city` is the yardstick.
 //!
 //! `cargo bench --manifest-path e2e/Cargo.toml --bench allocations`
+//!
+//! Counted by `stats_alloc`'s instrumented system allocator, so this crate
+//! has no `unsafe` of its own: a reallocation counts as an allocation, and
+//! bytes are those allocated plus what reallocations grew by.
 
-use std::alloc::{GlobalAlloc, Layout, System};
+use std::alloc::System;
 use std::sync::Arc;
-use std::sync::atomic::{AtomicU64, Ordering};
 
 use axum::body::Body;
 use axum::http::Request;
 use serde_json::json;
+use stats_alloc::{INSTRUMENTED_SYSTEM, Region, StatsAlloc};
 use weather_service::{CityStore, MemoryCities, NewCity, service};
 
-struct Counting;
-
-static ALLOCATIONS: AtomicU64 = AtomicU64::new(0);
-static BYTES: AtomicU64 = AtomicU64::new(0);
-
-// SAFETY: forwards to the system allocator, counting on the way.
-unsafe impl GlobalAlloc for Counting {
-    unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
-        ALLOCATIONS.fetch_add(1, Ordering::Relaxed);
-        BYTES.fetch_add(layout.size() as u64, Ordering::Relaxed);
-        unsafe { System.alloc(layout) }
-    }
-
-    unsafe fn dealloc(&self, ptr: *mut u8, layout: Layout) {
-        unsafe { System.dealloc(ptr, layout) }
-    }
-
-    unsafe fn realloc(&self, ptr: *mut u8, layout: Layout, new_size: usize) -> *mut u8 {
-        ALLOCATIONS.fetch_add(1, Ordering::Relaxed);
-        BYTES.fetch_add(new_size as u64, Ordering::Relaxed);
-        unsafe { System.realloc(ptr, layout, new_size) }
-    }
-}
-
 #[global_allocator]
-static GLOBAL: Counting = Counting;
+static GLOBAL: &StatsAlloc<System> = &INSTRUMENTED_SYSTEM;
 
 const ROUNDS: u64 = 1000;
 
@@ -50,15 +30,13 @@ where
     for _ in 0..50 {
         request().await;
     }
-    let (allocations, bytes) = (
-        ALLOCATIONS.load(Ordering::Relaxed),
-        BYTES.load(Ordering::Relaxed),
-    );
+    let region = Region::new(GLOBAL);
     for _ in 0..ROUNDS {
         request().await;
     }
-    let allocations = (ALLOCATIONS.load(Ordering::Relaxed) - allocations) / ROUNDS;
-    let bytes = (BYTES.load(Ordering::Relaxed) - bytes) / ROUNDS;
+    let change = region.change();
+    let allocations = (change.allocations + change.reallocations) as u64 / ROUNDS;
+    let bytes = (change.bytes_allocated as i64 + change.bytes_reallocated as i64) as u64 / ROUNDS;
     println!("{name:<22} {allocations:>4} allocations  {bytes:>6} bytes");
 }
 

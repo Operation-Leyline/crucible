@@ -8,7 +8,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 
 use crucible_server_runtime_rust::permissions::{Check, ResourceRef, Verdict};
 use crucible_server_runtime_rust::roles::{
-    BindingSource, PermissionSet, RoleAuthorizer, RoleBinding, Root, Unavailable,
+    BindingSource, CustomRoles, PermissionSet, RoleBinding, Root, Unavailable,
 };
 
 include!("../../crucible-codegen-rust/tests/golden/roles_service_scope.rs");
@@ -41,7 +41,7 @@ fn the_role_type_is_open_and_the_predefined_one_closed() {
 
 #[tokio::test]
 async fn a_service_scope_covers_everything() {
-    let authorizer = RoleAuthorizer::new(&CATALOGUE, Source::default());
+    let authorizer = notes::roles::authorizer(Source::default());
     let everywhere = holding([RoleBinding::new(
         "admin",
         "everywhere",
@@ -68,7 +68,7 @@ async fn a_service_scope_covers_everything() {
 async fn a_custom_role_grants_what_the_service_defines_that_is_grantable() {
     let source = Source::default();
     let asked = source.asked.clone();
-    let authorizer = RoleAuthorizer::new(&CATALOGUE, source);
+    let authorizer = notes::roles::authorizer(source);
     let caller = holding([
         RoleBinding::new("noteSharer", "workspace", ["w-1"]),
         RoleBinding::new("retired", "workspace", ["w-1"]),
@@ -99,13 +99,10 @@ async fn a_custom_role_grants_what_the_service_defines_that_is_grantable() {
 
 #[tokio::test]
 async fn an_unavailable_custom_role_never_allows() {
-    let authorizer = RoleAuthorizer::new(
-        &CATALOGUE,
-        Source {
-            fail: true,
-            ..Source::default()
-        },
-    );
+    let authorizer = notes::roles::authorizer(Source {
+        fail: true,
+        ..Source::default()
+    });
     let caller = holding([
         RoleBinding::new("viewer", "workspace", ["w-1"]),
         RoleBinding::new("noteSharer", "workspace", ["w-1"]),
@@ -116,6 +113,44 @@ async fn an_unavailable_custom_role_never_allows() {
                 &caller,
                 &[check(NotePermission::Read, NoteRef::new("w-1", "n-1"))],
                 false
+            )
+            .await
+            .is_err()
+    );
+}
+
+#[tokio::test]
+async fn only_well_formed_bindings_under_the_root_resolve_custom_roles() {
+    let source = Source::default();
+    let asked = source.asked.clone();
+    let authorizer = notes::roles::authorizer(source);
+    // The source returns more than the root holds: another workspace's
+    // binding, one at a scope the model lacks, and one with the wrong count
+    // of identifiers, each naming a custom role whose lookup fails. None is
+    // looked up, so none fails the batch.
+    let caller = holding([
+        RoleBinding::new("noteSharer", "workspace", ["w-1"]),
+        RoleBinding::new("otherTenantRole", "workspace", ["w-2"]),
+        RoleBinding::new("otherScopeRole", "folder", ["w-1"]),
+        RoleBinding::new("otherShapeRole", "workspace", ["w-1", "n-1"]),
+    ]);
+    let verdicts = authorizer
+        .decide_for(
+            &caller,
+            &[check(NotePermission::Share, NoteRef::new("w-1", "n-1"))],
+            false,
+        )
+        .await
+        .unwrap();
+    assert_eq!(verdicts, [Verdict::Allowed]);
+    assert_eq!(asked.load(Ordering::Relaxed), 1);
+    // Checked in w-2, its binding is looked up, and the failure fails it.
+    assert!(
+        authorizer
+            .decide_for(
+                &caller,
+                &[check(NotePermission::Share, NoteRef::new("w-2", "n-1"))],
+                false,
             )
             .await
             .is_err()
@@ -147,9 +182,12 @@ impl BindingSource for Source {
     ) -> Result<Arc<[RoleBinding]>, Unavailable> {
         Ok(principal.clone())
     }
+}
 
+impl CustomRoles for Source {
     async fn custom_role(&self, role: &str) -> Result<Option<PermissionSet>, Unavailable> {
-        if self.fail {
+        // Another tenant's roles live in another shard, unreachable here.
+        if self.fail || role.starts_with("other") {
             return Err(Unavailable::new("the custom roles table is unreachable"));
         }
         self.asked.fetch_add(1, Ordering::Relaxed);

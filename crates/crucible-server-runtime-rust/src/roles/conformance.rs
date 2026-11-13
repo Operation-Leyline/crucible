@@ -23,7 +23,10 @@ use std::sync::Arc;
 
 use axum::http::{HeaderValue, Request};
 
-use super::{BindingSource, RoleAuthorizer, RoleBinding, RoleCatalogue, Root, Unavailable};
+use super::{
+    BindingSource, BothHatches, ByService, CustomRoles, PermissionSet, RoleBinding, RoleCatalogue,
+    Root, ServiceGrants, Unavailable, role_authorizer,
+};
 use crate::Context;
 use crate::permissions::{
     AuthorizationRequest, Authorizer, Check, OperationFacts, Requirements, ResourceRef, Target,
@@ -140,7 +143,7 @@ impl Conformance {
         for kind in kinds {
             for seed in &seeds {
                 let bindings: Vec<RoleBinding> = seed.iter().cloned().collect();
-                let reference = RoleAuthorizer::new(
+                let reference = role_authorizer::<_, BothHatches>(
                     catalogue,
                     Fixed {
                         kind,
@@ -339,12 +342,17 @@ impl BindingSource for Fixed {
     ) -> Result<Arc<[RoleBinding]>, Unavailable> {
         Ok(self.bindings.clone())
     }
+}
 
-    async fn decide_by_service(
-        &self,
-        _: &(),
-        _: super::ByService<'_>,
-    ) -> Result<bool, Unavailable> {
+impl ServiceGrants for Fixed {
+    async fn decide_by_service(&self, _: &(), _: ByService<'_>) -> Result<bool, Unavailable> {
         Ok(self.by_service)
+    }
+}
+
+/// A role the catalogue does not declare grants nothing in the reference.
+impl CustomRoles for Fixed {
+    async fn custom_role(&self, _: &str) -> Result<Option<PermissionSet>, Unavailable> {
+        Ok(None)
     }
 }

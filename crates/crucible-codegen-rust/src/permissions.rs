@@ -634,9 +634,13 @@ pub(crate) fn marker_items(
                     )
                 })
                 .collect();
+            // A named static, not a `&[..]` temporary: the clauses refer
+            // to `PermissionInfo` statics, and Rust 1.88 (the MSRV) does
+            // not promote a temporary that does to `'static`.
             format!(
-                "{P}::Requirements::List(&[\n        {},\n    ])",
-                items.join(",\n        ")
+                "{{\n        static CLAUSES: [{P}::RequirementInfo; {}] = [\n            {},\n        ];\n        {P}::Requirements::List(&CLAUSES)\n    }}",
+                items.len(),
+                items.join(",\n            ")
             )
         }
     };

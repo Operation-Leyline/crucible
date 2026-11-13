@@ -42,10 +42,28 @@ pub(crate) fn module(service: &Service, diagnostics: &mut Diagnostics) -> String
         out.push_str(&open_role());
     }
     out.push_str(&scope_enum(service));
+    out.push_str(&authorizer(service));
     format!(
         "\n/// The model's roles and scopes (docs/roles.md): closed enums over\n/// [`CATALOGUE`], the table the runtime's `RoleAuthorizer` decides from.\n#[allow(deprecated, unreachable_patterns, clippy::all)]\npub mod roles {{\n{}}}\n",
         crate::indent(&out)
     )
+}
+
+/// `authorizer(source)`, through the runtime's macro: bounded by
+/// `BindingSource`, plus `ServiceGrants` when any role grants `by service`
+/// and `CustomRoles` with `custom`, so the hooks this model needs are the
+/// service's compile-time obligations (docs/roles.md §7.2). Without the
+/// runtime's `roles` feature the macro generates nothing.
+fn authorizer(service: &Service) -> String {
+    let by_service = service.roles.iter().any(|r| !r.by_service.is_empty());
+    let custom = service.role_settings.custom;
+    let (hatches, bounds) = match (by_service, custom) {
+        (false, false) => ("NoHatches", ""),
+        (true, false) => ("ServiceHatch", ", ServiceGrants"),
+        (false, true) => ("CustomHatch", ", CustomRoles"),
+        (true, true) => ("BothHatches", ", ServiceGrants, CustomRoles"),
+    };
+    format!("\n{R}::authorizer!(CATALOGUE, {hatches}{bounds});\n")
 }
 
 /// The bit of each primary, in `Permission::ALL` order.
@@ -148,6 +166,28 @@ fn catalogue(service: &Service, bits: &Bits<'_>, diagnostics: &mut Diagnostics) 
                 );
             }
         }
+        // The scopes whose instances a binding here covers: where an
+        // assigner holding its role here may write a binding (§4.5).
+        let mut covered_scopes: Vec<String> = Vec::new();
+        for (index, other) in service.role_scopes.iter().enumerate() {
+            if !crucible_ir::roles::covers_scope(service, &scope.on, &other.on) {
+                continue;
+            }
+            let theirs = crucible_ir::roles::scope_identifiers(service, &other.on);
+            if !theirs.starts_with(&identifiers) {
+                diagnostics.push(
+                    &service.id,
+                    format!(
+                        "scope `{}`'s instance is named by [{}], which does not begin the identifiers of scope `{}` it covers ([{}])",
+                        scope.symbol,
+                        identifiers.join(", "),
+                        other.symbol,
+                        theirs.join(", ")
+                    ),
+                );
+            }
+            covered_scopes.push(index.to_string());
+        }
         let infos = |ids: &[&ShapeId]| -> String {
             ids.iter()
                 .map(|id| format!("&{}", resource_info_path(service, id)))
@@ -155,7 +195,7 @@ fn catalogue(service: &Service, bits: &Bits<'_>, diagnostics: &mut Diagnostics) 
                 .join(", ")
         };
         out.push_str(&format!(
-            "        {R}::ScopeInfo {{\n            symbol: {},\n            value: {},\n            description: {},\n            internal: {},\n            kind: {R}::ScopeKind::{kind},\n            resource: {},\n            identifiers: &[{}],\n            instances: &[{}],\n            every: &[{}],\n        }},\n",
+            "        {R}::ScopeInfo {{\n            symbol: {},\n            value: {},\n            description: {},\n            internal: {},\n            kind: {R}::ScopeKind::{kind},\n            resource: {},\n            identifiers: &[{}],\n            instances: &[{}],\n            every: &[{}],\n            covers_scopes: &[{}],\n        }},\n",
             literal(&scope.symbol),
             literal(&scope.value),
             description(scope.docs.as_deref()),
@@ -168,6 +208,7 @@ fn catalogue(service: &Service, bits: &Bits<'_>, diagnostics: &mut Diagnostics) 
                 .join(", "),
             infos(&coverage.instances),
             infos(&coverage.every),
+            covered_scopes.join(", "),
         ));
     }
     out.push_str("    ],\n    permissions: &[\n");
@@ -358,11 +399,12 @@ fn role_enum(service: &Service, name: &str) -> String {
     pub fn assigned_by(self) -> impl ::std::iter::Iterator<Item = Self> {{
         self.info().assigned_by.iter().map(|role| Self::ALL[usize::from(*role)])
     }}
-    /// Whether a holder of `assigners` may grant or revoke it. Whether
-    /// the assigner's binding covers the new binding's scope is the
-    /// caller's to check.
-    pub fn may_assign(self, assigners: impl ::std::iter::IntoIterator<Item = Self>) -> bool {{
-        CATALOGUE.may_assign(assigners.into_iter().map(Self::index), self as usize)
+    /// Whether a principal of kind `kind` holding `assigner` may grant or
+    /// revoke it at the scope instance `at`: it names no assigners, or one
+    /// of the assigner's bindings holds an assigning role, valid where it
+    /// is bound, at a scope instance that covers `at`.
+    pub fn may_assign(self, assigner: &[{R}::RoleBinding], kind: ::std::option::Option<&str>, at: {R}::ScopeRef<'_>) -> bool {{
+        CATALOGUE.may_assign(assigner, kind, self as usize, at)
     }}
     /// The model's documentation for it.
     pub fn description(self) -> &'static str {{

@@ -830,10 +830,13 @@ pub mod leyline {
     impl ::crucible_server_runtime_rust::__generated::Operation for ArchiveGraph {
         const AUTH_BEARER: bool = true;
         const AUTH_SCHEMES: ::std::option::Option<&'static [::crucible_server_runtime_rust::__generated::operation::AuthScheme]> = Some(&[::crucible_server_runtime_rust::__generated::operation::AuthScheme::Bearer]);
-        const REQUIREMENTS: ::crucible_server_runtime_rust::__generated::permissions::Requirements = ::crucible_server_runtime_rust::__generated::permissions::Requirements::List(&[
-            ::crucible_server_runtime_rust::__generated::permissions::RequirementInfo { mode: ::crucible_server_runtime_rust::__generated::permissions::Mode::Check, permission: &permissions::GRAPH__WRITE, conditional: false },
-            ::crucible_server_runtime_rust::__generated::permissions::RequirementInfo { mode: ::crucible_server_runtime_rust::__generated::permissions::Mode::Check, permission: &permissions::ORGANIZATION__READ, conditional: true },
-        ]);
+        const REQUIREMENTS: ::crucible_server_runtime_rust::__generated::permissions::Requirements = {
+            static CLAUSES: [::crucible_server_runtime_rust::__generated::permissions::RequirementInfo; 2] = [
+                ::crucible_server_runtime_rust::__generated::permissions::RequirementInfo { mode: ::crucible_server_runtime_rust::__generated::permissions::Mode::Check, permission: &permissions::GRAPH__WRITE, conditional: false },
+                ::crucible_server_runtime_rust::__generated::permissions::RequirementInfo { mode: ::crucible_server_runtime_rust::__generated::permissions::Mode::Check, permission: &permissions::ORGANIZATION__READ, conditional: true },
+            ];
+            ::crucible_server_runtime_rust::__generated::permissions::Requirements::List(&CLAUSES)
+        };
         #[allow(clippy::all, unreachable_patterns, unused_parens)]
         const CHECKS: ::std::option::Option<::crucible_server_runtime_rust::__generated::permissions::Checks<Self::Input>> = ::std::option::Option::Some(|input, out| {
             out.push(::crucible_server_runtime_rust::__generated::permissions::Check::declared(0, &permissions::GRAPH__WRITE, ::crucible_server_runtime_rust::__generated::permissions::ResourceRef::new(&permissions::GRAPH, [::crucible_server_runtime_rust::__generated::permissions::Target::from(&input.organization_id), ::crucible_server_runtime_rust::__generated::permissions::Target::from(&input.graph_id)])));
@@ -881,9 +884,12 @@ pub mod leyline {
     impl ::crucible_server_runtime_rust::__generated::Operation for CreateGraph {
         const AUTH_BEARER: bool = true;
         const AUTH_SCHEMES: ::std::option::Option<&'static [::crucible_server_runtime_rust::__generated::operation::AuthScheme]> = Some(&[::crucible_server_runtime_rust::__generated::operation::AuthScheme::Bearer]);
-        const REQUIREMENTS: ::crucible_server_runtime_rust::__generated::permissions::Requirements = ::crucible_server_runtime_rust::__generated::permissions::Requirements::List(&[
-            ::crucible_server_runtime_rust::__generated::permissions::RequirementInfo { mode: ::crucible_server_runtime_rust::__generated::permissions::Mode::Check, permission: &permissions::GRAPH__WRITE, conditional: false },
-        ]);
+        const REQUIREMENTS: ::crucible_server_runtime_rust::__generated::permissions::Requirements = {
+            static CLAUSES: [::crucible_server_runtime_rust::__generated::permissions::RequirementInfo; 1] = [
+                ::crucible_server_runtime_rust::__generated::permissions::RequirementInfo { mode: ::crucible_server_runtime_rust::__generated::permissions::Mode::Check, permission: &permissions::GRAPH__WRITE, conditional: false },
+            ];
+            ::crucible_server_runtime_rust::__generated::permissions::Requirements::List(&CLAUSES)
+        };
         #[allow(clippy::all, unreachable_patterns, unused_parens)]
         const CHECKS: ::std::option::Option<::crucible_server_runtime_rust::__generated::permissions::Checks<Self::Input>> = ::std::option::Option::Some(|input, out| {
             out.push(::crucible_server_runtime_rust::__generated::permissions::Check::declared(0, &permissions::GRAPH__WRITE, ::crucible_server_runtime_rust::__generated::permissions::ResourceRef::all(&permissions::GRAPH, [::crucible_server_runtime_rust::__generated::permissions::Target::from(&input.organization_id)])));
@@ -928,11 +934,14 @@ pub mod leyline {
     impl ::crucible_server_runtime_rust::__generated::Operation for ExecuteQuery {
         const AUTH_BEARER: bool = true;
         const AUTH_SCHEMES: ::std::option::Option<&'static [::crucible_server_runtime_rust::__generated::operation::AuthScheme]> = Some(&[::crucible_server_runtime_rust::__generated::operation::AuthScheme::Bearer]);
-        const REQUIREMENTS: ::crucible_server_runtime_rust::__generated::permissions::Requirements = ::crucible_server_runtime_rust::__generated::permissions::Requirements::List(&[
-            ::crucible_server_runtime_rust::__generated::permissions::RequirementInfo { mode: ::crucible_server_runtime_rust::__generated::permissions::Mode::Check, permission: &permissions::GRAPH__READ, conditional: false },
-            ::crucible_server_runtime_rust::__generated::permissions::RequirementInfo { mode: ::crucible_server_runtime_rust::__generated::permissions::Mode::Handler, permission: &permissions::GRAPH__WRITE, conditional: false },
-            ::crucible_server_runtime_rust::__generated::permissions::RequirementInfo { mode: ::crucible_server_runtime_rust::__generated::permissions::Mode::Check, permission: &permissions::HISTORY__READ, conditional: true },
-        ]);
+        const REQUIREMENTS: ::crucible_server_runtime_rust::__generated::permissions::Requirements = {
+            static CLAUSES: [::crucible_server_runtime_rust::__generated::permissions::RequirementInfo; 3] = [
+                ::crucible_server_runtime_rust::__generated::permissions::RequirementInfo { mode: ::crucible_server_runtime_rust::__generated::permissions::Mode::Check, permission: &permissions::GRAPH__READ, conditional: false },
+                ::crucible_server_runtime_rust::__generated::permissions::RequirementInfo { mode: ::crucible_server_runtime_rust::__generated::permissions::Mode::Handler, permission: &permissions::GRAPH__WRITE, conditional: false },
+                ::crucible_server_runtime_rust::__generated::permissions::RequirementInfo { mode: ::crucible_server_runtime_rust::__generated::permissions::Mode::Check, permission: &permissions::HISTORY__READ, conditional: true },
+            ];
+            ::crucible_server_runtime_rust::__generated::permissions::Requirements::List(&CLAUSES)
+        };
         #[allow(clippy::all, unreachable_patterns, unused_parens)]
         const CHECKS: ::std::option::Option<::crucible_server_runtime_rust::__generated::permissions::Checks<Self::Input>> = ::std::option::Option::Some(|input, out| {
             out.push(::crucible_server_runtime_rust::__generated::permissions::Check::declared(0, &permissions::GRAPH__READ, ::crucible_server_runtime_rust::__generated::permissions::ResourceRef::new(&permissions::GRAPH, [::crucible_server_runtime_rust::__generated::permissions::Target::from(&input.organization_id), ::crucible_server_runtime_rust::__generated::permissions::Target::from(&input.graph_id)])));
@@ -992,9 +1001,12 @@ pub mod leyline {
     impl ::crucible_server_runtime_rust::__generated::Operation for GetGraph {
         const AUTH_BEARER: bool = true;
         const AUTH_SCHEMES: ::std::option::Option<&'static [::crucible_server_runtime_rust::__generated::operation::AuthScheme]> = Some(&[::crucible_server_runtime_rust::__generated::operation::AuthScheme::Bearer]);
-        const REQUIREMENTS: ::crucible_server_runtime_rust::__generated::permissions::Requirements = ::crucible_server_runtime_rust::__generated::permissions::Requirements::List(&[
-            ::crucible_server_runtime_rust::__generated::permissions::RequirementInfo { mode: ::crucible_server_runtime_rust::__generated::permissions::Mode::Check, permission: &permissions::GRAPH__READ, conditional: false },
-        ]);
+        const REQUIREMENTS: ::crucible_server_runtime_rust::__generated::permissions::Requirements = {
+            static CLAUSES: [::crucible_server_runtime_rust::__generated::permissions::RequirementInfo; 1] = [
+                ::crucible_server_runtime_rust::__generated::permissions::RequirementInfo { mode: ::crucible_server_runtime_rust::__generated::permissions::Mode::Check, permission: &permissions::GRAPH__READ, conditional: false },
+            ];
+            ::crucible_server_runtime_rust::__generated::permissions::Requirements::List(&CLAUSES)
+        };
         #[allow(clippy::all, unreachable_patterns, unused_parens)]
         const CHECKS: ::std::option::Option<::crucible_server_runtime_rust::__generated::permissions::Checks<Self::Input>> = ::std::option::Option::Some(|input, out| {
             out.push(::crucible_server_runtime_rust::__generated::permissions::Check::declared(0, &permissions::GRAPH__READ, ::crucible_server_runtime_rust::__generated::permissions::ResourceRef::new(&permissions::GRAPH, [::crucible_server_runtime_rust::__generated::permissions::Target::from(&input.organization_id), ::crucible_server_runtime_rust::__generated::permissions::Target::from(&input.graph)])));
@@ -1036,9 +1048,12 @@ pub mod leyline {
     impl ::crucible_server_runtime_rust::__generated::Operation for GetOrganization {
         const AUTH_BEARER: bool = true;
         const AUTH_SCHEMES: ::std::option::Option<&'static [::crucible_server_runtime_rust::__generated::operation::AuthScheme]> = Some(&[::crucible_server_runtime_rust::__generated::operation::AuthScheme::Bearer]);
-        const REQUIREMENTS: ::crucible_server_runtime_rust::__generated::permissions::Requirements = ::crucible_server_runtime_rust::__generated::permissions::Requirements::List(&[
-            ::crucible_server_runtime_rust::__generated::permissions::RequirementInfo { mode: ::crucible_server_runtime_rust::__generated::permissions::Mode::Check, permission: &permissions::ORGANIZATION__READ, conditional: false },
-        ]);
+        const REQUIREMENTS: ::crucible_server_runtime_rust::__generated::permissions::Requirements = {
+            static CLAUSES: [::crucible_server_runtime_rust::__generated::permissions::RequirementInfo; 1] = [
+                ::crucible_server_runtime_rust::__generated::permissions::RequirementInfo { mode: ::crucible_server_runtime_rust::__generated::permissions::Mode::Check, permission: &permissions::ORGANIZATION__READ, conditional: false },
+            ];
+            ::crucible_server_runtime_rust::__generated::permissions::Requirements::List(&CLAUSES)
+        };
         #[allow(clippy::all, unreachable_patterns, unused_parens)]
         const CHECKS: ::std::option::Option<::crucible_server_runtime_rust::__generated::permissions::Checks<Self::Input>> = ::std::option::Option::Some(|input, out| {
             out.push(::crucible_server_runtime_rust::__generated::permissions::Check::declared(0, &permissions::ORGANIZATION__READ, ::crucible_server_runtime_rust::__generated::permissions::ResourceRef::new(&permissions::ORGANIZATION, [::crucible_server_runtime_rust::__generated::permissions::Target::from(&input.organization_id)])));
@@ -1159,9 +1174,12 @@ pub mod leyline {
     impl ::crucible_server_runtime_rust::__generated::Operation for ListGraphs {
         const AUTH_BEARER: bool = true;
         const AUTH_SCHEMES: ::std::option::Option<&'static [::crucible_server_runtime_rust::__generated::operation::AuthScheme]> = Some(&[::crucible_server_runtime_rust::__generated::operation::AuthScheme::Bearer]);
-        const REQUIREMENTS: ::crucible_server_runtime_rust::__generated::permissions::Requirements = ::crucible_server_runtime_rust::__generated::permissions::Requirements::List(&[
-            ::crucible_server_runtime_rust::__generated::permissions::RequirementInfo { mode: ::crucible_server_runtime_rust::__generated::permissions::Mode::Filter, permission: &permissions::GRAPH__READ, conditional: false },
-        ]);
+        const REQUIREMENTS: ::crucible_server_runtime_rust::__generated::permissions::Requirements = {
+            static CLAUSES: [::crucible_server_runtime_rust::__generated::permissions::RequirementInfo; 1] = [
+                ::crucible_server_runtime_rust::__generated::permissions::RequirementInfo { mode: ::crucible_server_runtime_rust::__generated::permissions::Mode::Filter, permission: &permissions::GRAPH__READ, conditional: false },
+            ];
+            ::crucible_server_runtime_rust::__generated::permissions::Requirements::List(&CLAUSES)
+        };
         #[allow(clippy::all, unreachable_patterns, unused_parens)]
         const CHECKS: ::std::option::Option<::crucible_server_runtime_rust::__generated::permissions::Checks<Self::Input>> = ::std::option::Option::Some(|input, out| {
             out.push(::crucible_server_runtime_rust::__generated::permissions::Check::declared(0, &permissions::GRAPH__READ, ::crucible_server_runtime_rust::__generated::permissions::ResourceRef::all(&permissions::GRAPH, [::crucible_server_runtime_rust::__generated::permissions::Target::from(&input.organization_id)])));
@@ -1249,11 +1267,14 @@ pub mod leyline {
     impl ::crucible_server_runtime_rust::__generated::Operation for RewriteGraph {
         const AUTH_BEARER: bool = true;
         const AUTH_SCHEMES: ::std::option::Option<&'static [::crucible_server_runtime_rust::__generated::operation::AuthScheme]> = Some(&[::crucible_server_runtime_rust::__generated::operation::AuthScheme::Bearer]);
-        const REQUIREMENTS: ::crucible_server_runtime_rust::__generated::permissions::Requirements = ::crucible_server_runtime_rust::__generated::permissions::Requirements::List(&[
-            ::crucible_server_runtime_rust::__generated::permissions::RequirementInfo { mode: ::crucible_server_runtime_rust::__generated::permissions::Mode::Check, permission: &permissions::GRAPH__READ, conditional: true },
-            ::crucible_server_runtime_rust::__generated::permissions::RequirementInfo { mode: ::crucible_server_runtime_rust::__generated::permissions::Mode::Handler, permission: &permissions::GRAPH__WRITE, conditional: false },
-            ::crucible_server_runtime_rust::__generated::permissions::RequirementInfo { mode: ::crucible_server_runtime_rust::__generated::permissions::Mode::Handler, permission: &permissions::HISTORY__READ, conditional: false },
-        ]);
+        const REQUIREMENTS: ::crucible_server_runtime_rust::__generated::permissions::Requirements = {
+            static CLAUSES: [::crucible_server_runtime_rust::__generated::permissions::RequirementInfo; 3] = [
+                ::crucible_server_runtime_rust::__generated::permissions::RequirementInfo { mode: ::crucible_server_runtime_rust::__generated::permissions::Mode::Check, permission: &permissions::GRAPH__READ, conditional: true },
+                ::crucible_server_runtime_rust::__generated::permissions::RequirementInfo { mode: ::crucible_server_runtime_rust::__generated::permissions::Mode::Handler, permission: &permissions::GRAPH__WRITE, conditional: false },
+                ::crucible_server_runtime_rust::__generated::permissions::RequirementInfo { mode: ::crucible_server_runtime_rust::__generated::permissions::Mode::Handler, permission: &permissions::HISTORY__READ, conditional: false },
+            ];
+            ::crucible_server_runtime_rust::__generated::permissions::Requirements::List(&CLAUSES)
+        };
         #[allow(clippy::all, unreachable_patterns, unused_parens)]
         const CHECKS: ::std::option::Option<::crucible_server_runtime_rust::__generated::permissions::Checks<Self::Input>> = ::std::option::Option::Some(|input, out| {
             if input.mode.as_ref().is_some_and(|v| v.as_str() == "a`b") {

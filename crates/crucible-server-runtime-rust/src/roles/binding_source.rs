@@ -1,13 +1,17 @@
 use std::sync::Arc;
 
-use super::{ByService, PermissionSet, Refusal, RoleBinding, Root, Unavailable};
+use super::{Refusal, RoleBinding, Root, Unavailable};
 use crate::Context;
 use crate::permissions::{Listing, Visibility};
 
 /// What only the service knows, for [`RoleAuthorizer`](super::RoleAuthorizer):
-/// who the caller is, the role bindings it holds, and the answers to the
-/// hatches the model leaves to the service (docs/roles.md §7.2). Crucible
-/// stores nothing; storage, caching, freshness and tenancy stay here.
+/// who the caller is and the role bindings it holds (docs/roles.md §7.2).
+/// Crucible stores nothing; storage, caching, freshness and tenancy stay
+/// here. The hatches a model leaves to the service are traits of their
+/// own, [`ServiceGrants`](super::ServiceGrants) and
+/// [`CustomRoles`](super::CustomRoles), with no default: the generated
+/// `roles::authorizer(source)` requires each one the model needs, so
+/// forgetting one is a type error, never a silent refusal.
 ///
 /// Every method that reads a store answers [`Unavailable`] when it cannot
 /// tell, and `RoleAuthorizer` then answers the whole batch as an error:
@@ -52,41 +56,6 @@ pub trait BindingSource: Send + Sync + 'static {
         root: Root<'_>,
         fresh: bool,
     ) -> impl Future<Output = Result<Arc<[RoleBinding]>, Unavailable>> + Send;
-
-    /// Whether a `by service` grant applies (docs/roles.md §4.6): the
-    /// binding's role grants the permission on the target only when the
-    /// service says so, such as a graph administrator reading the history
-    /// of a graph its binding covers while the graph is live. Asked for
-    /// every binding under the root whose role is valid at its scope and
-    /// grants the permission `by service`, whether or not its scope covers
-    /// the target, since the relationship it follows is not the resource
-    /// tree. Only asked when no binding grants the permission outright.
-    ///
-    /// The default refuses: a model with a `by service` grant whose source
-    /// does not answer it gets no allow from it.
-    fn decide_by_service(
-        &self,
-        principal: &Self::Principal,
-        grant: ByService<'_>,
-    ) -> impl Future<Output = Result<bool, Unavailable>> + Send {
-        let _ = (principal, grant);
-        std::future::ready(Ok(false))
-    }
-
-    /// The permissions of a custom role (`roles [..] custom`, docs/roles.md
-    /// §4.7), by the id a binding names: build the set with
-    /// [`RoleCatalogue::permission_set`](super::RoleCatalogue::permission_set).
-    /// Of it, only grantable permissions (neither internal nor
-    /// `@notGrantable`) are honoured. `None` (the default): no such role,
-    /// and its bindings grant nothing. Asked once per id per batch, and
-    /// only for a catalogue that declares `custom`.
-    fn custom_role(
-        &self,
-        role: &str,
-    ) -> impl Future<Output = Result<Option<PermissionSet>, Unavailable>> + Send {
-        let _ = role;
-        std::future::ready(Ok(None))
-    }
 
     /// How a check no binding allows is refused. `covered`: some binding
     /// whose role is valid where it is bound covers the target. By default
