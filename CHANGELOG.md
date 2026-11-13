@@ -26,7 +26,18 @@ version's section when it is prepared.
   `Service::role_settings` (each role with its effective grants, inclusion
   and `*` expanded), and `crucible_ir::roles` answers coverage. A model
   without roles lowers to the same IR as before. Generators, the
-  `RoleAuthorizer` and compatibility rules follow in later releases.
+  `RoleAuthorizer` follow in later releases.
+- Roles R4 ([docs/roles.md](docs/roles.md) §6): compatibility rules for
+  roles and scopes, compared by value against the baseline.
+  `compatibility.scope` and `compatibility.role` (errors) report a role or
+  scope removed or with a changed value, a scope moved to another resource,
+  and a role that grants less, binds at fewer scopes or admits fewer
+  holders; `compatibility.role-widened` (a warning) reports a role that
+  grants more, by an edit or because its `*` covers a new permission. A
+  public role or scope removed or made `internal` is a `compatibility.sdk`
+  finding. Migrations declare the breaks with `remove role`, `remove scope`
+  and `narrow role`. A baseline frozen before roles existed reports
+  nothing. The rule IDs join `crucible_policy::RULE_IDS`.
 
 - Rust and TypeScript SDK guides (`README.md`, and `guide` in
   `crucible.sdks/1`) gain a `types` section after the first call: the

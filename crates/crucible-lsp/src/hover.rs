@@ -112,7 +112,7 @@ const KEYWORDS: &[Row] = &[
     (
         "migration",
         DECLARATION,
-        "Declares how the current model serves the previous release: each step (`rename`, `require`, `add`, `move`, `reshape`, `remove operation`, `behavior`, `sunset`, `retype`) is one breaking change since then. The compiler checks the steps against the frozen release.",
+        "Declares how the current model serves the previous release: each step (`rename`, `require`, `add`, `move`, `reshape`, `remove operation`, `remove role`, `remove scope`, `narrow role`, `behavior`, `sunset`, `retype`) is one breaking change since then. The compiler checks the steps against the frozen release.",
         "migration \"2026-11-01\" from \"2026-10-01\" {\n    rename CityData.label -> name\n}",
     ),
     (
@@ -543,8 +543,14 @@ const KEYWORDS: &[Row] = &[
     (
         "remove",
         MIGRATION,
-        "`remove operation Name`: the operation is gone, and old versions keep it through a version-scoped handler.",
+        "`remove operation Name`: the operation is gone, and old versions keep it through a version-scoped handler. `remove role name` and `remove scope name`: bindings stored under its value no longer match.",
         "migration \"2026-11-01\" from \"2026-10-01\" {\n    remove operation GetWeather\n}",
+    ),
+    (
+        "narrow",
+        MIGRATION,
+        "`narrow role name`: the role grants less, binds at fewer scopes, or admits fewer kinds of principal; its holders are refused what they had.",
+        "migration \"2026-11-01\" from \"2026-10-01\" {\n    narrow role graphWriter\n}",
     ),
     (
         "behavior",

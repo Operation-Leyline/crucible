@@ -1,10 +1,11 @@
 # Roles
 
-**Status: R1 implemented** (§10): the language and the IR, with the §6
-compile errors; its syntax is in [idl/reference.md](idl/reference.md#roles),
-and *As built* notes below mark where it differs from this design. R2 and
-later (generated code, `RoleAuthorizer`, outputs, compatibility) are
-proposed. It reverses one non-goal of
+**Status: R1 and R4 implemented** (§10): the language and the IR, with the
+§6 compile errors, and the §6 compatibility rules; the syntax is in
+[idl/reference.md](idl/reference.md#roles), the rules in
+[api-policy.md](api-policy.md#comparing-contracts), and *As built* notes
+below mark where they differ from this design. R2, R2b and R3 (generated
+code, `RoleAuthorizer`, outputs) are proposed. It reverses one non-goal of
 [permissions.md](permissions.md) ("No roles in the model", §2) and narrows
 another ("Crucible does not decide"); §2 says how far. Leyline is the worked
 example (§8), because its role table has every awkward case we know of:
@@ -402,6 +403,55 @@ Compatibility, in `crucible-policy`, against the baseline:
   `compatibility.role-widened`, since widening is a security review, not a
   break.
 
+*As built (R4).* The rules are `compatibility.scope` and
+`compatibility.role` (errors) and `compatibility.role-widened` (a warning),
+in `crucible-policy` beside the permission rules and run with them under
+`[compatibility] wire`; [api-policy.md](api-policy.md#comparing-contracts)
+lists them. Roles and scopes are matched by value, what a binding stores,
+and grants by the stored pair (authorization name, permission value), so a
+symbol renamed with its value kept is the same role, and a grant whose
+value became a deprecated alias of a primary the role grants is kept. A
+finding is reported at `namespace#symbol` of the release's role or scope,
+which is what an exception names; the editor shows it at the service, since
+roles have no shape of their own. Besides the design's rules:
+
+- *Holders narrowed* (`holders` dropping a kind, or naming kinds where it
+  named none) is a `compatibility.role` error, compared by the `principals`
+  enum's wire values. Admitting more kinds, or binding at more scopes, gives
+  no existing holder anything and is not reported.
+- *A scope moved* to another resource, or between one instance and
+  `R(*)`, is a `compatibility.scope` error: a stored binding names an
+  instance of what the scope was on. Resources are compared by
+  authorization name.
+- *A grant moving between the model and the service.* `by service` added to
+  a grant the model decided is a `compatibility.role` **warning**: whether
+  holders lose it depends on the service's hook, which the model cannot
+  see, so it is a review, not a refusal. `by service` removed, the model now
+  granting it outright, is `compatibility.role-widened`, as is a new `by
+  service` grant.
+- *Reported once.* A permission gone altogether is
+  `compatibility.permissions`' finding and a scope gone `compatibility.scope`'s;
+  neither is reported again for each role that granted or bound at it. A
+  role that includes a narrowed role narrows too, and is reported in its
+  own right: its holders are the ones refused.
+- *`internal`.* A public role or scope removed, or made `internal`, is a
+  `compatibility.sdk` finding, as a permission constant is; making one
+  public again is additive. A projected (external) model drops internal
+  roles, so a release plan comparing those views sees one made internal as
+  removed, as it does a permission.
+- *Declaring a break.* A migration step declares each: `remove role r` and
+  `remove scope s` (the release's value names nothing now; everything at it
+  is declared), and `narrow role r` (its value still names a role, which
+  narrowed; it declares `compatibility.role` there). A step that matches no
+  change is an error, as for the other steps. They lower to nothing in the
+  IR: roles are not versioned, so the server converts nothing for them, and
+  the snapshot format is unchanged. For the same reason the check that
+  rebuilds each older release from the current model (decision 68) leaves
+  role findings out: every release is served the current catalogue. A
+  change of `internal`, or a moved scope, is declared by an exception.
+- A baseline frozen before roles existed has no roles to compare, so a
+  catalogue added since reports nothing.
+
 ## 7. Generated code and the framework
 
 Generated Rust stays thin (AGENTS.md): types and `'static` tables. The
@@ -592,7 +642,8 @@ a bundle its customers already store as a permission.
    `ShadowAuthorizer` (§7.3).
 4. **R3, outputs.** Granted-by in `crucible-ir`; `describe.json`, the
    Markdown and HTML references, OpenAPI, `llms.txt`; client registries.
-5. **R4, compatibility.** The §6 rules in `crucible-policy`.
+5. **R4, compatibility** (built). The §6 rules in `crucible-policy`, and
+   the migration steps that declare them.
 6. **R5, Leyline.** Declare the catalogue, link `Role` and
    `RoleScopeType`, return the generated catalogue from `ListRoles`, run
    `RoleAuthorizer` in shadow beside its own, then switch and delete the

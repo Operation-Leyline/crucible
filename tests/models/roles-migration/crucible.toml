@@ -1,0 +1,15 @@
+schema_version = 1
+
+# A release of a role catalogue, and the migration from it that declares
+# every break: `narrow role` for a role that admits fewer holders, `remove
+# role` and `remove scope` for a role and a scope whose values name nothing
+# now (crucible-lang/tests/role_compatibility.rs). Release 1 is frozen under
+# releases/; 2 is current. It compiles with no diagnostic.
+[model]
+namespace = "example.shop"
+language = 1
+sources = ["."]
+imports = []
+
+[model.baseline]
+path = "releases/1.json"

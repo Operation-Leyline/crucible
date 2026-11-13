@@ -707,6 +707,13 @@ impl Walker<'_> {
                 }
                 self.set(into, Role::Property, 0);
             }
+            // A removed role or scope is no longer declared; it is shown as
+            // a role and scope declaration are.
+            StepKind::RemoveRole(name)
+            | StepKind::RemoveScope(name)
+            | StepKind::NarrowRole(name) => {
+                self.reference(name, Some(Role::Class));
+            }
             StepKind::Behavior(path) => self.dotted(path),
             StepKind::Sunset(_) => {}
             StepKind::Retype { path, to, .. } => {

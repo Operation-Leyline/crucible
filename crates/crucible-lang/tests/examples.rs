@@ -173,7 +173,10 @@ fn migration_steps_parse() {
             StepKind::Add { .. } => "add",
             StepKind::Move { .. } => "move",
             StepKind::Reshape { .. } => "reshape",
-            StepKind::RemoveOperation(_) => "remove",
+            StepKind::RemoveOperation(_) | StepKind::RemoveRole(_) | StepKind::RemoveScope(_) => {
+                "remove"
+            }
+            StepKind::NarrowRole(_) => "narrow",
             StepKind::Behavior(_) => "behavior",
             StepKind::Sunset(_) => "sunset",
             StepKind::Retype { .. } => "retype",

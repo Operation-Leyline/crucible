@@ -346,6 +346,9 @@ const MOVED: &[&str] = &["compatibility.member", "compatibility.required"];
 /// A move whose member's requiredness or default changed with it: the
 /// added member's `compatibility.required` stays undeclared.
 const MOVED_ONLY: &[&str] = &["compatibility.member"];
+/// A narrowed role: what its holders lose. A widening is a warning the
+/// step does not need to declare, and the role's SDK constant is untouched.
+const NARROW: &[&str] = &["compatibility.role"];
 const RETYPE: &[&str] = &[
     "compatibility.type",
     "compatibility.constraints",
@@ -1284,6 +1287,79 @@ impl<'a> Context<'a> {
                     )),
                 }
             }
+            StepKind::RemoveRole(name) => {
+                let Some(role) = self.old.role(&name.name) else {
+                    return Err(error(
+                        name.span,
+                        format!("{} has no role `{}`", capitalized(&self.older), name.name),
+                    ));
+                };
+                if let Some(now) = self.new.roles.iter().find(|r| r.value == role.value) {
+                    return Err(error(
+                        name.span,
+                        format!(
+                            "{:?} still names the role `{}` in {}; nothing was removed",
+                            role.value, now.symbol, self.newer
+                        ),
+                    ));
+                }
+                // Whatever else changed at it goes with it.
+                Ok(vec![Cover::exact(
+                    crucible_policy::role_id(self.old, &name.name),
+                    ANY,
+                )])
+            }
+            StepKind::RemoveScope(name) => {
+                let Some(scope) = self.old.scope(&name.name) else {
+                    return Err(error(
+                        name.span,
+                        format!("{} has no scope `{}`", capitalized(&self.older), name.name),
+                    ));
+                };
+                if let Some(now) = self.new.role_scopes.iter().find(|s| s.value == scope.value) {
+                    return Err(error(
+                        name.span,
+                        format!(
+                            "{:?} still names the scope `{}` in {}; nothing was removed",
+                            scope.value, now.symbol, self.newer
+                        ),
+                    ));
+                }
+                Ok(vec![Cover::exact(
+                    crucible_policy::role_id(self.old, &name.name),
+                    ANY,
+                )])
+            }
+            StepKind::NarrowRole(name) => {
+                let Some(role) = self.old.role(&name.name) else {
+                    return Err(error(
+                        name.span,
+                        format!("{} has no role `{}`", capitalized(&self.older), name.name),
+                    ));
+                };
+                if !self.new.roles.iter().any(|r| r.value == role.value) {
+                    return Err(error(
+                        name.span,
+                        format!(
+                            "{:?} names no role in {}; declare `remove role {}`",
+                            role.value, self.newer, name.name
+                        ),
+                    ));
+                }
+                if !crucible_policy::role_narrowed(self.old, self.new, &name.name) {
+                    return Err(error(
+                        name.span,
+                        format!(
+                            "`{}` grants what it granted, at the same scopes, to the same holders in {}; nothing was narrowed",
+                            name.name, self.newer
+                        ),
+                    ));
+                }
+                Ok(vec![Cover::exact(
+                    crucible_policy::role_id(self.old, &name.name),
+                    NARROW,
+                )])
+            }
             StepKind::Behavior(path) => {
                 let name = path.parts.first().map_or("", |p| p.name.as_str());
                 if operation(self.new, name).is_none() {
@@ -1910,7 +1986,12 @@ impl Context<'_> {
                     .map_or_else(String::new, |p| p.name.clone()),
                 docs,
             },
-            StepKind::Sunset(_) => unreachable!("handled by the caller"),
+            // Declarations of what changed in authorization, which no
+            // version of the API converts.
+            StepKind::RemoveRole(_)
+            | StepKind::RemoveScope(_)
+            | StepKind::NarrowRole(_)
+            | StepKind::Sunset(_) => unreachable!("handled by the caller"),
         })
     }
 }

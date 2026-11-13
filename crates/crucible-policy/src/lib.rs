@@ -18,6 +18,7 @@ mod naming;
 mod paths;
 mod permissions;
 mod report;
+mod roles;
 mod rules;
 mod severity;
 
@@ -36,6 +37,7 @@ pub use name_case::NameCase;
 pub use naming::Naming;
 pub use paths::Paths;
 pub use report::Report;
+pub use roles::{role_id, role_narrowed};
 pub use rules::Rules;
 pub use severity::Severity;
 
@@ -72,4 +74,7 @@ pub const RULE_IDS: &[&str] = &[
     "compatibility.unchecked",
     "compatibility.permissions",
     "compatibility.authorization",
+    "compatibility.role",
+    "compatibility.scope",
+    "compatibility.role-widened",
 ];

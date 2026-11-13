@@ -670,8 +670,8 @@ pub fn complete(context: Context, index: &Index, snippets: bool) -> Vec<Completi
         }
         Context::MigrationSteps => {
             for step in [
-                "rename", "require", "add", "move", "reshape", "remove", "behavior", "sunset",
-                "retype",
+                "rename", "require", "add", "move", "reshape", "remove", "narrow", "behavior",
+                "sunset", "retype",
             ] {
                 items.keyword(step, "migration step");
             }

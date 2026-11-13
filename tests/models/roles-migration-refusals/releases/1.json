@@ -1,0 +1,1045 @@
+{
+  "format": 5,
+  "compiler": "crucible 0.9.0",
+  "service": {
+    "internal": false,
+    "recursive_groups": [],
+    "protocol": "crucibleJson",
+    "errors": [],
+    "protocol_settings": {
+      "http": [
+        "http/1.1"
+      ]
+    },
+    "requirements": [],
+    "id": "example.shop#Shop",
+    "version": "1",
+    "title": null,
+    "docs": null,
+    "notes": {
+      "deprecated": null,
+      "since": null,
+      "unstable": false,
+      "external_docs": {}
+    },
+    "auth": [
+      "crucible.api#httpBearerAuth"
+    ],
+    "auth_schemes": {
+      "crucible.api#httpBearerAuth": {
+        "kind": "bearer"
+      }
+    },
+    "operations": [
+      {
+        "protocol_headers": {},
+        "response_protocol_headers": {},
+        "internal": false,
+        "id": "example.shop#GetShelf",
+        "auth": [
+          "crucible.api#httpBearerAuth"
+        ],
+        "resource": "example.shop#Shelf",
+        "docs": null,
+        "notes": {
+          "deprecated": null,
+          "since": null,
+          "unstable": false,
+          "external_docs": {}
+        },
+        "method": "GET",
+        "uri": {
+          "segments": [
+            {
+              "Literal": "stores"
+            },
+            {
+              "Label": "storeId"
+            },
+            {
+              "Literal": "shelves"
+            },
+            {
+              "Label": "shelfId"
+            }
+          ],
+          "query": [],
+          "greedy_labels": []
+        },
+        "status": 200,
+        "input": "example.shop#GetShelfInput",
+        "output": null,
+        "errors": [
+          "example.shop#Missing"
+        ],
+        "readonly": true,
+        "idempotent": false,
+        "idempotency_token": null,
+        "paginated": null,
+        "examples": [],
+        "request": {
+          "timestamp_formats": {},
+          "header_encodings": {},
+          "labels": [
+            "storeId",
+            "shelfId"
+          ],
+          "query": [],
+          "headers": [],
+          "body": [],
+          "payload": null
+        },
+        "response": {
+          "timestamp_formats": {},
+          "header_encodings": {},
+          "labels": [],
+          "query": [],
+          "headers": [],
+          "body": [],
+          "payload": null
+        },
+        "traits": {},
+        "requirements": {
+          "List": [
+            {
+              "mode": "Check",
+              "resource": "example.shop#Shelf",
+              "permission": "read",
+              "bindings": [
+                {
+                  "Member": [
+                    "storeId"
+                  ]
+                },
+                {
+                  "Member": [
+                    "shelfId"
+                  ]
+                }
+              ],
+              "when": null,
+              "docs": null
+            }
+          ]
+        }
+      },
+      {
+        "protocol_headers": {},
+        "response_protocol_headers": {},
+        "internal": false,
+        "id": "example.shop#GetStore",
+        "auth": [
+          "crucible.api#httpBearerAuth"
+        ],
+        "resource": "example.shop#Store",
+        "docs": null,
+        "notes": {
+          "deprecated": null,
+          "since": null,
+          "unstable": false,
+          "external_docs": {}
+        },
+        "method": "GET",
+        "uri": {
+          "segments": [
+            {
+              "Literal": "stores"
+            },
+            {
+              "Label": "storeId"
+            }
+          ],
+          "query": [],
+          "greedy_labels": []
+        },
+        "status": 200,
+        "input": "example.shop#GetStoreInput",
+        "output": null,
+        "errors": [
+          "example.shop#Missing"
+        ],
+        "readonly": true,
+        "idempotent": false,
+        "idempotency_token": null,
+        "paginated": null,
+        "examples": [],
+        "request": {
+          "timestamp_formats": {},
+          "header_encodings": {},
+          "labels": [
+            "storeId"
+          ],
+          "query": [],
+          "headers": [],
+          "body": [],
+          "payload": null
+        },
+        "response": {
+          "timestamp_formats": {},
+          "header_encodings": {},
+          "labels": [],
+          "query": [],
+          "headers": [],
+          "body": [],
+          "payload": null
+        },
+        "traits": {},
+        "requirements": {
+          "List": [
+            {
+              "mode": "Check",
+              "resource": "example.shop#Store",
+              "permission": "read",
+              "bindings": [
+                {
+                  "Member": [
+                    "storeId"
+                  ]
+                }
+              ],
+              "when": null,
+              "docs": null
+            }
+          ]
+        }
+      },
+      {
+        "protocol_headers": {},
+        "response_protocol_headers": {},
+        "internal": false,
+        "id": "example.shop#StockShelf",
+        "auth": [
+          "crucible.api#httpBearerAuth"
+        ],
+        "resource": "example.shop#Shelf",
+        "docs": null,
+        "notes": {
+          "deprecated": null,
+          "since": null,
+          "unstable": false,
+          "external_docs": {}
+        },
+        "method": "POST",
+        "uri": {
+          "segments": [
+            {
+              "Literal": "stores"
+            },
+            {
+              "Label": "storeId"
+            },
+            {
+              "Literal": "shelves"
+            },
+            {
+              "Label": "shelfId"
+            },
+            {
+              "Literal": "stock"
+            }
+          ],
+          "query": [],
+          "greedy_labels": []
+        },
+        "status": 200,
+        "input": "example.shop#StockShelfInput",
+        "output": null,
+        "errors": [
+          "example.shop#Missing"
+        ],
+        "readonly": false,
+        "idempotent": false,
+        "idempotency_token": null,
+        "paginated": null,
+        "examples": [],
+        "request": {
+          "timestamp_formats": {},
+          "header_encodings": {},
+          "labels": [
+            "storeId",
+            "shelfId"
+          ],
+          "query": [],
+          "headers": [],
+          "body": [],
+          "payload": null
+        },
+        "response": {
+          "timestamp_formats": {},
+          "header_encodings": {},
+          "labels": [],
+          "query": [],
+          "headers": [],
+          "body": [],
+          "payload": null
+        },
+        "traits": {},
+        "requirements": {
+          "List": [
+            {
+              "mode": "Check",
+              "resource": "example.shop#Shelf",
+              "permission": "stock",
+              "bindings": [
+                {
+                  "Member": [
+                    "storeId"
+                  ]
+                },
+                {
+                  "Member": [
+                    "shelfId"
+                  ]
+                }
+              ],
+              "when": null,
+              "docs": null
+            }
+          ]
+        }
+      }
+    ],
+    "resources": {
+      "example.shop#Shelf": {
+        "internal": false,
+        "id": "example.shop#Shelf",
+        "identifiers": {
+          "shelfId": "example.shop#ShelfId",
+          "storeId": "example.shop#StoreId"
+        },
+        "properties": {},
+        "resources": [],
+        "lifecycle": {
+          "create": null,
+          "put": null,
+          "read": null,
+          "update": null,
+          "delete": null,
+          "list": null
+        },
+        "operations": [
+          "example.shop#GetShelf",
+          "example.shop#StockShelf"
+        ],
+        "collection_operations": [],
+        "bindings": {
+          "example.shop#GetShelf": {
+            "input": {
+              "identifiers": {
+                "shelfId": [
+                  "shelfId"
+                ],
+                "storeId": [
+                  "storeId"
+                ]
+              },
+              "properties": {},
+              "collections": {}
+            },
+            "output": {
+              "identifiers": {},
+              "properties": {},
+              "collections": {}
+            }
+          },
+          "example.shop#StockShelf": {
+            "input": {
+              "identifiers": {
+                "shelfId": [
+                  "shelfId"
+                ],
+                "storeId": [
+                  "storeId"
+                ]
+              },
+              "properties": {},
+              "collections": {}
+            },
+            "output": {
+              "identifiers": {},
+              "properties": {},
+              "collections": {}
+            }
+          }
+        },
+        "traits": {},
+        "docs": null,
+        "notes": {
+          "deprecated": null,
+          "since": null,
+          "unstable": false,
+          "external_docs": {}
+        }
+      },
+      "example.shop#Store": {
+        "internal": false,
+        "id": "example.shop#Store",
+        "identifiers": {
+          "storeId": "example.shop#StoreId"
+        },
+        "properties": {},
+        "resources": [
+          "example.shop#Shelf"
+        ],
+        "lifecycle": {
+          "create": null,
+          "put": null,
+          "read": null,
+          "update": null,
+          "delete": null,
+          "list": null
+        },
+        "operations": [
+          "example.shop#GetStore"
+        ],
+        "collection_operations": [],
+        "bindings": {
+          "example.shop#GetStore": {
+            "input": {
+              "identifiers": {
+                "storeId": [
+                  "storeId"
+                ]
+              },
+              "properties": {},
+              "collections": {}
+            },
+            "output": {
+              "identifiers": {},
+              "properties": {},
+              "collections": {}
+            }
+          }
+        },
+        "traits": {},
+        "docs": null,
+        "notes": {
+          "deprecated": null,
+          "since": null,
+          "unstable": false,
+          "external_docs": {}
+        }
+      }
+    },
+    "resource_roots": [
+      "example.shop#Store"
+    ],
+    "resource_references": {},
+    "shapes": {
+      "crucible.api#String": {
+        "Simple": {
+          "internal": false,
+          "sensitive": false,
+          "kind": "String",
+          "constraints": {
+            "length": null,
+            "range": null,
+            "pattern": null,
+            "unique_items": false
+          },
+          "timestamp_format": null,
+          "docs": null,
+          "notes": {
+            "deprecated": null,
+            "since": null,
+            "unstable": false,
+            "external_docs": {}
+          },
+          "traits": {}
+        }
+      },
+      "example.shop#GetShelfInput": {
+        "Structure": {
+          "internal": false,
+          "sensitive": false,
+          "strict": false,
+          "input": true,
+          "members": [
+            {
+              "internal": false,
+              "sensitive": false,
+              "name": "storeId",
+              "target": "example.shop#StoreId",
+              "required": true,
+              "default": null,
+              "wire_default": null,
+              "idempotency_token": false,
+              "mutability": null,
+              "constraints": {
+                "length": {
+                  "min": 1,
+                  "max": 40
+                },
+                "range": null,
+                "pattern": null,
+                "unique_items": false
+              },
+              "timestamp_format": null,
+              "wire_timestamp_format": "date-time",
+              "docs": null,
+              "notes": {
+                "deprecated": null,
+                "since": null,
+                "unstable": false,
+                "external_docs": {}
+              },
+              "traits": {}
+            },
+            {
+              "internal": false,
+              "sensitive": false,
+              "name": "shelfId",
+              "target": "example.shop#ShelfId",
+              "required": true,
+              "default": null,
+              "wire_default": null,
+              "idempotency_token": false,
+              "mutability": null,
+              "constraints": {
+                "length": {
+                  "min": 1,
+                  "max": 40
+                },
+                "range": null,
+                "pattern": null,
+                "unique_items": false
+              },
+              "timestamp_format": null,
+              "wire_timestamp_format": "date-time",
+              "docs": null,
+              "notes": {
+                "deprecated": null,
+                "since": null,
+                "unstable": false,
+                "external_docs": {}
+              },
+              "traits": {}
+            }
+          ],
+          "error": null,
+          "docs": null,
+          "notes": {
+            "deprecated": null,
+            "since": null,
+            "unstable": false,
+            "external_docs": {}
+          },
+          "traits": {}
+        }
+      },
+      "example.shop#GetStoreInput": {
+        "Structure": {
+          "internal": false,
+          "sensitive": false,
+          "strict": false,
+          "input": true,
+          "members": [
+            {
+              "internal": false,
+              "sensitive": false,
+              "name": "storeId",
+              "target": "example.shop#StoreId",
+              "required": true,
+              "default": null,
+              "wire_default": null,
+              "idempotency_token": false,
+              "mutability": null,
+              "constraints": {
+                "length": {
+                  "min": 1,
+                  "max": 40
+                },
+                "range": null,
+                "pattern": null,
+                "unique_items": false
+              },
+              "timestamp_format": null,
+              "wire_timestamp_format": "date-time",
+              "docs": null,
+              "notes": {
+                "deprecated": null,
+                "since": null,
+                "unstable": false,
+                "external_docs": {}
+              },
+              "traits": {}
+            }
+          ],
+          "error": null,
+          "docs": null,
+          "notes": {
+            "deprecated": null,
+            "since": null,
+            "unstable": false,
+            "external_docs": {}
+          },
+          "traits": {}
+        }
+      },
+      "example.shop#Missing": {
+        "Structure": {
+          "internal": false,
+          "sensitive": false,
+          "strict": false,
+          "input": false,
+          "members": [
+            {
+              "internal": false,
+              "sensitive": false,
+              "name": "message",
+              "target": "crucible.api#String",
+              "required": true,
+              "default": null,
+              "wire_default": null,
+              "idempotency_token": false,
+              "mutability": null,
+              "constraints": {
+                "length": null,
+                "range": null,
+                "pattern": null,
+                "unique_items": false
+              },
+              "timestamp_format": null,
+              "wire_timestamp_format": "date-time",
+              "docs": null,
+              "notes": {
+                "deprecated": null,
+                "since": null,
+                "unstable": false,
+                "external_docs": {}
+              },
+              "traits": {}
+            }
+          ],
+          "error": {
+            "protocol_headers": {
+              "Content-Type": "application/json"
+            },
+            "body_discriminator": "Missing",
+            "discriminator_header": "X-Crucible-Error",
+            "timestamp_formats": {},
+            "wire_code": "Missing",
+            "payload": null,
+            "header_encodings": {},
+            "fault": "Client",
+            "status": 404,
+            "retryable": null,
+            "headers": []
+          },
+          "docs": null,
+          "notes": {
+            "deprecated": null,
+            "since": null,
+            "unstable": false,
+            "external_docs": {}
+          },
+          "traits": {}
+        }
+      },
+      "example.shop#PrincipalType": {
+        "Enum": {
+          "internal": false,
+          "sensitive": false,
+          "values": [
+            {
+              "internal": false,
+              "name": "USER",
+              "value": "user",
+              "docs": null,
+              "notes": {
+                "deprecated": null,
+                "since": null,
+                "unstable": false,
+                "external_docs": {}
+              },
+              "traits": {}
+            },
+            {
+              "internal": false,
+              "name": "API_KEY",
+              "value": "apiKey",
+              "docs": null,
+              "notes": {
+                "deprecated": null,
+                "since": null,
+                "unstable": false,
+                "external_docs": {}
+              },
+              "traits": {}
+            }
+          ],
+          "docs": "Who a credential belongs to.",
+          "notes": {
+            "deprecated": null,
+            "since": null,
+            "unstable": false,
+            "external_docs": {}
+          },
+          "traits": {}
+        }
+      },
+      "example.shop#ShelfId": {
+        "Simple": {
+          "internal": false,
+          "sensitive": false,
+          "kind": "String",
+          "constraints": {
+            "length": {
+              "min": 1,
+              "max": 40
+            },
+            "range": null,
+            "pattern": null,
+            "unique_items": false
+          },
+          "timestamp_format": null,
+          "docs": null,
+          "notes": {
+            "deprecated": null,
+            "since": null,
+            "unstable": false,
+            "external_docs": {}
+          },
+          "traits": {}
+        }
+      },
+      "example.shop#StockShelfInput": {
+        "Structure": {
+          "internal": false,
+          "sensitive": false,
+          "strict": false,
+          "input": true,
+          "members": [
+            {
+              "internal": false,
+              "sensitive": false,
+              "name": "storeId",
+              "target": "example.shop#StoreId",
+              "required": true,
+              "default": null,
+              "wire_default": null,
+              "idempotency_token": false,
+              "mutability": null,
+              "constraints": {
+                "length": {
+                  "min": 1,
+                  "max": 40
+                },
+                "range": null,
+                "pattern": null,
+                "unique_items": false
+              },
+              "timestamp_format": null,
+              "wire_timestamp_format": "date-time",
+              "docs": null,
+              "notes": {
+                "deprecated": null,
+                "since": null,
+                "unstable": false,
+                "external_docs": {}
+              },
+              "traits": {}
+            },
+            {
+              "internal": false,
+              "sensitive": false,
+              "name": "shelfId",
+              "target": "example.shop#ShelfId",
+              "required": true,
+              "default": null,
+              "wire_default": null,
+              "idempotency_token": false,
+              "mutability": null,
+              "constraints": {
+                "length": {
+                  "min": 1,
+                  "max": 40
+                },
+                "range": null,
+                "pattern": null,
+                "unique_items": false
+              },
+              "timestamp_format": null,
+              "wire_timestamp_format": "date-time",
+              "docs": null,
+              "notes": {
+                "deprecated": null,
+                "since": null,
+                "unstable": false,
+                "external_docs": {}
+              },
+              "traits": {}
+            }
+          ],
+          "error": null,
+          "docs": null,
+          "notes": {
+            "deprecated": null,
+            "since": null,
+            "unstable": false,
+            "external_docs": {}
+          },
+          "traits": {}
+        }
+      },
+      "example.shop#StoreId": {
+        "Simple": {
+          "internal": false,
+          "sensitive": false,
+          "kind": "String",
+          "constraints": {
+            "length": {
+              "min": 1,
+              "max": 40
+            },
+            "range": null,
+            "pattern": null,
+            "unique_items": false
+          },
+          "timestamp_format": null,
+          "docs": null,
+          "notes": {
+            "deprecated": null,
+            "since": null,
+            "unstable": false,
+            "external_docs": {}
+          },
+          "traits": {}
+        }
+      }
+    },
+    "traits": {},
+    "versions": [],
+    "api_version": "1",
+    "permissions": {
+      "example.shop#Shelf": {
+        "name": "shelf",
+        "name_declared": false,
+        "identifiers": [
+          "storeId",
+          "shelfId"
+        ],
+        "parents": [
+          "store"
+        ],
+        "permissions": [
+          {
+            "symbol": "read",
+            "value": "shelf:read",
+            "tier": "Public",
+            "alias_of": null,
+            "docs": null,
+            "notes": {
+              "deprecated": null,
+              "since": null,
+              "unstable": false,
+              "external_docs": {}
+            }
+          },
+          {
+            "symbol": "stock",
+            "value": "shelf:stock",
+            "tier": "Public",
+            "alias_of": null,
+            "docs": null,
+            "notes": {
+              "deprecated": null,
+              "since": null,
+              "unstable": false,
+              "external_docs": {}
+            }
+          }
+        ]
+      },
+      "example.shop#Store": {
+        "name": "store",
+        "name_declared": false,
+        "identifiers": [
+          "storeId"
+        ],
+        "parents": [],
+        "permissions": [
+          {
+            "symbol": "read",
+            "value": "store:read",
+            "tier": "Public",
+            "alias_of": null,
+            "docs": null,
+            "notes": {
+              "deprecated": null,
+              "since": null,
+              "unstable": false,
+              "external_docs": {}
+            }
+          }
+        ]
+      }
+    },
+    "roles": [
+      {
+        "symbol": "keeper",
+        "value": "keeper",
+        "docs": "Runs the store.",
+        "notes": {
+          "deprecated": null,
+          "since": null,
+          "unstable": false,
+          "external_docs": {}
+        },
+        "scopes": [
+          "store"
+        ],
+        "grants": [
+          {
+            "resource": "example.shop#Store",
+            "permissions": {
+              "All": {
+                "except": []
+              }
+            }
+          },
+          {
+            "resource": "example.shop#Shelf",
+            "permissions": {
+              "All": {
+                "except": []
+              }
+            }
+          }
+        ],
+        "holders": [
+          "USER"
+        ],
+        "effective": [
+          {
+            "resource": "example.shop#Shelf",
+            "permission": "read"
+          },
+          {
+            "resource": "example.shop#Shelf",
+            "permission": "stock"
+          },
+          {
+            "resource": "example.shop#Store",
+            "permission": "read"
+          }
+        ]
+      },
+      {
+        "symbol": "stocker",
+        "value": "stocker",
+        "docs": "Reads and stocks shelves.",
+        "notes": {
+          "deprecated": null,
+          "since": null,
+          "unstable": false,
+          "external_docs": {}
+        },
+        "scopes": [
+          "everyShelf",
+          "shelf"
+        ],
+        "grants": [
+          {
+            "resource": "example.shop#Shelf",
+            "permissions": {
+              "Named": [
+                "read",
+                "stock"
+              ]
+            }
+          }
+        ],
+        "effective": [
+          {
+            "resource": "example.shop#Shelf",
+            "permission": "read"
+          },
+          {
+            "resource": "example.shop#Shelf",
+            "permission": "stock"
+          }
+        ]
+      },
+      {
+        "symbol": "browser",
+        "value": "browser",
+        "docs": "Looks at shelves.",
+        "notes": {
+          "deprecated": null,
+          "since": null,
+          "unstable": false,
+          "external_docs": {}
+        },
+        "scopes": [
+          "everyShelf",
+          "shelf"
+        ],
+        "grants": [
+          {
+            "resource": "example.shop#Shelf",
+            "permissions": {
+              "Named": [
+                "read"
+              ]
+            }
+          }
+        ],
+        "effective": [
+          {
+            "resource": "example.shop#Shelf",
+            "permission": "read"
+          }
+        ]
+      }
+    ],
+    "role_scopes": [
+      {
+        "symbol": "store",
+        "value": "store",
+        "on": {
+          "Instance": "example.shop#Store"
+        },
+        "docs": "One store and everything in it.",
+        "notes": {
+          "deprecated": null,
+          "since": null,
+          "unstable": false,
+          "external_docs": {}
+        }
+      },
+      {
+        "symbol": "everyShelf",
+        "value": "everyShelf",
+        "on": {
+          "Every": "example.shop#Shelf"
+        },
+        "docs": "Every shelf of a store, those added later too.",
+        "notes": {
+          "deprecated": null,
+          "since": null,
+          "unstable": false,
+          "external_docs": {}
+        }
+      },
+      {
+        "symbol": "shelf",
+        "value": "shelf",
+        "on": {
+          "Instance": "example.shop#Shelf"
+        },
+        "docs": "One shelf.",
+        "notes": {
+          "deprecated": null,
+          "since": null,
+          "unstable": false,
+          "external_docs": {}
+        }
+      }
+    ],
+    "role_settings": {
+      "principals": "example.shop#PrincipalType"
+    },
+    "not_found": "example.shop#Missing"
+  }
+}

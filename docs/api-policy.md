@@ -302,6 +302,7 @@ migration "2026-11-01" from "2026-09-04" {
     reshape GraphData { sizeBytes, indexBytes } -> storage by hook
     retype Usage.cost -> Money by hook
     remove operation GetWrite
+    narrow role graphWriter
     behavior ListGraphs.excludesRetiring
     sunset "2028-11-01"
 }
@@ -312,7 +313,14 @@ declares still fails, and each step must match what changed between the
 baseline and the current model: a `rename` whose old member is still there,
 a `move` whose old route was not the baseline's, an `add` of a value that
 already existed, or a `remove operation` of an operation that still exists
-is an error at that step. A `rename` declares the new name alone: any
+is an error at that step. `remove role`, `remove scope` and `narrow role`
+declare the role findings ([below](#comparing-contracts)): a role or scope
+whose value names nothing now, and a role whose holders lose something (a
+`narrow role` whose role lost nothing is an error too). A role that
+includes a narrowed one narrows with it and needs its own step. A widening
+is a warning and needs none. A change of `internal`, or a scope moved to
+another resource, is declared by an exception. A `rename` declares the new
+name alone: any
 other change to the member, such as an optional input that became
 required, needs its own step, which names the member as it is now
 (`require CreateIndex.input.kind default ..` after a rename to `kind`).
@@ -379,10 +387,42 @@ warning: reported, never refused, because it is how holes get closed. The
 `crucible.errors#NotFoundException` such a requirement attaches is part of
 that change, not a `compatibility.error` or `compatibility.sdk` finding.
 
+Roles and scopes ([roles.md](roles.md) §6) are stored data too: a binding
+stores a role's value and a scope's value. They are compared by value,
+and grants by the stored pair, so a symbol renamed with its value kept is
+the same role, and a grant whose value is now a deprecated alias of a
+primary the role grants is kept. Findings are reported at the role or
+scope, as `namespace#symbol` (`example.api#graphWriter`), which is what an
+exception names.
+
+- `compatibility.scope` (error): a scope removed, its value changed, or
+  moved to another resource, or between one instance and `R(*)`, since a
+  stored binding names an instance of what it was on.
+- `compatibility.role` (error): a role removed or its value changed; a role
+  that no longer grants a permission it granted (its own grants, an
+  included role's, or a `*` that covers less, `by service` grants
+  included), that can no longer be bound at a scope it could, or that no
+  longer admits a kind of principal it did (`holders`). Its holders are
+  refused what they had. A permission or scope that is gone altogether is
+  reported once, by `compatibility.permissions` or `compatibility.scope`,
+  not again for each role. Binding at more scopes, or admitting more kinds,
+  grants no holder anything and is not reported.
+- `compatibility.role` (warning): a grant the model decided now left to
+  the service (`by service`). Holders keep it where the service's hook
+  allows, which only a review of the hook can tell.
+- `compatibility.role-widened` (warning): a role that grants more, by an
+  edit, through a role it includes, because its `*` covers a permission
+  added since, or because a grant the service decided is now the model's.
+  Widening is a security review, not a break: reported, never refused.
+
+A baseline frozen before roles existed has no roles to compare, so adding a
+catalogue reports nothing.
+
 `sdk_source` checks model-level public types, operations, members, enums,
 collection representations, service/client identity,
-and permission constants: one removed, or moved to `internal`, is a
-`compatibility.sdk` finding.
+and permission, role and scope constants: one removed, or moved to
+`internal`, is a `compatibility.sdk` finding. Making one public again is
+additive.
 A new optional member (not required, no default) added after a structure's
 existing members passes, unless the structure is an error: generated clients
 accept it without a source change (Rust models are `#[non_exhaustive]` and

@@ -245,13 +245,14 @@ except      = "except" ident "for" ident "because" string ;
 
 migration   = "migration" string "from" string "{" { step } "}" ;
 step        = [ doc ] ( rename | require | add | move | reshape | remove
-                      | behavior | sunset | retype ) ;
+                      | narrow | behavior | sunset | retype ) ;
 rename      = "rename" dotted "->" ident ;
 require     = "require" dotted ( "default" value | hook ) ;
 add         = "add" dotted [ ident ] "downgrade" ident [ "{" { ident "<-" ident } "}" ] ;
 move        = "move" ident "from" ident string ;
 reshape     = "reshape" dotted [ "{" ident { "," ident } "}" ] "->" ident hook ;
-remove      = "remove" "operation" ident ;
+remove      = "remove" ( "operation" | "role" | "scope" ) ident ;
+narrow      = "narrow" "role" ident ;
 behavior    = "behavior" dotted ;
 sunset      = "sunset" string ;
 retype      = "retype" dotted "->" ident [ hook ] ;
@@ -575,6 +576,29 @@ and `Service::role_settings`; each role holds what it declares and its
 effective grants (`Role::effective`, `Role::by_service`), settled once by
 `crucible_ir::roles::settle`, which also answers coverage
 (`crucible_ir::roles::covers`).
+
+Against a frozen release, a removed role or scope, a changed value, or a
+role that grants less, binds at fewer scopes or admits fewer holders is a
+breaking change; a role that grants more is a warning
+([API policy](../api-policy.md#comparing-contracts)). A migration declares
+the breaking ones:
+
+```
+migration "2026-11-01" from "2026-09-04" {
+    /// Writing graphs moves to `graphEditor`.
+    narrow role graphWriter
+    remove role legacyViewer
+    remove scope allHistories
+}
+```
+
+`remove role r` and `remove scope s` name a role or scope of the release
+whose value no role (scope) of the model has now, and declare everything
+at it. `narrow role r` names one whose value still names a role that grants
+less, binds at fewer scopes, admits fewer holders or leaves a grant to the
+service, and declares that. A role that includes a narrowed one narrows
+too and needs its own step. Roles are not versioned, so these steps convert
+nothing: a binding means the same at every version the server serves.
 
 ## Error documentation
 

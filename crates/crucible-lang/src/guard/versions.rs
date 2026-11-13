@@ -450,6 +450,15 @@ impl<'c> Release<'_, 'c> {
                 sunset_docs = doc_text(step.doc.as_ref());
                 continue;
             }
+            // Roles and scopes are not versioned: a binding means the same at
+            // every version the server serves, so these steps declare a
+            // change to the guard (`crate::guard`) and convert nothing.
+            if matches!(
+                step.kind,
+                StepKind::RemoveRole(_) | StepKind::RemoveScope(_) | StepKind::NarrowRole(_)
+            ) {
+                continue;
+            }
             match context.lower(step) {
                 Ok(lowered) => steps.push(Lowered { step, lowered }),
                 Err(problems) => {
@@ -1036,6 +1045,15 @@ impl<'c> Release<'_, 'c> {
             if id.as_ref().is_some_and(|id| self.explained(id)) {
                 continue;
             }
+            // Roles and scopes are not versioned: every release is served
+            // the current catalogue, which the guard compares with the
+            // baseline, so no projection restores the release's.
+            if id
+                .as_ref()
+                .is_some_and(|id| catalogue(frozen, &finding.rule, id))
+            {
+                continue;
+            }
             let owner = id
                 .as_ref()
                 .and_then(|id| lost.iter().position(|lost| lost.owns(id)));
@@ -1231,6 +1249,20 @@ impl<'c> Release<'_, 'c> {
     }
 }
 
+/// Whether `rule` at `id` is about `release`'s role catalogue: a role rule,
+/// or the SDK constant of one of its roles or scopes.
+fn catalogue(release: &Service, rule: &str, id: &ShapeId) -> bool {
+    match rule {
+        "compatibility.role" | "compatibility.scope" | "compatibility.role-widened" => true,
+        "compatibility.sdk" => {
+            id.member().is_none()
+                && (release.role(id.name()).is_some() || release.scope(id.name()).is_some())
+                && crucible_policy::role_id(release, id.name()) == *id
+        }
+        _ => false,
+    }
+}
+
 /// Where a diagnostic about a step goes: the path or name it starts with.
 fn step_span(step: &Step) -> Span {
     match &step.kind {
@@ -1241,7 +1273,10 @@ fn step_span(step: &Step) -> Span {
         | StepKind::Retype { path, .. }
         | StepKind::Behavior(path) => path.span,
         StepKind::Move { operation, .. } => operation.span,
-        StepKind::RemoveOperation(name) => name.span,
+        StepKind::RemoveOperation(name)
+        | StepKind::RemoveRole(name)
+        | StepKind::RemoveScope(name)
+        | StepKind::NarrowRole(name) => name.span,
         StepKind::Sunset(date) => date.span,
     }
 }
