@@ -3,6 +3,7 @@ mod error_docs;
 mod links;
 mod markdown;
 mod permissions;
+mod roles;
 mod snippet;
 mod surface;
 
@@ -499,6 +500,25 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
     }
     permissions::diagnose(service, &mut diagnostics);
     files.extend(permissions::emit(service));
+    // The role exports (docs/roles.md §7 "Clients") share the namespace
+    // the same way.
+    let role_exports = roles::exports(service);
+    for name in &role_exports {
+        if !exported.insert(name.clone()) {
+            diagnostics.push(
+                &service.id,
+                format!("the R role export `{name}` collides with a model or runtime export"),
+            );
+        }
+    }
+    if !role_exports.is_empty() && model_files.contains("roles") {
+        diagnostics.push(
+            &service.id,
+            "a model named `roles` takes the help page the R roles are documented on",
+        );
+    }
+    roles::diagnose(service, &mut diagnostics);
+    files.extend(roles::emit(service));
     let mut methods = BTreeSet::from(["close".to_owned(), "call".to_owned(), "pages".to_owned()]);
     let mut operation_notes = String::new();
     let mut client = roxygen(

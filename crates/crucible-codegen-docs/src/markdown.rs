@@ -343,6 +343,12 @@ pub(super) fn render(service: &Service, d: &Description) -> Vec<File> {
             link("Permissions", "permissions.md")
         ));
     }
+    if !list(&d.service["roles"]).is_empty() {
+        index.push_str(&format!(
+            "\nCallers hold roles, bound at scopes; {} lists every role, where it binds and what it grants, and each operation says which roles grant it.\n",
+            link("Roles", "roles.md")
+        ));
+    }
     index.push_str("\n## Service errors\n\n");
     index.push_str(&errors(d, &d.service["errors"], ""));
     index.push_str("## Operations\n\n");
@@ -408,6 +414,13 @@ pub(super) fn render(service: &Service, d: &Description) -> Vec<File> {
         summary.push_str("- [Permissions](permissions.md)\n");
         files.push(File {
             path: "src/permissions.md".into(),
+            contents: page,
+        });
+    }
+    if let Some(page) = roles_page(service, d) {
+        summary.push_str("- [Roles](roles.md)\n");
+        files.push(File {
+            path: "src/roles.md".into(),
             contents: page,
         });
     }
@@ -637,6 +650,9 @@ fn llms(d: &Description, pages: &[File]) -> [File; 2] {
     if pages.iter().any(|page| page.path == "src/permissions.md") {
         out.push_str("- [Permissions](src/permissions.md): every permission an operation can require, by resource type\n");
     }
+    if pages.iter().any(|page| page.path == "src/roles.md") {
+        out.push_str("- [Roles](src/roles.md): every role a binding names, the scopes it binds at, and what it grants\n");
+    }
     out.push_str("\n## Operations\n\n");
     for op in d.operations.values() {
         let mut facts = format!(
@@ -658,11 +674,17 @@ fn llms(d: &Description, pages: &[File]) -> [File; 2] {
                 None => facts.push_str(&format!(" Called by {name}, which signs it.")),
             }
         }
+        let mut line = described(&facts, op);
+        // Which roles grant it (docs/roles.md §5): the sentence an agent
+        // needs before it calls.
+        for sentence in list(&op["grantedBySentences"]) {
+            line.push(' ');
+            line.push_str(string(sentence));
+        }
         out.push_str(&format!(
-            "- [{}](src/{}): {}\n",
+            "- [{}](src/{}): {line}\n",
             string(&op["name"]),
             operation_path(op),
-            described(&facts, op)
         ));
     }
     out.push_str("\n## Data types\n\n");
@@ -731,7 +753,11 @@ fn llms(d: &Description, pages: &[File]) -> [File; 2] {
     // The pages in the index's order, each under a comment naming its file,
     // so a reader can follow a page's relative links from it.
     let page = |path: &str| pages.iter().find(|page| page.path == path);
-    let mut order: Vec<String> = vec!["src/index.md".into(), "src/permissions.md".into()];
+    let mut order: Vec<String> = vec![
+        "src/index.md".into(),
+        "src/permissions.md".into(),
+        "src/roles.md".into(),
+    ];
     order.extend(
         d.operations
             .values()
@@ -1529,7 +1555,148 @@ fn authorization(op: &Value) -> String {
             out.push('\n');
         }
     }
+    out.push_str(&granted_by(op));
     out
+}
+
+/// Which roles grant what the operation requires (docs/roles.md §5), under
+/// its requirements: the description's sentences, which name roles and
+/// scopes even where every requirement is internal. Nothing for a service
+/// without roles.
+fn granted_by(op: &Value) -> String {
+    let mut out = String::new();
+    for sentence in list(&op["grantedByDocumentation"]) {
+        out.push_str(&html_block(string(&sentence["html"])));
+        out.push('\n');
+    }
+    out
+}
+
+/// One paragraph of documentation HTML without its `<p>`, to read inline
+/// in a list item; anything longer stays as it is.
+fn inline(html: &str) -> String {
+    match html
+        .strip_prefix("<p>")
+        .and_then(|rest| rest.strip_suffix("</p>"))
+    {
+        Some(text) if !text.contains("<p>") => text.to_owned(),
+        _ => html.to_owned(),
+    }
+}
+
+/// What a scope is on, as prose: "one `note`", "every `note` under one
+/// parent", "the whole service".
+fn scope_on(d: &Description, scope: &Value) -> String {
+    let resource = scope["resourceType"]
+        .as_str()
+        .or_else(|| {
+            scope["resource"]
+                .as_str()
+                .and_then(|id| d.resources.get(id))
+                .and_then(|r| r["name"].as_str())
+        })
+        .map(code)
+        .unwrap_or_default();
+    match string(&scope["kind"]) {
+        "instance" => format!("one {resource}"),
+        "every" => format!("every {resource} under one parent"),
+        _ => "the whole service".to_owned(),
+    }
+}
+
+/// `roles.md` (docs/roles.md §5): the scopes a binding is made at, then
+/// each role in catalogue order with where it binds, who may hold and
+/// assign it, and what it grants (public permissions only, outside the
+/// server audience). Internal entries exist only in a server-audience
+/// description.
+fn roles_page(service: &Service, d: &Description) -> Option<String> {
+    let roles = list(&d.service["roles"]);
+    if roles.is_empty() {
+        return None;
+    }
+    let mut out = "# Roles\n\nWhat a role binding names: a role and an instance of one of its scopes. A binding covers the scope's resource and everything beneath it, including what is created later.\n\n".to_owned();
+    if d.service["customRoles"] == true {
+        out.push_str("Customers may also define roles of their own; a custom role may grant any grantable permission.\n\n");
+    }
+    out.push_str("## Scopes\n\n| Scope | On | Description |\n|---|---|---|\n");
+    for scope in list(&d.service["scopes"]) {
+        let mut description = cell(service, string(&scope["description"]));
+        if scope["internal"] == true {
+            description.push_str(" <strong>Internal</strong>");
+        }
+        if scope["deprecated"] == true {
+            description.push_str(" <strong>Deprecated</strong>");
+        }
+        out.push_str(&format!(
+            "| {} | {} | {} |\n",
+            code(string(&scope["value"])),
+            scope_on(d, scope),
+            description.trim()
+        ));
+    }
+    out.push_str("\n## Roles\n\n");
+    let codes = |values: &Value| {
+        list(values)
+            .iter()
+            .map(|v| code(string(v)))
+            .collect::<Vec<_>>()
+            .join(", ")
+    };
+    for role in roles {
+        out.push_str(&format!("### {}\n\n", code_span(string(&role["value"]))));
+        let mut flags = Vec::new();
+        if role["internal"] == true {
+            flags.push("<strong>Internal</strong>");
+        }
+        if role["deprecated"] == true {
+            flags.push("<strong>Deprecated</strong>");
+        }
+        if !flags.is_empty() {
+            out.push_str(&format!("{}\n\n", flags.join(" ")));
+        }
+        let description = string(&role["description"]);
+        if !description.is_empty() {
+            out.push_str(&html_block(&documentation::html_linked(
+                service,
+                description,
+            )));
+            out.push('\n');
+        }
+        out.push_str(&format!("- Scopes: {}.\n", codes(&role["scopes"])));
+        out.push_str(&format!(
+            "- Held by: {}.\n",
+            if list(&role["holders"]).is_empty() {
+                "any principal".to_owned()
+            } else {
+                codes(&role["holders"])
+            }
+        ));
+        if !list(&role["assignedBy"]).is_empty() {
+            out.push_str(&format!(
+                "- Assigned by: holders of {} only.\n",
+                codes(&role["assignedBy"])
+            ));
+        }
+        let permissions: Vec<String> = list(&role["permissions"])
+            .iter()
+            .map(|p| code(string(&p["permission"])))
+            .collect();
+        if !permissions.is_empty() {
+            out.push_str(&format!("- Grants: {}.\n", permissions.join(", ")));
+        }
+        for grant in list(&role["byService"]) {
+            let mut line = format!(
+                "- Grants {} as the service decides",
+                code(string(&grant["permission"]))
+            );
+            if let Some(docs) = grant["documentation"].as_str() {
+                line.push_str(&format!(": {}", inline(&cell(service, docs))));
+            }
+            out.push_str(&format!("{}\n", line.trim_end()));
+        }
+        out.push('\n');
+    }
+    Some(out)
 }
 
 /// `permissions.md`: the registry by resource type, a table per tier

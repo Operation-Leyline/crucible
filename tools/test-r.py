@@ -143,6 +143,11 @@ def qualify(output):
     run(RSCRIPT, "-e", "options(warn=2); for (p in list.files(commandArgs(TRUE)[1], pattern=\"[.]Rd$\", full.names=TRUE)) tools::parse_Rd(p)", str(output / "permissions" / "man"))
     run(R, "CMD", "INSTALL", "--no-multiarch", "-l", str(library), str(output / "permissions"))
     run(RSCRIPT, str(ROOT / "crates/crucible-codegen-r/tests/permissions.R"), str(library))
+    # The role registry (docs/roles.md §7 "Clients").
+    generate(ROOT / "tests/models/roles-granted-by", output / "roles", "notes.client")
+    run(RSCRIPT, "-e", "options(warn=2); for (p in list.files(commandArgs(TRUE)[1], pattern=\"[.]Rd$\", full.names=TRUE)) tools::parse_Rd(p)", str(output / "roles" / "man"))
+    run(R, "CMD", "INSTALL", "--no-multiarch", "-l", str(library), str(output / "roles"))
+    run(RSCRIPT, str(ROOT / "crates/crucible-codegen-r/tests/roles.R"), str(library))
     generate(ROOT / "tests/models/error-payloads", output / "wire", "wire.client")
     run(R, "CMD", "INSTALL", "--no-multiarch", "-l", str(library), str(output / "wire"))
     run(RSCRIPT, str(ROOT / "crates/crucible-codegen-r/tests/wire.R"), str(library))

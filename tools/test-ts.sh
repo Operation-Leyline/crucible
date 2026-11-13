@@ -22,6 +22,8 @@ crucible generate ts tests/models/internal \
   --audience internal --out "$dir/generated-audience-internal" --package-name @example/audience-internal >/dev/null
 crucible generate ts tests/fixtures/permissions \
   --out "$dir/generated-permissions" --package-name @example/permissions >/dev/null
+crucible generate ts tests/models/roles-granted-by \
+  --audience internal --out "$dir/generated-roles" --package-name @example/roles >/dev/null
 crucible generate ts tests/models/client-docs --out "$dir/generated-docs" --package-name @example/docs >/dev/null
 crucible generate ts tests/models/error-docs --out "$dir/generated-error-docs" --package-name @example/error-docs >/dev/null
 crucible generate ts tests/models/weather \

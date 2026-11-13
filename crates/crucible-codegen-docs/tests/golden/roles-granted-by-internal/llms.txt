@@ -1,0 +1,46 @@
+# Notes
+
+> Notes\, kept in workspaces\.
+
+Every page below is Markdown. Requests are JSON over HTTP; each operation's page gives its method and URI, its headers, its request and response with an example, its errors and its pagination. Send `Authorization: Bearer <token>` unless an operation's page says it takes no credential. Send `Crucible-Version: 1` on every request you make. `describe.json` holds the whole reference as data (`crucible.describe/1`).
+
+## Overview
+
+- [Service overview](src/index.md): protocol, authentication, service errors, and the operations of each resource
+- [Permissions](src/permissions.md): every permission an operation can require, by resource type
+- [Roles](src/roles.md): every role a binding names, the scopes it binds at, and what it grants
+
+## Operations
+
+- [CreateNote](src/operations/API_CreateNote.md): `POST /workspaces/{workspaceId}/notes`. Granted by `owner` at `workspace`; `editor` or `archivist` at `allNotes`; or a custom role that grants `note:create`.
+- [GetArchive](src/operations/API_GetArchive.md): `GET /workspaces/{workspaceId}/archives/{archiveId}`. Granted by `archivist` at `allNotes`, as the service decides (the archives of the notes this binding covers, while they are retained); or a custom role that grants `archive:read`.
+- [GetCaller](src/operations/API_GetCaller.md): `GET /caller`. Who is calling\.
+- [GetNote](src/operations/API_GetNote.md): `GET /workspaces/{workspaceId}/notes/{noteId}`. Granted by `owner` at `workspace`; `viewer` at `workspace`, `allNotes` or `note`; `editor` at `allNotes` or `note`; `archivist` at `allNotes`; or a custom role that grants `note:read`.
+- [GetWorkspace](src/operations/API_GetWorkspace.md): `GET /workspaces/{workspaceId}`. Granted by `owner` at `workspace`; or a custom role that grants `workspace:read`.
+- [ListNotes](src/operations/API_ListNotes.md): `GET /workspaces/{workspaceId}/notes`. Granted by `owner` at `workspace`; `viewer` at `workspace` or `allNotes`; `editor` or `archivist` at `allNotes`; or a custom role that grants `note:read`.
+- [PurgeNote](src/operations/API_PurgeNote.md): `POST /workspaces/{workspaceId}/notes/{noteId}/purge`. Every requirement internal\: clients still see which roles grant it\. Granted by `owner` at `workspace`; `auditor` at `backOffice`.
+- [ShareNote](src/operations/API_ShareNote.md): `POST /workspaces/{workspaceId}/notes/{noteId}/share`. `note:read` on the note: granted by `owner` at `workspace`; `viewer` at `workspace`, `allNotes` or `note`; `editor` at `allNotes` or `note`; `archivist` at `allNotes`; or a custom role that grants `note:read`. `note:write` on the note, checked by the service (only when the note is shared outside the workspace): granted by `owner` at `workspace`; `editor` at `allNotes` or `note`; `archivist` at `allNotes`; or a custom role that grants `note:write`.
+- [UpdateNote](src/operations/API_UpdateNote.md): `POST /workspaces/{workspaceId}/notes/{noteId}/update`. A list mixing a public clause with an internal one\: clients see which roles grant both\, and only the public permission\. `note:write` on the note: granted by `owner` at `workspace`; `editor` at `allNotes` or `note`; `archivist` at `allNotes`; or a custom role that grants `note:write`. `workspace:audit` on the workspace, when `has audited`: granted by `owner` at `workspace`; `auditor` at `backOffice`.
+
+## Data types
+
+- [ArchiveId](src/shapes/ArchiveId.md): string.
+- [CreateNoteInput](src/shapes/CreateNoteInput.md): structure.
+- [GetArchiveInput](src/shapes/GetArchiveInput.md): structure.
+- [GetCallerOutput](src/shapes/GetCallerOutput.md): structure.
+- [GetNoteInput](src/shapes/GetNoteInput.md): structure.
+- [GetWorkspaceInput](src/shapes/GetWorkspaceInput.md): structure.
+- [ListNotesInput](src/shapes/ListNotesInput.md): structure.
+- [Missing](src/shapes/Missing.md): error, HTTP 404. The resource is missing\, or the caller may not know it exists\.
+- [NoteId](src/shapes/NoteId.md): string.
+- [PrincipalKind](src/shapes/PrincipalKind.md): enum. Who a credential belongs to\.
+- [PurgeNoteInput](src/shapes/PurgeNoteInput.md): structure.
+- [ShareNoteInput](src/shapes/ShareNoteInput.md): structure.
+- [UpdateNoteInput](src/shapes/UpdateNoteInput.md): structure.
+- [WorkspaceId](src/shapes/WorkspaceId.md): string.
+
+## Optional
+
+- [llms-full.txt](llms-full.txt): every page above in one file
+- [describe.json](describe.json): the whole reference as JSON (`crucible.describe/1`)
+- [changes.json](changes.json): the release chain alone (`crucible.changes/1`)

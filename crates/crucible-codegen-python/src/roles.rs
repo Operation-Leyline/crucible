@@ -1,0 +1,202 @@
+//! `roles.py` (docs/roles.md §7 "Clients"): the service's role and scope
+//! values as open enumerations, `Role.OWNER` and `Scope.ALL_NOTES`, built
+//! on the same `OpenEnum` as the model's string enums, so a value this
+//! client does not know (a newer server's, a custom role's) is kept
+//! verbatim; and `ROLES`, the registry a console's role picker reads.
+//! Generated from `crucible_codegen_common::roles`' one rule, as every
+//! client's is: public roles and scopes only, in catalogue order, and only
+//! public permissions in a role's `permissions`. Its record types live in
+//! the module itself, so the bundled runtime of a service without roles is
+//! unchanged.
+
+use std::collections::BTreeSet;
+
+use crucible_codegen_common::documentation::with_notes;
+use crucible_codegen_common::permissions::constant_symbol;
+use crucible_codegen_common::roles::{ClientRole, client_roles, client_scopes, custom};
+use crucible_ir::Diagnostics;
+use crucible_ir::ir::{DocNotes, Service};
+
+use crate::names::{enum_member, literal};
+use crate::python_doc;
+
+/// Whether the client gets a `roles.py`: the service declares a public role.
+pub(crate) fn present(service: &Service) -> bool {
+    !client_roles(service).is_empty()
+}
+
+/// Two roles (or scopes) that Python names alike would be one enumeration
+/// member, and a model named `roles` would shadow the module as an
+/// attribute of the package.
+pub(crate) fn check_names(service: &Service, diagnostics: &mut Diagnostics) {
+    if !present(service) {
+        return;
+    }
+    if service
+        .shapes
+        .keys()
+        .any(|id| !id.is_prelude() && service.name_of(id) == "roles")
+    {
+        diagnostics.push(
+            &service.id,
+            "a model named `roles` takes the name of the Python module the client's roles are generated in",
+        );
+    }
+    let roles = client_roles(service);
+    let scopes = client_scopes(service);
+    for (what, symbols) in [
+        (
+            "role",
+            roles
+                .iter()
+                .map(|r| r.role.symbol.as_str())
+                .collect::<Vec<_>>(),
+        ),
+        (
+            "scope",
+            scopes.iter().map(|s| s.scope.symbol.as_str()).collect(),
+        ),
+    ] {
+        let mut seen = BTreeSet::new();
+        for symbol in symbols {
+            let member = enum_member(&constant_symbol(symbol));
+            if !seen.insert(member.clone()) {
+                diagnostics.push(
+                    &service.id,
+                    format!("{what} `{symbol}` shares the Python member `{member}` with another"),
+                );
+            }
+        }
+    }
+}
+
+/// One open enumeration: `Role` or `Scope`.
+fn enumeration(
+    service: &Service,
+    out: &mut String,
+    name: &str,
+    what: &str,
+    values: &[(&str, &str, Option<&str>, &DocNotes)],
+) {
+    out.push_str(&format!("class {name}(OpenEnum):\n"));
+    python_doc(
+        service,
+        out,
+        "    ",
+        &format!(
+            "The service's {what}s, by the values bindings store, in catalogue order. A value this client does not know is kept as it is, as an UNKNOWN member."
+        ),
+    );
+    for (symbol, value, docs, notes) in values {
+        out.push_str(&format!(
+            "    {} = {}\n",
+            enum_member(&constant_symbol(symbol)),
+            literal(value)
+        ));
+        if let Some(docs) = with_notes(docs.filter(|d| !d.trim().is_empty()), notes) {
+            python_doc(service, out, "    ", &docs);
+        }
+    }
+    out.push_str("\n\n");
+}
+
+/// A tuple of strings: `("a", "b")`, `("a",)`, `()`.
+fn strings<S: AsRef<str>>(items: &[S]) -> String {
+    match items {
+        [] => "()".to_owned(),
+        [one] => format!("({},)", literal(one.as_ref())),
+        _ => format!(
+            "({})",
+            items
+                .iter()
+                .map(|s| literal(s.as_ref()))
+                .collect::<Vec<_>>()
+                .join(", ")
+        ),
+    }
+}
+
+fn entry(role: &ClientRole<'_>) -> String {
+    let permissions: Vec<String> = role
+        .permissions
+        .iter()
+        .map(|p| {
+            format!(
+                "RolePermission(resource_type={}, permission={})",
+                literal(p.resource_type),
+                literal(p.value)
+            )
+        })
+        .collect();
+    let permissions = match permissions.as_slice() {
+        [] => "()".to_owned(),
+        [one] => format!("({one},)"),
+        _ => format!("({})", permissions.join(", ")),
+    };
+    format!(
+        "    RoleDescription(\n        value={},\n        description={},\n        scopes={},\n        holders={},\n        assigned_by={},\n        permissions={permissions},\n    ),\n",
+        literal(role.value),
+        literal(role.description),
+        strings(&role.scopes),
+        strings(&role.holders),
+        strings(&role.assigned_by),
+    )
+}
+
+pub(crate) fn emit(service: &Service) -> String {
+    let mut out = String::from(
+        "# Generated by Crucible. Edit the .cru model, then regenerate.\n\"\"\"The roles and scopes bindings store, and ROLES, the registry a role picker reads.\"\"\"\nfrom __future__ import annotations\n\nfrom dataclasses import dataclass\n\nfrom .runtime import OpenEnum\n\n__all__ = [\"Role\", \"Scope\", \"ROLES\", \"RoleDescription\", \"RolePermission\"]\n\n\n",
+    );
+    let roles = client_roles(service);
+    let scopes = client_scopes(service);
+    enumeration(
+        service,
+        &mut out,
+        "Role",
+        "role",
+        &roles
+            .iter()
+            .map(|r| {
+                (
+                    r.role.symbol.as_str(),
+                    r.value,
+                    r.role.docs.as_deref(),
+                    &r.role.notes,
+                )
+            })
+            .collect::<Vec<_>>(),
+    );
+    enumeration(
+        service,
+        &mut out,
+        "Scope",
+        "scope",
+        &scopes
+            .iter()
+            .map(|s| {
+                (
+                    s.scope.symbol.as_str(),
+                    s.value,
+                    s.scope.docs.as_deref(),
+                    &s.scope.notes,
+                )
+            })
+            .collect::<Vec<_>>(),
+    );
+    out.push_str("@dataclass(frozen=True, kw_only=True)\nclass RolePermission:\n    \"\"\"One permission a role grants.\"\"\"\n    resource_type: str\n    \"\"\"The resource type a grant names.\"\"\"\n    permission: str\n    \"\"\"What grants store.\"\"\"\n\n\n@dataclass(frozen=True, kw_only=True)\nclass RoleDescription:\n    \"\"\"One role in the registry (`ROLES`).\"\"\"\n    value: str\n    \"\"\"What bindings store.\"\"\"\n    description: str\n    \"\"\"The model's documentation for it, empty when it has none.\"\"\"\n    scopes: tuple[str, ...]\n    \"\"\"The scope values it may be bound at, in catalogue order.\"\"\"\n    holders: tuple[str, ...]\n    \"\"\"The kinds of principal that may hold it; empty: any.\"\"\"\n    assigned_by: tuple[str, ...]\n    \"\"\"The roles whose holders alone may assign it; empty: whoever may write bindings.\"\"\"\n    permissions: tuple[RolePermission, ...]\n    \"\"\"What it grants: the permissions this client knows.\"\"\"\n\n\n");
+    out.push_str(&format!(
+        "ROLES: tuple[RoleDescription, ...] = (\n{})\n",
+        roles.iter().map(entry).collect::<String>()
+    ));
+    python_doc(
+        service,
+        &mut out,
+        "",
+        if custom(service) {
+            "Every predefined role, in the service's catalogue order: what a role picker offers. The service also accepts custom roles, which are not listed."
+        } else {
+            "Every role, in the service's catalogue order: what a role picker offers."
+        },
+    );
+    out
+}

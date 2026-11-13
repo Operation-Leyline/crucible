@@ -215,6 +215,11 @@ pub fn operation(service: &Service, op: &Operation) -> String {
     if let Some(requirements) = crate::permissions::requirement_paragraph(service, op, false) {
         docs.push_str(&format!("\n\n{requirements}"));
     }
+    // Which roles grant it (docs/roles.md §5), naming roles and scopes even
+    // where the permission is internal.
+    if let Some(granted) = crate::roles::granted_by_paragraph(service, op, false) {
+        docs.push_str(&format!("\n\n{granted}"));
+    }
     docs.push_str(&format!(
         "\n\nInput: {}.\n\nReturns: {}.",
         op.input

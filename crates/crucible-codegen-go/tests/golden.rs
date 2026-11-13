@@ -490,6 +490,59 @@ fn permission_constants_that_go_spells_alike_are_diagnosed() {
     assert!(!files.iter().any(|f| f.path.starts_with("permissions/")));
 }
 
+/// The role registry (docs/roles.md §7 "Clients") from
+/// `tests/models/roles-granted-by`: the `roles` sub-package, open `Role`
+/// and `Scope` types and `Roles` in catalogue order, public roles, scopes
+/// and permissions only, whatever the audience; checked in as
+/// `tests/golden/roles/roles/roles.go`.
+#[test]
+fn role_registry_matches_golden() {
+    let service = crucible_lang::load_service(&model_dir("roles-granted-by")).unwrap();
+    let options = Options {
+        metadata: Default::default(),
+        module_path: "example.com/notes".into(),
+        package_name: "notes".into(),
+        endpoint: None,
+    };
+    let roles = |audience| {
+        let projected = crucible_ir::project(&service, audience).unwrap();
+        emit(&projected, &options)
+            .unwrap()
+            .into_iter()
+            .find(|f| f.path == "roles/roles.go")
+            .expect("a roles sub-package")
+            .contents
+    };
+    let external = roles(crucible_ir::Audience::External);
+    assert_eq!(roles(crucible_ir::Audience::Internal), external);
+    for hidden in ["auditor", "backOffice", "note:purge", "workspace:audit"] {
+        assert!(!external.contains(hidden), "{hidden}");
+    }
+    let path =
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/golden/roles/roles/roles.go");
+    if std::env::var_os("CRUCIBLE_BLESS").is_some() {
+        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+        std::fs::write(&path, &external).unwrap();
+    }
+    assert_eq!(
+        std::fs::read_to_string(&path)
+            .unwrap_or_default()
+            .replace("\r\n", "\n"),
+        external,
+        "rerun with CRUCIBLE_BLESS=1 and read the diff"
+    );
+    // A model without roles gets no sub-package, and the embedded client
+    // (the Terraform provider) none either.
+    let files = emit(&weather(), &options).unwrap();
+    assert!(!files.iter().any(|f| f.path.starts_with("roles/")));
+    let embedded = emit_without_permissions(
+        &crucible_ir::project(&service, crucible_ir::Audience::External).unwrap(),
+        &options,
+    )
+    .unwrap();
+    assert!(!embedded.iter().any(|f| f.path.starts_with("roles/")));
+}
+
 /// A hyphen in a permission's symbol (`mail-send`, which `.cru` allows)
 /// starts a word of the constant's name, since no client language allows
 /// one in a name (`constant_symbol`).

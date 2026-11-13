@@ -210,6 +210,79 @@ fn permission_constants_match_golden() {
     );
 }
 
+/// The role registry (docs/roles.md §7 "Clients") from
+/// `tests/models/roles-granted-by`: open role and scope constants and
+/// `ROLES` in catalogue order, public roles, scopes and permissions only,
+/// whatever the audience; and each method's granted-by sentence, which
+/// names roles even where every requirement is internal.
+#[test]
+fn role_registry_matches_golden() {
+    let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../tests/models/roles-granted-by");
+    let service = crucible_lang::load_service(&dir).unwrap();
+    let options = Options {
+        package_name: "@example/notes".into(),
+        package_version: "0.0.0-dev".into(),
+        client_name: None,
+        endpoint: None,
+        middleware: vec![],
+        package_json: None,
+        metadata: Default::default(),
+    };
+    let generated = |audience| {
+        let projected = crucible_ir::project(&service, audience).unwrap();
+        emit(&projected, &options).unwrap()
+    };
+    let file = |files: &[crucible_codegen_ts::File], path: &str| {
+        files
+            .iter()
+            .find(|file| file.path == path)
+            .unwrap_or_else(|| panic!("{path}"))
+            .contents
+            .clone()
+    };
+    let external = generated(crucible_ir::Audience::External);
+    let internal = generated(crucible_ir::Audience::Internal);
+    let roles = file(&external, "src/roles.ts");
+    // One rule for every audience: the server contract's client is the
+    // client's.
+    assert_eq!(file(&internal, "src/roles.ts"), roles);
+    for hidden in ["auditor", "backOffice", "note:purge", "workspace:audit"] {
+        assert!(!roles.contains(hidden), "{hidden}");
+    }
+    let index = file(&external, "src/index.ts");
+    assert!(
+        index.contains("export { ROLES, NotesRole, NotesScope } from \"./roles.js\";"),
+        "{index}"
+    );
+    assert!(
+        index.contains(
+            "export type { RoleDescription, RolePermission, NotesRoleValue, NotesScopeValue } from \"./roles.js\";"
+        ),
+        "{index}"
+    );
+    let client = file(&external, "src/client.ts");
+    assert!(
+        client.contains("Requires permissions internal to the service.\n   *\n   * Granted by `owner` at `workspace`."),
+        "{client}"
+    );
+    assert!(
+        client.contains("A permission internal to the service, when a condition on the input holds: granted by `owner` at `workspace`."),
+        "{client}"
+    );
+    let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/golden/roles.ts");
+    if std::env::var_os("CRUCIBLE_BLESS").is_some() {
+        fs::write(&path, &roles).unwrap();
+    }
+    assert_eq!(
+        fs::read_to_string(path).unwrap().replace("\r\n", "\n"),
+        roles
+    );
+    // A model without roles gets no file, and its index is unchanged.
+    let weather = emit(&weather(), &options).unwrap();
+    assert!(weather.iter().all(|file| file.path != "src/roles.ts"));
+    assert!(!file(&weather, "src/index.ts").contains("roles"));
+}
+
 /// An internal-audience client keeps internal members and operations, but
 /// its registry has no internal permission (decision 9), so its doc
 /// comments name none either: they say what is left out, as the client

@@ -404,6 +404,157 @@ fn clients_see_public_roles_without_their_internal_grants() {
     assert_eq!(role(&server, "graphAdmin").effective.len(), 4);
 }
 
+/// An operation's granted-by, one line per clause: its clause (or `-` for
+/// one the view removed), then `role@scope|scope` for each role, `by
+/// service` roles marked `~`, and `+custom`.
+fn granted(service: &Service, operation: &str) -> Vec<String> {
+    let op = service
+        .operations
+        .iter()
+        .find(|op| op.id.name() == operation)
+        .unwrap_or_else(|| panic!("{operation}"));
+    op.granted_by
+        .iter()
+        .map(|g| {
+            let mut parts = vec![g.clause.map_or("-".to_owned(), |c| c.to_string())];
+            for (mark, list) in [("", &g.roles), ("~", &g.by_service)] {
+                for r in list {
+                    parts.push(format!("{mark}{}@{}", r.role, r.scopes.join("|")));
+                }
+            }
+            if g.custom {
+                parts.push("+custom".to_owned());
+            }
+            parts.join(" ")
+        })
+        .collect()
+}
+
+#[test]
+fn granted_by_answers_leylines_three_examples() {
+    let service = leyline();
+    // docs/roles.md §5, roles and scopes in catalogue order.
+    assert_eq!(
+        granted(&service, "GetGraph"),
+        ["0 graphReader@allGraphs|graph graphWriter@allGraphs|graph graphAdmin@allGraphs|graph"]
+    );
+    // Only `allGraphs` and `organization` cover `Graph(*)`.
+    assert_eq!(
+        granted(&service, "CreateGraph"),
+        ["0 graphCreator@organization graphAdmin@allGraphs"]
+    );
+    assert_eq!(
+        granted(&service, "GetGraphHistory"),
+        [
+            "0 owner@organization historyReader@allHistories|history historyAdmin@allHistories|history ~graphAdmin@allGraphs|graph"
+        ]
+    );
+    let history = service
+        .operations
+        .iter()
+        .find(|op| op.id.name() == "GetGraphHistory")
+        .unwrap();
+    assert_eq!(
+        history.granted_by[0].by_service[0].docs.as_deref(),
+        Some("The history of a graph this binding covers, while the graph is live.")
+    );
+    // `requires none` has no clause to grant.
+    assert!(granted(&service, "ListRoles").is_empty());
+}
+
+#[test]
+fn clients_keep_granted_by_for_requirements_they_do_not_see() {
+    // Leyline's permissions are all internal: clients see no clause, and
+    // every role that grants one.
+    let client = project(&leyline(), Audience::External).unwrap();
+    assert_eq!(
+        granted(&client, "CreateGraph"),
+        ["- graphCreator@organization graphAdmin@allGraphs"]
+    );
+    let op = client
+        .operations
+        .iter()
+        .find(|op| op.id.name() == "GetGraph")
+        .unwrap();
+    assert_eq!(op.requirements, crucible_ir::ir::Requirements::Internal);
+}
+
+#[test]
+fn granted_by_covers_every_clause_kind_and_projects_by_tier() {
+    let server = service("roles-granted-by");
+    assert_eq!(
+        granted(&server, "GetNote"),
+        [
+            "0 owner@workspace viewer@workspace|allNotes|note editor@allNotes|note archivist@allNotes +custom"
+        ]
+    );
+    // A filter is about every note in the workspace: one note's scope does
+    // not cover it.
+    assert_eq!(
+        granted(&server, "ListNotes"),
+        ["0 owner@workspace viewer@workspace|allNotes editor@allNotes archivist@allNotes +custom"]
+    );
+    assert_eq!(
+        granted(&server, "CreateNote"),
+        ["0 owner@workspace editor@allNotes archivist@allNotes +custom"]
+    );
+    assert_eq!(
+        granted(&server, "GetArchive"),
+        ["0 ~archivist@allNotes +custom"]
+    );
+    // An internal permission is no custom role's to grant.
+    assert_eq!(
+        granted(&server, "PurgeNote"),
+        ["0 owner@workspace auditor@backOffice"]
+    );
+    let update = server
+        .operations
+        .iter()
+        .find(|op| op.id.name() == "UpdateNote")
+        .unwrap();
+    assert!(update.granted_by[1].conditional);
+    let share = server
+        .operations
+        .iter()
+        .find(|op| op.id.name() == "ShareNote")
+        .unwrap();
+    assert_eq!(share.granted_by[1].mode, crucible_ir::ir::Mode::Handler);
+
+    // Clients: the internal role and scope go, the internal clauses lose
+    // their position and keep their public roles.
+    let client = project(&server, Audience::External).unwrap();
+    assert_eq!(granted(&client, "PurgeNote"), ["- owner@workspace"]);
+    assert_eq!(
+        granted(&client, "UpdateNote"),
+        [
+            "0 owner@workspace editor@allNotes|note archivist@allNotes +custom",
+            "- owner@workspace"
+        ]
+    );
+    assert_eq!(granted(&client, "GetNote"), granted(&server, "GetNote"));
+}
+
+#[test]
+fn a_model_without_roles_has_no_granted_by() {
+    for package in ["roles-tiers", "roles-leyline"] {
+        let service = service(package);
+        assert!(
+            service
+                .operations
+                .iter()
+                .any(|op| !op.granted_by.is_empty())
+        );
+    }
+    let compiled = compile(
+        &load_package(&models().join("../fixtures/permissions")).unwrap(),
+        None,
+    );
+    let service = compiled.service.expect("the permissions fixture compiles");
+    assert!(service.operations.iter().all(|op| op.granted_by.is_empty()));
+    let text = snapshot::write(&service, "test");
+    assert!(!text.contains("granted_by"));
+}
+
 /// Leyline with `PrincipalType` named only by `principals` and `holders`:
 /// no operation's input or output uses it.
 fn principals_only_in_the_catalogue(text: &str) -> String {
@@ -455,6 +606,9 @@ fn a_catalogue_round_trips_through_a_release_snapshot() {
     assert_eq!(read.roles, service.roles);
     assert_eq!(read.role_scopes, service.role_scopes);
     assert_eq!(read.role_settings, service.role_settings);
+    for (read, op) in read.operations.iter().zip(&service.operations) {
+        assert_eq!(read.granted_by, op.granted_by);
+    }
     assert_eq!(snapshot::write(&read, "test"), text);
     // A snapshot frozen before roles existed has none of the fields, and
     // still reads.

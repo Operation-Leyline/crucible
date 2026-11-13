@@ -7,6 +7,7 @@ mod error_docs;
 mod links;
 mod models;
 mod permissions;
+mod roles;
 mod snippet;
 mod surface;
 use crucible_ir::Diagnostics;
@@ -390,6 +391,7 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
     let mut diagnostics = diagnose(service, options);
     error_docs::check(service, &mut diagnostics);
     permissions::check(service, &options.package_name, &mut diagnostics);
+    roles::check(service, &options.package_name, &mut diagnostics);
     if !diagnostics.is_empty() {
         return Err(diagnostics);
     }
@@ -448,6 +450,16 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
         files.push(File {
             path: "lib/src/runtime/permissions.dart".into(),
             contents: permissions::RUNTIME.into(),
+        });
+    }
+    if let Some(contents) = roles::emit(service) {
+        files.push(File {
+            path: roles::LIBRARY.into(),
+            contents,
+        });
+        files.push(File {
+            path: "lib/src/runtime/roles.dart".into(),
+            contents: roles::RUNTIME.into(),
         });
     }
     files.extend(package_docs(service, options));

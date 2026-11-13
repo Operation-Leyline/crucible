@@ -120,6 +120,8 @@ def models(output):
     generate(ROOT / "tests/models/empty-service", output / "empty", "empty_client", "empty")
     # Typed permissions (docs/permissions.md §6.3), from the `.cru` fixture package.
     generate(ROOT / "tests/fixtures/permissions", output / "permissions", "leyline_client", "leyline")
+    # The role registry (docs/roles.md §7 "Clients").
+    generate(ROOT / "tests/models/roles-granted-by", output / "roles", "notes_client", "notes")
     recursive = write_package(output / "recursive-model", "test", **{"recursive.cru": RECURSIVE})
     generate(recursive, output / "recursive", "recursive_client", "weather")
     # Every kind of value a snippet spells, from the generated samples.
@@ -241,6 +243,9 @@ target_link_libraries(wire_test PRIVATE wire_client)
 add_subdirectory("{(output / 'permissions').as_posix()}" permissions-sdk)
 add_executable(permissions_test "{tests.as_posix()}/permissions.c")
 target_link_libraries(permissions_test PRIVATE leyline_client)
+add_subdirectory("{(output / 'roles').as_posix()}" roles-sdk)
+add_executable(roles_test "{tests.as_posix()}/roles.c")
+target_link_libraries(roles_test PRIVATE notes_client)
 add_subdirectory("{(output / 'payload').as_posix()}" payload-sdk)
 add_executable(payload_content_type payload_content_type.c)
 target_link_libraries(payload_content_type PRIVATE payload_client)
@@ -267,7 +272,7 @@ foreach(name core models runtime proxy serialization)
   target_link_libraries(${{name}} PRIVATE weather_client::weather_client)
   target_include_directories(${{name}} PRIVATE "{install.as_posix()}/include/weather_client/runtime")
 endforeach()
-foreach(name core models runtime proxy serialization edge recursive extensions wire_test permissions_test payload_content_type {snippet_targets})
+foreach(name core models runtime proxy serialization edge recursive extensions wire_test permissions_test roles_test payload_content_type {snippet_targets})
   target_compile_features(${{name}} PRIVATE c_std_17)
   set_target_properties(${{name}} PROPERTIES C_EXTENSIONS OFF)
   if(MSVC)
@@ -284,7 +289,7 @@ endforeach()
     if os.name == "nt" and os.environ.get("VCPKG_INSTALLED_DIR"):
         dependencies = Path(os.environ["VCPKG_INSTALLED_DIR"]) / "x64-windows"
         runtime_env["PATH"] = str(dependencies / "debug/bin") + os.pathsep + str(dependencies / "bin") + os.pathsep + runtime_env["PATH"]
-    for name in ["core", "models", "recursive", "edge", "extensions", "wire_test", "permissions_test", "payload_content_type"]:
+    for name in ["core", "models", "recursive", "edge", "extensions", "wire_test", "permissions_test", "roles_test", "payload_content_type"]:
         run(str(executable(consumer_build, name)), env=runtime_env)
     run(str(executable(consumer_build, "serialization")), env=dict(runtime_env,
         SERIALIZATION_CASES=str(ROOT / "tests/conformance/serialization.json")))

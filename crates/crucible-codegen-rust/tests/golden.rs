@@ -172,6 +172,8 @@ fn permissions_server_bindings_match_golden() {
     assert!(!client.contains("organization:read"), "{client}");
     assert!(!client.contains("const REQUIREMENTS"), "{client}");
     matches_golden(&client, "permissions_client.rs");
+    // A model without roles has no role registry.
+    assert!(!client.contains("pub mod roles"), "{client}");
     // MCP tools carry the sentence too, from the External projection.
     let mcp = generate(
         &service,
@@ -188,6 +190,40 @@ fn permissions_server_bindings_match_golden() {
         "{tools}"
     );
     assert!(!tools.contains("organization:read"), "{tools}");
+}
+
+/// The client's role registry (docs/roles.md §7 "Clients") from
+/// `tests/models/roles-granted-by`: open `Role` and `Scope` enums and
+/// `ROLES` in catalogue order, public roles, scopes and permissions only,
+/// whatever the audience. `crucible-client-runtime-rust/tests/roles.rs`
+/// compiles the golden and reads it.
+#[test]
+fn role_registry_client_matches_golden() {
+    let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../tests/models/roles-granted-by");
+    let service = crucible_lang::load_service(&dir).unwrap();
+    let module = |audience| {
+        let projected = crucible_ir::project(&service, audience).unwrap();
+        let client = generate_client(&projected).unwrap();
+        let (_, module) = client
+            .split_once("\n/// The model's roles and the scopes")
+            .expect("a roles module");
+        format!("/// The model's roles and the scopes{module}")
+    };
+    let external = module(crucible_ir::Audience::External);
+    assert_eq!(module(crucible_ir::Audience::Internal), external);
+    for hidden in ["auditor", "backOffice", "note:purge", "workspace:audit"] {
+        assert!(!external.contains(hidden), "{hidden}");
+    }
+    matches_golden(&external, "roles_client.rs");
+    // Each method's documentation names the roles that grant it, even where
+    // every requirement is internal.
+    let projected = crucible_ir::project(&service, crucible_ir::Audience::External).unwrap();
+    let client = generate_client(&projected).unwrap();
+    assert!(
+        client.contains("Granted by `owner` at `workspace`."),
+        "{client}"
+    );
 }
 
 /// A service with errors of its own that designates its 404

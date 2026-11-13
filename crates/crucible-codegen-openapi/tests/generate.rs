@@ -336,6 +336,82 @@ fn permissions_match_reviewed_golden_per_audience() {
     }
 }
 
+/// Roles (docs/roles.md §5): `x-crucible-roles` for the role and scope
+/// registries, each clause's roles in `x-crucible-requires` (and those of
+/// the clauses a client does not see under `internalClauses`), and the
+/// granted-by sentence in each description. Internal roles, scopes and
+/// permissions only in the server-audience document.
+#[test]
+fn roles_match_reviewed_golden_per_audience() {
+    let service = load("roles-granted-by");
+    for (audience, file) in [
+        (crucible_ir::Audience::Internal, "roles.openapi.json"),
+        (
+            crucible_ir::Audience::External,
+            "roles-external.openapi.json",
+        ),
+    ] {
+        let projected = crucible_ir::project(&service, audience).unwrap();
+        let generated = generate(&projected, &Options::default()).unwrap();
+        let path = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("tests/golden")
+            .join(file);
+        if std::env::var_os("CRUCIBLE_BLESS").is_some() {
+            std::fs::write(&path, &generated).unwrap();
+        }
+        assert_eq!(
+            std::fs::read_to_string(&path)
+                .unwrap()
+                .replace("\r\n", "\n"),
+            generated,
+            "{file}"
+        );
+        let internal = audience == crucible_ir::Audience::Internal;
+        let document: Value = serde_json::from_str(&generated).unwrap();
+        let mut strings = Vec::new();
+        strings_of(&document, &mut strings);
+        for value in ["auditor", "backOffice", "workspace:audit", "note:purge"] {
+            assert_eq!(
+                strings.iter().any(|s| s.contains(value)),
+                internal,
+                "{file}: {value}"
+            );
+        }
+        let roles: Vec<&str> = document["x-crucible-roles"]["roles"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|r| r["value"].as_str().unwrap())
+            .collect();
+        let mut expected = vec!["owner", "viewer", "editor", "archivist"];
+        if internal {
+            expected.push("auditor");
+        }
+        assert_eq!(roles, expected, "{file}");
+        // PurgeNote's only requirement is internal: a client still learns
+        // that `owner` grants it.
+        let purge = &document["paths"]["/workspaces/{workspaceId}/notes/{noteId}/purge"]["post"];
+        let requires = &purge["x-crucible-requires"];
+        let granted = if internal {
+            &requires["clauses"][0]["grantedBy"]
+        } else {
+            assert_eq!(requires["kind"], "internal", "{file}");
+            &requires["internalClauses"][0]["grantedBy"]
+        };
+        assert_eq!(granted["roles"][0]["role"], "owner", "{file}");
+        assert!(
+            purge["description"]
+                .as_str()
+                .unwrap()
+                .contains("Granted by `owner` at `workspace`"),
+            "{file}: {purge}"
+        );
+    }
+    // A model without roles is unchanged: no registry, no `grantedBy`.
+    let weather = generate(&weather(), &Options::default()).unwrap();
+    assert!(!weather.contains("x-crucible-roles") && !weather.contains("grantedBy"));
+}
+
 /// The values of the model's internal permissions and of their aliases.
 fn internal_values(service: &crucible_ir::ir::Service) -> Vec<String> {
     let values: Vec<String> = service

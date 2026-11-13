@@ -30,11 +30,15 @@ const VERSIONED = golden("versioned-external");
 const VERSIONED_V1 = golden("versioned-v1-external");
 const VERSIONED_V2 = golden("versioned-v2-external");
 const SENDER = golden("sender-external");
+const ROLES = golden("roles-leyline-internal");
+const ROLES_EXTERNAL = golden("roles-leyline-external");
+const GRANTED = golden("roles-granted-by-internal");
+const GRANTED_EXTERNAL = golden("roles-granted-by-external");
 // Weather's internal description with its schemas shared and omitted.
 const schemas = (name) => JSON.parse(readFileSync(join(crate, "tests", "golden", "schemas", `${name}.json`), "utf8"));
 const WEATHER_SHARED = schemas("weather-shared");
 const WEATHER_OMIT = schemas("weather-omit");
-const DESCRIPTIONS = { WEATHER, WEATHER_EXTERNAL, CATALOG, PERMISSIONS, PERMISSIONS_EXTERNAL, SAMPLES, LINKS, LINKS_EXTERNAL, HISTORY, HISTORY_EXTERNAL, VERSIONED, VERSIONED_V1, VERSIONED_V2, WEATHER_SHARED, WEATHER_OMIT, SENDER };
+const DESCRIPTIONS = { WEATHER, WEATHER_EXTERNAL, CATALOG, PERMISSIONS, PERMISSIONS_EXTERNAL, SAMPLES, LINKS, LINKS_EXTERNAL, HISTORY, HISTORY_EXTERNAL, VERSIONED, VERSIONED_V1, VERSIONED_V2, WEATHER_SHARED, WEATHER_OMIT, SENDER, ROLES, ROLES_EXTERNAL, GRANTED, GRANTED_EXTERNAL };
 
 // ---- walking rendered nodes ----------------------------------------------
 
@@ -580,6 +584,43 @@ test("an operation states what the caller must hold, and the overview lists the 
   assert.match(htmlOf(x.operationView(external, "example.leyline#CreateGraph", null)), /<code>graph:write<\/code>/);
 });
 
+test("an operation says which roles grant it, and the overview lists the roles", () => {
+  // Leyline's permissions are internal: the client audience names the
+  // roles and scopes that grant each operation, and no permission.
+  const external = x.index(ROLES_EXTERNAL);
+  const graph = textOf(x.operationView(external, "example.leyline#GetGraph", null));
+  assert.match(graph, /Requires permissions internal to the service\./);
+  const html = htmlOf(x.operationView(external, "example.leyline#GetGraph", null));
+  assert.ok(
+    html.includes("Granted by <code>graphReader</code>, <code>graphWriter</code> or <code>graphAdmin</code> at <code>allGraphs</code> or <code>graph</code>."),
+    html,
+  );
+  assert.ok(htmlOf(x.operationView(external, "example.leyline#CreateGraph", null)).includes(
+    "Granted by <code>graphCreator</code> at <code>organization</code>; <code>graphAdmin</code> at <code>allGraphs</code>.",
+  ));
+  assert.ok(htmlOf(x.operationView(external, "example.leyline#GetGraphHistory", null)).includes("as the service decides"));
+  assert.ok(!textOf(x.operationView(external, "example.leyline#ListRoles", null)).includes("Granted by"));
+  const overview = textOf(x.overviewView(external));
+  for (const value of ["Roles", "graphAdmin", "allHistories"]) assert.ok(overview.includes(value), value);
+  for (const value of ["graph:read", "history:read", "organization:read"]) {
+    assert.ok(!overview.includes(value), value);
+    assert.ok(!graph.includes(value), value);
+  }
+  // The server audience lists what each role grants, internal permissions too.
+  assert.ok(textOf(x.overviewView(x.index(ROLES))).includes("graph:read"));
+
+  // A public role's public grants are shown; an internal role and scope are not.
+  const notes = x.index(GRANTED_EXTERNAL);
+  const roles = textOf(x.overviewView(notes));
+  assert.ok(roles.includes("note:create") && roles.includes("Customers may also define roles"));
+  assert.ok(!roles.includes("auditor") && !roles.includes("backOffice") && !roles.includes("note:purge"));
+  const update = textOf(x.operationView(notes, "example.notes#UpdateNote", null));
+  assert.ok(!update.includes("workspace:audit"));
+  assert.ok(htmlOf(x.operationView(notes, "example.notes#UpdateNote", null)).includes("A permission internal to the service, when a condition on the input holds: granted by <code>owner</code> at <code>workspace</code>."));
+  const server = textOf(x.overviewView(x.index(GRANTED)));
+  assert.ok(server.includes("auditor") && server.includes("backOffice"));
+});
+
 test("the test fixtures cover all goldens the generator ships", () => {
   // `schemas` holds Weather's description in the other schema modes, and
   // `upgrade` upgrade guides, Markdown with no description.
@@ -595,6 +636,10 @@ test("the test fixtures cover all goldens the generator ships", () => {
     "links-internal",
     "permissions-external",
     "permissions-internal",
+    "roles-granted-by-external",
+    "roles-granted-by-internal",
+    "roles-leyline-external",
+    "roles-leyline-internal",
     "samples-external",
     "sender-external",
     "versioned-external",

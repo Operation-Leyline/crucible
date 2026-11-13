@@ -132,10 +132,19 @@ pub fn operation_notes(op: &Operation, token_member: Option<&str>) -> Vec<String
 /// SDK doc comments: never an internal permission, whatever the audience,
 /// as the SDK's registry has none.
 pub fn requirement_notes(service: &Service, op: &Operation) -> Vec<String> {
-    crate::permissions::requirement_sentences(service, op, false)
+    requirement_sentences(service, op)
         .iter()
         .map(|sentence| escape(sentence))
         .collect()
+}
+
+/// What an SDK method's documentation says about authorization, as
+/// Markdown: the requirement sentences, then which roles grant them
+/// (docs/roles.md §5). Never an internal permission, whatever the audience.
+pub fn requirement_sentences(service: &Service, op: &Operation) -> Vec<String> {
+    let mut sentences = crate::permissions::requirement_sentences(service, op, false);
+    sentences.extend(crate::roles::granted_by_sentences(service, op, false));
+    sentences
 }
 
 /// Neutralises what in model-authored Markdown a doc tool would misread:

@@ -181,3 +181,65 @@ impl RoleSettings {
         *self == Self::default()
     }
 }
+
+/// Who satisfies one `requires` or `filters` clause through a role
+/// (docs/roles.md §5): one entry of `Operation::granted_by`, settled by
+/// [`crate::roles::settle`] on the server contract, so every output reads
+/// it and none re-derives coverage.
+///
+/// A client-audience projection keeps the entry of a clause naming an
+/// internal permission, though it removes the clause: the roles and scopes
+/// that grant it are public API even when the permission is not (§4.8), so
+/// the entry names roles and scopes, never the permission.
+#[derive(Debug, Clone, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct ClauseGrants {
+    /// The clause's position in this view's `Operation::requirements`
+    /// clauses. `None` only in a client-audience projection, for a clause
+    /// the projection removed because its permission is internal.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub clause: Option<usize>,
+    /// The clause's mode, which a removed clause no longer carries.
+    #[serde(default)]
+    pub mode: crate::ir::Mode,
+    /// The clause applies only `when` its condition holds, which a removed
+    /// clause no longer carries.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub conditional: bool,
+    /// The roles whose effective grants include the clause's permission,
+    /// in catalogue order, each with the scopes whose instances cover the
+    /// clause's target, in catalogue order. A role none of whose scopes
+    /// covers the target is left out.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub roles: Vec<RoleGrant>,
+    /// The roles that grant it `by service` (§4.6), in catalogue order,
+    /// each with all its scopes and the grant's `///`: the service decides
+    /// when they apply.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub by_service: Vec<RoleGrant>,
+    /// The service declares `custom` roles and the permission is grantable
+    /// (public or `@permissionOnly`): a custom role that grants it
+    /// satisfies the clause too (§4.7).
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub custom: bool,
+}
+
+impl ClauseGrants {
+    /// Whether no role, predefined or custom, is known to grant it.
+    pub fn is_empty(&self) -> bool {
+        self.roles.is_empty() && self.by_service.is_empty() && !self.custom
+    }
+}
+
+/// One role of a [`ClauseGrants`], with where a binding of it satisfies
+/// the clause.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct RoleGrant {
+    /// The role's symbol.
+    pub role: String,
+    /// Scope symbols, in catalogue order.
+    #[serde(default)]
+    pub scopes: Vec<String>,
+    /// For a `by service` grant, its `///`: when it applies.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub docs: Option<String>,
+}

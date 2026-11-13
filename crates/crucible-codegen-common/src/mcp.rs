@@ -70,6 +70,12 @@ pub fn emit(
             }
             description.push_str(&requirements);
         }
+        if let Some(granted) = crate::roles::granted_by_paragraph(service, op, false) {
+            if !description.is_empty() {
+                description.push_str("\n\n");
+            }
+            description.push_str(&granted);
+        }
         if let Some(pagination) = &op.paginated {
             if !description.is_empty() {
                 description.push_str("\n\n");

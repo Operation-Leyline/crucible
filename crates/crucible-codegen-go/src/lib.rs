@@ -2,6 +2,7 @@
 mod error_docs;
 mod links;
 mod permissions;
+mod roles;
 mod snippet;
 mod surface;
 use crucible_codegen_common::documentation::{model as shape_docs, operation as operation_docs};
@@ -213,7 +214,7 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
     emit_package(service, options, true)
 }
 
-/// [`emit`] without the `permissions` sub-package or its name checks, for
+/// [`emit`] without the `permissions` and `roles` sub-packages or their name checks, for
 /// a package that embeds the client and never names a permission (the
 /// Terraform provider): a permission Go could not spell must not stop it.
 pub fn emit_without_permissions(
@@ -373,6 +374,7 @@ fn emit_package(
     }
     if with_permissions {
         permissions::check(service, &mut errors);
+        roles::check(service, &mut errors);
     }
     if !errors.is_empty() {
         return Err(errors);
@@ -704,6 +706,12 @@ fn emit_package(
         if let Some(contents) = permissions::emit(service) {
             files.push(File {
                 path: permissions::PATH.into(),
+                contents,
+            });
+        }
+        if let Some(contents) = roles::emit(service) {
+            files.push(File {
+                path: roles::PATH.into(),
                 contents,
             });
         }

@@ -303,6 +303,7 @@ fn external(service: &Service, lenient: bool) -> Result<Service, Diagnostics> {
     result
         .permissions
         .retain(|id, _| !service.resources.contains_key(id) || resources.contains(id));
+    project_granted_by(&mut result);
     project_permissions(&mut result);
     project_roles(&mut result);
     // A binding whose path ran through a removed internal member goes with it.
@@ -794,6 +795,39 @@ fn project_permissions(result: &mut Service) {
     }
 }
 
+/// Granted-by as the client view numbers its clauses (docs/roles.md §4.8):
+/// run before [`project_permissions`] removes the clauses that name an
+/// internal permission, it renumbers the entries of the clauses that stay
+/// and keeps the others with no clause, so a client still learns which
+/// roles grant what it may not see named. [`project_roles`] then drops the
+/// internal roles and scopes from every entry.
+fn project_granted_by(result: &mut Service) {
+    use crate::ir::Tier;
+    let permissions = &result.permissions;
+    // The rule `project_permissions` keeps a clause by: its permission,
+    // always a primary, is in this view and not internal.
+    let visible = |clause: &crate::ir::Requirement| {
+        permissions
+            .get(&clause.resource)
+            .and_then(|r| r.permission(&clause.permission))
+            .is_some_and(|p| p.tier != Tier::Internal)
+    };
+    for op in &mut result.operations {
+        if op.granted_by.is_empty() {
+            continue;
+        }
+        let kept: Vec<bool> = op.requirements.clauses().iter().map(visible).collect();
+        for grants in &mut op.granted_by {
+            grants.clause = grants.clause.and_then(|index| {
+                kept.get(index)
+                    .copied()
+                    .unwrap_or(false)
+                    .then(|| kept[..index].iter().filter(|k| **k).count())
+            });
+        }
+    }
+}
+
 /// Roles and scopes as clients see them (docs/roles.md §4.8): internal ones
 /// go, and a public role keeps only what this view has. A grant of an
 /// internal permission leaves its declared and effective grants, the role
@@ -854,6 +888,19 @@ fn project_roles(result: &mut Service) {
             .retain(|g| visible(&g.resource, &g.permission));
         role.by_service
             .retain(|g| visible(&g.resource, &g.permission));
+    }
+    // Granted-by names roles and scopes, which this view keeps when they
+    // are public, whatever the permission's tier.
+    for op in &mut result.operations {
+        for grants in &mut op.granted_by {
+            for list in [&mut grants.roles, &mut grants.by_service] {
+                list.retain(|g| roles.contains(&g.role));
+                for grant in list.iter_mut() {
+                    grant.scopes.retain(|s| scopes.contains(s));
+                }
+                list.retain(|g| !g.scopes.is_empty());
+            }
+        }
     }
     for linked in [
         &mut result.role_settings.role_types,

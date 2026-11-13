@@ -183,7 +183,7 @@ fn identified(identifier: &str) -> String {
 
 /// A handler clause's documentation, as its requirement sentence carries
 /// it.
-enum HandlerDocs {
+pub(crate) enum HandlerDocs {
     None,
     /// One paragraph, read inline: `(only when the parsed query writes)`.
     Inline(String),
@@ -194,7 +194,7 @@ enum HandlerDocs {
 /// One paragraph reads inline, its first word lowercased only when that
 /// word is an ordinary capitalised one (never `HTTP`, `GraphQL` or `I`);
 /// anything else (several paragraphs, a list, a code block) is kept whole.
-fn handler_docs(docs: Option<&str>) -> HandlerDocs {
+pub(crate) fn handler_docs(docs: Option<&str>) -> HandlerDocs {
     // Model text inside generated prose: escaped once here, as every
     // target's model documentation is, so a line-start `@see` is no JSDoc
     // tag and a bare `[ops]` no rustdoc link, in every client at once. The

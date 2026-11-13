@@ -1,0 +1,33 @@
+# Summary
+
+- [Service overview](index.md)
+- Workspace
+  - [GetWorkspace](operations/API_GetWorkspace.md)
+  - Archive
+    - [GetArchive](operations/API_GetArchive.md)
+  - Note
+    - [CreateNote](operations/API_CreateNote.md)
+    - [GetNote](operations/API_GetNote.md)
+    - [ListNotes](operations/API_ListNotes.md)
+    - [PurgeNote](operations/API_PurgeNote.md)
+    - [ShareNote](operations/API_ShareNote.md)
+    - [UpdateNote](operations/API_UpdateNote.md)
+- Service operations
+  - [GetCaller](operations/API_GetCaller.md)
+- [Permissions](permissions.md)
+- [Roles](roles.md)
+- Data types
+  - [ArchiveId](shapes/ArchiveId.md)
+  - [CreateNoteInput](shapes/CreateNoteInput.md)
+  - [GetArchiveInput](shapes/GetArchiveInput.md)
+  - [GetCallerOutput](shapes/GetCallerOutput.md)
+  - [GetNoteInput](shapes/GetNoteInput.md)
+  - [GetWorkspaceInput](shapes/GetWorkspaceInput.md)
+  - [ListNotesInput](shapes/ListNotesInput.md)
+  - [Missing](shapes/Missing.md)
+  - [NoteId](shapes/NoteId.md)
+  - [PrincipalKind](shapes/PrincipalKind.md)
+  - [PurgeNoteInput](shapes/PurgeNoteInput.md)
+  - [ShareNoteInput](shapes/ShareNoteInput.md)
+  - [UpdateNoteInput](shapes/UpdateNoteInput.md)
+  - [WorkspaceId](shapes/WorkspaceId.md)
