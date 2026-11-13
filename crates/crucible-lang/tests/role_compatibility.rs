@@ -308,6 +308,66 @@ fn moving_a_scope_to_another_resource_orphans_its_bindings() {
 }
 
 #[test]
+fn moving_a_scopes_resource_under_another_parent_orphans_its_bindings() {
+    // `Workspace` names its instances by an identifier spelled as
+    // `Organization`'s, so every route and identifier stays as it was: only
+    // what a stored instance's `organizationId` means changes.
+    let new = edit(
+        BASE,
+        "    resources [Organization]\n",
+        "    resources [Organization, Workspace]\n",
+    );
+    let new = edit(
+        &new,
+        "resource Graph in Organization {",
+        "resource Workspace {\n    id organizationId: OrganizationId\n}\n\nresource Graph in Workspace {",
+    );
+    // The owner's binding at an organization no longer reaches graphs.
+    let new = edit(&new, "    grants Graph [*]\n    grants History [*]\n", "");
+    let found = findings(&new);
+    assert_eq!(
+        at(&found, "compatibility.scope", "graph"),
+        [
+            "error: the scope \"graph\" (`graph`) now names its instance as `Workspace(organizationId)`/`graph(graphId)`, where it named it as `organization(organizationId)`/`graph(graphId)`; bindings stored at it carry the old path"
+        ]
+    );
+    assert_eq!(
+        at(&found, "compatibility.scope", "allGraphs"),
+        [
+            "error: the scope \"allGraphs\" (`allGraphs`) now names its instance as `Workspace(organizationId)`/`graph(*)`, where it named it as `organization(organizationId)`/`graph(*)`; bindings stored at it carry the old path"
+        ]
+    );
+    assert!(at(&found, "compatibility.scope", "organization").is_empty());
+    // No route changed, so nothing else would have told.
+    none_of(&found, &["compatibility.http"]);
+}
+
+#[test]
+fn renaming_an_identifier_a_scope_instance_carries_orphans_its_bindings() {
+    let found = findings(&BASE.replace("graphId", "graphKey"));
+    // Reported once, at the scope whose instance carries it; `allGraphs`
+    // is named by the organization alone.
+    assert_eq!(
+        at(&found, "compatibility.scope", "graph"),
+        [
+            "error: the scope \"graph\" (`graph`) now names its instance as `organization(organizationId)`/`graph(graphKey)`, where it named it as `organization(organizationId)`/`graph(graphId)`; bindings stored at it carry the old path"
+        ]
+    );
+    assert!(at(&found, "compatibility.scope", "allGraphs").is_empty());
+    assert!(at(&found, "compatibility.scope", "organization").is_empty());
+}
+
+#[test]
+fn a_parent_renamed_with_its_authorization_name_kept_keeps_every_scope() {
+    let new = BASE.replace("Organization", "Org").replace(
+        "resource Org {",
+        "@authorizationName(\"organization\")\nresource Org {",
+    );
+    let found = findings(&new);
+    none_of(&found, &["compatibility.scope"]);
+}
+
+#[test]
 fn a_role_granting_less_refuses_its_holders() {
     let found = findings(&edit(
         BASE,

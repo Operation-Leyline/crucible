@@ -30,8 +30,9 @@ version's section when it is prepared.
 - Roles R4 ([docs/roles.md](docs/roles.md) §6): compatibility rules for
   roles and scopes, compared by value against the baseline.
   `compatibility.scope` and `compatibility.role` (errors) report a role or
-  scope removed or with a changed value, a scope moved to another resource,
-  and a role that grants less, binds at fewer scopes or admits fewer
+  scope removed or with a changed value, a scope moved to another resource
+  or whose instance is named another way (reparented, or an identifier
+  renamed), and a role that grants less, binds at fewer scopes or admits fewer
   holders; `compatibility.role-widened` (a warning) reports a role that
   grants more, by an edit or because its `*` covers a new permission. A
   public role or scope removed or made `internal` is a `compatibility.sdk`

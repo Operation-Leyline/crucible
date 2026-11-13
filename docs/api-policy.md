@@ -397,7 +397,12 @@ exception names.
 
 - `compatibility.scope` (error): a scope removed, its value changed, or
   moved to another resource, or between one instance and `R(*)`, since a
-  stored binding names an instance of what it was on.
+  stored binding names an instance of what it was on; and a scope whose
+  instance is named another way: its resource, or one above it, moved
+  under another parent, or an identifier the instance carries renamed.
+  The instance's path (each resource from the root, by authorization name,
+  with the identifiers it adds) is compared whether or not an operation's
+  route shows the change.
 - `compatibility.role` (error): a role removed or its value changed; a role
   that no longer grants a permission it granted (its own grants, an
   included role's, or a `*` that covers less, `by service` grants

@@ -18,7 +18,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use crucible_ir::ShapeId;
 use crucible_ir::ir::{GrantedSet, Role, ScopeTarget, Service, Shape};
-use crucible_ir::roles::with_included;
+use crucible_ir::roles::{parent, with_included};
 
 use crate::Severity;
 use crate::checker::Checker;
@@ -160,6 +160,22 @@ pub(crate) fn changes(old: &Service, new: &Service) -> Vec<Change> {
                     describe_target(&scope.on)
                 ),
             });
+            continue;
+        }
+        let (was, is) = (instance(old, &scope.on), instance(new, &now.on));
+        if was != is {
+            out.push(Change {
+                site,
+                rule: "compatibility.scope",
+                breaking: true,
+                message: format!(
+                    "the scope {:?} (`{}`) now names its instance as {}, where it named it as {}; bindings stored at it carry the old path",
+                    scope.value,
+                    scope.symbol,
+                    describe_instance(&is),
+                    describe_instance(&was)
+                ),
+            });
         }
     }
     for role in &old.roles {
@@ -202,17 +218,84 @@ pub(crate) fn changes(old: &Service, new: &Service) -> Vec<Change> {
 /// resource by its authorization name (a renamed shape that keeps it names
 /// the same instances), one instance or every one under a parent.
 fn target(service: &Service, on: &ScopeTarget) -> (u8, String) {
-    let name = |id: &ShapeId| {
-        service
-            .permissions
-            .get(id)
-            .map_or_else(|| id.name().to_owned(), |r| r.name.clone())
-    };
     match on {
         ScopeTarget::Service => (0, String::new()),
-        ScopeTarget::Instance(id) => (1, name(id)),
-        ScopeTarget::Every(id) => (2, name(id)),
+        ScopeTarget::Instance(id) => (1, name(service, id)),
+        ScopeTarget::Every(id) => (2, name(service, id)),
     }
+}
+
+/// A resource as stored data names it: its authorization name, else its
+/// shape name.
+fn name(service: &Service, id: &ShapeId) -> String {
+    service
+        .permissions
+        .get(id)
+        .map_or_else(|| id.name().to_owned(), |r| r.name.clone())
+}
+
+/// One resource on the path a scope instance is named by: its name as
+/// [`target`] compares it, and the identifiers it adds, in order.
+type Segment = (String, Vec<String>);
+
+/// The path a scope's stored instance is named by, root first: each
+/// resource from the root down to the scope's, with the identifiers it
+/// adds. A `R(*)` instance is named by its parent, so its own identifier
+/// is left out. A resource moved under another parent, or an identifier
+/// renamed, changes what a stored instance means even where no
+/// operation's route shows it.
+fn instance(service: &Service, on: &ScopeTarget) -> Vec<Segment> {
+    let Some(resource) = on.resource() else {
+        return Vec::new();
+    };
+    let mut chain = vec![resource];
+    // A cycle is refused where resources are lowered; the bound keeps a
+    // hand-built IR from looping.
+    while chain.len() <= service.resources.len() {
+        match parent(service, chain[chain.len() - 1]) {
+            Some(up) => chain.push(up),
+            None => break,
+        }
+    }
+    chain.reverse();
+    let identifiers = |id: &ShapeId| -> BTreeSet<&String> {
+        service
+            .resources
+            .get(id)
+            .map(|r| r.identifiers.keys().collect())
+            .unwrap_or_default()
+    };
+    let mut path = Vec::new();
+    let mut inherited = BTreeSet::new();
+    for id in chain {
+        let all = identifiers(id);
+        let own: Vec<String> = all.difference(&inherited).map(|n| (*n).clone()).collect();
+        path.push((name(service, id), own));
+        inherited = all;
+    }
+    if matches!(on, ScopeTarget::Every(_))
+        && let Some((_, own)) = path.last_mut()
+    {
+        own.clear();
+    }
+    path
+}
+
+/// `` `organization(organizationId)`/`graph(*)` ``.
+fn describe_instance(path: &[Segment]) -> String {
+    let last = path.len().saturating_sub(1);
+    path.iter()
+        .enumerate()
+        .map(|(index, (name, own))| {
+            let ids = if own.is_empty() && index == last {
+                "*".to_owned()
+            } else {
+                own.join(", ")
+            };
+            format!("`{name}({ids})`")
+        })
+        .collect::<Vec<_>>()
+        .join("/")
 }
 
 fn describe_target(on: &ScopeTarget) -> String {
