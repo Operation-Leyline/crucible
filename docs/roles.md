@@ -607,9 +607,11 @@ pub trait ServiceGrants: BindingSource {
         permission: Permission, target: &ResourceRef) -> Result<bool, Unavailable>;
 }
 
-/// A custom role's permissions (§4.7). No default.
+/// A custom role's permissions (§4.7) as defined under `root`: role ids
+/// are the tenant's own. No default.
 pub trait CustomRoles: BindingSource {
-    async fn custom_role(&self, id: &str) -> Result<Option<PermissionSet>, Unavailable>;
+    async fn custom_role(&self, principal: &Principal, root: Root, id: &str)
+        -> Result<Option<PermissionSet>, Unavailable>;
 }
 ```
 
@@ -700,10 +702,14 @@ role, the binding (scope instance included), the permission and the
 target; the service decides whether the binding's relationship reaches
 the target. `covered`, for `refusal`, counts only
 ordinary coverage by a binding whose role is valid where it is bound (a
-binding that grants nothing reveals nothing). `custom_role` is asked once
-per unknown role id per batch, only for well-formed bindings under the
-root (so another tenant's role, or one at a scope the model lacks, cannot
-fail the batch), and only grantable permissions of its answer count. A `filters` listing is `BindingSource::visible`, by default
+binding that grants nothing reveals nothing). `custom_role` takes the
+principal and the root a binding lies under besides the id, since a
+custom role id is the tenant's own (`editor` may grant more in one
+organization than in another): it is asked once per (root, id) per batch,
+only for well-formed bindings under that root (so another tenant's role,
+or one at a scope the model lacks, cannot fail the batch), each binding is
+decided by its own root's definition, and only grantable permissions of
+the answer count. A `filters` listing is `BindingSource::visible`, by default
 the internal error, since a listing's visibility (who may list an empty
 set) is policy; `capabilities` answers the per-instance question.
 

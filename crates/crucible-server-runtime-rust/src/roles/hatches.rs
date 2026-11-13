@@ -1,4 +1,4 @@
-use super::{BindingSource, ByService, PermissionSet, Unavailable};
+use super::{BindingSource, ByService, PermissionSet, Root, Unavailable};
 
 /// `grants .. by service` (docs/roles.md §4.6): whether a binding's
 /// relationship reaches the target. No default: the generated
@@ -69,15 +69,19 @@ pub trait ServiceGrants: BindingSource {
 /// model does not declare. No default: the generated
 /// `roles::authorizer(source)` of a model with custom roles requires it.
 pub trait CustomRoles: BindingSource {
-    /// The permissions of the custom role `role` (a binding's role value),
-    /// built with
+    /// The permissions of the custom role `role` (a binding's role value)
+    /// as defined under `root`, the tenant the binding lies in: custom role
+    /// ids are the tenant's own, so `editor` in one organization may grant
+    /// what `editor` in another does not. Built with
     /// [`RoleCatalogue::permission_set`](super::RoleCatalogue::permission_set);
     /// only grantable ones (neither internal nor `@notGrantable`) count.
-    /// `None`: no such role, and its bindings grant nothing. Asked once per
-    /// id per batch, for bindings under the root at a known scope with the
-    /// scope's count of identifiers.
+    /// `None`: no such role there, and its bindings grant nothing. Asked
+    /// once per (root, id) per batch, for well-formed bindings under that
+    /// root, and a binding is decided only by its own root's definition.
     fn custom_role(
         &self,
+        principal: &Self::Principal,
+        root: Root<'_>,
         role: &str,
     ) -> impl Future<Output = Result<Option<PermissionSet>, Unavailable>> + Send;
 }
@@ -96,6 +100,8 @@ pub trait Hatches<B: BindingSource>: Send + Sync + 'static {
 
     fn custom_role(
         source: &B,
+        principal: &B::Principal,
+        root: Root<'_>,
         role: &str,
     ) -> impl Future<Output = Result<Option<PermissionSet>, Unavailable>> + Send;
 }
@@ -135,6 +141,8 @@ impl<B: BindingSource> Hatches<B> for NoHatches {
 
     fn custom_role(
         _: &B,
+        _: &B::Principal,
+        _: Root<'_>,
         _: &str,
     ) -> impl Future<Output = Result<Option<PermissionSet>, Unavailable>> + Send {
         no_role()
@@ -152,6 +160,8 @@ impl<B: ServiceGrants> Hatches<B> for ServiceHatch {
 
     fn custom_role(
         _: &B,
+        _: &B::Principal,
+        _: Root<'_>,
         _: &str,
     ) -> impl Future<Output = Result<Option<PermissionSet>, Unavailable>> + Send {
         no_role()
@@ -169,9 +179,11 @@ impl<B: CustomRoles> Hatches<B> for CustomHatch {
 
     fn custom_role(
         source: &B,
+        principal: &B::Principal,
+        root: Root<'_>,
         role: &str,
     ) -> impl Future<Output = Result<Option<PermissionSet>, Unavailable>> + Send {
-        source.custom_role(role)
+        source.custom_role(principal, root, role)
     }
 }
 
@@ -186,8 +198,10 @@ impl<B: ServiceGrants + CustomRoles> Hatches<B> for BothHatches {
 
     fn custom_role(
         source: &B,
+        principal: &B::Principal,
+        root: Root<'_>,
         role: &str,
     ) -> impl Future<Output = Result<Option<PermissionSet>, Unavailable>> + Send {
-        source.custom_role(role)
+        source.custom_role(principal, root, role)
     }
 }

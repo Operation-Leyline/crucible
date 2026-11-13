@@ -396,7 +396,12 @@ impl ServiceGrants for Source {
 }
 
 impl CustomRoles for Source {
-    async fn custom_role(&self, role: &str) -> Result<Option<PermissionSet>, Unavailable> {
+    async fn custom_role(
+        &self,
+        _: &Principal,
+        _: Root<'_>,
+        role: &str,
+    ) -> Result<Option<PermissionSet>, Unavailable> {
         Ok(defines(role, "").map(|_| {
             self.catalogue.permission_set(
                 self.catalogue

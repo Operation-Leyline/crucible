@@ -1552,9 +1552,10 @@ and per check:
 1. keeps the well-formed bindings: under the root, at a scope the
    catalogue knows, with that scope's count of identifiers, naming a role
    it knows and finds valid there for the principal's `kind` (a custom
-   role's permissions come from `CustomRoles::custom_role`, asked once per
-   id per batch and only for such bindings, and only grantable ones
-   count). A malformed binding, a role or scope the model no longer has, or
+   role's permissions come from `CustomRoles::custom_role(principal,
+   root, id)`, asked once per root and id per batch and only for such
+   bindings, since a custom role id is the tenant's own and each binding
+   is decided by its own root's definition; only grantable ones count). A malformed binding, a role or scope the model no longer has, or
    a role bound where it may not be (`owner` held by an API key, an
    organization role at a graph scope) grants nothing on either path;
 2. allows when a kept binding whose scope instance covers the target

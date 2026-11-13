@@ -78,7 +78,12 @@ impl BindingSource for Source {
 }
 
 impl CustomRoles for Source {
-    async fn custom_role(&self, role: &str) -> Result<Option<PermissionSet>, Unavailable> {
+    async fn custom_role(
+        &self,
+        _: &Self::Principal,
+        _: Root<'_>,
+        role: &str,
+    ) -> Result<Option<PermissionSet>, Unavailable> {
         Ok((role == "editor").then(|| {
             CATALOGUE.permission_set([
                 NotePermission::Read.info(),

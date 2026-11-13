@@ -69,13 +69,18 @@ enum Kept<'a> {
     Custom(&'a PermissionSet),
 }
 
+/// A custom role resolved under a root: its definition there, if any.
+type Custom<'r> = (Root<'r>, String, Option<PermissionSet>);
+
 /// One batch's reads: the bindings under each root asked so far (almost
 /// always one), and the custom roles they name.
 #[derive(Default)]
 struct Batch<'c> {
     first: Option<(Root<'c>, Arc<[RoleBinding]>)>,
     more: Vec<(Root<'c>, Arc<[RoleBinding]>)>,
-    customs: Vec<(String, Option<PermissionSet>)>,
+    /// Custom roles by (root, id): a role id is the tenant's own, so the
+    /// same id under two roots may name two definitions.
+    customs: Vec<(Root<'c>, String, Option<PermissionSet>)>,
 }
 
 impl<B: BindingSource, H: Hatches<B>> RoleAuthorizer<B, H> {
@@ -244,7 +249,7 @@ impl<B: BindingSource, H: Hatches<B>> RoleAuthorizer<B, H> {
         kind: Option<&str>,
         root: Root<'_>,
         bindings: &[RoleBinding],
-        customs: &[(String, Option<PermissionSet>)],
+        customs: &[Custom<'_>],
         check: &Check,
     ) -> std::result::Result<(Verdict, Option<usize>), Unavailable> {
         let catalogue = self.catalogue;
@@ -303,7 +308,7 @@ impl<B: BindingSource, H: Hatches<B>> RoleAuthorizer<B, H> {
         binding: &RoleBinding,
         root: Root<'_>,
         kind: Option<&str>,
-        customs: &'a [(String, Option<PermissionSet>)],
+        customs: &'a [Custom<'_>],
     ) -> Option<(usize, Kept<'a>)> {
         let catalogue = self.catalogue;
         let scope = well_formed(catalogue, binding, root)?;
@@ -313,8 +318,8 @@ impl<B: BindingSource, H: Hatches<B>> RoleAuthorizer<B, H> {
                 .then_some((scope, Kept::Role(role))),
             None if catalogue.custom => customs
                 .iter()
-                .find(|(id, _)| *id == binding.role)
-                .and_then(|(_, set)| set.as_ref())
+                .find(|(under, id, _)| *under == root && *id == binding.role)
+                .and_then(|(_, _, set)| set.as_ref())
                 .map(|set| (scope, Kept::Custom(set))),
             None => None,
         }
@@ -373,12 +378,16 @@ impl<'c> Batch<'c> {
             for binding in bindings.iter() {
                 if well_formed(authorizer.catalogue, binding, root).is_none()
                     || authorizer.catalogue.find_role(&binding.role).is_some()
-                    || self.customs.iter().any(|(id, _)| *id == binding.role)
+                    || self
+                        .customs
+                        .iter()
+                        .any(|(under, id, _)| *under == root && *id == binding.role)
                 {
                     continue;
                 }
-                let set = H::custom_role(&authorizer.source, &binding.role).await?;
-                self.customs.push((binding.role.clone(), set));
+                let set =
+                    H::custom_role(&authorizer.source, principal, root, &binding.role).await?;
+                self.customs.push((root, binding.role.clone(), set));
             }
         }
         if self.first.is_none() {

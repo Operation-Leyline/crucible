@@ -157,6 +157,44 @@ async fn only_well_formed_bindings_under_the_root_resolve_custom_roles() {
     );
 }
 
+#[tokio::test]
+async fn a_custom_role_is_decided_by_its_own_root_s_definition() {
+    let source = Source::default();
+    let asked = source.asked.clone();
+    let authorizer = notes::roles::authorizer(source);
+    // `reviewer` (not a predefined role) in both workspaces, which define
+    // it differently.
+    let caller = holding([
+        RoleBinding::new("reviewer", "workspace", ["w-1"]),
+        RoleBinding::new("reviewer", "workspace", ["w-2"]),
+    ]);
+    let verdicts = authorizer
+        .decide_for(
+            &caller,
+            &[
+                check(NotePermission::Share, NoteRef::new("w-1", "n-1")),
+                // w-1's stronger `reviewer` must not decide w-2's checks.
+                check(NotePermission::Share, NoteRef::new("w-2", "n-1")),
+                check(NotePermission::Read, NoteRef::new("w-2", "n-1")),
+                check(NotePermission::Read, NoteRef::new("w-1", "n-1")),
+            ],
+            false,
+        )
+        .await
+        .unwrap();
+    assert_eq!(
+        verdicts,
+        [
+            Verdict::Allowed,
+            Verdict::Denied,
+            Verdict::Allowed,
+            Verdict::Denied
+        ]
+    );
+    // Once per (root, id).
+    assert_eq!(asked.load(Ordering::Relaxed), 2);
+}
+
 fn check(permission: impl Into<Permission>, resource: impl Into<ResourceRef>) -> Check {
     Check::handler(permission.into(), resource.into())
 }
@@ -185,7 +223,26 @@ impl BindingSource for Source {
 }
 
 impl CustomRoles for Source {
-    async fn custom_role(&self, role: &str) -> Result<Option<PermissionSet>, Unavailable> {
+    async fn custom_role(
+        &self,
+        _: &Self::Principal,
+        root: Root<'_>,
+        role: &str,
+    ) -> Result<Option<PermissionSet>, Unavailable> {
+        // `reviewer` is each workspace's own: w-1's shares notes, w-2's only
+        // reads them.
+        if role == "reviewer" {
+            let Root::Instance { id, .. } = root else {
+                return Ok(None);
+            };
+            self.asked.fetch_add(1, Ordering::Relaxed);
+            let permission = match id {
+                "w-1" => NotePermission::Share,
+                "w-2" => NotePermission::Read,
+                _ => return Ok(None),
+            };
+            return Ok(Some(CATALOGUE.permission_set([permission.info()])));
+        }
         // Another tenant's roles live in another shard, unreachable here.
         if self.fail || role.starts_with("other") {
             return Err(Unavailable::new("the custom roles table is unreachable"));

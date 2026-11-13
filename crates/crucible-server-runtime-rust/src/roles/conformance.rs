@@ -352,7 +352,12 @@ impl ServiceGrants for Fixed {
 
 /// A role the catalogue does not declare grants nothing in the reference.
 impl CustomRoles for Fixed {
-    async fn custom_role(&self, _: &str) -> Result<Option<PermissionSet>, Unavailable> {
+    async fn custom_role(
+        &self,
+        _: &(),
+        _: Root<'_>,
+        _: &str,
+    ) -> Result<Option<PermissionSet>, Unavailable> {
         Ok(None)
     }
 }
