@@ -1,0 +1,68 @@
+/// Notes in workspaces, where every role is one the customer defines.
+service Desk {
+    version "1"
+    protocol json
+    auth bearer
+    notFound Missing
+    resources [Workspace]
+    scopes [workspace]
+    roles [] custom
+}
+
+error Missing {
+    status 404
+    message: string
+}
+
+string WorkspaceId { length 1..40 }
+string NoteId { length 1..40 }
+
+resource Workspace {
+    id workspaceId: WorkspaceId
+    permission read = "workspace:read"
+    /// Everything in the workspace; never part of a custom role.
+    @notGrantable permission admin = "workspace:admin"
+}
+
+resource Note in Workspace {
+    id noteId: NoteId
+    permission read = "note:read"
+    permission write = "note:write"
+}
+
+/// One workspace and its notes.
+scope workspace = "workspace" on Workspace
+
+readonly operation GetWorkspace on Workspace {
+    http GET "/workspaces/{workspaceId}"
+    requires read
+    input {
+        $workspaceId
+    }
+}
+
+operation CloseWorkspace on Workspace {
+    http POST "/workspaces/{workspaceId}/close"
+    requires admin
+    input {
+        $workspaceId
+    }
+}
+
+readonly operation GetNote on Note {
+    http GET "/workspaces/{workspaceId}/notes/{noteId}"
+    requires read
+    input {
+        $workspaceId
+        $noteId
+    }
+}
+
+operation EditNote on Note {
+    http POST "/workspaces/{workspaceId}/notes/{noteId}/edit"
+    requires write
+    input {
+        $workspaceId
+        $noteId
+    }
+}

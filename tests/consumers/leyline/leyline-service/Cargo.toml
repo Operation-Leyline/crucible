@@ -7,7 +7,7 @@ edition = "2024"
 publish = false
 
 [dependencies]
-crucible-server-runtime-rust = { path = "../../../../crates/crucible-server-runtime-rust" }
+crucible-server-runtime-rust = { path = "../../../../crates/crucible-server-runtime-rust", features = ["roles"] }
 crucible-auth = { path = "../../../../crates/crucible-auth" }
 leyline-model = { path = "../leyline-model" }
 axum = "0.8"

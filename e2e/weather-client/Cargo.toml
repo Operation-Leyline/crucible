@@ -24,3 +24,6 @@ serde_json = "1"
 sha2 = "0.10"
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "net", "io-util", "time", "sync"] }
 weather-service = { path = "../weather-service" }
+
+[lints]
+workspace = true

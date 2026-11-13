@@ -1,4 +1,5 @@
 use super::{AuthorizationRequest, Check, Listing, Verdict, Visibility};
+use crate::roles::RoleBinding;
 use crate::{Error, Result};
 
 /// Decides whether the caller holds permissions: the service's grants,
@@ -41,6 +42,26 @@ pub trait Authorizer: Send + Sync + 'static {
             listing.permission.value,
             super::loggable(&listing.resource)
         )))
+    }
+
+    /// [`decide`](Self::decide), also naming the role binding that
+    /// allowed each allowed check, for [`Decision::allowed_by`] in the
+    /// `AuthorizationRecord`: push one entry per check onto `allowed_by`,
+    /// in order (`None` where there is nothing to name), or none at all.
+    /// The default asks `decide` and names nothing; `RoleAuthorizer`
+    /// (the `roles` feature) names its bindings. `Permissions` calls this
+    /// one, so an implementation that overrides it must answer as its
+    /// `decide` would.
+    ///
+    /// [`Decision::allowed_by`]: super::Decision::allowed_by
+    async fn decide_naming_bindings(
+        &self,
+        request: &AuthorizationRequest<'_>,
+        checks: &[Check],
+        allowed_by: &mut Vec<Option<RoleBinding>>,
+    ) -> Result<Vec<Verdict>> {
+        let _ = allowed_by;
+        self.decide(request, checks).await
     }
 
     // Reserved: a later provided method for per-element batch checks, with

@@ -538,9 +538,12 @@ pub mod desk {
     impl ::crucible_server_runtime_rust::__generated::Operation for GetRoom {
         const AUTH_BEARER: bool = true;
         const AUTH_SCHEMES: ::std::option::Option<&'static [::crucible_server_runtime_rust::__generated::operation::AuthScheme]> = Some(&[::crucible_server_runtime_rust::__generated::operation::AuthScheme::Bearer]);
-        const REQUIREMENTS: ::crucible_server_runtime_rust::__generated::permissions::Requirements = ::crucible_server_runtime_rust::__generated::permissions::Requirements::List(&[
-            ::crucible_server_runtime_rust::__generated::permissions::RequirementInfo { mode: ::crucible_server_runtime_rust::__generated::permissions::Mode::Check, permission: &permissions::ROOM__READ, conditional: false },
-        ]);
+        const REQUIREMENTS: ::crucible_server_runtime_rust::__generated::permissions::Requirements = {
+            static CLAUSES: [::crucible_server_runtime_rust::__generated::permissions::RequirementInfo; 1] = [
+                ::crucible_server_runtime_rust::__generated::permissions::RequirementInfo { mode: ::crucible_server_runtime_rust::__generated::permissions::Mode::Check, permission: &permissions::ROOM__READ, conditional: false },
+            ];
+            ::crucible_server_runtime_rust::__generated::permissions::Requirements::List(&CLAUSES)
+        };
         #[allow(clippy::all, unreachable_patterns, unused_parens)]
         const CHECKS: ::std::option::Option<::crucible_server_runtime_rust::__generated::permissions::Checks<Self::Input>> = ::std::option::Option::Some(|input, out| {
             out.push(::crucible_server_runtime_rust::__generated::permissions::Check::declared(0, &permissions::ROOM__READ, ::crucible_server_runtime_rust::__generated::permissions::ResourceRef::new(&permissions::ROOM, [::crucible_server_runtime_rust::__generated::permissions::Target::from(&input.workspace_id), ::crucible_server_runtime_rust::__generated::permissions::Target::from(&input.room_id)])));
@@ -582,9 +585,12 @@ pub mod desk {
     impl ::crucible_server_runtime_rust::__generated::Operation for GetWorkspace {
         const AUTH_BEARER: bool = true;
         const AUTH_SCHEMES: ::std::option::Option<&'static [::crucible_server_runtime_rust::__generated::operation::AuthScheme]> = Some(&[::crucible_server_runtime_rust::__generated::operation::AuthScheme::Bearer]);
-        const REQUIREMENTS: ::crucible_server_runtime_rust::__generated::permissions::Requirements = ::crucible_server_runtime_rust::__generated::permissions::Requirements::List(&[
-            ::crucible_server_runtime_rust::__generated::permissions::RequirementInfo { mode: ::crucible_server_runtime_rust::__generated::permissions::Mode::Check, permission: &permissions::WORKSPACE__READ, conditional: false },
-        ]);
+        const REQUIREMENTS: ::crucible_server_runtime_rust::__generated::permissions::Requirements = {
+            static CLAUSES: [::crucible_server_runtime_rust::__generated::permissions::RequirementInfo; 1] = [
+                ::crucible_server_runtime_rust::__generated::permissions::RequirementInfo { mode: ::crucible_server_runtime_rust::__generated::permissions::Mode::Check, permission: &permissions::WORKSPACE__READ, conditional: false },
+            ];
+            ::crucible_server_runtime_rust::__generated::permissions::Requirements::List(&CLAUSES)
+        };
         #[allow(clippy::all, unreachable_patterns, unused_parens)]
         const CHECKS: ::std::option::Option<::crucible_server_runtime_rust::__generated::permissions::Checks<Self::Input>> = ::std::option::Option::Some(|input, out| {
             out.push(::crucible_server_runtime_rust::__generated::permissions::Check::declared(0, &permissions::WORKSPACE__READ, ::crucible_server_runtime_rust::__generated::permissions::ResourceRef::new(&permissions::WORKSPACE, [::crucible_server_runtime_rust::__generated::permissions::Target::from(&input.workspace_id)])));
@@ -627,9 +633,12 @@ pub mod desk {
     impl ::crucible_server_runtime_rust::__generated::Operation for ListRooms {
         const AUTH_BEARER: bool = true;
         const AUTH_SCHEMES: ::std::option::Option<&'static [::crucible_server_runtime_rust::__generated::operation::AuthScheme]> = Some(&[::crucible_server_runtime_rust::__generated::operation::AuthScheme::Bearer]);
-        const REQUIREMENTS: ::crucible_server_runtime_rust::__generated::permissions::Requirements = ::crucible_server_runtime_rust::__generated::permissions::Requirements::List(&[
-            ::crucible_server_runtime_rust::__generated::permissions::RequirementInfo { mode: ::crucible_server_runtime_rust::__generated::permissions::Mode::Filter, permission: &permissions::ROOM__READ, conditional: false },
-        ]);
+        const REQUIREMENTS: ::crucible_server_runtime_rust::__generated::permissions::Requirements = {
+            static CLAUSES: [::crucible_server_runtime_rust::__generated::permissions::RequirementInfo; 1] = [
+                ::crucible_server_runtime_rust::__generated::permissions::RequirementInfo { mode: ::crucible_server_runtime_rust::__generated::permissions::Mode::Filter, permission: &permissions::ROOM__READ, conditional: false },
+            ];
+            ::crucible_server_runtime_rust::__generated::permissions::Requirements::List(&CLAUSES)
+        };
         #[allow(clippy::all, unreachable_patterns, unused_parens)]
         const CHECKS: ::std::option::Option<::crucible_server_runtime_rust::__generated::permissions::Checks<Self::Input>> = ::std::option::Option::Some(|input, out| {
             out.push(::crucible_server_runtime_rust::__generated::permissions::Check::declared(0, &permissions::ROOM__READ, ::crucible_server_runtime_rust::__generated::permissions::ResourceRef::all(&permissions::ROOM, [::crucible_server_runtime_rust::__generated::permissions::Target::from(&input.workspace_id)])));

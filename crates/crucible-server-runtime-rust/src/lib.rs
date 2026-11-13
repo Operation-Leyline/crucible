@@ -82,6 +82,7 @@ pub mod permissions;
 mod prepare;
 pub mod protocol;
 mod resolution;
+pub mod roles;
 mod scoped;
 pub mod service;
 pub mod versioning;
@@ -131,6 +132,20 @@ pub mod __generated {
     pub use crate::explorer::description::description as explorer_description;
     pub use crate::generated_operations_builder::OperationsBuilder;
     pub use crate::permissions::not_found as permission_not_found;
+    /// The role catalogue types generated server `roles` modules state,
+    /// and the client role registry's (`crucible_wire::roles`).
+    pub mod roles {
+        pub use crate::__crucible_role_authorizer as authorizer;
+        #[cfg(feature = "roles")]
+        pub use crate::roles::{
+            BothHatches, CustomHatch, NoHatches, ServiceHatch, role_authorizer,
+        };
+        pub use crate::roles::{
+            Grant, PermissionSet, RoleBinding, RoleCatalogue, RoleInfo, ScopeInfo, ScopeKind,
+            ScopeRef,
+        };
+        pub use crucible_wire::roles::{RoleDescription, RolePermission};
+    }
     pub use crate::{
         Context, Crucible, MissingOperations, ModelledError, Operation, OperationInfo, Operations,
         Result, ServiceInfo, WithContext, mcp, operations, versioning,
@@ -140,13 +155,47 @@ pub mod __generated {
     pub use crucible_wire::blob::Blob;
     pub use crucible_wire::number::{BigDecimal, BigInteger};
     pub use crucible_wire::{
-        codec, error, field, number, open, operation, permissions, roles, time, validate,
+        codec, error, field, number, open, operation, permissions, time, validate,
     };
 
     pub use chrono;
     pub use regex;
     pub use serde;
     pub use serde_json;
+}
+
+/// `roles::authorizer(source)` in generated bindings: the framework's
+/// `RoleAuthorizer` over the model's catalogue, bounded by the hooks the
+/// model needs (`BindingSource`, plus `ServiceGrants` and `CustomRoles` as
+/// named). Without the `roles` feature it generates nothing.
+#[cfg(feature = "roles")]
+#[doc(hidden)]
+#[macro_export]
+macro_rules! __crucible_role_authorizer {
+    ($catalogue:path, $hatches:ident $(, $bound:ident)*) => {
+        /// The framework's `RoleAuthorizer` over [`CATALOGUE`], deciding
+        /// from the bindings `source` reads. Its bounds are the hooks this
+        /// model needs: `BindingSource`, plus `ServiceGrants` when a role
+        /// grants `by service` and `CustomRoles` with custom roles, so a
+        /// forgotten hook is a type error here.
+        pub fn authorizer<B>(
+            source: B,
+        ) -> $crate::roles::RoleAuthorizer<B, $crate::roles::$hatches>
+        where
+            B: $crate::roles::BindingSource $(+ $crate::roles::$bound)*,
+        {
+            $crate::roles::role_authorizer(&$catalogue, source)
+        }
+    };
+}
+
+/// Without the `roles` feature, generated bindings have no
+/// `roles::authorizer`.
+#[cfg(not(feature = "roles"))]
+#[doc(hidden)]
+#[macro_export]
+macro_rules! __crucible_role_authorizer {
+    ($($tokens:tt)*) => {};
 }
 
 /// Includes the Rust server bindings generated for this crate's model.
