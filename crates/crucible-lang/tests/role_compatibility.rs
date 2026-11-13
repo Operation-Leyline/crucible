@@ -249,8 +249,72 @@ fn changing_a_roles_value_orphans_its_bindings() {
             "error: `graphReader` changed its value from \"graphReader\" to \"reader\"; bindings stored under the old value no longer match it: keep the value"
         ]
     );
-    // The constant keeps its name.
-    assert!(at(&found, "compatibility.sdk", "graphReader").is_empty());
+    // The constant keeps its name and sends another value.
+    assert_eq!(
+        at(&found, "compatibility.sdk", "graphReader"),
+        [
+            "error: the role constant `graphReader` now sends \"reader\", where it sent \"graphReader\": a client that still names it asks for another role"
+        ]
+    );
+}
+
+#[test]
+fn swapping_two_roles_with_their_bodies_changes_what_client_constants_send() {
+    // Every value keeps its role, so stored bindings mean what they did;
+    // a client's `graphReader` now asks for what was `graphWriter`.
+    let swapped = edit(
+        BASE,
+        "role graphReader = \"graphReader\" { at [allGraphs, graph]; grants Graph [read] }",
+        "role graphWriter = \"graphReader\" { at [allGraphs, graph]; grants Graph [read] }",
+    );
+    let swapped = edit(
+        &swapped,
+        "role graphWriter = \"graphWriter\" { at [allGraphs, graph]; includes [graphReader]; grants Graph [write] }",
+        "role graphReader = \"graphWriter\" { at [allGraphs, graph]; includes [graphWriter]; grants Graph [write] }",
+    );
+    let swapped = edit(
+        &swapped,
+        "    includes [graphWriter]\n",
+        "    includes [graphReader]\n",
+    );
+    let found = findings(&swapped);
+    none_of(&found, RULES);
+    assert_eq!(
+        at(&found, "compatibility.sdk", "graphReader"),
+        [
+            "error: the role constant `graphReader` now sends \"graphWriter\", where it sent \"graphReader\": a client that still names it asks for another role"
+        ]
+    );
+    assert_eq!(
+        at(&found, "compatibility.sdk", "graphWriter"),
+        [
+            "error: the role constant `graphWriter` now sends \"graphReader\", where it sent \"graphWriter\": a client that still names it asks for another role"
+        ]
+    );
+}
+
+#[test]
+fn swapping_two_scopes_changes_what_client_constants_send() {
+    // `graph` now sends the value of the scope on every graph.
+    let swapped = edit(
+        BASE,
+        "scope allGraphs = \"allGraphs\" on Graph(*)",
+        "scope graph = \"allGraphs\" on Graph(*)",
+    );
+    let swapped = edit(
+        &swapped,
+        "scope graph = \"graph\" on Graph\n",
+        "scope allGraphs = \"graph\" on Graph\n",
+    );
+    let found = findings(&swapped);
+    none_of(&found, RULES);
+    assert_eq!(
+        at(&found, "compatibility.sdk", "graph"),
+        [
+            "error: the scope constant `graph` now sends \"allGraphs\", where it sent \"graph\": a client that still names it asks for another scope"
+        ]
+    );
+    assert_eq!(at(&found, "compatibility.sdk", "allGraphs").len(), 1);
 }
 
 #[test]
@@ -720,11 +784,27 @@ fn a_role_admitting_fewer_kinds_of_principal_refuses_its_holders() {
             "error: `owner` may no longer be held by `API_KEY`; its holders among them are refused what they had"
         ]
     );
-    // Admitting more, or every kind, refuses nobody.
+    // Admitting more, or every kind, refuses nobody, but bindings a
+    // narrowing made inert (no migration converts them) take effect again.
     let found = findings_from(BASE, &both);
-    assert!(role_findings(&found).is_empty(), "{found:#?}");
+    assert_eq!(
+        at(&found, "compatibility.role-widened", "owner"),
+        [
+            "warning: `owner` may now be held by `API_KEY`; bindings of those kinds, inert until now, take effect"
+        ]
+    );
+    assert!(at(&found, "compatibility.role", "owner").is_empty());
     let every = edit(BASE, "    holders [USER]\n", "");
-    assert!(role_findings(&findings(&every)).is_empty());
+    let found = findings(&every);
+    assert_eq!(
+        at(&found, "compatibility.role-widened", "owner"),
+        [
+            "warning: `owner` may now be held by every kind of principal, where only `USER` could; bindings of the other kinds, inert until now, take effect"
+        ]
+    );
+    assert!(at(&found, "compatibility.role", "owner").is_empty());
+    // A role that named none still names none: nothing.
+    assert!(role_findings(&findings_from(&every, &every)).is_empty());
 }
 
 #[test]

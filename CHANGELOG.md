@@ -38,9 +38,9 @@ version's section when it is prepared.
   `compatibility.role-widened` (a warning) reports a role that grants
   more, by an edit, because its `*` covers a new permission, or because a
   scope it keeps now covers more, or because more roles may assign it or
-  it may be bound at more scopes. A
-  public role or scope removed or made `internal` is a `compatibility.sdk`
-  finding. Migrations declare the breaks with `remove role`, `remove scope`
+  it may be bound at more scopes or held by more kinds of principal. A
+  public role or scope removed, made `internal`, or whose symbol now sends
+  another value is a `compatibility.sdk` finding. Migrations declare the breaks with `remove role`, `remove scope`
   and `narrow role`. A baseline frozen before roles existed reports
   nothing. The rule IDs join `crucible_policy::RULE_IDS`.
 - Roles R3 ([docs/roles.md](docs/roles.md) §5): which roles grant each

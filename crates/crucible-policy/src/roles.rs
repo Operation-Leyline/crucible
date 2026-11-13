@@ -92,6 +92,17 @@ impl Checker<'_> {
                         old.symbol
                     ),
                 ),
+                // A client's constant sends its value: kept under a new
+                // value, it asks for another role, though stored bindings
+                // may still match (two swapped, bodies and all).
+                Some(now) if now.value != old.value => self.push(
+                    "compatibility.sdk",
+                    &site,
+                    format!(
+                        "the role constant `{}` now sends {:?}, where it sent {:?}: a client that still names it asks for another role",
+                        old.symbol, now.value, old.value
+                    ),
+                ),
                 Some(_) => {}
             }
         }
@@ -112,6 +123,17 @@ impl Checker<'_> {
                     format!(
                         "`{}` became internal, so client SDKs lose its constant",
                         old.symbol
+                    ),
+                ),
+                // A client's constant sends its value: kept under a new
+                // value, it asks for another scope, though stored bindings
+                // may still match (two swapped, bodies and all).
+                Some(now) if now.value != old.value => self.push(
+                    "compatibility.sdk",
+                    &site,
+                    format!(
+                        "the scope constant `{}` now sends {:?}, where it sent {:?}: a client that still names it asks for another scope",
+                        old.symbol, now.value, old.value
                     ),
                 ),
                 Some(_) => {}
@@ -420,39 +442,73 @@ impl<'a> RoleChanges<'a, '_> {
 
     /// The kinds of principal that may hold it, by the `principals` enum's
     /// wire values. A role that names none is held by every kind, so it
-    /// narrows when it names some, and never by naming none.
+    /// narrows when it names some; one that names some widens when it names
+    /// another, or none.
     fn holders(&mut self) {
-        if self.now.holders.is_empty() {
+        let symbol = &self.role.symbol;
+        let (was_every, is_every) = (self.role.holders.is_empty(), self.now.holders.is_empty());
+        if was_every && is_every {
             return;
         }
         let (Some(was), Some(is)) = (holders(self.old, self.role), holders(self.new, self.now))
         else {
             return;
         };
-        let message = match (was, is) {
-            (_, Holders::Every) => return,
-            (Holders::Every, Holders::Only(is)) => format!(
-                "`{}` may now be held only by {}; its other holders are refused what they had",
-                self.role.symbol,
-                names(is.values())
-            ),
-            (Holders::Only(was), Holders::Only(is)) => {
+        if is_every {
+            // Every kind may hold it now. A binding for a kind a narrowing
+            // made inert is valid again: no migration step converts stored
+            // bindings, so they were kept.
+            if let Holders::Only(was) = was {
+                let message = format!(
+                    "`{symbol}` may now be held by every kind of principal, where only {} could; bindings of the other kinds, inert until now, take effect",
+                    names(was.values())
+                );
+                self.push("compatibility.role-widened", false, message);
+            }
+            return;
+        }
+        let Holders::Only(is) = is else {
+            return;
+        };
+        match was {
+            Holders::Every => {
+                let message = format!(
+                    "`{symbol}` may now be held only by {}; its other holders are refused what they had",
+                    names(is.values())
+                );
+                self.push("compatibility.role", true, message);
+            }
+            Holders::Only(was) => {
                 let lost: Vec<&String> = was
                     .iter()
                     .filter(|(value, _)| !is.contains_key(*value))
                     .map(|(_, name)| name)
                     .collect();
-                if lost.is_empty() {
-                    return;
+                if !lost.is_empty() {
+                    let message = format!(
+                        "`{symbol}` may no longer be held by {}; its holders among them are refused what they had",
+                        names(lost.into_iter())
+                    );
+                    self.push("compatibility.role", true, message);
                 }
-                format!(
-                    "`{}` may no longer be held by {}; its holders among them are refused what they had",
-                    self.role.symbol,
-                    names(lost.into_iter())
-                )
+                // A role that named every kind (no `holders`) cannot gain
+                // one; one that named some can.
+                if !was_every {
+                    let gained: Vec<&String> = is
+                        .iter()
+                        .filter(|(value, _)| !was.contains_key(*value))
+                        .map(|(_, name)| name)
+                        .collect();
+                    if !gained.is_empty() {
+                        let message = format!(
+                            "`{symbol}` may now be held by {}; bindings of those kinds, inert until now, take effect",
+                            names(gained.into_iter())
+                        );
+                        self.push("compatibility.role-widened", false, message);
+                    }
+                }
             }
-        };
-        self.push("compatibility.role", true, message);
+        }
     }
 
     /// What a binding at each scope it keeps covers of what the model still

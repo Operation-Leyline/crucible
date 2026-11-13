@@ -418,8 +418,7 @@ exception names.
   operation admits): an assigner can no longer grant or revoke it. A
   permission or scope that is gone altogether is
   reported once, by `compatibility.permissions` or `compatibility.scope`,
-  not again for each role. Admitting more kinds grants no holder anything
-  and is not reported.
+  not again for each role.
 - `compatibility.role` (warning): a grant the model decided now left to
   the service (`by service`). Holders keep it where the service's hook
   allows, which only a review of the hook can tell.
@@ -432,7 +431,9 @@ exception names.
   So is a role more roles may assign (`assignedBy` naming another, or
   dropped so the binding operation decides), and one bound at a scope it
   could not be: no holder gains anything, but whoever may assign it can
-  now grant it there.
+  now grant it there; and one that admits more kinds of principal
+  (`holders` naming another, or dropped so every kind may hold it), since
+  bindings a narrowing made inert take effect again.
 
 A baseline frozen before roles existed has no roles to compare, so adding a
 catalogue reports nothing.
@@ -441,7 +442,9 @@ catalogue reports nothing.
 collection representations, service/client identity,
 and permission, role and scope constants: one removed, or moved to
 `internal`, is a `compatibility.sdk` finding. Making one public again is
-additive.
+additive. A role or scope constant whose value changed is one too, even
+when every value keeps its role (two swapped, bodies and all): a client
+that still names the constant sends the other value.
 A new optional member (not required, no default) added after a structure's
 existing members passes, unless the structure is an error: generated clients
 accept it without a source change (Rust models are `#[non_exhaustive]` and

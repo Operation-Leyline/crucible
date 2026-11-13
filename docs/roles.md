@@ -529,8 +529,10 @@ roles have no shape of their own. Besides the design's rules:
 
 - *Holders narrowed* (`holders` dropping a kind, or naming kinds where it
   named none) is a `compatibility.role` error, compared by the `principals`
-  enum's wire values. Admitting more kinds gives no existing holder
-  anything and is not reported. Binding at more scopes gives no holder
+  enum's wire values. Admitting more kinds (another named, or `holders`
+  dropped) is `compatibility.role-widened`: no migration step converts
+  stored bindings, so bindings a narrowing made inert take effect again.
+  Binding at more scopes gives no holder
   anything either, but whoever may assign the role can now grant it there,
   so it is `compatibility.role-widened`.
 - *A scope moved* to another resource, or between one instance and
@@ -571,7 +573,10 @@ roles have no shape of their own. Besides the design's rules:
   own right: its holders are the ones refused.
 - *`internal`.* A public role or scope removed, or made `internal`, is a
   `compatibility.sdk` finding, as a permission constant is; making one
-  public again is additive. A projected (external) model drops internal
+  public again is additive. So is a public role or scope whose symbol now
+  has another value, even when every value keeps its role or scope (two
+  swapped, bodies and all): bindings mean what they did, but a client's
+  constant sends the other value. A projected (external) model drops internal
   roles, so a release plan comparing those views sees one made internal as
   removed, as it does a permission.
 - *Declaring a break.* A migration step declares each: `remove role r` and
