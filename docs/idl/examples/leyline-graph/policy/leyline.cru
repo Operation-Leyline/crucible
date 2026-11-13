@@ -32,10 +32,10 @@ rule TenantInPath strict {
     must http.uri startsWith "/v1/organizations/{organizationId}"
 }
 
-/// A public operation takes no credentials, so it is rate-limited on its own
+/// An anonymous operation takes no credentials, so it is rate-limited on its own
 /// and states why it is outside the audit journal.
-rule PublicOperationsAreContained strict {
-    every operation where public
+rule AnonymousOperationsAreContained strict {
+    every operation where anonymous
     must has @ownRequestLimit
     must has @auditExcluded
 }

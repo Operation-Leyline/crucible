@@ -21,7 +21,7 @@ enum Kind { SMALL, LARGE, HUGE }
 /// release of the shop: it is served at the current one, v4, whatever the
 /// service does with a client's request that names none.
 @sender("Payments", signature: signature)
-public operation RecordPayment {
+anonymous operation RecordPayment {
     http POST "/payments"
     input {
         @header("Payment-Signature")

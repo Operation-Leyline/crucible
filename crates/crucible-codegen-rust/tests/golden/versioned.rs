@@ -901,7 +901,7 @@ pub mod shop {
     impl ::crucible_server_runtime_rust::__generated::Operation for RecordPayment {
         const AUTH_BEARER: bool = false;
         const AUTH_SCHEMES: ::std::option::Option<&'static [::crucible_server_runtime_rust::__generated::operation::AuthScheme]> = Some(&[]);
-        const PUBLIC: bool = true;
+        const ANONYMOUS: bool = true;
         const API_VERSION: ::std::option::Option<&'static str> = ::std::option::Option::Some("v4");
         const INFO: &'static ::crucible_server_runtime_rust::__generated::OperationInfo = &RECORD_PAYMENT_OPERATION;
         type Input = model::RecordPaymentInput;
@@ -2019,7 +2019,7 @@ pub mod shop {
             impl ::crucible_server_runtime_rust::__generated::Operation for RecordPayment {
                 const AUTH_BEARER: bool = false;
                 const AUTH_SCHEMES: ::std::option::Option<&'static [::crucible_server_runtime_rust::__generated::operation::AuthScheme]> = Some(&[]);
-                const PUBLIC: bool = true;
+                const ANONYMOUS: bool = true;
                 const INFO: &'static ::crucible_server_runtime_rust::__generated::OperationInfo = &RECORD_PAYMENT_OPERATION;
                 type Input = model::RecordPaymentInput;
                 type Output = model::RecordPaymentOutput;
@@ -3143,7 +3143,7 @@ pub mod shop {
             impl ::crucible_server_runtime_rust::__generated::Operation for RecordPayment {
                 const AUTH_BEARER: bool = false;
                 const AUTH_SCHEMES: ::std::option::Option<&'static [::crucible_server_runtime_rust::__generated::operation::AuthScheme]> = Some(&[]);
-                const PUBLIC: bool = true;
+                const ANONYMOUS: bool = true;
                 const INFO: &'static ::crucible_server_runtime_rust::__generated::OperationInfo = &RECORD_PAYMENT_OPERATION;
                 type Input = model::RecordPaymentInput;
                 type Output = model::RecordPaymentOutput;
@@ -4205,7 +4205,7 @@ pub mod shop {
             impl ::crucible_server_runtime_rust::__generated::Operation for RecordPayment {
                 const AUTH_BEARER: bool = false;
                 const AUTH_SCHEMES: ::std::option::Option<&'static [::crucible_server_runtime_rust::__generated::operation::AuthScheme]> = Some(&[]);
-                const PUBLIC: bool = true;
+                const ANONYMOUS: bool = true;
                 const INFO: &'static ::crucible_server_runtime_rust::__generated::OperationInfo = &RECORD_PAYMENT_OPERATION;
                 type Input = model::RecordPaymentInput;
                 type Output = model::RecordPaymentOutput;

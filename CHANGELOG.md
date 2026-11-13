@@ -120,6 +120,15 @@ version's section when it is prepared.
   operation that is not `internal` cannot name one in `requires` or `filters`
   (`permissions.internal-resource`); a public `@permissionTypes` value cannot
   name one (`permissions.types`).
+- `.cru`: `anonymous` marks an operation that takes no credential, and a rule
+  reads it as `where anonymous`. It replaces `public`, which read as the
+  opposite of `internal` (`public internal operation`). The formatter writes
+  the modifier as `anonymous`; the language server completes `anonymous` and
+  offers it as a quick fix wherever `public` is warned about. See
+  [decision 84](docs/idl/decisions.md#anonymous-operations).
+- Rust server runtime: `Operation::ANONYMOUS` and
+  `OperationMetadata::anonymous`, the new names of `Operation::PUBLIC` and
+  `OperationMetadata::public`. Generated server markers set `ANONYMOUS`.
 
 ### Changed
 
@@ -161,6 +170,26 @@ version's section when it is prepared.
   nanosecond (a `timedelta` cannot hold it); `a.nanoseconds_since(b)` returns
   the exact difference. The documentation snippet for a timestamp finer than a
   microsecond uses `Timestamp`, not a truncated `datetime`.
+- The compiler checks `sender.public` and `permissions.public` are now
+  `sender.anonymous` and `permissions.anonymous`, and say `anonymous`.
+- Generated SDK guides say a bearer token is sent "except on anonymous
+  operations" rather than "public operations".
+- `crucible-ir`: `Operation::public` is `Operation::anonymous`. It is still
+  serialized as `public`, so frozen releases, their locks and
+  `crucible-model.json` read and write unchanged.
+
+### Deprecated
+
+- `.cru`: `public` on an operation, in a rule condition and in a metadata
+  key's `conflicts`. It still compiles, as `anonymous`, with a
+  `deprecated.public` warning at each use, and is removed in the next minor
+  release.
+- `Operation::PUBLIC` and `OperationMetadata::public` in
+  `crucible-server-runtime-rust` (and `crucible-wire`), deprecated since
+  0.10.0 and removed in the next minor release. The runtime treats an
+  operation as anonymous when either `ANONYMOUS` or the deprecated `PUBLIC` is
+  set, and fills `OperationMetadata::public` with the same value as
+  `anonymous`.
 
 ### Fixed
 
@@ -173,6 +202,18 @@ version's section when it is prepared.
 
 ### Migration
 
+- `.cru`: write `anonymous` where an operation or a rule condition says
+  `public` (`public readonly operation Health` becomes `anonymous readonly
+  operation Health`; `every operation where public` becomes `every operation
+  where anonymous`), and in a metadata key's `conflicts`. The formatter and
+  the language server's quick fix rewrite the modifier; either spelling
+  generates the same output.
+- Rust services: read `OperationMetadata::anonymous` instead of `public` (for
+  example in an authentication middleware that skips anonymous operations),
+  and in a hand-written `Operation` marker set `const ANONYMOUS: bool = true`
+  instead of `PUBLIC`. Regenerate bindings: generated markers set `ANONYMOUS`.
+- Tooling that matches the diagnostic codes `sender.public` or
+  `permissions.public` matches `sender.anonymous` and `permissions.anonymous`.
 - C# client: timestamp members are `Timestamp`, not `DateTimeOffset`. No shim
   can keep the old member type. Assigning a `DateTimeOffset` still compiles
   through the implicit conversion. Where code reads a member as a

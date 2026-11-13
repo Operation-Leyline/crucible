@@ -8,7 +8,7 @@ over SSE, consumed through native SDK iterators or Fetch.
 ## Model and server
 
 ```cru
-public operation Watch {
+anonymous operation Watch {
     http GET "/events"
     output stream Progress
 }

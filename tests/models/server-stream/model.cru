@@ -6,19 +6,19 @@ service Streams {
 }
 
 /// Observe a bounded or long-lived sequence of progress events.
-readonly public operation Watch {
+readonly anonymous operation Watch {
     http GET "/events"
     output stream Progress
     example "Ready" { output { ready: "ready" } }
 }
 
-public operation Publish {
+anonymous operation Publish {
     http POST "/events"
     input { topic: string { length 1..64 } }
     output stream Progress
 }
 
-readonly public operation Read {
+readonly anonymous operation Read {
     http GET "/read"
     output { value: string }
 }

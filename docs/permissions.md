@@ -198,7 +198,7 @@ Leyline's authorization vocabulary uses roles at scopes:
   derives freshness from the action, not the call site.
 - Every check is a handler call (`service/src/api/shared/guard.rs:27-83`).
   There are 70 decision calls in 62 files across 129 operations. Five
-  operations are public (`@auth([])`). About 14 are user-self or
+  operations are anonymous (`@auth([])`). About 14 are user-self or
   bootstrap. Some operations need several actions
   (`api/history/backups/admission.rs:501`). `ExecuteQuery`'s action
   depends on the query text (`api/execution/query/mod.rs:42-49`).
@@ -473,7 +473,7 @@ operation with none of them is a compile error, `permissions.undeclared`
   required and must be nonempty. The suppression sits on the operation, so
   the change that declares the operation's real requirements deletes it in
   the same diff.
-- A `public` operation, which has no authentication, may not carry any of
+- An `anonymous` operation, which takes no credential, may not carry any of
   these, the same rule scopes follow.
 
 At runtime the default is the same. An installed `Permissions` interceptor
@@ -613,7 +613,7 @@ readonly operation GetUsage {
 
 ### 4.11 Shared pieces
 
-`@auth([])` marks an operation `public` in the IR (§6.1): that is
+`@auth([])` marks an operation `anonymous` in the IR (§6.1): that is
 authentication, not permissions. And `crucible.errors#NotFoundException` is in
 the bundled `crucible.errors` package: it is the shared error vocabulary.
 
@@ -660,7 +660,7 @@ compile checks it.
 7. `requires p on R`: `R` resolves to a resource that declares permissions,
    and `p` is one of `R`'s, with a "did you mean" over all resources'
    symbols.
-8. A `public` operation declares no requirement. `requires none` and
+8. An `anonymous` operation declares no requirement. `requires none` and
    `requires pending` stand alone, and a pending reason is nonempty.
    Duplicate clauses are reported.
 9. Every identifier of the target, inherited ones included, is bound
@@ -817,7 +817,7 @@ internal members.
 
 *As built.* `Undeclared` survives lowering in two cases: every operation
 of a service that declares no permission, and an operation with no caller
-to authorize (declared `public`, or without an authentication scheme
+to authorize (declared `anonymous`, or without an authentication scheme
 because its service declares none), which may not declare requirements
 (check 8). The client audience projection also turns `Pending` into
 `Undeclared`, since a pending reason is the server's migration note.
@@ -826,9 +826,10 @@ Additions to the contract above, made in phase A1:
 
 ```rust
 // ir::Operation
-#[serde(default, skip_serializing_if = "std::ops::Not::not")]
-pub public: bool,      // declared public: `@auth([])` on the operation, or on the
-                       // service when the operation has no `@auth`; `public`.
+#[serde(rename = "public", default, skip_serializing_if = "std::ops::Not::not")]
+pub anonymous: bool,   // declared anonymous: `@auth([])` on the operation, or on the
+                       // service when the operation has no `@auth`; `anonymous`
+                       // (formerly `public`, still its serialized name).
                        // `auth.is_empty()` alone is not: a service that declares no
                        // scheme leaves every operation without one.
 

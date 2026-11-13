@@ -26,7 +26,7 @@ def combined_model(output):
     members = read.split("output {\n", 1)[1].rsplit("    }\n}", 1)[0]
     echo = ('operation Echo {\n    http POST "/types"\n    input {\n' + members
             + "    }\n    output {\n" + members + "    }\n}\n\n"
-            + 'public operation AnonymousWrite {\n    http POST "/anonymous"\n}\n')
+            + 'anonymous operation AnonymousWrite {\n    http POST "/anonymous"\n}\n')
     (package / "echo.cru").write_text(echo, encoding="utf-8", newline="\n")
     add_operations(package, "AnonymousWrite", "Read", "Echo", "Document", "Text")
     return package

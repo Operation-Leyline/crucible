@@ -1,0 +1,15 @@
+schema_version = 1
+
+# `public`, the deprecated spelling of `anonymous` (an operation that takes no
+# credential), on operations and in a rule condition. It compiles as
+# `anonymous` does, with a `deprecated.public` warning at each use. Kept on
+# purpose: every other model spells it `anonymous`.
+[model]
+namespace = "example.legacy"
+language = 1
+sources = ["."]
+imports = []
+
+[model.naming]
+input = "{Operation}Input"
+output = "{Operation}Output"

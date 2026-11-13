@@ -401,8 +401,8 @@ recomputed on the projection (decision 73):
   keeps that for every operation its release had; only an operation added
   since, which the release never declared, takes the current schemes.
 - **What PR 4 settled in building it.** An operation the release had
-  keeps its `public` flag with its `auth`, so a projection never pairs a
-  release's scheme with today's `public`. A scheme the release's
+  keeps its `anonymous` flag with its `auth`, so a projection never pairs a
+  release's scheme with today's `anonymous`. A scheme the release's
   operations name is the release's definition; one only operations added
   since name is the current one (a branch nothing can observe while
   Bearer is the one scheme a `.cru` service declares). An example that

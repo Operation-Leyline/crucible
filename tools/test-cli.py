@@ -41,7 +41,7 @@ def qualification_model(output):
     """Extend Weather locally; never change the shared server's model package."""
     package = copy_package("weather", output / "weather-cli")
     add_operations(package, "Probe")
-    replace_once(package, "readonly operation Ping", "readonly public operation Ping")
+    replace_once(package, "readonly operation Ping", "readonly anonymous operation Ping")
     (package / "operations/service/Probe.cru").write_text(PROBE, encoding="utf-8", newline=chr(10))
     return package
 

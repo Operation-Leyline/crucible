@@ -1171,13 +1171,14 @@ fn a_raw_request_sends_no_page_or_idempotency_token() {
 }
 
 /// A service whose operations are not all authenticated says which send
-/// the token: `hardening` has a public operation beside bearer ones.
+/// the token: `hardening` has an anonymous operation beside bearer ones.
 #[test]
-fn public_operations_are_named_where_the_token_is_described() {
+fn anonymous_operations_are_named_where_the_token_is_described() {
     let service = common::load("hardening");
     let headers = crucible_codegen_common::snippet::added_headers(&service, &[]);
     assert!(
-        headers.contains(&"Authorization: Bearer <token> (except on public operations)".to_owned()),
+        headers
+            .contains(&"Authorization: Bearer <token> (except on anonymous operations)".to_owned()),
         "{headers:?}"
     );
 }

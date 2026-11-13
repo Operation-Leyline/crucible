@@ -849,7 +849,7 @@ fn check(extra: &str) -> Vec<String> {
         .lines()
         .filter_map(|line| {
             let rest = line
-                .trim_start_matches("public ")
+                .trim_start_matches("anonymous ")
                 .trim_start_matches("readonly ");
             let name = rest.strip_prefix("operation ")?.strip_suffix(" {")?;
             (!name.contains(' ')).then_some(name)
@@ -901,11 +901,11 @@ fn once_a_permission_exists_every_authenticated_operation_says_something() {
         &found,
         "error: permissions.undeclared: `Other` says nothing about authorization",
     );
-    // A public operation is exempt, and may not declare anything.
-    assert!(check("public readonly operation Open {\n    http GET \"/open\"\n}").is_empty());
+    // An anonymous operation is exempt, and may not declare anything.
+    assert!(check("anonymous readonly operation Open {\n    http GET \"/open\"\n}").is_empty());
     expect(
-        &check("public readonly operation Open {\n    http GET \"/open\"\n    requires none\n}"),
-        "error: permissions.public: `Open` is public",
+        &check("anonymous readonly operation Open {\n    http GET \"/open\"\n    requires none\n}"),
+        "error: permissions.anonymous: `Open` is anonymous",
     );
 }
 
@@ -1697,22 +1697,22 @@ fn authorization_name_and_permission_annotations_need_permissions() {
 }
 
 #[test]
-fn a_public_operation_is_marked_public_in_the_ir() {
+fn an_anonymous_operation_is_marked_anonymous_in_the_ir() {
     let compiled = compile(
         &small(&BASE.replace(
             "readonly operation Ping {\n    http GET \"/ping\"\n    requires none\n}",
-            "public readonly operation Ping {\n    http GET \"/ping\"\n}",
+            "anonymous readonly operation Ping {\n    http GET \"/ping\"\n}",
         )),
         None,
     );
     let service = compiled.service.expect("compiles");
-    let public: Vec<(&str, bool)> = service
+    let anonymous: Vec<(&str, bool)> = service
         .operations
         .iter()
-        .map(|op| (op.id.name(), op.public))
+        .map(|op| (op.id.name(), op.anonymous))
         .collect();
-    assert!(public.contains(&("Ping", true)), "{public:?}");
-    assert!(public.contains(&("GetOrder", false)), "{public:?}");
+    assert!(anonymous.contains(&("Ping", true)), "{anonymous:?}");
+    assert!(anonymous.contains(&("GetOrder", false)), "{anonymous:?}");
 }
 
 /// The guard of `current` against `base` frozen as release "1".
@@ -2420,12 +2420,12 @@ fn a_condition_that_does_not_lower_leaves_its_clause_out() {
             .all(|m| !m.starts_with("permissions.undeclared")),
         "{messages:#?}"
     );
-    // A public operation is still told it declares requirements.
+    // An anonymous operation is still told it declares requirements.
     expect(
         &check(
-            "public readonly operation Open {\n    http GET \"/open\"\n    requires read on Store(*) when nothing == [1]\n}",
+            "anonymous readonly operation Open {\n    http GET \"/open\"\n    requires read on Store(*) when nothing == [1]\n}",
         ),
-        "error: permissions.public: `Open` is public",
+        "error: permissions.anonymous: `Open` is anonymous",
     );
 }
 
