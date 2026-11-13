@@ -575,7 +575,10 @@ a covered resource's, since the runtime compares by prefix. Each scope also
 lists the scopes whose instances it covers (`covers_scopes`), for
 `may_assign` (§4.5). The accessors are implemented once, on
 `RoleCatalogue`, and the generated methods forward to it. With `custom`,
-`PredefinedRole` is the closed enum. The catalogue also carries
+`PredefinedRole` is the closed enum; a custom-only service (`roles []
+custom`) still gets the module, with an empty role table, its scopes, a
+`Role` that is only `Custom(String)` and an authorizer bounded by
+`CustomRoles`. The catalogue also carries
 `principals`, `custom` and `grantable` (what a custom role may hold:
 neither internal nor `@notGrantable`). Only the current model's catalogue
 is generated; older API versions are authorized by it, as by the current

@@ -36,7 +36,7 @@ version's section when it is prepared.
   `info`, and for roles `allows`, `scopes`, `holders`, `valid_for`,
   `assigned_by`, `may_assign`, `description`); with `roles [..] custom`,
   `PredefinedRole` is the closed enum and `Role` is `Predefined(..) |
-  Custom(String)`. A model without roles generates the same bindings as
+  Custom(String)` (only `Custom(String)` for `roles [] custom`). A model without roles generates the same bindings as
   before. The runtime's `roles` module states the catalogue types
   (`RoleCatalogue`, `RoleInfo`, `ScopeInfo`, `ScopeKind`, `PermissionSet`,
   `Grant`, `RoleBinding`) without a feature. The new `roles` feature (which

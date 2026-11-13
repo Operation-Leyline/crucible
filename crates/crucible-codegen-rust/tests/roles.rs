@@ -48,6 +48,24 @@ fn custom_roles_and_a_service_scope_match_golden() {
     matches_golden(&code, "roles_service_scope.rs");
 }
 
+/// Every role custom (`roles [] custom`): the module is still generated,
+/// with an empty role table, the scopes, an open `Role` that is only
+/// custom, and an authorizer that requires `CustomRoles`.
+#[test]
+fn custom_only_roles_match_golden() {
+    let service = common::load("roles-custom-only");
+    assert!(service.roles.is_empty() && service.role_settings.custom);
+    let code = generate(&service, &Options::default()).unwrap();
+    assert!(code.contains("pub mod roles"), "{code}");
+    assert!(code.contains("roles: &[\n"), "{code}");
+    assert!(!code.contains("pub enum PredefinedRole"), "{code}");
+    assert!(
+        code.contains("authorizer!(CATALOGUE, CustomHatch, CustomRoles)"),
+        "{code}"
+    );
+    matches_golden(&code, "roles_custom_only.rs");
+}
+
 /// A model without roles generates no `roles` module, so its bindings are
 /// what they were before roles existed (the other goldens hold them).
 #[test]

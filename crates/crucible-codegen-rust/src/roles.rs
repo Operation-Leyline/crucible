@@ -13,9 +13,12 @@ use crate::permissions::{primaries_in_order, resource_info_path};
 const R: &str = "::crucible_server_runtime_rust::__generated::roles";
 const P: &str = "::crucible_server_runtime_rust::__generated::permissions";
 
-/// `pub mod roles { .. }`, or nothing for a model that declares no role.
+/// `pub mod roles { .. }` for a model that declares roles, scopes or
+/// `custom` roles (a custom-only service, `roles [] custom`, included); for
+/// any other model nothing, so its bindings are as before roles existed.
 pub(crate) fn module(service: &Service, diagnostics: &mut Diagnostics) -> String {
-    if service.roles.is_empty() || service.role_scopes.is_empty() {
+    let custom = service.role_settings.custom;
+    if service.roles.is_empty() && service.role_scopes.is_empty() && !custom {
         return String::new();
     }
     check_distinct(
@@ -32,16 +35,24 @@ pub(crate) fn module(service: &Service, diagnostics: &mut Diagnostics) -> String
         "scope variant",
         diagnostics,
     );
-    let custom = service.role_settings.custom;
     let closed = if custom { "PredefinedRole" } else { "Role" };
     let bits = primaries_in_order(service);
     let mut out = String::new();
     out.push_str(&catalogue(service, &bits, diagnostics));
-    out.push_str(&role_enum(service, closed));
-    if custom {
-        out.push_str(&open_role());
+    // An enum with no variant cannot index the catalogue, so a model with
+    // no predefined role (or no scope) has no closed enum for it; with
+    // `custom`, `Role` still names the custom roles.
+    if !service.roles.is_empty() {
+        out.push_str(&role_enum(service, closed));
+        if custom {
+            out.push_str(&open_role());
+        }
+    } else if custom {
+        out.push_str(&custom_only_role());
     }
-    out.push_str(&scope_enum(service));
+    if !service.role_scopes.is_empty() {
+        out.push_str(&scope_enum(service));
+    }
     out.push_str(&authorizer(service));
     format!(
         "\n/// The model's roles and scopes (docs/roles.md): closed enums over\n/// [`CATALOGUE`], the table the runtime's `RoleAuthorizer` decides from.\n#[allow(deprecated, unreachable_patterns, clippy::all)]\npub mod roles {{\n{}}}\n",
@@ -463,6 +474,41 @@ impl Role {
 impl ::std::convert::From<PredefinedRole> for Role {
     fn from(role: PredefinedRole) -> Self {
         Self::Predefined(role)
+    }
+}
+
+impl ::std::fmt::Display for Role {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+        f.write_str(self.as_str())
+    }
+}
+"
+    .to_owned()
+}
+
+/// `Role` for a service whose roles are all custom (`roles [] custom`): it
+/// declares no predefined role, so every value a binding names is a custom
+/// role's id, whose permissions its `CustomRoles::custom_role` supplies.
+fn custom_only_role() -> String {
+    "
+/// A role a binding names. The service declares no predefined role (`roles
+/// [] custom`): every role is one it defines, whose permissions its
+/// `CustomRoles::custom_role` supplies.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum Role {
+    Custom(::std::string::String),
+}
+
+impl Role {
+    /// The role a stored value names: always custom.
+    pub fn parse(value: &str) -> Self {
+        Self::Custom(value.to_owned())
+    }
+    /// Its value: what bindings store.
+    pub fn as_str(&self) -> &str {
+        match self {
+            Self::Custom(id) => id,
+        }
     }
 }
 

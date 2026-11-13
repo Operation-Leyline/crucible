@@ -1499,7 +1499,9 @@ unchanged):
   `valid_for(scope, holder)`, `assigned_by`, `may_assign(assigner, kind,
   at)` and `description` read the table. With `roles [..] custom`, the
   closed enum is `PredefinedRole` and `Role` is
-  `Predefined(PredefinedRole) | Custom(String)`;
+  `Predefined(PredefinedRole) | Custom(String)`; a service whose roles are
+  all custom (`roles [] custom`) gets the module too, with an empty role
+  table and a `Role` that is only `Custom(String)`;
 - `roles::authorizer(source)`, with the `roles` feature: the framework's
   `RoleAuthorizer` over `CATALOGUE`, bounded by `BindingSource`, plus
   `ServiceGrants` when any role grants `by service` and `CustomRoles` with

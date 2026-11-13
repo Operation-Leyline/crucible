@@ -1,0 +1,16 @@
+schema_version = 1
+
+# Roles that are all the customer's own: scopes and `roles [] custom`, no
+# predefined role. The Rust server bindings still state the catalogue (no
+# roles, its scopes, what a custom role may grant), the scopes, an open
+# `Role` and an authorizer bounded by `CustomRoles`. It compiles with no
+# diagnostic.
+[model]
+namespace = "example.desk"
+language = 1
+sources = ["."]
+imports = []
+
+[model.naming]
+input = "{Operation}Input"
+output = "{Operation}Output"
