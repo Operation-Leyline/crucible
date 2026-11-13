@@ -425,6 +425,36 @@ fn clients_keep_holders_whose_enum_only_the_catalogue_names() {
     assert_eq!(role(&client, "auditAdmin").holders, ["USER"]);
 }
 
+/// `client_view` drops what only sender-signed operations reached; an enum
+/// the catalogue names stays, whatever else uses it.
+#[test]
+fn the_client_view_keeps_a_catalogue_enum_a_sender_signed_operation_also_uses() {
+    let compiled = compiled_with("roles-leyline", |text| {
+        let text = principals_only_in_the_catalogue(text).replace(
+            "operations [ListRoles]",
+            "operations [ListRoles, RecordPrincipal]",
+        );
+        if !text.contains("service Leyline") {
+            return text;
+        }
+        format!(
+            "{text}\n/// A principal the identity provider created.\n@sender(\"Identity Provider\", signature: signature)\npublic operation RecordPrincipal {{\n    http POST \"/principal-events\"\n    input {{\n        @header(\"Idp-Signature\")\n        signature: string\n        kind: PrincipalType\n    }}\n}}\n"
+        )
+    });
+    assert!(compiled.diagnostics.is_empty(), "{}", compiled.render());
+    let full = compiled.service.unwrap();
+    let principals = id("example.leyline", "PrincipalType");
+    for view in [
+        crucible_ir::client_view(&full),
+        crucible_ir::client_view(&project(&full, Audience::External).unwrap()),
+    ] {
+        assert!(view.operations.iter().all(|op| op.sender.is_none()));
+        assert_eq!(view.role_settings.principals, Some(principals.clone()));
+        assert!(view.shape(&principals).is_some(), "the enum is dropped");
+        assert_eq!(role(&view, "owner").holders, ["USER"]);
+    }
+}
+
 /// An internal principals enum cannot restrict a public role: refused, so
 /// the projection never has to drop a holder.
 #[test]
