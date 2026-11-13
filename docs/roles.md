@@ -243,10 +243,17 @@ service that wants it writes `assignedBy holders` (decision 6).
 
 **Assignment is an obligation, not a convention.** A handler that forgets
 `may_assign` would let an `accessAdmin` (who holds `roleBindingManage`)
-write an `owner` binding. So an operation whose input carries a role value
-(a member typed by the `@roleTypes` enum, or a list of it) must declare
-what it assigns, and the declaration lowers to an obligation the runtime
-verifies like a `by handler` clause (permissions.md §4.6):
+write an `owner` binding, or revoke one. So every operation that can change
+who holds a role must declare what it assigns, and the declaration lowers
+to an obligation the runtime verifies like a `by handler` clause
+(permissions.md §4.6). An operation must declare when either holds:
+
+- its input carries a role value (a member typed by the `@roleTypes` enum,
+  or a list of it), or
+- it `creates`, `puts`, `updates` or `deletes` a resource that has a
+  property typed by the `@roleTypes` enum (or a list of it): a binding
+  resource, whose roles a revocation loads from storage rather than
+  receiving them.
 
 ```
 operation PutRoleBinding puts RoleBinding {
@@ -254,18 +261,27 @@ operation PutRoleBinding puts RoleBinding {
     assigns roles at RoleBinding(scopeType, scopeId)
     ..
 }
+operation DeleteRoleBinding deletes RoleBinding {
+    requires roleBindingManage on Organization
+    assigns loaded at RoleBinding(scopeType, scopeId)
+    ..
+}
 ```
 
-`assigns <member> at <scope binding>` names the role member and where the
-binding is written. The handler discharges it with
-`roles::assign(obligation, role, at)`, which calls `may_assign` and
-refuses with the operation's 403 when it fails; a response with an
-undischarged assignment obligation is the internal error an undischarged
-`by handler` clause is. An operation that carries roles without
-assigning them (a read of bindings) writes `assigns none because "…"`.
-Carrying a `@roleTypes` value without either is a compile error,
-`roles.unassigned`, so a new binding-write operation cannot skip the
-check.
+`assigns <member> at <scope binding>` names the input member holding the
+roles and where the binding is. `assigns loaded at <scope binding>` says
+the roles come from the stored binding. A replacement (`puts` over an
+existing binding) is both: the roles added and the roles removed must each
+pass. The handler discharges the obligation with
+`roles::assign(obligation, roles, at)`, passing the input's roles, the
+loaded roles, or both; it calls `may_assign` for each role and refuses
+with the operation's 403 when any fails. A response with an undischarged
+assignment obligation is the internal error an undischarged `by handler`
+clause is. An operation that matches a trigger but changes no binding (a
+read, or a write of the resource's other fields) writes
+`assigns none because "…"`. Matching a trigger without either is a
+compile error, `roles.unassigned`, so a new binding grant or revocation
+cannot skip the check.
 
 ### 4.6 Grants the service decides
 
@@ -374,8 +390,10 @@ Compile errors:
   operation requires that no role grants. Off when the service grants
   permissions directly or declares `custom`.
 - `roles.types`: `@roleTypes` and `@scopeTypes` mismatches (§4.9).
-- `roles.unassigned`: an operation whose input carries a role value
-  declares neither `assigns` nor `assigns none because "…"` (§4.5).
+- `roles.unassigned`: an operation whose input carries a role value, or
+  that creates, puts, updates or deletes a resource with a role-typed
+  property, declares neither `assigns` nor `assigns none because "…"`
+  (§4.5).
 
 Compatibility, in `crucible-policy`, against the baseline:
 
