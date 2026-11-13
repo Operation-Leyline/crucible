@@ -1,7 +1,7 @@
 # Authentication in a projection (decision 73): an operation the release had
 # keeps its release's authentication, even though the current model made it
-# public; an operation added since takes the current model's, bearer or
-# public. v1 is frozen under releases/; v2 is current.
+# anonymous; an operation added since takes the current model's, bearer or
+# anonymous. v1 is frozen under releases/; v2 is current.
 [model]
 namespace = "example.auth"
 

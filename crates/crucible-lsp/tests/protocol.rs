@@ -535,6 +535,66 @@ fn a_file_outside_any_package_is_checked_on_its_own() {
     client.stop();
 }
 
+#[test]
+fn the_deprecated_public_is_struck_through_and_rewritten_to_anonymous() {
+    let dir = Path::new(env!("CARGO_TARGET_TMPDIR")).join("lsp-deprecated-public");
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).unwrap();
+    let file = dir.join("scratch.cru");
+    let text = "/// Checks the service is up.\nreadonly public operation Ping {\n    http GET \"/ping\"\n}\n";
+    std::fs::write(&file, text).unwrap();
+    let file = uri(&file);
+    let mut client = Client::start();
+    client.open(&file, text);
+    let diagnostics = client.diagnostics(&file);
+    let deprecated: Vec<&Value> = diagnostics
+        .iter()
+        .filter(|d| {
+            d["message"]
+                .as_str()
+                .unwrap()
+                .starts_with("deprecated.public:")
+        })
+        .collect();
+    assert_eq!(deprecated.len(), 1, "{diagnostics:#?}");
+    let warning = deprecated[0];
+    // A warning on the word itself, tagged deprecated (2).
+    assert_eq!(warning["severity"], 2, "{warning}");
+    assert_eq!(warning["tags"], json!([2]), "{warning}");
+    assert_eq!(
+        warning["range"],
+        json!({ "start": { "line": 1, "character": 9 }, "end": { "line": 1, "character": 15 } })
+    );
+    let actions = client.request(
+        "textDocument/codeAction",
+        json!({
+            "textDocument": { "uri": file },
+            "range": warning["range"],
+            "context": { "diagnostics": [warning] },
+        }),
+    );
+    let actions = actions.as_array().unwrap();
+    assert_eq!(actions.len(), 1, "{actions:#?}");
+    assert_eq!(actions[0]["title"], "Replace `public` with `anonymous`");
+    assert_eq!(actions[0]["isPreferred"], true);
+    assert_eq!(
+        actions[0]["edit"]["changes"][file.as_str()],
+        json!([{ "range": warning["range"], "newText": "anonymous" }]),
+        "{actions:#?}"
+    );
+    // Formatting writes it too.
+    let edits = client.request(
+        "textDocument/formatting",
+        json!({ "textDocument": { "uri": file }, "options": { "tabSize": 4, "insertSpaces": true } }),
+    );
+    assert_eq!(
+        edits[0]["newText"],
+        text.replace("readonly public", "readonly anonymous"),
+        "{edits}"
+    );
+    client.stop();
+}
+
 fn labels(items: &Value) -> Vec<String> {
     items
         .as_array()

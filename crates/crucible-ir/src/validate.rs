@@ -285,7 +285,7 @@ fn operations(service: &Service, diagnostics: &mut Diagnostics) {
 }
 
 /// A sender-signed operation (decision 81) is called by a third party that
-/// holds no credential of this service, so it is `public`, and its
+/// holds no credential of this service, so it is `anonymous`, and its
 /// signature is a modelled request header.
 fn sender(operation: &Operation, diagnostics: &mut Diagnostics) {
     let Some(sender) = &operation.sender else {
@@ -300,11 +300,11 @@ fn sender(operation: &Operation, diagnostics: &mut Diagnostics) {
             ),
         );
     }
-    if !operation.public || !operation.auth.is_empty() {
+    if !operation.anonymous || !operation.auth.is_empty() {
         diagnostics.push(
             &operation.id,
             format!(
-                "sender.public: {} is called by {}, which holds no credential of this service: declare it `public`, and let its signature authenticate it",
+                "sender.anonymous: {} is called by {}, which holds no credential of this service: declare it `anonymous`, and let its signature authenticate it",
                 operation.name(),
                 sender.name
             ),

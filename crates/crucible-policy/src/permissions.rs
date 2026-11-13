@@ -217,7 +217,7 @@ impl Checker<'_> {
             }
             let was = match &old_op.requirements {
                 Requirements::Undeclared => " (it declared none)",
-                Requirements::None => " (it was `requires none`)",
+                Requirements::None { .. } => " (it was `requires none`)",
                 Requirements::Pending { .. } => " (it was `requires pending`)",
                 Requirements::List(_) | Requirements::Partial(_) | Requirements::Internal => "",
             };

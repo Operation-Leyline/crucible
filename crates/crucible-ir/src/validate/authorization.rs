@@ -539,11 +539,11 @@ impl<'a> Checker<'a> {
 
     fn operation(&mut self, op: &'a Operation) {
         let id = &op.id;
-        // No caller to authorize: declared public, or no scheme at all.
-        let public = op.public || op.auth.is_empty();
+        // No caller to authorize: declared anonymous, or no scheme at all.
+        let anonymous = op.anonymous || op.auth.is_empty();
         match &op.requirements {
             Requirements::Undeclared => {
-                if !public && !self.service.permissions.is_empty() {
+                if !anonymous && !self.service.permissions.is_empty() {
                     self.error(
                         "permissions.undeclared",
                         id,
@@ -556,14 +556,14 @@ impl<'a> Checker<'a> {
                 }
                 return;
             }
-            _ if public => {
-                let why = if op.public || !self.service.auth.is_empty() {
-                    "is public"
+            _ if anonymous => {
+                let why = if op.anonymous || !self.service.auth.is_empty() {
+                    "is anonymous"
                 } else {
                     "has no authentication scheme (the service declares none)"
                 };
                 self.error(
-                    "permissions.public",
+                    "permissions.anonymous",
                     id,
                     None,
                     format!(
@@ -573,8 +573,8 @@ impl<'a> Checker<'a> {
                 );
                 return;
             }
-            Requirements::None | Requirements::Internal => return,
-            Requirements::Pending { reason } => {
+            Requirements::None { .. } | Requirements::Internal => return,
+            Requirements::Pending { reason, .. } => {
                 if reason.trim().is_empty() {
                     self.error(
                         "permissions.reason",

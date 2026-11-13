@@ -11,6 +11,8 @@ Protocol: <code>crucibleJson</code>.
 
 Requirements not declared yet; the service checks them itself: guard::allow in the handler until the history module moves.
 
+<p>Restores are checked against the backup ledger.</p>
+
 ## Request syntax
 
 ```http

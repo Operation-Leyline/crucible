@@ -28,6 +28,18 @@ public:
      */
     [[nodiscard]] ::leyline::models::ArchiveGraphOutput archive_graph(const ::leyline::models::ArchiveGraphInput& input, std::stop_token stop = {}) const;
     /**
+     * Reads several graphs at once.
+     *
+     * Requires no permission. Each graph requires `graph:read`. The response reports inaccessible or missing graphs as item-level failures.
+     *
+     * Input: BatchGetGraphsInput.
+     *
+     * Returns: BatchGetGraphsOutput.
+     *
+     * Modeled errors: ValidationException, InternalServerException. Transport, timeout and decoding failures can also occur.
+     */
+    [[nodiscard]] ::leyline::models::BatchGetGraphsOutput batch_get_graphs(const ::leyline::models::BatchGetGraphsInput& input, std::stop_token stop = {}) const;
+    /**
      * Call CreateGraph.
      *
      * Requires `graph:write` on every graph in the organization.
@@ -119,6 +131,20 @@ public:
      * This operation is safe to retry under the configured retry policy.
      */
     [[nodiscard]] ::leyline::models::ListGraphsOutput list_graphs(const ::leyline::models::ListGraphsInput& input, std::stop_token stop = {}) const;
+    /**
+     * The organizations the caller belongs to.
+     *
+     * Requires no permission. Returns only what the caller may see.
+     *
+     * Input: no modeled input.
+     *
+     * Returns: ListOrganizationsOutput.
+     *
+     * Modeled errors: ValidationException, InternalServerException. Transport, timeout and decoding failures can also occur.
+     *
+     * This operation is safe to retry under the configured retry policy.
+     */
+    [[nodiscard]] ::leyline::models::ListOrganizationsOutput list_organizations(std::stop_token stop = {}) const;
     /**
      * Call RestoreBackup.
      *

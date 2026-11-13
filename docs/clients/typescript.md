@@ -307,7 +307,7 @@ The name `PreciseDate` is reserved: a model shape with that name is refused.
 `token` accepts a string or a sync/async provider and is sent as a bearer
 token, resolved again on each attempt. An `Authorization: Bearer` header the
 caller already set (through `RequestOptions.headers` or `ClientConfig.headers`)
-takes precedence over the provider. A public operation (`@auth([])`)
+takes precedence over the provider. An anonymous operation (`@auth([])`)
 invokes no provider. Without a token, the service decides whether an anonymous
 call is allowed. Token resolution shares the call's timeout and cancellation
 signal.

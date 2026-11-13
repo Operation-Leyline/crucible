@@ -7,7 +7,7 @@ use super::RequirementInfo;
 pub enum Requirements {
     /// The model says nothing. The compiler refuses that once a service
     /// declares any permission, so at runtime it means bindings generated
-    /// before the service declared permissions (or a public operation); the
+    /// before the service declared permissions (or an anonymous operation); the
     /// `Permissions` interceptor refuses an authenticated one as a wiring
     /// error unless told otherwise.
     #[default]

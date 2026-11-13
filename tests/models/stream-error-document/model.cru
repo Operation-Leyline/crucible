@@ -6,14 +6,14 @@ service StreamErrors {
     errors [BlobProblem, NestedProblem, TextProblem, DocumentProblem]
 }
 
-readonly public operation Watch {
+readonly anonymous operation Watch {
     http GET "/events"
     output stream Progress
 }
 
 union Progress { ready: string }
 
-readonly public operation Read {
+readonly anonymous operation Read {
     http GET "/read"
     output {}
 }

@@ -19,6 +19,18 @@
 #' @md
   client$`archive_graph` <- function(input, cancellation = NULL) client$call("ArchiveGraph", input, cancellation)
 #' @description
+#' Reads several graphs at once.
+#'
+#' Requires no permission. Each graph requires `graph:read`. The response reports inaccessible or missing graphs as item-level failures.
+#'
+#' Input: BatchGetGraphsInput.
+#'
+#' Returns: BatchGetGraphsOutput.
+#'
+#' Modeled errors: ValidationException, InternalServerException. Transport, timeout and decoding failures can also occur.
+#' @md
+  client$`batch_get_graphs` <- function(input, cancellation = NULL) client$call("BatchGetGraphs", input, cancellation)
+#' @description
 #' Call CreateGraph.
 #'
 #' Requires `graph:write` on every graph in the organization.
@@ -110,6 +122,20 @@
 #' This operation is safe to retry under the configured retry policy.
 #' @md
   client$`list_graphs` <- function(input, cancellation = NULL) client$call("ListGraphs", input, cancellation)
+#' @description
+#' The organizations the caller belongs to.
+#'
+#' Requires no permission. Returns only what the caller may see.
+#'
+#' Input: no modeled input.
+#'
+#' Returns: ListOrganizationsOutput.
+#'
+#' Modeled errors: ValidationException, InternalServerException. Transport, timeout and decoding failures can also occur.
+#'
+#' This operation is safe to retry under the configured retry policy.
+#' @md
+  client$`list_organizations` <- function(input = NULL, cancellation = NULL) client$call("ListOrganizations", input, cancellation)
 #' @description
 #' Call RestoreBackup.
 #'
