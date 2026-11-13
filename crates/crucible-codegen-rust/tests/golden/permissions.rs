@@ -1307,7 +1307,7 @@ pub mod leyline {
             ::crucible_server_runtime_rust::__generated::permissions::RequirementInfo { mode: ::crucible_server_runtime_rust::__generated::permissions::Mode::Filter, permission: &permissions::ORGANIZATION__READ, conditional: false },
         ]);
         #[allow(clippy::all, unreachable_patterns, unused_parens)]
-        const CHECKS: ::std::option::Option<::crucible_server_runtime_rust::__generated::permissions::Checks<Self::Input>> = ::std::option::Option::Some(|input, out| {
+        const CHECKS: ::std::option::Option<::crucible_server_runtime_rust::__generated::permissions::Checks<Self::Input>> = ::std::option::Option::Some(|_input, out| {
             out.push(::crucible_server_runtime_rust::__generated::permissions::Check::declared(0, &permissions::ORGANIZATION__READ, ::crucible_server_runtime_rust::__generated::permissions::ResourceRef::all(&permissions::ORGANIZATION, ::std::iter::empty::<::crucible_server_runtime_rust::__generated::permissions::Target>())));
         });
         const API_VERSION: ::std::option::Option<&'static str> = ::std::option::Option::Some("2026-10-01");
