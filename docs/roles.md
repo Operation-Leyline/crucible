@@ -488,6 +488,11 @@ roles have no shape of their own. Besides the design's rules:
   `compatibility.role` error and gained coverage
   `compatibility.role-widened`. A scope whose resource or instance path
   changed is left out: `compatibility.scope` reports it.
+- *Assigners.* `assignedBy` is compared by the assigner roles' values:
+  one dropped, or a list where there was none (whoever the binding
+  operation admits), is a `compatibility.role` error, since an assigner
+  can no longer grant or revoke the role; one added, or the list dropped,
+  is `compatibility.role-widened`. `narrow role` declares the error.
 - *Reported once.* A permission gone altogether is
   `compatibility.permissions`' finding and a scope gone `compatibility.scope`'s;
   neither is reported again for each role that granted or bound at it. A

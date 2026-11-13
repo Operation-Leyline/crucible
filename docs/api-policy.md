@@ -409,8 +409,12 @@ exception names.
   included), that can no longer be bound at a scope it could, or that no
   longer admits a kind of principal it did (`holders`), or one whose
   binding at a scope it keeps no longer covers a resource the model still
-  grants on (a `by service` grant applies whatever the scope covers), because the resource moved out from under the scope's. Its holders
-  are refused what they had. A permission or scope that is gone altogether is
+  grants on (a `by service` grant applies whatever the scope covers),
+  because the resource moved out from under the scope's. Its holders are
+  refused what they had. So is a role whose `assignedBy` no longer names a
+  role it named, or names roles where it named none (whoever the binding
+  operation admits): an assigner can no longer grant or revoke it. A
+  permission or scope that is gone altogether is
   reported once, by `compatibility.permissions` or `compatibility.scope`,
   not again for each role. Binding at more scopes, or admitting more kinds,
   grants no holder anything and is not reported.
@@ -423,6 +427,8 @@ exception names.
   because a binding at one of its scopes now covers a resource it grants
   on that moved in beneath the scope's.
   Widening is a security review, not a break: reported, never refused.
+  So is a role more roles may assign: `assignedBy` naming another, or
+  dropped so the binding operation decides.
 
 A baseline frozen before roles existed has no roles to compare, so adding a
 catalogue reports nothing.

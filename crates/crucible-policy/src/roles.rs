@@ -211,6 +211,7 @@ pub(crate) fn changes(old: &Service, new: &Service) -> Vec<Change> {
         role_changes.holders();
         role_changes.grants();
         role_changes.coverage();
+        role_changes.assigners();
     }
     out
 }
@@ -485,6 +486,78 @@ impl<'a> RoleChanges<'a, '_> {
                         quoted(is_values)
                     );
                     self.push("compatibility.role-widened", false, message);
+                }
+            }
+        }
+    }
+
+    /// Who may grant or revoke it, by the values of the roles `assignedBy`
+    /// names. None named is whoever the binding operation admits, which
+    /// includes every holder of any role, so naming some narrows it and
+    /// naming none again widens it. Assignment is authority over bindings:
+    /// an assigner that loses it can no longer grant or revoke what it
+    /// could, and one that gains it is a security review. An assigner role
+    /// that is gone altogether is `compatibility.role`'s finding at that
+    /// role, not again here.
+    fn assigners(&mut self) {
+        let values = |service: &'a Service, role: &'a Role| -> Vec<&'a str> {
+            role.assigned_by
+                .iter()
+                .filter_map(|symbol| service.role(symbol))
+                .map(|assigner| assigner.value.as_str())
+                .collect()
+        };
+        let (was, is) = (values(self.old, self.role), values(self.new, self.now));
+        let symbol = &self.role.symbol;
+        match (self.role.assigned_by.is_empty(), self.now.assigned_by.is_empty()) {
+            (true, true) => {}
+            (true, false) => self.push(
+                "compatibility.role",
+                true,
+                format!(
+                    "`{symbol}` may now be assigned only by holders of {}; others the binding operation admits can no longer grant or revoke it",
+                    quoted(&is)
+                ),
+            ),
+            (false, true) => self.push(
+                "compatibility.role-widened",
+                false,
+                format!(
+                    "`{symbol}` may now be assigned by whoever the binding operation admits, where only holders of {} could; they can grant or revoke it without a new binding",
+                    quoted(&was)
+                ),
+            ),
+            (false, false) => {
+                let lost: Vec<&str> = was
+                    .iter()
+                    .copied()
+                    .filter(|value| !is.contains(value))
+                    .filter(|value| self.new.roles.iter().any(|r| r.value == *value))
+                    .collect();
+                let gained: Vec<&str> = is
+                    .iter()
+                    .copied()
+                    .filter(|value| !was.contains(value))
+                    .collect();
+                if !lost.is_empty() {
+                    self.push(
+                        "compatibility.role",
+                        true,
+                        format!(
+                            "`{symbol}` may no longer be assigned by holders of {}; they can no longer grant or revoke it",
+                            quoted(&lost)
+                        ),
+                    );
+                }
+                if !gained.is_empty() {
+                    self.push(
+                        "compatibility.role-widened",
+                        false,
+                        format!(
+                            "`{symbol}` may now be assigned by holders of {}; they can grant or revoke it without a new binding",
+                            quoted(&gained)
+                        ),
+                    );
                 }
             }
         }

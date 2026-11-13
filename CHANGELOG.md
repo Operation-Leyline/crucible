@@ -33,10 +33,11 @@ version's section when it is prepared.
   scope removed or with a changed value, a scope moved to another resource
   or whose instance is named another way (reparented, or an identifier
   renamed), and a role that grants less, binds at fewer scopes, admits
-  fewer holders, or covers less from a scope it keeps;
+  fewer holders, covers less from a scope it keeps, or may be assigned by
+  fewer roles;
   `compatibility.role-widened` (a warning) reports a role that grants
   more, by an edit, because its `*` covers a new permission, or because a
-  scope it keeps now covers more. A
+  scope it keeps now covers more, or because more roles may assign it. A
   public role or scope removed or made `internal` is a `compatibility.sdk`
   finding. Migrations declare the breaks with `remove role`, `remove scope`
   and `narrow role`. A baseline frozen before roles existed reports

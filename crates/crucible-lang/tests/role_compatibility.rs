@@ -465,6 +465,70 @@ fn a_grant_the_service_decides_does_not_follow_coverage() {
     );
 }
 
+/// `BASE` with graphAdmin assigned by `assigned_by` (`""`: no `assignedBy`).
+fn assigned(assigned_by: &str) -> String {
+    let entry = if assigned_by.is_empty() {
+        String::new()
+    } else {
+        format!("    assignedBy [{assigned_by}]\n")
+    };
+    edit(
+        BASE,
+        "    at [allGraphs, graph]\n    includes [graphWriter]\n",
+        &format!("    at [allGraphs, graph]\n{entry}    includes [graphWriter]\n"),
+    )
+}
+
+#[test]
+fn more_assigners_widen_a_role_and_fewer_narrow_it() {
+    let owner = assigned("owner");
+    let both = assigned("owner, graphWriter");
+    let anyone = assigned("");
+    // Another role may assign it.
+    let found = findings_from(&owner, &both);
+    assert_eq!(
+        at(&found, "compatibility.role-widened", "graphAdmin"),
+        [
+            "warning: `graphAdmin` may now be assigned by holders of \"graphWriter\"; they can grant or revoke it without a new binding"
+        ]
+    );
+    assert!(at(&found, "compatibility.role", "graphAdmin").is_empty());
+    // One may no longer.
+    let found = findings_from(&both, &owner);
+    assert_eq!(
+        at(&found, "compatibility.role", "graphAdmin"),
+        [
+            "error: `graphAdmin` may no longer be assigned by holders of \"graphWriter\"; they can no longer grant or revoke it"
+        ]
+    );
+    assert!(at(&found, "compatibility.role-widened", "graphAdmin").is_empty());
+    // A list where there was none: whoever else the binding operation
+    // admitted loses it.
+    let found = findings_from(&anyone, &owner);
+    assert_eq!(
+        at(&found, "compatibility.role", "graphAdmin"),
+        [
+            "error: `graphAdmin` may now be assigned only by holders of \"owner\"; others the binding operation admits can no longer grant or revoke it"
+        ]
+    );
+    assert!(crucible_policy::role_narrowed(
+        &lower(&anyone),
+        &lower(&owner),
+        "graphAdmin"
+    ));
+    // No list where there was one: the binding operation decides.
+    let found = findings_from(&owner, &anyone);
+    assert_eq!(
+        at(&found, "compatibility.role-widened", "graphAdmin"),
+        [
+            "warning: `graphAdmin` may now be assigned by whoever the binding operation admits, where only holders of \"owner\" could; they can grant or revoke it without a new binding"
+        ]
+    );
+    assert!(at(&found, "compatibility.role", "graphAdmin").is_empty());
+    // The same assigners, nothing.
+    assert!(role_findings(&findings_from(&both, &both)).is_empty());
+}
+
 #[test]
 fn renaming_an_identifier_a_scope_instance_carries_orphans_its_bindings() {
     let found = findings(&BASE.replace("graphId", "graphKey"));
