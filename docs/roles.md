@@ -487,16 +487,21 @@ roles have no shape of their own. Besides the design's rules:
 
 - *Holders narrowed* (`holders` dropping a kind, or naming kinds where it
   named none) is a `compatibility.role` error, compared by the `principals`
-  enum's wire values. Admitting more kinds, or binding at more scopes, gives
-  no existing holder anything and is not reported.
+  enum's wire values. Admitting more kinds gives no existing holder
+  anything and is not reported. Binding at more scopes gives no holder
+  anything either, but whoever may assign the role can now grant it there,
+  so it is `compatibility.role-widened`.
 - *A scope moved* to another resource, or between one instance and
   `R(*)`, is a `compatibility.scope` error: a stored binding names an
   instance of what the scope was on. So is a scope whose instance is named
-  another way: the path from the root to its resource, each resource by
-  authorization name with the identifiers it adds (a `R(*)` instance
-  without its own), compared whole, so a resource moved under another
-  parent whose identifier has the same name, or a renamed identifier, is
-  reported even where no route changed.
+  another way: the path from the root to its resource, each resource with
+  the identifiers it adds (a `R(*)` instance without its own), compared
+  whole, so a resource moved under another parent whose identifier has the
+  same name, or a renamed identifier, is reported even where no route
+  changed. A resource is the same one when its authorization name is, if
+  both releases give it one (a renamed shape that keeps it has not moved),
+  and otherwise when its shape is (one that declares its first permission
+  has not moved either).
 - *A grant moving between the model and the service.* `by service` added to
   a grant the model decided is a `compatibility.role` **warning**: whether
   holders lose it depends on the service's hook, which the model cannot

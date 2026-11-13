@@ -400,9 +400,11 @@ exception names.
   stored binding names an instance of what it was on; and a scope whose
   instance is named another way: its resource, or one above it, moved
   under another parent, or an identifier the instance carries renamed.
-  The instance's path (each resource from the root, by authorization name,
-  with the identifiers it adds) is compared whether or not an operation's
-  route shows the change.
+  The instance's path (each resource from the root, with the identifiers
+  it adds) is compared whether or not an operation's route shows the
+  change. A resource is the same one when its authorization name is, if
+  both releases give it one, and otherwise when its shape is: one that
+  declares its first permission has not moved.
 - `compatibility.role` (error): a role removed or its value changed; a role
   that no longer grants a permission it granted (its own grants, an
   included role's, or a `*` that covers less, `by service` grants
@@ -416,8 +418,8 @@ exception names.
   operation admits): an assigner can no longer grant or revoke it. A
   permission or scope that is gone altogether is
   reported once, by `compatibility.permissions` or `compatibility.scope`,
-  not again for each role. Binding at more scopes, or admitting more kinds,
-  grants no holder anything and is not reported.
+  not again for each role. Admitting more kinds grants no holder anything
+  and is not reported.
 - `compatibility.role` (warning): a grant the model decided now left to
   the service (`by service`). Holders keep it where the service's hook
   allows, which only a review of the hook can tell.
@@ -427,8 +429,10 @@ exception names.
   because a binding at one of its scopes now covers a resource it grants
   on that moved in beneath the scope's.
   Widening is a security review, not a break: reported, never refused.
-  So is a role more roles may assign: `assignedBy` naming another, or
-  dropped so the binding operation decides.
+  So is a role more roles may assign (`assignedBy` naming another, or
+  dropped so the binding operation decides), and one bound at a scope it
+  could not be: no holder gains anything, but whoever may assign it can
+  now grant it there.
 
 A baseline frozen before roles existed has no roles to compare, so adding a
 catalogue reports nothing.

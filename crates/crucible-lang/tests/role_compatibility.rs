@@ -605,7 +605,12 @@ fn a_role_bound_at_fewer_scopes_refuses_its_holders() {
             "error: `graphReader` can no longer be bound at \"allGraphs\"; its holders bound there are refused what they had"
         ]
     );
-    // Binding at more scopes grants no holder anything.
+}
+
+#[test]
+fn a_role_bound_at_more_scopes_is_a_widening() {
+    // No holder gains anything, but whoever may assign it can now grant it
+    // at every graph of an organization.
     let found = findings_from(
         &edit(
             BASE,
@@ -614,7 +619,78 @@ fn a_role_bound_at_fewer_scopes_refuses_its_holders() {
         ),
         BASE,
     );
-    assert!(role_findings(&found).is_empty(), "{found:#?}");
+    assert_eq!(
+        at(&found, "compatibility.role-widened", "graphReader"),
+        [
+            "warning: `graphReader` may now be bound at \"allGraphs\"; whoever may assign it can grant it there without a new binding"
+        ]
+    );
+    assert!(at(&found, "compatibility.role", "graphReader").is_empty());
+    // With `assignedBy` too: an owner may now grant graph admin at every
+    // graph.
+    let found = findings_from(
+        &assigned("owner").replace(
+            "    at [allGraphs, graph]\n    assignedBy",
+            "    at [graph]\n    assignedBy",
+        ),
+        &assigned("owner"),
+    );
+    assert_eq!(
+        at(&found, "compatibility.role-widened", "graphAdmin"),
+        [
+            "warning: `graphAdmin` may now be bound at \"allGraphs\"; whoever may assign it can grant it there without a new binding"
+        ]
+    );
+}
+
+/// `BASE` with a root `Workspace` that declares no permission (or `with`),
+/// and a scope on one workspace and one on every graph of none: just the
+/// scope on it.
+fn with_workspace(with: &str) -> String {
+    let model = edit(
+        BASE,
+        "    resources [Organization]\n",
+        "    resources [Organization, Workspace]\n",
+    );
+    let model = edit(
+        &model,
+        "    scopes [organization, allGraphs, graph]\n",
+        "    scopes [organization, allGraphs, graph, workspace]\n",
+    );
+    edit(
+        &model,
+        "/// The organization itself.\n",
+        &format!(
+            "string WorkspaceId {{ pattern \"^w_[a-z0-9]+$\" }}\n\nresource Workspace {{\n    id workspaceId: WorkspaceId\n{with}}}\n\n/// One workspace.\nscope workspace = \"workspace\" on Workspace\n/// The organization itself.\n"
+        ),
+    )
+}
+
+#[test]
+fn a_resource_gaining_its_first_permission_keeps_its_scopes() {
+    let bare = with_workspace("");
+    let declared = with_workspace("    permission read = \"workspace:read\"\n");
+    // Nothing moved: the resource gains an authorization name, not a place.
+    let found = findings_from(&bare, &declared);
+    none_of(&found, &["compatibility.scope"]);
+    // A real move still reports.
+    let moved = edit(
+        &bare,
+        "resource Workspace {",
+        "resource Workspace in Organization {",
+    );
+    let moved = edit(
+        &moved,
+        "    resources [Organization, Workspace]\n",
+        "    resources [Organization]\n",
+    );
+    let found = findings_from(&bare, &moved);
+    assert_eq!(
+        at(&found, "compatibility.scope", "workspace"),
+        [
+            "error: the scope \"workspace\" (`workspace`) now names its instance as `organization(organizationId)`/`Workspace(workspaceId)`, where it named it as `Workspace(workspaceId)`; bindings stored at it carry the old path"
+        ]
+    );
 }
 
 #[test]

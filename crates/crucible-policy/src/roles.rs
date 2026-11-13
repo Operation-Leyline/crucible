@@ -147,7 +147,7 @@ pub(crate) fn changes(old: &Service, new: &Service) -> Vec<Change> {
             continue;
         };
         let (was, is) = (target(old, &scope.on), target(new, &now.on));
-        if was != is {
+        if !same_target(&was, &is) {
             out.push(Change {
                 site,
                 rule: "compatibility.scope",
@@ -163,7 +163,7 @@ pub(crate) fn changes(old: &Service, new: &Service) -> Vec<Change> {
             continue;
         }
         let (was, is) = (instance(old, &scope.on), instance(new, &now.on));
-        if was != is {
+        if !same_path(&was, &is) {
             out.push(Change {
                 site,
                 rule: "compatibility.scope",
@@ -216,29 +216,68 @@ pub(crate) fn changes(old: &Service, new: &Service) -> Vec<Change> {
     out
 }
 
-/// What a scope's instance names, as stored data: the service, or the
-/// resource by its authorization name (a renamed shape that keeps it names
-/// the same instances), one instance or every one under a parent.
-fn target(service: &Service, on: &ScopeTarget) -> (u8, String) {
-    match on {
-        ScopeTarget::Service => (0, String::new()),
-        ScopeTarget::Instance(id) => (1, name(service, id)),
-        ScopeTarget::Every(id) => (2, name(service, id)),
+/// A resource as a stored binding's scope instance names it.
+#[derive(Debug, Clone)]
+struct Named {
+    shape: ShapeId,
+    /// Its authorization name, when it declares permissions.
+    authorization: Option<String>,
+}
+
+impl Named {
+    fn of(service: &Service, id: &ShapeId) -> Self {
+        Self {
+            shape: id.clone(),
+            authorization: service.permissions.get(id).map(|r| r.name.clone()),
+        }
+    }
+
+    /// The same resource in two models: by authorization name when both
+    /// declare permissions, so a renamed shape that keeps it is the same;
+    /// otherwise by shape, so a resource that gains its first permission
+    /// (and with it an authorization name) has not moved.
+    fn same(&self, other: &Self) -> bool {
+        match (&self.authorization, &other.authorization) {
+            (Some(a), Some(b)) => a == b,
+            _ => self.shape == other.shape,
+        }
+    }
+
+    fn label(&self) -> &str {
+        self.authorization
+            .as_deref()
+            .unwrap_or_else(|| self.shape.name())
     }
 }
 
-/// A resource as stored data names it: its authorization name, else its
-/// shape name.
-fn name(service: &Service, id: &ShapeId) -> String {
-    service
-        .permissions
-        .get(id)
-        .map_or_else(|| id.name().to_owned(), |r| r.name.clone())
+/// What a scope's instance names, as stored data: the service, or one
+/// instance of a resource, or every one under a parent.
+fn target(service: &Service, on: &ScopeTarget) -> (u8, Option<Named>) {
+    match on {
+        ScopeTarget::Service => (0, None),
+        ScopeTarget::Instance(id) => (1, Some(Named::of(service, id))),
+        ScopeTarget::Every(id) => (2, Some(Named::of(service, id))),
+    }
 }
 
-/// One resource on the path a scope instance is named by: its name as
-/// [`target`] compares it, and the identifiers it adds, in order.
-type Segment = (String, Vec<String>);
+fn same_target(a: &(u8, Option<Named>), b: &(u8, Option<Named>)) -> bool {
+    a.0 == b.0
+        && match (&a.1, &b.1) {
+            (Some(a), Some(b)) => a.same(b),
+            (a, b) => a.is_none() && b.is_none(),
+        }
+}
+
+/// One resource on the path a scope instance is named by, and the
+/// identifiers it adds, in order.
+type Segment = (Named, Vec<String>);
+
+fn same_path(a: &[Segment], b: &[Segment]) -> bool {
+    a.len() == b.len()
+        && a.iter()
+            .zip(b)
+            .all(|((a, ids), (b, other))| ids == other && a.same(b))
+}
 
 /// The path a scope's stored instance is named by, root first: each
 /// resource from the root down to the scope's, with the identifiers it
@@ -272,7 +311,7 @@ fn instance(service: &Service, on: &ScopeTarget) -> Vec<Segment> {
     for id in chain {
         let all = identifiers(id);
         let own: Vec<String> = all.difference(&inherited).map(|n| (*n).clone()).collect();
-        path.push((name(service, id), own));
+        path.push((Named::of(service, id), own));
         inherited = all;
     }
     if matches!(on, ScopeTarget::Every(_))
@@ -288,13 +327,13 @@ fn describe_instance(path: &[Segment]) -> String {
     let last = path.len().saturating_sub(1);
     path.iter()
         .enumerate()
-        .map(|(index, (name, own))| {
+        .map(|(index, (named, own))| {
             let ids = if own.is_empty() && index == last {
                 "*".to_owned()
             } else {
                 own.join(", ")
             };
-            format!("`{name}({ids})`")
+            format!("`{}({ids})`", named.label())
         })
         .collect::<Vec<_>>()
         .join("/")
@@ -337,8 +376,9 @@ impl<'a> RoleChanges<'a, '_> {
     }
 
     /// Scopes it may be bound at, by value. A scope that is gone is
-    /// `compatibility.scope`'s finding; one the role binds at more is a new
-    /// place to bind it, which grants no holder anything.
+    /// `compatibility.scope`'s finding. One it may be bound at that it could
+    /// not be gives no holder anything, but whoever may assign it can now
+    /// grant it there: a security review.
     fn scopes(&mut self) {
         let values = |service: &'a Service, role: &'a Role| -> Vec<&'a str> {
             role.scopes
@@ -361,6 +401,20 @@ impl<'a> RoleChanges<'a, '_> {
                 lost.join(", ")
             );
             self.push("compatibility.role", true, message);
+        }
+        let was = values(self.old, self.role);
+        let gained: Vec<String> = now
+            .iter()
+            .filter(|value| !was.contains(value))
+            .map(|value| format!("{value:?}"))
+            .collect();
+        if !gained.is_empty() {
+            let message = format!(
+                "`{}` may now be bound at {}; whoever may assign it can grant it there without a new binding",
+                self.role.symbol,
+                gained.join(", ")
+            );
+            self.push("compatibility.role-widened", false, message);
         }
     }
 
@@ -454,8 +508,8 @@ impl<'a> RoleChanges<'a, '_> {
             let Some(now) = new_scopes.iter().find(|s| s.value == scope.value) else {
                 continue;
             };
-            if target(self.old, &scope.on) != target(self.new, &now.on)
-                || instance(self.old, &scope.on) != instance(self.new, &now.on)
+            if !same_target(&target(self.old, &scope.on), &target(self.new, &now.on))
+                || !same_path(&instance(self.old, &scope.on), &instance(self.new, &now.on))
             {
                 continue;
             }
