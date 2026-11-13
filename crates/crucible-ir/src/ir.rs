@@ -25,7 +25,8 @@ pub use permissions::{
 };
 pub mod roles;
 pub use roles::{
-    Grant, GrantedPermission, GrantedSet, Role, RoleSettings, Scope, ScopeTarget, ServiceGrant,
+    ClauseGrants, Grant, GrantedPermission, GrantedSet, Role, RoleGrant, RoleSettings, Scope,
+    ScopeTarget, ServiceGrant,
 };
 
 pub type Traits = BTreeMap<ShapeId, Value>;
@@ -1051,6 +1052,13 @@ pub struct Operation {
     /// `public`, and clients do not call it.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub sender: Option<Sender>,
+    /// Which roles satisfy each clause of `requirements` (docs/roles.md
+    /// §5): one entry per clause of the server contract, in source order;
+    /// empty for a service without roles. Settled by
+    /// [`crate::roles::settle`]. A client-audience projection keeps the
+    /// entries of the clauses it removed, without their permission.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub granted_by: Vec<ClauseGrants>,
 }
 
 /// A sender-signed operation's caller (decision 81).

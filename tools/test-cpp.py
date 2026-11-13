@@ -161,6 +161,10 @@ def qualify(output):
     run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "generate", "cpp",
         str(ROOT / "tests/fixtures/permissions"), "--out", str(output / "permissions"),
         "--package-name", "leyline_client", "--namespace", "leyline")
+    # The role registry (docs/roles.md §7 "Clients").
+    run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "generate", "cpp",
+        str(ROOT / "tests/models/roles-granted-by"), "--out", str(output / "roles"),
+        "--package-name", "notes_client", "--namespace", "notes")
     model = qualification_model(output)
     run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "generate", "cpp",
         str(model), "--out", str(package), "--package-name", "weather_client",
@@ -191,11 +195,16 @@ add_subdirectory("{(output / 'samples').as_posix()}" samples-sdk)
 {snippet_cmake(output, model)}add_subdirectory("{(output / 'permissions').as_posix()}" permissions-sdk)
 add_executable(permissions_test "{tests.as_posix()}/permissions.cpp")
 target_link_libraries(permissions_test PRIVATE leyline_client)
-if(MSVC)
-  target_compile_options(permissions_test PRIVATE /W4 /WX)
-else()
-  target_compile_options(permissions_test PRIVATE -Wall -Wextra -Werror)
-endif()
+add_subdirectory("{(output / 'roles').as_posix()}" roles-sdk)
+add_executable(roles_test "{tests.as_posix()}/roles.cpp")
+target_link_libraries(roles_test PRIVATE notes_client)
+foreach(name permissions_test roles_test)
+  if(MSVC)
+    target_compile_options(${{name}} PRIVATE /W4 /WX)
+  else()
+    target_compile_options(${{name}} PRIVATE -Wall -Wextra -Werror)
+  endif()
+endforeach()
 foreach(name core runtime proxy serialization)
   add_executable(${{name}} "{tests.as_posix()}/${{name}}.cpp")
   target_link_libraries(${{name}} PRIVATE weather_client::weather_client)
@@ -217,6 +226,7 @@ endforeach()
     run(str(executable(consumer_build, "core")), env=runtime_env)
     run(str(executable(consumer_build, "edge_models")), env=runtime_env)
     run(str(executable(consumer_build, "permissions_test")), env=runtime_env)
+    run(str(executable(consumer_build, "roles_test")), env=runtime_env)
     run(str(executable(consumer_build, "extensions")), env=runtime_env)
     run(str(executable(consumer_build, "wire_test")), env=runtime_env)
     run(str(executable(consumer_build, "payload_content_type")), env=runtime_env)

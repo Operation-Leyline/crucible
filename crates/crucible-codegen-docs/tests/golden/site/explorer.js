@@ -531,7 +531,56 @@
       ]);
       body.push(table(["Mode", "Permission", "Resource type", "Bindings", "When", "Notes"], rows, "Requirements"));
     }
+    body.push(...grantedBy(m, op));
     return h("section", { id: sectionId("authorization") }, sectionHeading(op, "authorization", "Authorization"), body);
+  }
+
+  // Which roles grant what the operation requires (docs/roles.md §5): the
+  // description's sentences, rendered and sanitised at build time, which
+  // name roles and scopes even where every requirement is internal.
+  function grantedBy(m, op) {
+    return list(op.grantedByDocumentation).map((s) => rich(s.html, m));
+  }
+
+  // What a scope is on, as the Markdown reference's Roles page says it.
+  function scopeOn(s) {
+    const resource = code(s.resourceType || s.resource || "");
+    if (s.kind === "instance") return ["one ", resource];
+    if (s.kind === "every") return ["every ", resource, " under one parent"];
+    return "the whole service";
+  }
+
+  // The role and scope registries (docs/roles.md §5), in catalogue order:
+  // where each role binds, who may hold and assign it, and what it grants.
+  function rolesSection(s) {
+    if (!list(s.roles).length) return [];
+    const codes = (values) => list(values).map((v, i) => [i ? ", " : "", code(v)]);
+    const flags = (e) => [e.internal ? " Internal." : "", e.deprecated ? " Deprecated." : ""];
+    return [
+      h("h2", {}, "Roles"),
+      h("p", {}, "What a role binding names: a role and an instance of one of its scopes. A binding covers the scope's resource and everything beneath it."),
+      s.customRoles ? h("p", {}, "Customers may also define roles of their own; a custom role may grant any grantable permission.") : null,
+      table(
+        ["Scope", "On", "Description"],
+        list(s.scopes).map((sc) => [code(sc.value), scopeOn(sc), [sc.description || "", flags(sc)]]),
+        "Scopes",
+      ),
+      table(
+        ["Role", "Scopes", "Held by", "Assigned by", "Grants", "Description"],
+        list(s.roles).map((r) => [
+          code(r.value),
+          codes(r.scopes),
+          list(r.holders).length ? codes(r.holders) : "any principal",
+          codes(r.assignedBy),
+          [
+            codes(list(r.permissions).map((p) => p.permission)),
+            list(r.byService).map((g, i) => [list(r.permissions).length || i ? "; " : "", code(g.permission), " as the service decides"]),
+          ],
+          [r.description || "", flags(r)],
+        ]),
+        "Roles",
+      ),
+    ];
   }
 
   // The permission registry by resource type (docs/permissions.md §6.3).
@@ -647,6 +696,7 @@
         : h("p", { class: "cx-muted" }, "No default authentication schemes."),
     );
     out.push(...permissionsSection(s));
+    out.push(...rolesSection(s));
     out.push(h("h2", {}, "Service errors"), errorsTable(m, s.errors));
     out.push(h("h2", {}, "Operations"));
     for (const group of navigation(m).filter((g) => g.kind === "resource" || g.kind === "service")) {

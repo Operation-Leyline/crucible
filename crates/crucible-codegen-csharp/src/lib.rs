@@ -1,5 +1,6 @@
 //! Native .NET 8 models, asynchronous clients, and NuGet packaging.
 mod permissions;
+mod roles;
 mod snippet;
 mod surface;
 
@@ -322,7 +323,7 @@ fn operation_xmldoc(
     // What the caller must hold, as the model states it (docs/permissions.md
     // §6.3): Markdown holding model text, rendered like model documentation.
     let requirements: Vec<String> =
-        crucible_codegen_common::permissions::requirement_sentences(service, op, false)
+        crucible_codegen_common::docs::requirement_sentences(service, op)
             .iter()
             .flat_map(|sentence| docs::xmldoc(sentence))
             .collect();
@@ -554,6 +555,7 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
         }
     }
     permissions::check(service, &mut diagnostics);
+    roles::check(service, &mut diagnostics);
     if !diagnostics.is_empty() {
         return Err(diagnostics);
     }
@@ -999,6 +1001,7 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
         });
     }
     files.extend(permissions::files(service, ns));
+    files.extend(roles::files(service, ns));
     files.sort_by(|a, b| a.path.cmp(&b.path));
     Ok(files)
 }

@@ -387,6 +387,74 @@ fn permission_constant_collisions_are_diagnosed() {
     );
 }
 
+/// The role registry (docs/roles.md §7 "Clients") from
+/// `tests/models/roles-granted-by`: `roles.rb`, checked in as
+/// `tests/golden/roles.rb`, with public roles, scopes and permissions only
+/// whatever the audience, required before the client with its record
+/// types; and nothing of it for a model without roles.
+#[test]
+fn role_registry_matches_golden() {
+    let service = load("roles-granted-by");
+    let generated = |audience| {
+        let projected = crucible_ir::project(&service, audience).unwrap();
+        emit(&projected, &options()).unwrap()
+    };
+    let roles = |files: &[crucible_codegen_ruby::File]| {
+        files
+            .iter()
+            .find(|f| f.path == "lib/weather_client/roles.rb")
+            .expect("a roles.rb")
+            .contents
+            .clone()
+    };
+    let files = generated(crucible_ir::Audience::External);
+    let external = roles(&files);
+    assert_eq!(roles(&generated(crucible_ir::Audience::Internal)), external);
+    for hidden in ["auditor", "backOffice", "note:purge", "workspace:audit"] {
+        assert!(!external.contains(hidden), "{hidden}");
+    }
+    let entry = &files
+        .iter()
+        .find(|f| f.path == "lib/weather_client.rb")
+        .unwrap()
+        .contents;
+    for name in [
+        "runtime/role_permission",
+        "runtime/role_description",
+        "roles",
+    ] {
+        assert!(
+            entry.contains(&format!("require_relative 'weather_client/{name}'")),
+            "{name}"
+        );
+        assert!(
+            files
+                .iter()
+                .any(|f| f.path == format!("lib/weather_client/{name}.rb")),
+            "{name}"
+        );
+    }
+    assert!(
+        entry.find("weather_client/roles'").unwrap()
+            < entry.find("weather_client/client'").unwrap()
+    );
+    let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/golden/roles.rb");
+    if std::env::var_os("CRUCIBLE_BLESS").is_some() {
+        fs::write(&path, &external).unwrap();
+    }
+    assert_eq!(
+        fs::read_to_string(&path)
+            .unwrap_or_default()
+            .replace("\r\n", "\n"),
+        external,
+        "rerun with CRUCIBLE_BLESS=1 and read the diff"
+    );
+    for service in [weather(), permissions_service()] {
+        let files = emit(&service, &options()).unwrap();
+        assert!(!files.iter().any(|f| f.path.contains("role")));
+    }
+}
+
 /// No permissions file without permissions; with them, the module and the
 /// registry's record types, required before the client.
 #[test]

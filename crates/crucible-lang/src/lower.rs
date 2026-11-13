@@ -5338,6 +5338,7 @@ impl<'a> Lowerer<'a> {
             traits,
             requirements,
             sender: annotations.sender,
+            granted_by: Vec::new(),
         })
     }
 

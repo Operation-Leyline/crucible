@@ -158,6 +158,16 @@ pub fn generate(service: &Service, options: &Options) -> Result<String, Diagnost
     {
         document["x-crucible-permissions"] = registry;
     }
+    // The role and scope registries (docs/roles.md §5), in catalogue
+    // order; internal entries only in a server-audience document.
+    let roles = crucible_codegen_common::roles::roles_registry(service, true);
+    if roles.as_array().is_some_and(|entries| !entries.is_empty()) {
+        document["x-crucible-roles"] = json!({
+            "roles": roles,
+            "scopes": crucible_codegen_common::roles::scopes_registry(service, true),
+            "custom": crucible_codegen_common::roles::custom(service),
+        });
+    }
     if let Some(endpoint) = &options.endpoint {
         document["servers"] = json!([{"url": endpoint}]);
     }

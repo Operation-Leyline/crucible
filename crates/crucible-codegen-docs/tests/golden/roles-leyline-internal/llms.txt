@@ -1,0 +1,61 @@
+# Leyline
+
+> Graphs\, organized by organization\.
+
+Every page below is Markdown. Requests are JSON over HTTP; each operation's page gives its method and URI, its headers, its request and response with an example, its errors and its pagination. Send `Authorization: Bearer <token>` unless an operation's page says it takes no credential. Send `Crucible-Version: 2026-09-04` on every request you make. `describe.json` holds the whole reference as data (`crucible.describe/1`).
+
+## Overview
+
+- [Service overview](src/index.md): protocol, authentication, service errors, and the operations of each resource
+- [Permissions](src/permissions.md): every permission an operation can require, by resource type
+- [Roles](src/roles.md): every role a binding names, the scopes it binds at, and what it grants
+
+## Operations
+
+- [CreateBackup](src/operations/API_CreateBackup.md): `POST /v1/organizations/{organizationId}/backups`. Granted by `owner` or `backupAdmin` at `organization`.
+- [CreateGraph](src/operations/API_CreateGraph.md): `POST /v1/organizations/{organizationId}/graphs`. Granted by `graphCreator` at `organization`; `graphAdmin` at `allGraphs`.
+- [DeleteGraph](src/operations/API_DeleteGraph.md): `DELETE /v1/organizations/{organizationId}/graphs/{graphId}`. Granted by `graphAdmin` at `allGraphs` or `graph`.
+- [GetGraph](src/operations/API_GetGraph.md): `GET /v1/organizations/{organizationId}/graphs/{graphId}`. Granted by `graphReader`, `graphWriter` or `graphAdmin` at `allGraphs` or `graph`.
+- [GetGraphHistory](src/operations/API_GetGraphHistory.md): `GET /v1/organizations/{organizationId}/histories/{historyId}`. Granted by `owner` at `organization`; `historyReader` or `historyAdmin` at `allHistories` or `history`; `graphAdmin` at `allGraphs` or `graph`, as the service decides (the history of a graph this binding covers, while the graph is live).
+- [GetOrganization](src/operations/API_GetOrganization.md): `GET /v1/organizations/{organizationId}`. Granted by `owner`, `accessAdmin`, `graphGroupAdmin`, `usageViewer`, `auditViewer`, `auditAdmin`, `backupViewer` or `backupAdmin` at `organization`.
+- [GetUsage](src/operations/API_GetUsage.md): `GET /v1/organizations/{organizationId}/usage`. Granted by `owner` or `usageViewer` at `organization`.
+- [ListAuditEvents](src/operations/API_ListAuditEvents.md): `GET /v1/organizations/{organizationId}/audit-events`. Granted by `owner`, `auditViewer` or `auditAdmin` at `organization`.
+- [ListRoles](src/operations/API_ListRoles.md): `GET /v1/roles`. Every role a binding may name\.
+- [PutRoleBinding](src/operations/API_PutRoleBinding.md): `PUT /v1/organizations/{organizationId}/role-bindings/{principal}`. Granted by `owner` or `accessAdmin` at `organization`.
+- [RestoreGraphHistory](src/operations/API_RestoreGraphHistory.md): `POST /v1/organizations/{organizationId}/histories/{historyId}/restore`. Granted by `owner` at `organization`; `historyAdmin` at `allHistories` or `history`.
+- [WriteGraph](src/operations/API_WriteGraph.md): `POST /v1/organizations/{organizationId}/graphs/{graphId}/writes`. Granted by `graphWriter` or `graphAdmin` at `allGraphs` or `graph`.
+
+## Data types
+
+- [CreateBackupInput](src/shapes/CreateBackupInput.md): structure.
+- [CreateGraphInput](src/shapes/CreateGraphInput.md): structure.
+- [DeleteGraphInput](src/shapes/DeleteGraphInput.md): structure.
+- [GetGraphHistoryInput](src/shapes/GetGraphHistoryInput.md): structure.
+- [GetGraphInput](src/shapes/GetGraphInput.md): structure.
+- [GetGraphOutput](src/shapes/GetGraphOutput.md): structure.
+- [GetOrganizationInput](src/shapes/GetOrganizationInput.md): structure.
+- [GetOrganizationOutput](src/shapes/GetOrganizationOutput.md): structure.
+- [GetUsageInput](src/shapes/GetUsageInput.md): structure.
+- [GraphId](src/shapes/GraphId.md): string.
+- [HistoryId](src/shapes/HistoryId.md): string.
+- [ListAuditEventsInput](src/shapes/ListAuditEventsInput.md): structure.
+- [ListRolesOutput](src/shapes/ListRolesOutput.md): structure.
+- [Name](src/shapes/Name.md): string.
+- [OrganizationId](src/shapes/OrganizationId.md): string.
+- [PrincipalType](src/shapes/PrincipalType.md): enum. Who a credential belongs to\.
+- [PrincipalTypes](src/shapes/PrincipalTypes.md): list.
+- [PutRoleBindingInput](src/shapes/PutRoleBindingInput.md): structure.
+- [ResourceNotFound](src/shapes/ResourceNotFound.md): error, HTTP 404. The resource is missing\, or the caller may not know it exists\.
+- [RestoreGraphHistoryInput](src/shapes/RestoreGraphHistoryInput.md): structure.
+- [Role](src/shapes/Role.md): enum. The roles a binding names\.
+- [RoleScopeType](src/shapes/RoleScopeType.md): enum. Where a binding is made\.
+- [RoleScopeTypes](src/shapes/RoleScopeTypes.md): list.
+- [RoleSummaries](src/shapes/RoleSummaries.md): list.
+- [RoleSummary](src/shapes/RoleSummary.md): structure. One role a console offers\.
+- [WriteGraphInput](src/shapes/WriteGraphInput.md): structure.
+
+## Optional
+
+- [llms-full.txt](llms-full.txt): every page above in one file
+- [describe.json](describe.json): the whole reference as JSON (`crucible.describe/1`)
+- [changes.json](changes.json): the release chain alone (`crucible.changes/1`)

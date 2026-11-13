@@ -145,6 +145,64 @@ fn permission_constants_that_dart_spells_alike_are_diagnosed() {
     );
 }
 
+/// The role registry (docs/roles.md §7 "Clients") from
+/// `tests/models/roles-granted-by`: the `roles.dart` library, open `Role`
+/// and `Scope` classes and `roles` in catalogue order, public roles, scopes
+/// and permissions only, whatever the audience; checked in as
+/// `tests/golden/roles/lib/roles.dart`.
+#[test]
+fn role_registry_matches_golden() {
+    let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../tests/models/roles-granted-by");
+    let service = crucible_lang::load_service(&dir).unwrap();
+    let options = |package: &str| Options {
+        metadata: Default::default(),
+        package_name: package.into(),
+        package_version: "0.0.0-dev".into(),
+        endpoint: None,
+    };
+    let roles = |audience| {
+        let projected = crucible_ir::project(&service, audience).unwrap();
+        let files = emit(&projected, &options("notes")).unwrap();
+        assert!(
+            files.iter().any(|f| f.path == "lib/src/runtime/roles.dart"),
+            "the registry's record types are bundled"
+        );
+        files
+            .into_iter()
+            .find(|f| f.path == "lib/roles.dart")
+            .expect("a roles library")
+            .contents
+    };
+    let external = roles(crucible_ir::Audience::External);
+    assert_eq!(roles(crucible_ir::Audience::Internal), external);
+    for hidden in ["auditor", "backOffice", "note:purge", "workspace:audit"] {
+        assert!(!external.contains(hidden), "{hidden}");
+    }
+    let path =
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/golden/roles/lib/roles.dart");
+    if std::env::var_os("CRUCIBLE_BLESS").is_some() {
+        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+        std::fs::write(&path, &external).unwrap();
+    }
+    assert_eq!(
+        std::fs::read_to_string(&path)
+            .unwrap_or_default()
+            .replace("\r\n", "\n"),
+        external,
+        "rerun with CRUCIBLE_BLESS=1 and read the diff"
+    );
+    // A package named for the library is refused.
+    let clash = emit(&service, &options("roles")).err().unwrap();
+    assert!(
+        clash.to_string().contains("where the roles library goes"),
+        "{clash}"
+    );
+    // A model without roles gets neither file.
+    let files = emit(&permissions_service(), &permission_options()).unwrap();
+    assert!(!files.iter().any(|f| f.path.ends_with("roles.dart")));
+}
+
 /// A hyphen in a permission's symbol (`mail-send`, which `.cru` allows)
 /// starts a word of the constant's name, since no client language allows
 /// one in a name (`constant_symbol`).

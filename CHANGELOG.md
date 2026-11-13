@@ -58,6 +58,25 @@ version's section when it is prepared.
   `Decision::allowed_by`, the binding that allowed a check.
   `crucible_ir::roles` gains `identifiers`, `scope_identifiers`, `coverage`,
   `Coverage` and `covers_scope`.
+- Roles R3 ([docs/roles.md](docs/roles.md) §5): which roles grant each
+  operation. `crucible_ir::roles::settle` computes granted-by on the server
+  contract (`Operation::granted_by`: per clause, the roles whose grants
+  include its permission, each with the scopes that cover its target, `by
+  service` grants with their docs, and custom roles), and the client
+  projection keeps it for clauses it hides, naming roles and scopes only.
+  The API reference shows a "Granted by" sentence under each operation's
+  requirements (an operation whose requirements are all internal included)
+  and a Roles page; `describe.json` (`crucible.describe/1`, additive) gains
+  `service.roles`, `service.scopes`, `service.customRoles`, each clause's
+  `grantedBy`, `requirements.internalClauses` and `grantedBySentences`;
+  OpenAPI gains `x-crucible-roles` and `grantedBy` in `x-crucible-requires`;
+  `llms.txt` and every SDK method's documentation carry the sentence.
+  Generated clients gain a role registry beside the permission registry,
+  from one rule in `crucible-codegen-common`: open role and scope values and
+  `ROLES` (`value`, `description`, `scopes`, `holders`, `assignedBy`, public
+  `permissions`), in catalogue order. The Rust client runtime adds
+  `roles::{RoleDescription, RolePermission}`. A model without roles
+  generates exactly what it did.
 - `.cru`: the `///` on `requires none` is the reader-facing reason, and every
   output that says "Requires no permission." now follows the sentence with it:
   `describe.json` (`requirements.documentation` and `renderedDocumentation`,

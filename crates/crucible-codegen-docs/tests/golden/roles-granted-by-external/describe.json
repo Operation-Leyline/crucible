@@ -1,0 +1,3511 @@
+{
+  "format": "crucible.describe/1",
+  "navigation": [
+    {
+      "level": 0,
+      "operations": [
+        "example.notes#GetWorkspace"
+      ],
+      "resource": "example.notes#Workspace"
+    },
+    {
+      "level": 1,
+      "operations": [
+        "example.notes#GetArchive"
+      ],
+      "resource": "example.notes#Archive"
+    },
+    {
+      "level": 1,
+      "operations": [
+        "example.notes#CreateNote",
+        "example.notes#GetNote",
+        "example.notes#ListNotes",
+        "example.notes#PurgeNote",
+        "example.notes#ShareNote",
+        "example.notes#UpdateNote"
+      ],
+      "resource": "example.notes#Note"
+    },
+    {
+      "level": 0,
+      "operations": [
+        "example.notes#GetCaller"
+      ],
+      "resource": null
+    }
+  ],
+  "operations": {
+    "example.notes#CreateNote": {
+      "auth": [
+        "crucible.api#httpBearerAuth"
+      ],
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "errors": [
+        "example.notes#Missing"
+      ],
+      "examples": [],
+      "grantedByDocumentation": [
+        {
+          "html": "<p>Granted by <code>owner</code> at <code>workspace</code>; <code>editor</code> or <code>archivist</code> at <code>allNotes</code>; or a custom role that grants <code>note:create</code>.</p>\n",
+          "markdown": "Granted by `owner` at `workspace`; `editor` or `archivist` at `allNotes`; or a custom role that grants `note:create`.",
+          "text": "Granted by owner at workspace; editor or archivist at allNotes; or a custom role that grants note:create."
+        }
+      ],
+      "grantedBySentences": [
+        "Granted by `owner` at `workspace`; `editor` or `archivist` at `allNotes`; or a custom role that grants `note:create`."
+      ],
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
+      "id": "example.notes#CreateNote",
+      "idempotencyToken": null,
+      "idempotent": false,
+      "input": "example.notes#CreateNoteInput",
+      "inputSchema": {
+        "$defs": {
+          "example.notes.CreateNoteInput": {
+            "properties": {
+              "workspaceId": {
+                "maxLength": 40,
+                "minLength": 1,
+                "type": "string"
+              }
+            },
+            "required": [
+              "workspaceId"
+            ],
+            "type": "object"
+          },
+          "example.notes.WorkspaceId": {
+            "maxLength": 40,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "properties": {
+          "workspaceId": {
+            "maxLength": 40,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "workspaceId"
+        ],
+        "type": "object"
+      },
+      "internal": false,
+      "method": "POST",
+      "name": "CreateNote",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "output": null,
+      "outputSchema": {
+        "$defs": {},
+        "maxProperties": 0,
+        "type": "object"
+      },
+      "pagination": null,
+      "protocol": "crucibleJson",
+      "protocolHeaders": {},
+      "readonly": false,
+      "request": {
+        "body": [],
+        "headerEncodings": {},
+        "headers": [],
+        "labels": [
+          "workspaceId"
+        ],
+        "payload": null,
+        "query": [],
+        "timestampFormats": {}
+      },
+      "requirementDocumentation": [
+        {
+          "html": "<p>Requires <code>note:create</code> on every note in the workspace.</p>\n",
+          "markdown": "Requires `note:create` on every note in the workspace.",
+          "text": "Requires note:create on every note in the workspace."
+        }
+      ],
+      "requirementSentences": [
+        "Requires `note:create` on every note in the workspace."
+      ],
+      "requirements": {
+        "clauses": [
+          {
+            "bindings": [
+              {
+                "identifier": "workspaceId",
+                "value": "workspaceId"
+              },
+              {
+                "identifier": "noteId",
+                "value": "*"
+              }
+            ],
+            "grantedBy": {
+              "custom": true,
+              "roles": [
+                {
+                  "role": "owner",
+                  "scopes": [
+                    "workspace"
+                  ]
+                },
+                {
+                  "role": "editor",
+                  "scopes": [
+                    "allNotes"
+                  ]
+                },
+                {
+                  "role": "archivist",
+                  "scopes": [
+                    "allNotes"
+                  ]
+                }
+              ]
+            },
+            "mode": "check",
+            "permission": "note:create",
+            "resourceType": "note",
+            "tier": "public"
+          }
+        ],
+        "kind": "list"
+      },
+      "resources": [
+        "example.notes#Note"
+      ],
+      "response": {
+        "body": [],
+        "headerEncodings": {},
+        "headers": [],
+        "labels": [],
+        "payload": null,
+        "query": [],
+        "timestampFormats": {}
+      },
+      "responseProtocolHeaders": {},
+      "sample": {
+        "fallbacks": [],
+        "generated": true,
+        "input": {
+          "body": null,
+          "headers": {},
+          "labels": {
+            "workspaceId": "workspaceId"
+          },
+          "method": "POST",
+          "payload": null,
+          "query": [],
+          "uri": "/workspaces/workspaceId/notes"
+        },
+        "minimalInput": {
+          "body": null,
+          "headers": {},
+          "labels": {
+            "workspaceId": "workspaceId"
+          },
+          "method": "POST",
+          "payload": null,
+          "query": [],
+          "uri": "/workspaces/workspaceId/notes"
+        },
+        "output": {
+          "body": null,
+          "headers": {},
+          "labels": {},
+          "payload": null,
+          "query": []
+        }
+      },
+      "status": 200,
+      "summary": "",
+      "uri": "/workspaces/{workspaceId}/notes"
+    },
+    "example.notes#GetArchive": {
+      "auth": [
+        "crucible.api#httpBearerAuth"
+      ],
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "errors": [
+        "example.notes#Missing"
+      ],
+      "examples": [],
+      "grantedByDocumentation": [
+        {
+          "html": "<p>Granted by <code>archivist</code> at <code>allNotes</code>, as the service decides (the archives of the notes this binding covers, while they are retained); or a custom role that grants <code>archive:read</code>.</p>\n",
+          "markdown": "Granted by `archivist` at `allNotes`, as the service decides (the archives of the notes this binding covers, while they are retained); or a custom role that grants `archive:read`.",
+          "text": "Granted by archivist at allNotes, as the service decides (the archives of the notes this binding covers, while they are retained); or a custom role that grants archive:read."
+        }
+      ],
+      "grantedBySentences": [
+        "Granted by `archivist` at `allNotes`, as the service decides (the archives of the notes this binding covers, while they are retained); or a custom role that grants `archive:read`."
+      ],
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
+      "id": "example.notes#GetArchive",
+      "idempotencyToken": null,
+      "idempotent": false,
+      "input": "example.notes#GetArchiveInput",
+      "inputSchema": {
+        "$defs": {
+          "example.notes.ArchiveId": {
+            "maxLength": 40,
+            "minLength": 1,
+            "type": "string"
+          },
+          "example.notes.GetArchiveInput": {
+            "properties": {
+              "archiveId": {
+                "maxLength": 40,
+                "minLength": 1,
+                "type": "string"
+              },
+              "workspaceId": {
+                "maxLength": 40,
+                "minLength": 1,
+                "type": "string"
+              }
+            },
+            "required": [
+              "workspaceId",
+              "archiveId"
+            ],
+            "type": "object"
+          },
+          "example.notes.WorkspaceId": {
+            "maxLength": 40,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "properties": {
+          "archiveId": {
+            "maxLength": 40,
+            "minLength": 1,
+            "type": "string"
+          },
+          "workspaceId": {
+            "maxLength": 40,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "workspaceId",
+          "archiveId"
+        ],
+        "type": "object"
+      },
+      "internal": false,
+      "method": "GET",
+      "name": "GetArchive",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "output": null,
+      "outputSchema": {
+        "$defs": {},
+        "maxProperties": 0,
+        "type": "object"
+      },
+      "pagination": null,
+      "protocol": "crucibleJson",
+      "protocolHeaders": {},
+      "readonly": true,
+      "request": {
+        "body": [],
+        "headerEncodings": {},
+        "headers": [],
+        "labels": [
+          "workspaceId",
+          "archiveId"
+        ],
+        "payload": null,
+        "query": [],
+        "timestampFormats": {}
+      },
+      "requirementDocumentation": [
+        {
+          "html": "<p>Requires <code>archive:read</code> on the archive.</p>\n",
+          "markdown": "Requires `archive:read` on the archive.",
+          "text": "Requires archive:read on the archive."
+        }
+      ],
+      "requirementSentences": [
+        "Requires `archive:read` on the archive."
+      ],
+      "requirements": {
+        "clauses": [
+          {
+            "bindings": [
+              {
+                "identifier": "workspaceId",
+                "value": "workspaceId"
+              },
+              {
+                "identifier": "archiveId",
+                "value": "archiveId"
+              }
+            ],
+            "grantedBy": {
+              "byService": [
+                {
+                  "documentation": "The archives of the notes this binding covers, while they are retained.",
+                  "role": "archivist",
+                  "scopes": [
+                    "allNotes"
+                  ]
+                }
+              ],
+              "custom": true
+            },
+            "mode": "check",
+            "permission": "archive:read",
+            "resourceType": "archive",
+            "tier": "public"
+          }
+        ],
+        "kind": "list"
+      },
+      "resources": [
+        "example.notes#Archive"
+      ],
+      "response": {
+        "body": [],
+        "headerEncodings": {},
+        "headers": [],
+        "labels": [],
+        "payload": null,
+        "query": [],
+        "timestampFormats": {}
+      },
+      "responseProtocolHeaders": {},
+      "sample": {
+        "fallbacks": [],
+        "generated": true,
+        "input": {
+          "body": null,
+          "headers": {},
+          "labels": {
+            "archiveId": "archiveId",
+            "workspaceId": "workspaceId"
+          },
+          "method": "GET",
+          "payload": null,
+          "query": [],
+          "uri": "/workspaces/workspaceId/archives/archiveId"
+        },
+        "minimalInput": {
+          "body": null,
+          "headers": {},
+          "labels": {
+            "archiveId": "archiveId",
+            "workspaceId": "workspaceId"
+          },
+          "method": "GET",
+          "payload": null,
+          "query": [],
+          "uri": "/workspaces/workspaceId/archives/archiveId"
+        },
+        "output": {
+          "body": null,
+          "headers": {},
+          "labels": {},
+          "payload": null,
+          "query": []
+        }
+      },
+      "status": 200,
+      "summary": "",
+      "uri": "/workspaces/{workspaceId}/archives/{archiveId}"
+    },
+    "example.notes#GetCaller": {
+      "auth": [
+        "crucible.api#httpBearerAuth"
+      ],
+      "documentation": {
+        "html": "<p>Who is calling.</p>\n",
+        "markdown": "Who is calling.",
+        "text": "Who is calling."
+      },
+      "errors": [],
+      "examples": [],
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
+      "id": "example.notes#GetCaller",
+      "idempotencyToken": null,
+      "idempotent": false,
+      "input": null,
+      "inputSchema": {
+        "$defs": {},
+        "maxProperties": 0,
+        "type": "object"
+      },
+      "internal": false,
+      "method": "GET",
+      "name": "GetCaller",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "output": "example.notes#GetCallerOutput",
+      "outputSchema": {
+        "$defs": {
+          "example.notes.GetCallerOutput": {
+            "properties": {
+              "kind": {
+                "$ref": "#/$defs/example.notes.PrincipalKind"
+              }
+            },
+            "required": [
+              "kind"
+            ],
+            "type": "object"
+          },
+          "example.notes.PrincipalKind": {
+            "description": "Who a credential belongs to.",
+            "enum": [
+              "user",
+              "serviceAccount"
+            ],
+            "type": "string"
+          }
+        },
+        "properties": {
+          "kind": {
+            "$ref": "#/$defs/example.notes.PrincipalKind"
+          }
+        },
+        "required": [
+          "kind"
+        ],
+        "type": "object"
+      },
+      "pagination": null,
+      "protocol": "crucibleJson",
+      "protocolHeaders": {},
+      "readonly": true,
+      "request": {
+        "body": [],
+        "headerEncodings": {},
+        "headers": [],
+        "labels": [],
+        "payload": null,
+        "query": [],
+        "timestampFormats": {}
+      },
+      "requirementDocumentation": [
+        {
+          "html": "<p>Requires no permission.</p>\n",
+          "markdown": "Requires no permission.",
+          "text": "Requires no permission."
+        }
+      ],
+      "requirementSentences": [
+        "Requires no permission."
+      ],
+      "requirements": {
+        "kind": "none"
+      },
+      "resources": [],
+      "response": {
+        "body": [
+          "kind"
+        ],
+        "headerEncodings": {},
+        "headers": [],
+        "labels": [],
+        "payload": null,
+        "query": [],
+        "timestampFormats": {}
+      },
+      "responseProtocolHeaders": {
+        "Content-Type": "application/json"
+      },
+      "sample": {
+        "fallbacks": [],
+        "generated": true,
+        "input": {
+          "body": null,
+          "headers": {},
+          "labels": {},
+          "method": "GET",
+          "payload": null,
+          "query": [],
+          "uri": "/caller"
+        },
+        "minimalInput": {
+          "body": null,
+          "headers": {},
+          "labels": {},
+          "method": "GET",
+          "payload": null,
+          "query": [],
+          "uri": "/caller"
+        },
+        "output": {
+          "body": {
+            "kind": "user"
+          },
+          "headers": {
+            "Content-Type": "application/json"
+          },
+          "labels": {},
+          "payload": null,
+          "query": []
+        }
+      },
+      "status": 200,
+      "summary": "Who is calling.",
+      "uri": "/caller"
+    },
+    "example.notes#GetNote": {
+      "auth": [
+        "crucible.api#httpBearerAuth"
+      ],
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "errors": [
+        "example.notes#Missing"
+      ],
+      "examples": [],
+      "grantedByDocumentation": [
+        {
+          "html": "<p>Granted by <code>owner</code> at <code>workspace</code>; <code>viewer</code> at <code>workspace</code>, <code>allNotes</code> or <code>note</code>; <code>editor</code> at <code>allNotes</code> or <code>note</code>; <code>archivist</code> at <code>allNotes</code>; or a custom role that grants <code>note:read</code>.</p>\n",
+          "markdown": "Granted by `owner` at `workspace`; `viewer` at `workspace`, `allNotes` or `note`; `editor` at `allNotes` or `note`; `archivist` at `allNotes`; or a custom role that grants `note:read`.",
+          "text": "Granted by owner at workspace; viewer at workspace, allNotes or note; editor at allNotes or note; archivist at allNotes; or a custom role that grants note:read."
+        }
+      ],
+      "grantedBySentences": [
+        "Granted by `owner` at `workspace`; `viewer` at `workspace`, `allNotes` or `note`; `editor` at `allNotes` or `note`; `archivist` at `allNotes`; or a custom role that grants `note:read`."
+      ],
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
+      "id": "example.notes#GetNote",
+      "idempotencyToken": null,
+      "idempotent": false,
+      "input": "example.notes#GetNoteInput",
+      "inputSchema": {
+        "$defs": {
+          "example.notes.GetNoteInput": {
+            "properties": {
+              "noteId": {
+                "maxLength": 40,
+                "minLength": 1,
+                "type": "string"
+              },
+              "workspaceId": {
+                "maxLength": 40,
+                "minLength": 1,
+                "type": "string"
+              }
+            },
+            "required": [
+              "workspaceId",
+              "noteId"
+            ],
+            "type": "object"
+          },
+          "example.notes.NoteId": {
+            "maxLength": 40,
+            "minLength": 1,
+            "type": "string"
+          },
+          "example.notes.WorkspaceId": {
+            "maxLength": 40,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "properties": {
+          "noteId": {
+            "maxLength": 40,
+            "minLength": 1,
+            "type": "string"
+          },
+          "workspaceId": {
+            "maxLength": 40,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "workspaceId",
+          "noteId"
+        ],
+        "type": "object"
+      },
+      "internal": false,
+      "method": "GET",
+      "name": "GetNote",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "output": null,
+      "outputSchema": {
+        "$defs": {},
+        "maxProperties": 0,
+        "type": "object"
+      },
+      "pagination": null,
+      "protocol": "crucibleJson",
+      "protocolHeaders": {},
+      "readonly": true,
+      "request": {
+        "body": [],
+        "headerEncodings": {},
+        "headers": [],
+        "labels": [
+          "workspaceId",
+          "noteId"
+        ],
+        "payload": null,
+        "query": [],
+        "timestampFormats": {}
+      },
+      "requirementDocumentation": [
+        {
+          "html": "<p>Requires <code>note:read</code> on the note.</p>\n",
+          "markdown": "Requires `note:read` on the note.",
+          "text": "Requires note:read on the note."
+        }
+      ],
+      "requirementSentences": [
+        "Requires `note:read` on the note."
+      ],
+      "requirements": {
+        "clauses": [
+          {
+            "bindings": [
+              {
+                "identifier": "workspaceId",
+                "value": "workspaceId"
+              },
+              {
+                "identifier": "noteId",
+                "value": "noteId"
+              }
+            ],
+            "grantedBy": {
+              "custom": true,
+              "roles": [
+                {
+                  "role": "owner",
+                  "scopes": [
+                    "workspace"
+                  ]
+                },
+                {
+                  "role": "viewer",
+                  "scopes": [
+                    "workspace",
+                    "allNotes",
+                    "note"
+                  ]
+                },
+                {
+                  "role": "editor",
+                  "scopes": [
+                    "allNotes",
+                    "note"
+                  ]
+                },
+                {
+                  "role": "archivist",
+                  "scopes": [
+                    "allNotes"
+                  ]
+                }
+              ]
+            },
+            "mode": "check",
+            "permission": "note:read",
+            "resourceType": "note",
+            "tier": "public"
+          }
+        ],
+        "kind": "list"
+      },
+      "resources": [
+        "example.notes#Note"
+      ],
+      "response": {
+        "body": [],
+        "headerEncodings": {},
+        "headers": [],
+        "labels": [],
+        "payload": null,
+        "query": [],
+        "timestampFormats": {}
+      },
+      "responseProtocolHeaders": {},
+      "sample": {
+        "fallbacks": [],
+        "generated": true,
+        "input": {
+          "body": null,
+          "headers": {},
+          "labels": {
+            "noteId": "noteId",
+            "workspaceId": "workspaceId"
+          },
+          "method": "GET",
+          "payload": null,
+          "query": [],
+          "uri": "/workspaces/workspaceId/notes/noteId"
+        },
+        "minimalInput": {
+          "body": null,
+          "headers": {},
+          "labels": {
+            "noteId": "noteId",
+            "workspaceId": "workspaceId"
+          },
+          "method": "GET",
+          "payload": null,
+          "query": [],
+          "uri": "/workspaces/workspaceId/notes/noteId"
+        },
+        "output": {
+          "body": null,
+          "headers": {},
+          "labels": {},
+          "payload": null,
+          "query": []
+        }
+      },
+      "status": 200,
+      "summary": "",
+      "uri": "/workspaces/{workspaceId}/notes/{noteId}"
+    },
+    "example.notes#GetWorkspace": {
+      "auth": [
+        "crucible.api#httpBearerAuth"
+      ],
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "errors": [
+        "example.notes#Missing"
+      ],
+      "examples": [],
+      "grantedByDocumentation": [
+        {
+          "html": "<p>Granted by <code>owner</code> at <code>workspace</code>; or a custom role that grants <code>workspace:read</code>.</p>\n",
+          "markdown": "Granted by `owner` at `workspace`; or a custom role that grants `workspace:read`.",
+          "text": "Granted by owner at workspace; or a custom role that grants workspace:read."
+        }
+      ],
+      "grantedBySentences": [
+        "Granted by `owner` at `workspace`; or a custom role that grants `workspace:read`."
+      ],
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
+      "id": "example.notes#GetWorkspace",
+      "idempotencyToken": null,
+      "idempotent": false,
+      "input": "example.notes#GetWorkspaceInput",
+      "inputSchema": {
+        "$defs": {
+          "example.notes.GetWorkspaceInput": {
+            "properties": {
+              "workspaceId": {
+                "maxLength": 40,
+                "minLength": 1,
+                "type": "string"
+              }
+            },
+            "required": [
+              "workspaceId"
+            ],
+            "type": "object"
+          },
+          "example.notes.WorkspaceId": {
+            "maxLength": 40,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "properties": {
+          "workspaceId": {
+            "maxLength": 40,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "workspaceId"
+        ],
+        "type": "object"
+      },
+      "internal": false,
+      "method": "GET",
+      "name": "GetWorkspace",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "output": null,
+      "outputSchema": {
+        "$defs": {},
+        "maxProperties": 0,
+        "type": "object"
+      },
+      "pagination": null,
+      "protocol": "crucibleJson",
+      "protocolHeaders": {},
+      "readonly": true,
+      "request": {
+        "body": [],
+        "headerEncodings": {},
+        "headers": [],
+        "labels": [
+          "workspaceId"
+        ],
+        "payload": null,
+        "query": [],
+        "timestampFormats": {}
+      },
+      "requirementDocumentation": [
+        {
+          "html": "<p>Requires <code>workspace:read</code> on the workspace.</p>\n",
+          "markdown": "Requires `workspace:read` on the workspace.",
+          "text": "Requires workspace:read on the workspace."
+        }
+      ],
+      "requirementSentences": [
+        "Requires `workspace:read` on the workspace."
+      ],
+      "requirements": {
+        "clauses": [
+          {
+            "bindings": [
+              {
+                "identifier": "workspaceId",
+                "value": "workspaceId"
+              }
+            ],
+            "grantedBy": {
+              "custom": true,
+              "roles": [
+                {
+                  "role": "owner",
+                  "scopes": [
+                    "workspace"
+                  ]
+                }
+              ]
+            },
+            "mode": "check",
+            "permission": "workspace:read",
+            "resourceType": "workspace",
+            "tier": "public"
+          }
+        ],
+        "kind": "list"
+      },
+      "resources": [
+        "example.notes#Workspace"
+      ],
+      "response": {
+        "body": [],
+        "headerEncodings": {},
+        "headers": [],
+        "labels": [],
+        "payload": null,
+        "query": [],
+        "timestampFormats": {}
+      },
+      "responseProtocolHeaders": {},
+      "sample": {
+        "fallbacks": [],
+        "generated": true,
+        "input": {
+          "body": null,
+          "headers": {},
+          "labels": {
+            "workspaceId": "workspaceId"
+          },
+          "method": "GET",
+          "payload": null,
+          "query": [],
+          "uri": "/workspaces/workspaceId"
+        },
+        "minimalInput": {
+          "body": null,
+          "headers": {},
+          "labels": {
+            "workspaceId": "workspaceId"
+          },
+          "method": "GET",
+          "payload": null,
+          "query": [],
+          "uri": "/workspaces/workspaceId"
+        },
+        "output": {
+          "body": null,
+          "headers": {},
+          "labels": {},
+          "payload": null,
+          "query": []
+        }
+      },
+      "status": 200,
+      "summary": "",
+      "uri": "/workspaces/{workspaceId}"
+    },
+    "example.notes#ListNotes": {
+      "auth": [
+        "crucible.api#httpBearerAuth"
+      ],
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "errors": [
+        "example.notes#Missing"
+      ],
+      "examples": [],
+      "grantedByDocumentation": [
+        {
+          "html": "<p>Returns each note the caller holds <code>note:read</code> on through <code>owner</code> at <code>workspace</code>; <code>viewer</code> at <code>workspace</code>, <code>allNotes</code> or <code>note</code>; <code>editor</code> at <code>allNotes</code> or <code>note</code>; <code>archivist</code> at <code>allNotes</code>; or a custom role that grants <code>note:read</code>.</p>\n",
+          "markdown": "Returns each note the caller holds `note:read` on through `owner` at `workspace`; `viewer` at `workspace`, `allNotes` or `note`; `editor` at `allNotes` or `note`; `archivist` at `allNotes`; or a custom role that grants `note:read`.",
+          "text": "Returns each note the caller holds note:read on through owner at workspace; viewer at workspace, allNotes or note; editor at allNotes or note; archivist at allNotes; or a custom role that grants note:read."
+        }
+      ],
+      "grantedBySentences": [
+        "Returns each note the caller holds `note:read` on through `owner` at `workspace`; `viewer` at `workspace`, `allNotes` or `note`; `editor` at `allNotes` or `note`; `archivist` at `allNotes`; or a custom role that grants `note:read`."
+      ],
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
+      "id": "example.notes#ListNotes",
+      "idempotencyToken": null,
+      "idempotent": false,
+      "input": "example.notes#ListNotesInput",
+      "inputSchema": {
+        "$defs": {
+          "example.notes.ListNotesInput": {
+            "properties": {
+              "workspaceId": {
+                "maxLength": 40,
+                "minLength": 1,
+                "type": "string"
+              }
+            },
+            "required": [
+              "workspaceId"
+            ],
+            "type": "object"
+          },
+          "example.notes.WorkspaceId": {
+            "maxLength": 40,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "properties": {
+          "workspaceId": {
+            "maxLength": 40,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "workspaceId"
+        ],
+        "type": "object"
+      },
+      "internal": false,
+      "method": "GET",
+      "name": "ListNotes",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "output": null,
+      "outputSchema": {
+        "$defs": {},
+        "maxProperties": 0,
+        "type": "object"
+      },
+      "pagination": null,
+      "protocol": "crucibleJson",
+      "protocolHeaders": {},
+      "readonly": true,
+      "request": {
+        "body": [],
+        "headerEncodings": {},
+        "headers": [],
+        "labels": [
+          "workspaceId"
+        ],
+        "payload": null,
+        "query": [],
+        "timestampFormats": {}
+      },
+      "requirementDocumentation": [
+        {
+          "html": "<p>Returns only the notes the caller holds <code>note:read</code> on in the workspace.</p>\n",
+          "markdown": "Returns only the notes the caller holds `note:read` on in the workspace.",
+          "text": "Returns only the notes the caller holds note:read on in the workspace."
+        }
+      ],
+      "requirementSentences": [
+        "Returns only the notes the caller holds `note:read` on in the workspace."
+      ],
+      "requirements": {
+        "clauses": [
+          {
+            "bindings": [
+              {
+                "identifier": "workspaceId",
+                "value": "workspaceId"
+              },
+              {
+                "identifier": "noteId",
+                "value": "*"
+              }
+            ],
+            "grantedBy": {
+              "custom": true,
+              "roles": [
+                {
+                  "role": "owner",
+                  "scopes": [
+                    "workspace"
+                  ]
+                },
+                {
+                  "role": "viewer",
+                  "scopes": [
+                    "workspace",
+                    "allNotes",
+                    "note"
+                  ]
+                },
+                {
+                  "role": "editor",
+                  "scopes": [
+                    "allNotes",
+                    "note"
+                  ]
+                },
+                {
+                  "role": "archivist",
+                  "scopes": [
+                    "allNotes"
+                  ]
+                }
+              ]
+            },
+            "mode": "filter",
+            "permission": "note:read",
+            "resourceType": "note",
+            "tier": "public"
+          }
+        ],
+        "kind": "list"
+      },
+      "resources": [
+        "example.notes#Note"
+      ],
+      "response": {
+        "body": [],
+        "headerEncodings": {},
+        "headers": [],
+        "labels": [],
+        "payload": null,
+        "query": [],
+        "timestampFormats": {}
+      },
+      "responseProtocolHeaders": {},
+      "sample": {
+        "fallbacks": [],
+        "generated": true,
+        "input": {
+          "body": null,
+          "headers": {},
+          "labels": {
+            "workspaceId": "workspaceId"
+          },
+          "method": "GET",
+          "payload": null,
+          "query": [],
+          "uri": "/workspaces/workspaceId/notes"
+        },
+        "minimalInput": {
+          "body": null,
+          "headers": {},
+          "labels": {
+            "workspaceId": "workspaceId"
+          },
+          "method": "GET",
+          "payload": null,
+          "query": [],
+          "uri": "/workspaces/workspaceId/notes"
+        },
+        "output": {
+          "body": null,
+          "headers": {},
+          "labels": {},
+          "payload": null,
+          "query": []
+        }
+      },
+      "status": 200,
+      "summary": "",
+      "uri": "/workspaces/{workspaceId}/notes"
+    },
+    "example.notes#PurgeNote": {
+      "auth": [
+        "crucible.api#httpBearerAuth"
+      ],
+      "documentation": {
+        "html": "<p>Every requirement internal: clients still see which roles grant it.</p>\n",
+        "markdown": "Every requirement internal: clients still see which roles grant it.",
+        "text": "Every requirement internal: clients still see which roles grant it."
+      },
+      "errors": [
+        "example.notes#Missing"
+      ],
+      "examples": [],
+      "grantedByDocumentation": [
+        {
+          "html": "<p>Granted by <code>owner</code> at <code>workspace</code>.</p>\n",
+          "markdown": "Granted by `owner` at `workspace`.",
+          "text": "Granted by owner at workspace."
+        }
+      ],
+      "grantedBySentences": [
+        "Granted by `owner` at `workspace`."
+      ],
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
+      "id": "example.notes#PurgeNote",
+      "idempotencyToken": null,
+      "idempotent": false,
+      "input": "example.notes#PurgeNoteInput",
+      "inputSchema": {
+        "$defs": {
+          "example.notes.NoteId": {
+            "maxLength": 40,
+            "minLength": 1,
+            "type": "string"
+          },
+          "example.notes.PurgeNoteInput": {
+            "properties": {
+              "noteId": {
+                "maxLength": 40,
+                "minLength": 1,
+                "type": "string"
+              },
+              "workspaceId": {
+                "maxLength": 40,
+                "minLength": 1,
+                "type": "string"
+              }
+            },
+            "required": [
+              "workspaceId",
+              "noteId"
+            ],
+            "type": "object"
+          },
+          "example.notes.WorkspaceId": {
+            "maxLength": 40,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "properties": {
+          "noteId": {
+            "maxLength": 40,
+            "minLength": 1,
+            "type": "string"
+          },
+          "workspaceId": {
+            "maxLength": 40,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "workspaceId",
+          "noteId"
+        ],
+        "type": "object"
+      },
+      "internal": false,
+      "method": "POST",
+      "name": "PurgeNote",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "output": null,
+      "outputSchema": {
+        "$defs": {},
+        "maxProperties": 0,
+        "type": "object"
+      },
+      "pagination": null,
+      "protocol": "crucibleJson",
+      "protocolHeaders": {},
+      "readonly": false,
+      "request": {
+        "body": [],
+        "headerEncodings": {},
+        "headers": [],
+        "labels": [
+          "workspaceId",
+          "noteId"
+        ],
+        "payload": null,
+        "query": [],
+        "timestampFormats": {}
+      },
+      "requirementDocumentation": [
+        {
+          "html": "<p>Requires permissions internal to the service.</p>\n",
+          "markdown": "Requires permissions internal to the service.",
+          "text": "Requires permissions internal to the service."
+        }
+      ],
+      "requirementSentences": [
+        "Requires permissions internal to the service."
+      ],
+      "requirements": {
+        "internalClauses": [
+          {
+            "grantedBy": {
+              "roles": [
+                {
+                  "role": "owner",
+                  "scopes": [
+                    "workspace"
+                  ]
+                }
+              ]
+            },
+            "mode": "check"
+          }
+        ],
+        "kind": "internal"
+      },
+      "resources": [
+        "example.notes#Note"
+      ],
+      "response": {
+        "body": [],
+        "headerEncodings": {},
+        "headers": [],
+        "labels": [],
+        "payload": null,
+        "query": [],
+        "timestampFormats": {}
+      },
+      "responseProtocolHeaders": {},
+      "sample": {
+        "fallbacks": [],
+        "generated": true,
+        "input": {
+          "body": null,
+          "headers": {},
+          "labels": {
+            "noteId": "noteId",
+            "workspaceId": "workspaceId"
+          },
+          "method": "POST",
+          "payload": null,
+          "query": [],
+          "uri": "/workspaces/workspaceId/notes/noteId/purge"
+        },
+        "minimalInput": {
+          "body": null,
+          "headers": {},
+          "labels": {
+            "noteId": "noteId",
+            "workspaceId": "workspaceId"
+          },
+          "method": "POST",
+          "payload": null,
+          "query": [],
+          "uri": "/workspaces/workspaceId/notes/noteId/purge"
+        },
+        "output": {
+          "body": null,
+          "headers": {},
+          "labels": {},
+          "payload": null,
+          "query": []
+        }
+      },
+      "status": 200,
+      "summary": "Every requirement internal: clients still see which roles grant it.",
+      "uri": "/workspaces/{workspaceId}/notes/{noteId}/purge"
+    },
+    "example.notes#ShareNote": {
+      "auth": [
+        "crucible.api#httpBearerAuth"
+      ],
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "errors": [
+        "example.notes#Missing"
+      ],
+      "examples": [],
+      "grantedByDocumentation": [
+        {
+          "html": "<p><code>note:read</code> on the note: granted by <code>owner</code> at <code>workspace</code>; <code>viewer</code> at <code>workspace</code>, <code>allNotes</code> or <code>note</code>; <code>editor</code> at <code>allNotes</code> or <code>note</code>; <code>archivist</code> at <code>allNotes</code>; or a custom role that grants <code>note:read</code>.</p>\n",
+          "markdown": "`note:read` on the note: granted by `owner` at `workspace`; `viewer` at `workspace`, `allNotes` or `note`; `editor` at `allNotes` or `note`; `archivist` at `allNotes`; or a custom role that grants `note:read`.",
+          "text": "note:read on the note: granted by owner at workspace; viewer at workspace, allNotes or note; editor at allNotes or note; archivist at allNotes; or a custom role that grants note:read."
+        },
+        {
+          "html": "<p><code>note:write</code> on the note, checked by the service (only when the note is shared outside the workspace): granted by <code>owner</code> at <code>workspace</code>; <code>editor</code> at <code>allNotes</code> or <code>note</code>; <code>archivist</code> at <code>allNotes</code>; or a custom role that grants <code>note:write</code>.</p>\n",
+          "markdown": "`note:write` on the note, checked by the service (only when the note is shared outside the workspace): granted by `owner` at `workspace`; `editor` at `allNotes` or `note`; `archivist` at `allNotes`; or a custom role that grants `note:write`.",
+          "text": "note:write on the note, checked by the service (only when the note is shared outside the workspace): granted by owner at workspace; editor at allNotes or note; archivist at allNotes; or a custom role that grants note:write."
+        }
+      ],
+      "grantedBySentences": [
+        "`note:read` on the note: granted by `owner` at `workspace`; `viewer` at `workspace`, `allNotes` or `note`; `editor` at `allNotes` or `note`; `archivist` at `allNotes`; or a custom role that grants `note:read`.",
+        "`note:write` on the note, checked by the service (only when the note is shared outside the workspace): granted by `owner` at `workspace`; `editor` at `allNotes` or `note`; `archivist` at `allNotes`; or a custom role that grants `note:write`."
+      ],
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
+      "id": "example.notes#ShareNote",
+      "idempotencyToken": null,
+      "idempotent": false,
+      "input": "example.notes#ShareNoteInput",
+      "inputSchema": {
+        "$defs": {
+          "example.notes.NoteId": {
+            "maxLength": 40,
+            "minLength": 1,
+            "type": "string"
+          },
+          "example.notes.ShareNoteInput": {
+            "properties": {
+              "noteId": {
+                "maxLength": 40,
+                "minLength": 1,
+                "type": "string"
+              },
+              "workspaceId": {
+                "maxLength": 40,
+                "minLength": 1,
+                "type": "string"
+              }
+            },
+            "required": [
+              "workspaceId",
+              "noteId"
+            ],
+            "type": "object"
+          },
+          "example.notes.WorkspaceId": {
+            "maxLength": 40,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "properties": {
+          "noteId": {
+            "maxLength": 40,
+            "minLength": 1,
+            "type": "string"
+          },
+          "workspaceId": {
+            "maxLength": 40,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "workspaceId",
+          "noteId"
+        ],
+        "type": "object"
+      },
+      "internal": false,
+      "method": "POST",
+      "name": "ShareNote",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "output": null,
+      "outputSchema": {
+        "$defs": {},
+        "maxProperties": 0,
+        "type": "object"
+      },
+      "pagination": null,
+      "protocol": "crucibleJson",
+      "protocolHeaders": {},
+      "readonly": false,
+      "request": {
+        "body": [],
+        "headerEncodings": {},
+        "headers": [],
+        "labels": [
+          "workspaceId",
+          "noteId"
+        ],
+        "payload": null,
+        "query": [],
+        "timestampFormats": {}
+      },
+      "requirementDocumentation": [
+        {
+          "html": "<p>Requires <code>note:read</code> on the note; <code>note:write</code> on the note, checked by the service (only when the note is shared outside the workspace).</p>\n",
+          "markdown": "Requires `note:read` on the note; `note:write` on the note, checked by the service (only when the note is shared outside the workspace).",
+          "text": "Requires note:read on the note; note:write on the note, checked by the service (only when the note is shared outside the workspace)."
+        }
+      ],
+      "requirementSentences": [
+        "Requires `note:read` on the note; `note:write` on the note, checked by the service (only when the note is shared outside the workspace)."
+      ],
+      "requirements": {
+        "clauses": [
+          {
+            "bindings": [
+              {
+                "identifier": "workspaceId",
+                "value": "workspaceId"
+              },
+              {
+                "identifier": "noteId",
+                "value": "noteId"
+              }
+            ],
+            "grantedBy": {
+              "custom": true,
+              "roles": [
+                {
+                  "role": "owner",
+                  "scopes": [
+                    "workspace"
+                  ]
+                },
+                {
+                  "role": "viewer",
+                  "scopes": [
+                    "workspace",
+                    "allNotes",
+                    "note"
+                  ]
+                },
+                {
+                  "role": "editor",
+                  "scopes": [
+                    "allNotes",
+                    "note"
+                  ]
+                },
+                {
+                  "role": "archivist",
+                  "scopes": [
+                    "allNotes"
+                  ]
+                }
+              ]
+            },
+            "mode": "check",
+            "permission": "note:read",
+            "resourceType": "note",
+            "tier": "public"
+          },
+          {
+            "documentation": "Only when the note is shared outside the workspace.",
+            "grantedBy": {
+              "custom": true,
+              "roles": [
+                {
+                  "role": "owner",
+                  "scopes": [
+                    "workspace"
+                  ]
+                },
+                {
+                  "role": "editor",
+                  "scopes": [
+                    "allNotes",
+                    "note"
+                  ]
+                },
+                {
+                  "role": "archivist",
+                  "scopes": [
+                    "allNotes"
+                  ]
+                }
+              ]
+            },
+            "mode": "handler",
+            "permission": "note:write",
+            "renderedDocumentation": {
+              "html": "<p>Only when the note is shared outside the workspace.</p>\n",
+              "markdown": "Only when the note is shared outside the workspace.",
+              "text": "Only when the note is shared outside the workspace."
+            },
+            "resourceType": "note",
+            "tier": "public"
+          }
+        ],
+        "kind": "list"
+      },
+      "resources": [
+        "example.notes#Note"
+      ],
+      "response": {
+        "body": [],
+        "headerEncodings": {},
+        "headers": [],
+        "labels": [],
+        "payload": null,
+        "query": [],
+        "timestampFormats": {}
+      },
+      "responseProtocolHeaders": {},
+      "sample": {
+        "fallbacks": [],
+        "generated": true,
+        "input": {
+          "body": null,
+          "headers": {},
+          "labels": {
+            "noteId": "noteId",
+            "workspaceId": "workspaceId"
+          },
+          "method": "POST",
+          "payload": null,
+          "query": [],
+          "uri": "/workspaces/workspaceId/notes/noteId/share"
+        },
+        "minimalInput": {
+          "body": null,
+          "headers": {},
+          "labels": {
+            "noteId": "noteId",
+            "workspaceId": "workspaceId"
+          },
+          "method": "POST",
+          "payload": null,
+          "query": [],
+          "uri": "/workspaces/workspaceId/notes/noteId/share"
+        },
+        "output": {
+          "body": null,
+          "headers": {},
+          "labels": {},
+          "payload": null,
+          "query": []
+        }
+      },
+      "status": 200,
+      "summary": "",
+      "uri": "/workspaces/{workspaceId}/notes/{noteId}/share"
+    },
+    "example.notes#UpdateNote": {
+      "auth": [
+        "crucible.api#httpBearerAuth"
+      ],
+      "documentation": {
+        "html": "<p>A list mixing a public clause with an internal one: clients see which\nroles grant both, and only the public permission.</p>\n",
+        "markdown": "A list mixing a public clause with an internal one: clients see which\nroles grant both, and only the public permission.",
+        "text": "A list mixing a public clause with an internal one: clients see which\nroles grant both, and only the public permission."
+      },
+      "errors": [
+        "example.notes#Missing"
+      ],
+      "examples": [],
+      "grantedByDocumentation": [
+        {
+          "html": "<p><code>note:write</code> on the note: granted by <code>owner</code> at <code>workspace</code>; <code>editor</code> at <code>allNotes</code> or <code>note</code>; <code>archivist</code> at <code>allNotes</code>; or a custom role that grants <code>note:write</code>.</p>\n",
+          "markdown": "`note:write` on the note: granted by `owner` at `workspace`; `editor` at `allNotes` or `note`; `archivist` at `allNotes`; or a custom role that grants `note:write`.",
+          "text": "note:write on the note: granted by owner at workspace; editor at allNotes or note; archivist at allNotes; or a custom role that grants note:write."
+        },
+        {
+          "html": "<p>A permission internal to the service, when a condition on the input holds: granted by <code>owner</code> at <code>workspace</code>.</p>\n",
+          "markdown": "A permission internal to the service, when a condition on the input holds: granted by `owner` at `workspace`.",
+          "text": "A permission internal to the service, when a condition on the input holds: granted by owner at workspace."
+        }
+      ],
+      "grantedBySentences": [
+        "`note:write` on the note: granted by `owner` at `workspace`; `editor` at `allNotes` or `note`; `archivist` at `allNotes`; or a custom role that grants `note:write`.",
+        "A permission internal to the service, when a condition on the input holds: granted by `owner` at `workspace`."
+      ],
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
+      "id": "example.notes#UpdateNote",
+      "idempotencyToken": null,
+      "idempotent": false,
+      "input": "example.notes#UpdateNoteInput",
+      "inputSchema": {
+        "$defs": {
+          "crucible.api.Boolean": {
+            "type": "boolean"
+          },
+          "example.notes.NoteId": {
+            "maxLength": 40,
+            "minLength": 1,
+            "type": "string"
+          },
+          "example.notes.UpdateNoteInput": {
+            "properties": {
+              "audited": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/crucible.api.Boolean"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "noteId": {
+                "maxLength": 40,
+                "minLength": 1,
+                "type": "string"
+              },
+              "workspaceId": {
+                "maxLength": 40,
+                "minLength": 1,
+                "type": "string"
+              }
+            },
+            "required": [
+              "workspaceId",
+              "noteId"
+            ],
+            "type": "object"
+          },
+          "example.notes.WorkspaceId": {
+            "maxLength": 40,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "properties": {
+          "audited": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/crucible.api.Boolean"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "noteId": {
+            "maxLength": 40,
+            "minLength": 1,
+            "type": "string"
+          },
+          "workspaceId": {
+            "maxLength": 40,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "workspaceId",
+          "noteId"
+        ],
+        "type": "object"
+      },
+      "internal": false,
+      "method": "POST",
+      "name": "UpdateNote",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "output": null,
+      "outputSchema": {
+        "$defs": {},
+        "maxProperties": 0,
+        "type": "object"
+      },
+      "pagination": null,
+      "protocol": "crucibleJson",
+      "protocolHeaders": {
+        "Content-Type": "application/json"
+      },
+      "readonly": false,
+      "request": {
+        "body": [
+          "audited"
+        ],
+        "headerEncodings": {},
+        "headers": [],
+        "labels": [
+          "workspaceId",
+          "noteId"
+        ],
+        "payload": null,
+        "query": [],
+        "timestampFormats": {}
+      },
+      "requirementDocumentation": [
+        {
+          "html": "<p>Requires <code>note:write</code> on the note; and further permissions internal to the service.</p>\n",
+          "markdown": "Requires `note:write` on the note; and further permissions internal to the service.",
+          "text": "Requires note:write on the note; and further permissions internal to the service."
+        }
+      ],
+      "requirementSentences": [
+        "Requires `note:write` on the note; and further permissions internal to the service."
+      ],
+      "requirements": {
+        "clauses": [
+          {
+            "bindings": [
+              {
+                "identifier": "workspaceId",
+                "value": "workspaceId"
+              },
+              {
+                "identifier": "noteId",
+                "value": "noteId"
+              }
+            ],
+            "grantedBy": {
+              "custom": true,
+              "roles": [
+                {
+                  "role": "owner",
+                  "scopes": [
+                    "workspace"
+                  ]
+                },
+                {
+                  "role": "editor",
+                  "scopes": [
+                    "allNotes",
+                    "note"
+                  ]
+                },
+                {
+                  "role": "archivist",
+                  "scopes": [
+                    "allNotes"
+                  ]
+                }
+              ]
+            },
+            "mode": "check",
+            "permission": "note:write",
+            "resourceType": "note",
+            "tier": "public"
+          }
+        ],
+        "internalClauses": [
+          {
+            "conditional": true,
+            "grantedBy": {
+              "roles": [
+                {
+                  "role": "owner",
+                  "scopes": [
+                    "workspace"
+                  ]
+                }
+              ]
+            },
+            "mode": "check"
+          }
+        ],
+        "kind": "list",
+        "partial": true
+      },
+      "resources": [
+        "example.notes#Note"
+      ],
+      "response": {
+        "body": [],
+        "headerEncodings": {},
+        "headers": [],
+        "labels": [],
+        "payload": null,
+        "query": [],
+        "timestampFormats": {}
+      },
+      "responseProtocolHeaders": {},
+      "sample": {
+        "fallbacks": [],
+        "generated": true,
+        "input": {
+          "body": {
+            "audited": false
+          },
+          "headers": {
+            "Content-Type": "application/json"
+          },
+          "labels": {
+            "noteId": "noteId",
+            "workspaceId": "workspaceId"
+          },
+          "method": "POST",
+          "payload": null,
+          "query": [],
+          "uri": "/workspaces/workspaceId/notes/noteId/update"
+        },
+        "minimalInput": {
+          "body": {},
+          "headers": {
+            "Content-Type": "application/json"
+          },
+          "labels": {
+            "noteId": "noteId",
+            "workspaceId": "workspaceId"
+          },
+          "method": "POST",
+          "payload": null,
+          "query": [],
+          "uri": "/workspaces/workspaceId/notes/noteId/update"
+        },
+        "output": {
+          "body": null,
+          "headers": {},
+          "labels": {},
+          "payload": null,
+          "query": []
+        }
+      },
+      "status": 200,
+      "summary": "A list mixing a public clause with an internal one: clients see which roles grant both, and only the public permission.",
+      "uri": "/workspaces/{workspaceId}/notes/{noteId}/update"
+    }
+  },
+  "resources": {
+    "example.notes#Archive": {
+      "documentation": {
+        "html": "<p>What a workspace keeps of its retired notes.</p>\n",
+        "markdown": "What a workspace keeps of its retired notes.",
+        "text": "What a workspace keeps of its retired notes."
+      },
+      "id": "example.notes#Archive",
+      "identifiers": {
+        "archiveId": "example.notes#ArchiveId",
+        "workspaceId": "example.notes#WorkspaceId"
+      },
+      "internal": false,
+      "lifecycle": {
+        "create": null,
+        "delete": null,
+        "list": null,
+        "put": null,
+        "read": null,
+        "update": null
+      },
+      "name": "Archive",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "operations": [
+        "example.notes#GetArchive"
+      ],
+      "properties": {},
+      "resources": [],
+      "summary": "What a workspace keeps of its retired notes."
+    },
+    "example.notes#Note": {
+      "documentation": {
+        "html": "<p>One note.</p>\n",
+        "markdown": "One note.",
+        "text": "One note."
+      },
+      "id": "example.notes#Note",
+      "identifiers": {
+        "noteId": "example.notes#NoteId",
+        "workspaceId": "example.notes#WorkspaceId"
+      },
+      "internal": false,
+      "lifecycle": {
+        "create": null,
+        "delete": null,
+        "list": null,
+        "put": null,
+        "read": null,
+        "update": null
+      },
+      "name": "Note",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "operations": [
+        "example.notes#CreateNote",
+        "example.notes#GetNote",
+        "example.notes#ListNotes",
+        "example.notes#PurgeNote",
+        "example.notes#ShareNote",
+        "example.notes#UpdateNote"
+      ],
+      "properties": {},
+      "resources": [],
+      "summary": "One note."
+    },
+    "example.notes#Workspace": {
+      "documentation": {
+        "html": "<p>A team's workspace.</p>\n",
+        "markdown": "A team's workspace.",
+        "text": "A team's workspace."
+      },
+      "id": "example.notes#Workspace",
+      "identifiers": {
+        "workspaceId": "example.notes#WorkspaceId"
+      },
+      "internal": false,
+      "lifecycle": {
+        "create": null,
+        "delete": null,
+        "list": null,
+        "put": null,
+        "read": null,
+        "update": null
+      },
+      "name": "Workspace",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "operations": [
+        "example.notes#GetWorkspace"
+      ],
+      "properties": {},
+      "resources": [
+        "example.notes#Archive",
+        "example.notes#Note"
+      ],
+      "summary": "A team's workspace."
+    }
+  },
+  "service": {
+    "auth": [
+      "crucible.api#httpBearerAuth"
+    ],
+    "authSchemes": {
+      "crucible.api#httpBearerAuth": {
+        "kind": "bearer"
+      }
+    },
+    "customRoles": true,
+    "documentation": {
+      "html": "<p>Notes, kept in workspaces.</p>\n",
+      "markdown": "Notes, kept in workspaces.",
+      "text": "Notes, kept in workspaces."
+    },
+    "errors": [],
+    "id": "example.notes#Notes",
+    "internal": false,
+    "name": "Notes",
+    "notes": {
+      "deprecated": null,
+      "externalDocs": {},
+      "since": null,
+      "unstable": false
+    },
+    "permissions": [
+      {
+        "identifiers": [
+          "workspaceId",
+          "archiveId"
+        ],
+        "permissions": [
+          {
+            "deprecated": false,
+            "description": "Read an archive.",
+            "grantable": true,
+            "symbol": "read",
+            "tier": "public",
+            "value": "archive:read"
+          }
+        ],
+        "resourceType": "archive"
+      },
+      {
+        "identifiers": [
+          "workspaceId",
+          "noteId"
+        ],
+        "permissions": [
+          {
+            "deprecated": false,
+            "description": "Write new notes.",
+            "grantable": true,
+            "symbol": "create",
+            "tier": "public",
+            "value": "note:create"
+          },
+          {
+            "deprecated": false,
+            "description": "Read a note.",
+            "grantable": true,
+            "symbol": "read",
+            "tier": "public",
+            "value": "note:read"
+          },
+          {
+            "deprecated": false,
+            "description": "Change a note.",
+            "grantable": true,
+            "symbol": "write",
+            "tier": "public",
+            "value": "note:write"
+          }
+        ],
+        "resourceType": "note"
+      },
+      {
+        "identifiers": [
+          "workspaceId"
+        ],
+        "permissions": [
+          {
+            "deprecated": false,
+            "description": "Everything in the workspace, conferred whole.",
+            "grantable": false,
+            "symbol": "admin",
+            "tier": "notGrantable",
+            "value": "workspace:admin"
+          },
+          {
+            "deprecated": false,
+            "description": "Read the workspace's settings.",
+            "grantable": true,
+            "symbol": "read",
+            "tier": "public",
+            "value": "workspace:read"
+          }
+        ],
+        "resourceType": "workspace"
+      }
+    ],
+    "protocol": "crucibleJson",
+    "resourceRoots": [
+      "example.notes#Workspace"
+    ],
+    "roles": [
+      {
+        "assignedBy": [
+          "owner"
+        ],
+        "deprecated": false,
+        "description": "Runs the workspace.",
+        "holders": [
+          "user"
+        ],
+        "permissions": [
+          {
+            "permission": "note:read",
+            "resourceType": "note"
+          },
+          {
+            "permission": "note:write",
+            "resourceType": "note"
+          },
+          {
+            "permission": "note:create",
+            "resourceType": "note"
+          },
+          {
+            "permission": "workspace:read",
+            "resourceType": "workspace"
+          },
+          {
+            "permission": "workspace:admin",
+            "resourceType": "workspace"
+          }
+        ],
+        "scopes": [
+          "workspace"
+        ],
+        "value": "owner"
+      },
+      {
+        "assignedBy": [],
+        "deprecated": false,
+        "description": "Reads notes.",
+        "holders": [],
+        "permissions": [
+          {
+            "permission": "note:read",
+            "resourceType": "note"
+          }
+        ],
+        "scopes": [
+          "workspace",
+          "allNotes",
+          "note"
+        ],
+        "value": "viewer"
+      },
+      {
+        "assignedBy": [],
+        "deprecated": false,
+        "description": "Reads, changes and writes notes.",
+        "holders": [],
+        "permissions": [
+          {
+            "permission": "note:read",
+            "resourceType": "note"
+          },
+          {
+            "permission": "note:write",
+            "resourceType": "note"
+          },
+          {
+            "permission": "note:create",
+            "resourceType": "note"
+          }
+        ],
+        "scopes": [
+          "allNotes",
+          "note"
+        ],
+        "value": "editor"
+      },
+      {
+        "assignedBy": [],
+        "byService": [
+          {
+            "documentation": "The archives of the notes this binding covers, while they are retained.",
+            "permission": "archive:read",
+            "resourceType": "archive"
+          }
+        ],
+        "deprecated": false,
+        "description": "Edits notes and reads the archives they came from.",
+        "holders": [],
+        "permissions": [
+          {
+            "permission": "note:read",
+            "resourceType": "note"
+          },
+          {
+            "permission": "note:write",
+            "resourceType": "note"
+          },
+          {
+            "permission": "note:create",
+            "resourceType": "note"
+          }
+        ],
+        "scopes": [
+          "allNotes"
+        ],
+        "value": "archivist"
+      }
+    ],
+    "scopes": [
+      {
+        "deprecated": false,
+        "description": "The workspace and everything in it.",
+        "kind": "instance",
+        "resource": "example.notes#Workspace",
+        "resourceType": "workspace",
+        "value": "workspace"
+      },
+      {
+        "deprecated": false,
+        "description": "Every note in the workspace, including notes written later.",
+        "kind": "every",
+        "resource": "example.notes#Note",
+        "resourceType": "note",
+        "value": "allNotes"
+      },
+      {
+        "deprecated": false,
+        "description": "One note.",
+        "kind": "instance",
+        "resource": "example.notes#Note",
+        "resourceType": "note",
+        "value": "note"
+      }
+    ],
+    "summary": "Notes, kept in workspaces.",
+    "title": "Notes",
+    "version": "1"
+  },
+  "shapes": {
+    "crucible.api#Boolean": {
+      "constraints": {
+        "length": null,
+        "pattern": null,
+        "range": null,
+        "uniqueItems": false
+      },
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
+      "id": "crucible.api#Boolean",
+      "internal": false,
+      "kind": "boolean",
+      "members": [],
+      "name": "Boolean",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false,
+      "summary": ""
+    },
+    "crucible.api#String": {
+      "constraints": {
+        "length": null,
+        "pattern": null,
+        "range": null,
+        "uniqueItems": false
+      },
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
+      "id": "crucible.api#String",
+      "internal": false,
+      "kind": "string",
+      "members": [],
+      "name": "String",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false,
+      "summary": ""
+    },
+    "example.notes#ArchiveId": {
+      "constraints": {
+        "length": {
+          "max": 40,
+          "min": 1
+        },
+        "pattern": null,
+        "range": null,
+        "uniqueItems": false
+      },
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
+      "id": "example.notes#ArchiveId",
+      "internal": false,
+      "kind": "string",
+      "members": [],
+      "name": "ArchiveId",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false,
+      "summary": ""
+    },
+    "example.notes#CreateNoteInput": {
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "error": null,
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
+      "id": "example.notes#CreateNoteInput",
+      "internal": false,
+      "kind": "structure",
+      "members": [
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": {
+              "max": 40,
+              "min": 1
+            },
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "workspaceId",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": false,
+          "required": true,
+          "sensitive": false,
+          "target": "example.notes#WorkspaceId",
+          "targetName": "WorkspaceId",
+          "targetType": "string",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "workspaceId"
+        }
+      ],
+      "name": "CreateNoteInput",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false,
+      "summary": ""
+    },
+    "example.notes#GetArchiveInput": {
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "error": null,
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
+      "id": "example.notes#GetArchiveInput",
+      "internal": false,
+      "kind": "structure",
+      "members": [
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": {
+              "max": 40,
+              "min": 1
+            },
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "workspaceId",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": false,
+          "required": true,
+          "sensitive": false,
+          "target": "example.notes#WorkspaceId",
+          "targetName": "WorkspaceId",
+          "targetType": "string",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "workspaceId"
+        },
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": {
+              "max": 40,
+              "min": 1
+            },
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "archiveId",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": false,
+          "required": true,
+          "sensitive": false,
+          "target": "example.notes#ArchiveId",
+          "targetName": "ArchiveId",
+          "targetType": "string",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "archiveId"
+        }
+      ],
+      "name": "GetArchiveInput",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false,
+      "summary": ""
+    },
+    "example.notes#GetCallerOutput": {
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "error": null,
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
+      "id": "example.notes#GetCallerOutput",
+      "internal": false,
+      "kind": "structure",
+      "members": [
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "kind",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": false,
+          "required": true,
+          "sensitive": false,
+          "target": "example.notes#PrincipalKind",
+          "targetName": "PrincipalKind",
+          "targetType": "enum",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "kind"
+        }
+      ],
+      "name": "GetCallerOutput",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false,
+      "summary": ""
+    },
+    "example.notes#GetNoteInput": {
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "error": null,
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
+      "id": "example.notes#GetNoteInput",
+      "internal": false,
+      "kind": "structure",
+      "members": [
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": {
+              "max": 40,
+              "min": 1
+            },
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "workspaceId",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": false,
+          "required": true,
+          "sensitive": false,
+          "target": "example.notes#WorkspaceId",
+          "targetName": "WorkspaceId",
+          "targetType": "string",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "workspaceId"
+        },
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": {
+              "max": 40,
+              "min": 1
+            },
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "noteId",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": false,
+          "required": true,
+          "sensitive": false,
+          "target": "example.notes#NoteId",
+          "targetName": "NoteId",
+          "targetType": "string",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "noteId"
+        }
+      ],
+      "name": "GetNoteInput",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false,
+      "summary": ""
+    },
+    "example.notes#GetWorkspaceInput": {
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "error": null,
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
+      "id": "example.notes#GetWorkspaceInput",
+      "internal": false,
+      "kind": "structure",
+      "members": [
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": {
+              "max": 40,
+              "min": 1
+            },
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "workspaceId",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": false,
+          "required": true,
+          "sensitive": false,
+          "target": "example.notes#WorkspaceId",
+          "targetName": "WorkspaceId",
+          "targetType": "string",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "workspaceId"
+        }
+      ],
+      "name": "GetWorkspaceInput",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false,
+      "summary": ""
+    },
+    "example.notes#ListNotesInput": {
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "error": null,
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
+      "id": "example.notes#ListNotesInput",
+      "internal": false,
+      "kind": "structure",
+      "members": [
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": {
+              "max": 40,
+              "min": 1
+            },
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "workspaceId",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": false,
+          "required": true,
+          "sensitive": false,
+          "target": "example.notes#WorkspaceId",
+          "targetName": "WorkspaceId",
+          "targetType": "string",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "workspaceId"
+        }
+      ],
+      "name": "ListNotesInput",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false,
+      "summary": ""
+    },
+    "example.notes#Missing": {
+      "documentation": {
+        "html": "<p>The resource is missing, or the caller may not know it exists.</p>\n",
+        "markdown": "The resource is missing, or the caller may not know it exists.",
+        "text": "The resource is missing, or the caller may not know it exists."
+      },
+      "error": {
+        "bindings": {
+          "body": [
+            "message"
+          ],
+          "headerEncodings": {},
+          "headers": [],
+          "labels": [],
+          "payload": null,
+          "query": [],
+          "timestampFormats": {}
+        },
+        "bodyDiscriminator": "Missing",
+        "discriminatorHeader": "X-Crucible-Error",
+        "fault": "client",
+        "protocolHeaders": {
+          "Content-Type": "application/json"
+        },
+        "reasons": [],
+        "retryable": null,
+        "sample": {
+          "fallbacks": [],
+          "generated": true,
+          "message": {
+            "body": {
+              "__type": "Missing",
+              "message": "message"
+            },
+            "headers": {
+              "Content-Type": "application/json",
+              "X-Crucible-Error": "Missing"
+            },
+            "labels": {},
+            "payload": null,
+            "query": []
+          }
+        },
+        "shape": "example.notes#Missing",
+        "status": 404,
+        "wireCode": "Missing"
+      },
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
+      "id": "example.notes#Missing",
+      "internal": false,
+      "kind": "structure",
+      "members": [
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "message",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": false,
+          "required": true,
+          "sensitive": false,
+          "target": "crucible.api#String",
+          "targetName": "String",
+          "targetType": "string",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "message"
+        }
+      ],
+      "name": "Missing",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false,
+      "summary": "The resource is missing, or the caller may not know it exists."
+    },
+    "example.notes#NoteId": {
+      "constraints": {
+        "length": {
+          "max": 40,
+          "min": 1
+        },
+        "pattern": null,
+        "range": null,
+        "uniqueItems": false
+      },
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
+      "id": "example.notes#NoteId",
+      "internal": false,
+      "kind": "string",
+      "members": [],
+      "name": "NoteId",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false,
+      "summary": ""
+    },
+    "example.notes#PrincipalKind": {
+      "documentation": {
+        "html": "<p>Who a credential belongs to.</p>\n",
+        "markdown": "Who a credential belongs to.",
+        "text": "Who a credential belongs to."
+      },
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
+      "id": "example.notes#PrincipalKind",
+      "internal": false,
+      "kind": "enum",
+      "members": [],
+      "name": "PrincipalKind",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false,
+      "summary": "Who a credential belongs to.",
+      "values": [
+        {
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "USER",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "value": "user"
+        },
+        {
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "SERVICE_ACCOUNT",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "value": "serviceAccount"
+        }
+      ]
+    },
+    "example.notes#PurgeNoteInput": {
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "error": null,
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
+      "id": "example.notes#PurgeNoteInput",
+      "internal": false,
+      "kind": "structure",
+      "members": [
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": {
+              "max": 40,
+              "min": 1
+            },
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "workspaceId",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": false,
+          "required": true,
+          "sensitive": false,
+          "target": "example.notes#WorkspaceId",
+          "targetName": "WorkspaceId",
+          "targetType": "string",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "workspaceId"
+        },
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": {
+              "max": 40,
+              "min": 1
+            },
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "noteId",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": false,
+          "required": true,
+          "sensitive": false,
+          "target": "example.notes#NoteId",
+          "targetName": "NoteId",
+          "targetType": "string",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "noteId"
+        }
+      ],
+      "name": "PurgeNoteInput",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false,
+      "summary": ""
+    },
+    "example.notes#ShareNoteInput": {
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "error": null,
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
+      "id": "example.notes#ShareNoteInput",
+      "internal": false,
+      "kind": "structure",
+      "members": [
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": {
+              "max": 40,
+              "min": 1
+            },
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "workspaceId",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": false,
+          "required": true,
+          "sensitive": false,
+          "target": "example.notes#WorkspaceId",
+          "targetName": "WorkspaceId",
+          "targetType": "string",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "workspaceId"
+        },
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": {
+              "max": 40,
+              "min": 1
+            },
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "noteId",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": false,
+          "required": true,
+          "sensitive": false,
+          "target": "example.notes#NoteId",
+          "targetName": "NoteId",
+          "targetType": "string",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "noteId"
+        }
+      ],
+      "name": "ShareNoteInput",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false,
+      "summary": ""
+    },
+    "example.notes#UpdateNoteInput": {
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "error": null,
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
+      "id": "example.notes#UpdateNoteInput",
+      "internal": false,
+      "kind": "structure",
+      "members": [
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": {
+              "max": 40,
+              "min": 1
+            },
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "workspaceId",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": false,
+          "required": true,
+          "sensitive": false,
+          "target": "example.notes#WorkspaceId",
+          "targetName": "WorkspaceId",
+          "targetType": "string",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "workspaceId"
+        },
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": {
+              "max": 40,
+              "min": 1
+            },
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "noteId",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": false,
+          "required": true,
+          "sensitive": false,
+          "target": "example.notes#NoteId",
+          "targetName": "NoteId",
+          "targetType": "string",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "noteId"
+        },
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "audited",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": true,
+          "required": false,
+          "sensitive": false,
+          "target": "crucible.api#Boolean",
+          "targetName": "Boolean",
+          "targetType": "boolean",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "audited"
+        }
+      ],
+      "name": "UpdateNoteInput",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false,
+      "summary": ""
+    },
+    "example.notes#WorkspaceId": {
+      "constraints": {
+        "length": {
+          "max": 40,
+          "min": 1
+        },
+        "pattern": null,
+        "range": null,
+        "uniqueItems": false
+      },
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
+      "id": "example.notes#WorkspaceId",
+      "internal": false,
+      "kind": "string",
+      "members": [],
+      "name": "WorkspaceId",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false,
+      "summary": ""
+    }
+  },
+  "versions": {
+    "carrier": {
+      "kind": "header",
+      "name": "Crucible-Version"
+    },
+    "current": "1",
+    "releases": [
+      {
+        "changes": [],
+        "current": true,
+        "documentation": {
+          "html": "",
+          "markdown": "",
+          "text": ""
+        },
+        "from": null,
+        "name": "1",
+        "retired": [],
+        "sunset": null,
+        "sunsetDocumentation": {
+          "html": "",
+          "markdown": "",
+          "text": ""
+        }
+      }
+    ]
+  }
+}

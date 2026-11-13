@@ -151,6 +151,84 @@ fn colliding_permission_names_are_diagnostics() {
     );
 }
 
+/// The role registry (docs/roles.md §7 "Clients") from
+/// `tests/models/roles-granted-by`: `NotesRole`, `NotesScope` and `ROLES`
+/// in catalogue order, public roles, scopes and permissions only, whatever
+/// the audience; checked in under `tests/golden/roles/`, and exported.
+#[test]
+fn roles_match_goldens() {
+    let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../tests/models/roles-granted-by");
+    let full = crucible_lang::load_service(&dir).unwrap();
+    let notes = Options {
+        package_name: "notes.client".into(),
+        ..options()
+    };
+    let generated = |audience| {
+        let service = crucible_ir::project(&full, audience).unwrap();
+        emit(&service, &notes).unwrap()
+    };
+    let roles = |files: &[crucible_codegen_r::File]| {
+        files
+            .iter()
+            .filter(|file| file.path.contains("roles."))
+            .map(|file| (file.path.clone(), file.contents.clone()))
+            .collect::<Vec<_>>()
+    };
+    let external = generated(crucible_ir::Audience::External);
+    let files = roles(&external);
+    assert_eq!(roles(&generated(crucible_ir::Audience::Internal)), files);
+    assert_eq!(
+        files
+            .iter()
+            .map(|(path, _)| path.as_str())
+            .collect::<Vec<_>>(),
+        ["R/roles.R", "man/roles.Rd"]
+    );
+    let namespace = &external
+        .iter()
+        .find(|file| file.path == "NAMESPACE")
+        .unwrap()
+        .contents;
+    for name in ["ROLES", "NotesRole", "NotesScope"] {
+        assert!(
+            namespace.contains(&format!("export(\"{name}\")")),
+            "{namespace}"
+        );
+    }
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/golden/roles");
+    for (path, contents) in &files {
+        for hidden in ["auditor", "backOffice", "note:purge", "workspace:audit"] {
+            assert!(!contents.contains(hidden), "{path} names {hidden}");
+        }
+        let golden = root.join(path);
+        if std::env::var_os("CRUCIBLE_BLESS").is_some() {
+            std::fs::create_dir_all(golden.parent().unwrap()).unwrap();
+            std::fs::write(&golden, contents).unwrap();
+        }
+        assert_eq!(
+            &std::fs::read_to_string(&golden)
+                .unwrap_or_default()
+                .replace("\r\n", "\n"),
+            contents,
+            "{path}; rerun with CRUCIBLE_BLESS=1 and read the diff"
+        );
+    }
+    // A model without roles gets no role files or exports.
+    let weather = crucible_lang::load_service(
+        &std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../tests/models/weather"),
+    )
+    .unwrap();
+    let files = emit(&weather, &options()).unwrap();
+    assert!(files.iter().all(|file| !file.path.contains("roles.")));
+    let namespace = &files
+        .iter()
+        .find(|file| file.path == "NAMESPACE")
+        .unwrap()
+        .contents;
+    assert!(!namespace.contains("ROLES"), "{namespace}");
+}
+
 /// A model without permissions gets no permission files or exports.
 #[test]
 fn a_model_without_permissions_has_no_permission_files() {

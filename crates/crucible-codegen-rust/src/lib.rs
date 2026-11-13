@@ -21,6 +21,7 @@ mod client_api;
 mod client_options;
 mod client_package;
 mod client_permissions;
+mod client_roles;
 mod debug;
 mod errors;
 mod file;
@@ -380,10 +381,11 @@ pub fn generate_client(service: &Service) -> Result<String, Diagnostics> {
     let errors = errors::emit(service, true, &mut diagnostics);
     check_patterns(service, &mut diagnostics);
     let client = format!(
-        "{}{}{}",
+        "{}{}{}{}",
         info::redactions(service),
         client::emit(service, &mut diagnostics),
         client_permissions::module(service, &mut diagnostics),
+        client_roles::module(service, &mut diagnostics),
     );
     let exports = client_api::exports(service, &mut diagnostics);
     if !diagnostics.is_empty() {

@@ -153,7 +153,7 @@ pub mod __generated {
     pub use crucible_wire::blob::Blob;
     pub use crucible_wire::number::{BigDecimal, BigInteger};
     pub use crucible_wire::{
-        codec, error, field, number, open, operation, permissions, time, validate,
+        codec, error, field, number, open, operation, permissions, roles, time, validate,
     };
 
     pub use chrono;

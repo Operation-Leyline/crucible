@@ -15,6 +15,7 @@ pub mod object;
 pub mod open;
 pub mod operation;
 pub mod permissions;
+pub mod roles;
 pub mod split;
 pub mod text;
 pub mod time;

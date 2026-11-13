@@ -14,9 +14,10 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
+use crate::ir::permissions::Binding;
 use crate::ir::{
-    Grant, GrantedPermission, GrantedSet, ResourcePermissions, Role, ScopeTarget, Service,
-    ServiceGrant, Tier,
+    ClauseGrants, Grant, GrantedPermission, GrantedSet, Mode, Operation, Requirement,
+    ResourcePermissions, Role, RoleGrant, ScopeTarget, Service, ServiceGrant, Tier,
 };
 use crate::shape_id::ShapeId;
 
@@ -313,8 +314,12 @@ pub fn effective(service: &Service, role: &Role) -> (Vec<GrantedPermission>, Vec
 }
 
 /// Fills every role's [`Role::effective`] and [`Role::by_service`] from the
-/// catalogue as declared. The `.cru` lowering calls it once the service is
-/// built; a front end that builds IR by hand calls it too.
+/// catalogue as declared, then every operation's [`Operation::granted_by`]
+/// from them. The `.cru` lowering calls it once the service is built; a
+/// front end that builds IR by hand calls it too. It reads the server
+/// contract: a client-audience projection no longer has a public role's
+/// internal grants, so it keeps what this settled instead
+/// (`crate::project`).
 pub fn settle(service: &mut Service) {
     let settled: Vec<_> = service
         .roles
@@ -324,6 +329,132 @@ pub fn settle(service: &mut Service) {
     for (role, (model, by_service)) in service.roles.iter_mut().zip(settled) {
         role.effective = model;
         role.by_service = by_service;
+    }
+    let granted: Vec<Vec<ClauseGrants>> = service
+        .operations
+        .iter()
+        .map(|op| granted_by(service, op))
+        .collect();
+    for (op, granted) in service.operations.iter_mut().zip(granted) {
+        op.granted_by = granted;
+    }
+}
+
+/// What a clause is about (§5): one instance of its resource, or, where a
+/// binding is `*`, every instance of the resource that identifier names
+/// under its bound parent: `requires create on Graph(*)` is about
+/// `Graph(*)`. A `by handler` clause binds nothing and is about an
+/// instance.
+pub fn clause_target<'s>(service: &'s Service, clause: &'s Requirement) -> Target<'s> {
+    let Some(star) = clause.bindings.iter().position(|b| *b == Binding::All) else {
+        return Target::Instance(&clause.resource);
+    };
+    // The resources from the root down to the clause's, each with how many
+    // identifiers name an instance of it (its own and its ancestors').
+    let mut chain = vec![&clause.resource];
+    for _ in 0..service.resources.len() {
+        match parent(service, chain[chain.len() - 1]) {
+            Some(up) if !chain.contains(&up) => chain.push(up),
+            _ => break,
+        }
+    }
+    chain.reverse();
+    let depth = |id: &ShapeId| {
+        service
+            .permissions
+            .get(id)
+            .map(|r| r.identifiers.len())
+            .or_else(|| service.resources.get(id).map(|r| r.identifiers.len()))
+            .unwrap_or(0)
+    };
+    let every = chain
+        .iter()
+        .find(|id| depth(id) > star)
+        .copied()
+        .unwrap_or(&clause.resource);
+    Target::Every(every)
+}
+
+/// Who satisfies each of `op`'s clauses (§5), one entry per clause in
+/// source order; nothing for a service without roles. The roles are in
+/// catalogue order, as are each role's scopes, so every output lists them
+/// alike.
+pub fn granted_by(service: &Service, op: &Operation) -> Vec<ClauseGrants> {
+    if service.roles.is_empty() && !service.role_settings.custom {
+        return Vec::new();
+    }
+    op.requirements
+        .clauses()
+        .iter()
+        .enumerate()
+        .map(|(index, clause)| clause_grants(service, clause, index))
+        .collect()
+}
+
+fn clause_grants(service: &Service, clause: &Requirement, index: usize) -> ClauseGrants {
+    // A `filters` clause's `*` names the collection it lists, not a
+    // permission over all of it: the listing answers with each instance the
+    // caller may see (docs/permissions.md §4.5, `Visibility::Only`), so a
+    // binding that covers any one instance contributes, one note's as much
+    // as all notes'. A `requires .. on R(*)` check does need the whole
+    // collection (`create on Graph(*)`).
+    let target = match clause.mode {
+        Mode::Filter => Target::Instance(&clause.resource),
+        Mode::Check | Mode::Handler => clause_target(service, clause),
+    };
+    let names = |g_resource: &ShapeId, g_permission: &str| {
+        g_resource == &clause.resource && g_permission == clause.permission
+    };
+    // A role's scopes in catalogue order, as the service lists them.
+    let scopes = |role: &Role, covering: bool| -> Vec<String> {
+        service
+            .role_scopes
+            .iter()
+            .filter(|scope| role.scopes.contains(&scope.symbol))
+            .filter(|scope| !covering || covers(service, &scope.on, target))
+            .map(|scope| scope.symbol.clone())
+            .collect()
+    };
+    let mut roles = Vec::new();
+    let mut by_service = Vec::new();
+    for role in &service.roles {
+        if role
+            .effective
+            .iter()
+            .any(|g| names(&g.resource, &g.permission))
+        {
+            let scopes = scopes(role, true);
+            if !scopes.is_empty() {
+                roles.push(RoleGrant {
+                    role: role.symbol.clone(),
+                    scopes,
+                    docs: None,
+                });
+            }
+        } else if let Some(grant) = role
+            .by_service
+            .iter()
+            .find(|g| names(&g.resource, &g.permission))
+        {
+            by_service.push(RoleGrant {
+                role: role.symbol.clone(),
+                scopes: scopes(role, false),
+                docs: grant.docs.clone(),
+            });
+        }
+    }
+    let grantable = service
+        .permissions
+        .get(&clause.resource)
+        .and_then(|r| r.permission(&clause.permission))
+        .is_some_and(|p| matches!(p.tier, Tier::Public | Tier::PermissionOnly));
+    ClauseGrants {
+        clause: Some(index),
+        mode: clause.mode,
+        conditional: clause.when.is_some(),
+        roles,
+        by_service,
+        custom: service.role_settings.custom && grantable,
     }
 }
 

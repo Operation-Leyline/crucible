@@ -196,7 +196,10 @@ applications use `OpenEnum::{from_string, as_str}` to construct and
 inspect string enum values, including unknown values from a newer service.
 `Field` and `UnknownUnion` support advanced presence and forward-compatibility
 handling. These consumer types are re-exported directly by the client runtime;
-their serialization machinery belongs to `__generated`.
+their serialization machinery belongs to `__generated`. The registries a
+generated client publishes are read through `permissions::{ResourcePermissions,
+PermissionDescription, Tier}` and `roles::{RoleDescription, RolePermission}`
+(docs/roles.md §7 "Clients").
 
 ## Typed permissions
 

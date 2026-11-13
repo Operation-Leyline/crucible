@@ -48,6 +48,11 @@ pub use crucible_wire::{blob, number, operation, time, validate};
 pub mod permissions {
     pub use crucible_wire::permissions::{PermissionDescription, ResourcePermissions, Tier};
 }
+/// The role registry a generated client publishes (`roles::ROLES`;
+/// docs/roles.md §7 "Clients").
+pub mod roles {
+    pub use crucible_wire::roles::{RoleDescription, RolePermission};
+}
 pub use paginate::Paginator;
 pub use response_stream::ResponseStream;
 pub use transport::{Error, ResponseMetadata, ServiceError, Transport, UnknownError};
@@ -82,7 +87,7 @@ pub mod __generated {
     pub use crucible_wire::blob::Blob;
     pub use crucible_wire::number::{BigDecimal, BigInteger};
     pub use crucible_wire::{
-        codec, error, field, number, object, open, operation, permissions, time, validate,
+        codec, error, field, number, object, open, operation, permissions, roles, time, validate,
     };
 
     pub const fn build_error(shape: &'static str, member: &'static str) -> crate::BuildError {

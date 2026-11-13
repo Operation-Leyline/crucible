@@ -466,3 +466,72 @@ fn documentation_member_collision_is_configured_only() {
     service.error_docs_base = None;
     emit(&service, &options()).expect("no-base modeled DocUrl remains allowed");
 }
+
+/// The role registry (docs/roles.md §7 "Clients") from
+/// `tests/models/roles-granted-by`: the `Roles` namespace, checked in under
+/// `tests/golden/roles/`. Public roles, scopes and permissions only,
+/// whatever the audience, in catalogue order; each method's documentation
+/// names the roles that grant it, even where every requirement is
+/// internal. A model without roles gets no `Roles` namespace.
+#[test]
+fn roles_match_goldens() {
+    let full = crucible_lang::load_service(&model_dir("roles-granted-by")).unwrap();
+    let generated = |audience| {
+        let projected = crucible_ir::project(&full, audience).unwrap();
+        emit(&projected, &options()).unwrap()
+    };
+    let roles = |files: &[crucible_codegen_csharp::File]| -> Vec<(String, String)> {
+        files
+            .iter()
+            .filter(|f| f.path.starts_with("Roles/"))
+            .map(|f| (f.path.clone(), f.contents.clone()))
+            .collect()
+    };
+    let external = generated(crucible_ir::Audience::External);
+    let files = roles(&external);
+    assert!(!files.is_empty());
+    assert_eq!(roles(&generated(crucible_ir::Audience::Internal)), files);
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/golden/roles");
+    let bless = std::env::var_os("CRUCIBLE_BLESS").is_some();
+    if bless {
+        let _ = fs::remove_dir_all(&root);
+    }
+    for (path, contents) in &files {
+        for hidden in ["auditor", "backOffice", "note:purge", "workspace:audit"] {
+            assert!(!contents.contains(hidden), "{path} names {hidden}");
+        }
+        let golden = root.join(path);
+        if bless {
+            fs::create_dir_all(golden.parent().unwrap()).unwrap();
+            fs::write(&golden, contents).unwrap();
+        }
+        assert_eq!(
+            fs::read_to_string(&golden)
+                .unwrap_or_default()
+                .replace("\r\n", "\n"),
+            *contents,
+            "{path}; rerun with CRUCIBLE_BLESS=1 and read the diff"
+        );
+    }
+    let registry = &files
+        .iter()
+        .find(|(path, _)| path.ends_with("Roles/RoleRegistry.cs"))
+        .unwrap()
+        .1;
+    let order: Vec<usize> = ["\"owner\",", "\"viewer\",", "\"editor\",", "\"archivist\","]
+        .iter()
+        .map(|v| registry.find(v).unwrap_or_else(|| panic!("{v}")))
+        .collect();
+    assert!(order.windows(2).all(|w| w[0] < w[1]), "{registry}");
+    let client = external
+        .iter()
+        .map(|f| f.contents.as_str())
+        .collect::<String>();
+    assert!(client.contains("Granted by"), "no granted-by sentence");
+    assert!(
+        emit(&weather(), &options())
+            .unwrap()
+            .iter()
+            .all(|f| !f.path.starts_with("Roles/"))
+    );
+}
