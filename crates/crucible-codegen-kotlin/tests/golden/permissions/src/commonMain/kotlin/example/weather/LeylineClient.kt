@@ -52,6 +52,40 @@ class LeylineClient(config: ClientConfig) : AutoCloseable {
      */
     suspend fun `archiveGraph`(block: example.weather.model.`ArchiveGraphInput`.Builder.() -> kotlin.Unit = {}): example.weather.model.`ArchiveGraphOutput` = `archiveGraph`(example.weather.model.`ArchiveGraphInput`(block))
     /**
+     * Reads several graphs at once.
+     *
+     * Requires no permission.
+     *
+     * Each graph requires `graph:read`. The response reports inaccessible or missing graphs as item-level failures.
+     *
+     * Suspends until the response has been decoded.
+     *
+     * @param input the request
+     * @return the response
+     * @throws example.weather.model.ValidationException if the service returns `crucible.errors#ValidationException`
+     * @throws example.weather.model.InternalServerException if the service returns `crucible.errors#InternalServerException`
+     * @throws example.weather.LeylineException for any other error response
+     * @throws example.weather.NetworkError if the transport fails
+     */
+    suspend fun `batchGetGraphs`(input: example.weather.model.`BatchGetGraphsInput`): example.weather.model.`BatchGetGraphsOutput` = runtime.call("BatchGetGraphs", input) as example.weather.model.`BatchGetGraphsOutput`
+    /**
+     * Reads several graphs at once.
+     *
+     * Requires no permission.
+     *
+     * Each graph requires `graph:read`. The response reports inaccessible or missing graphs as item-level failures.
+     *
+     * Builds the request with a lambda; omit it to send an empty request when every member is optional.
+     *
+     * @param block fills the request builder
+     * @return the response
+     * @throws example.weather.model.ValidationException if the service returns `crucible.errors#ValidationException`
+     * @throws example.weather.model.InternalServerException if the service returns `crucible.errors#InternalServerException`
+     * @throws example.weather.LeylineException for any other error response
+     * @throws example.weather.NetworkError if the transport fails
+     */
+    suspend fun `batchGetGraphs`(block: example.weather.model.`BatchGetGraphsInput`.Builder.() -> kotlin.Unit = {}): example.weather.model.`BatchGetGraphsOutput` = `batchGetGraphs`(example.weather.model.`BatchGetGraphsInput`(block))
+    /**
      * Requires `graph:write` on every graph in the organization.
      *
      * Calls the `CreateGraph` operation.
@@ -253,6 +287,24 @@ class LeylineClient(config: ClientConfig) : AutoCloseable {
      * @throws example.weather.NetworkError if the transport fails
      */
     suspend fun `listGraphs`(block: example.weather.model.`ListGraphsInput`.Builder.() -> kotlin.Unit = {}): example.weather.model.`ListGraphsOutput` = `listGraphs`(example.weather.model.`ListGraphsInput`(block))
+    /**
+     * The organizations the caller belongs to.
+     *
+     * Requires no permission.
+     *
+     * Returns only what the caller may see.
+     *
+     * Suspends until the response has been decoded.
+     *
+     * This operation is read-only; the client may retry it.
+     *
+     * @return the response
+     * @throws example.weather.model.ValidationException if the service returns `crucible.errors#ValidationException`
+     * @throws example.weather.model.InternalServerException if the service returns `crucible.errors#InternalServerException`
+     * @throws example.weather.LeylineException for any other error response
+     * @throws example.weather.NetworkError if the transport fails
+     */
+    suspend fun `listOrganizations`(): example.weather.model.`ListOrganizationsOutput` = runtime.call("ListOrganizations", null) as example.weather.model.`ListOrganizationsOutput`
     /**
      * Calls the `RestoreBackup` operation.
      *

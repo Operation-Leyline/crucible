@@ -13,6 +13,17 @@ Returns: ArchiveGraphOutput.
 
 Modeled errors: NotFoundException, ValidationException, InternalServerException. Transport, timeout and decoding failures can also occur.
 
+batch_get_graphs
+Reads several graphs at once.
+
+Requires no permission. Each graph requires \code{graph:read}. The response reports inaccessible or missing graphs as item-level failures.
+
+Input: BatchGetGraphsInput.
+
+Returns: BatchGetGraphsOutput.
+
+Modeled errors: ValidationException, InternalServerException. Transport, timeout and decoding failures can also occur.
+
 create_graph
 Call CreateGraph.
 
@@ -95,6 +106,19 @@ Input: ListGraphsInput.
 Returns: ListGraphsOutput.
 
 Modeled errors: NotFoundException, ValidationException, InternalServerException. Transport, timeout and decoding failures can also occur.
+
+This operation is safe to retry under the configured retry policy.
+
+list_organizations
+The organizations the caller belongs to.
+
+Requires no permission. Returns only what the caller may see.
+
+Input: no modeled input.
+
+Returns: ListOrganizationsOutput.
+
+Modeled errors: ValidationException, InternalServerException. Transport, timeout and decoding failures can also occur.
 
 This operation is safe to retry under the configured retry policy.
 

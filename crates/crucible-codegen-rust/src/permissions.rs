@@ -576,8 +576,8 @@ pub(crate) fn marker_items(
             );
             return out;
         }
-        Requirements::None => format!("{P}::Requirements::None"),
-        Requirements::Pending { reason } => format!(
+        Requirements::None { .. } => format!("{P}::Requirements::None"),
+        Requirements::Pending { reason, .. } => format!(
             "{P}::Requirements::Pending {{ reason: {} }}",
             literal(reason)
         ),
@@ -612,9 +612,13 @@ pub(crate) fn marker_items(
     out.push_str(&format!(
         "    const REQUIREMENTS: {P}::Requirements = {requirements};\n"
     ));
-    if let Some(checks) = checks(service, op, diagnostics) {
+    if let Some((checks, reads_input)) = checks(service, op, diagnostics) {
+        // A clause that binds only `*` (or nothing) and has no `when` reads
+        // no input: the parameter is then `_input`, so a service built with
+        // `-D warnings` does not refuse it as unused.
+        let input = if reads_input { "input" } else { "_input" };
         out.push_str(&format!(
-            "    #[allow(clippy::all, unreachable_patterns, unused_parens)]\n    const CHECKS: ::std::option::Option<{P}::Checks<Self::Input>> = ::std::option::Option::Some(|input, out| {{\n{checks}    }});\n"
+            "    #[allow(clippy::all, unreachable_patterns, unused_parens)]\n    const CHECKS: ::std::option::Option<{P}::Checks<Self::Input>> = ::std::option::Option::Some(|{input}, out| {{\n{checks}    }});\n"
         ));
     }
     out
@@ -699,13 +703,19 @@ pub(crate) fn obligations(service: &Service, op: &Operation) -> String {
 }
 
 /// The body of `CHECKS`: one push per `Check` or `Filter` clause, inside
-/// its condition. `None` when the operation has no such clause.
-fn checks(service: &Service, op: &Operation, diagnostics: &mut Diagnostics) -> Option<String> {
+/// its condition, and whether it reads the input (a member binding or a
+/// `when`). `None` when the operation has no such clause.
+fn checks(
+    service: &Service,
+    op: &Operation,
+    diagnostics: &mut Diagnostics,
+) -> Option<(String, bool)> {
     let clauses = op.requirements.clauses();
     if !clauses.iter().any(|clause| clause.mode != Mode::Handler) {
         return None;
     }
     let mut out = String::new();
+    let mut reads_input = false;
     let boxed = crate::types::boxed_members(service);
     let reader = Reader {
         service,
@@ -745,6 +755,7 @@ fn checks(service: &Service, op: &Operation, diagnostics: &mut Diagnostics) -> O
                 );
                 return None;
             };
+            reads_input = true;
             if read.optional {
                 let name = format!("b{position}");
                 present.push(target(service, read.member, &name));
@@ -798,6 +809,7 @@ fn checks(service: &Service, op: &Operation, diagnostics: &mut Diagnostics) -> O
         match &clause.when {
             None => out.push_str(&indent_lines(&push, "        ")),
             Some(condition) => {
+                reads_input = true;
                 let test = reader.condition(condition, diagnostics, &op.id)?;
                 out.push_str(&format!("        if {test} {{\n"));
                 out.push_str(&indent_lines(&push, "            "));
@@ -805,7 +817,7 @@ fn checks(service: &Service, op: &Operation, diagnostics: &mut Diagnostics) -> O
             }
         }
     }
-    Some(out)
+    Some((out, reads_input))
 }
 
 fn indent_lines(text: &str, indent: &str) -> String {

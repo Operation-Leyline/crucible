@@ -55,6 +55,38 @@ public sealed class LeylineClient : global::System.IDisposable {
     /// <exception cref="global::Example.Weather.NetworkError">The transport failed.</exception>
     public global::Example.Weather.Models.@ArchiveGraphOutput @ArchiveGraph(global::Example.Weather.Models.@ArchiveGraphInput input, global::System.Threading.CancellationToken cancellationToken = default) => global::System.Threading.Tasks.Task.Run(() => @ArchiveGraphAsync(input, cancellationToken), cancellationToken).GetAwaiter().GetResult();
     /// <summary>
+    /// Reads several graphs at once.
+    /// </summary>
+    /// <remarks>
+    /// <para>Asynchronous form.</para>
+    /// <para>Requires no permission.</para>
+    /// <para>Each graph requires <c>graph:read</c>. The response reports inaccessible or missing graphs as item-level failures.</para>
+    /// </remarks>
+    /// <param name="input">The request.</param>
+    /// <param name="cancellationToken">Cancels the call.</param>
+    /// <returns>The decoded response.</returns>
+    /// <exception cref="global::Example.Weather.Models.ValidationException">The service returned crucible.errors#ValidationException.</exception>
+    /// <exception cref="global::Example.Weather.Models.InternalServerException">The service returned crucible.errors#InternalServerException.</exception>
+    /// <exception cref="global::Example.Weather.LeylineException">Any other error response.</exception>
+    /// <exception cref="global::Example.Weather.NetworkError">The transport failed.</exception>
+    public global::System.Threading.Tasks.Task<global::Example.Weather.Models.@BatchGetGraphsOutput> @BatchGetGraphsAsync(global::Example.Weather.Models.@BatchGetGraphsInput input, global::System.Threading.CancellationToken cancellationToken = default) => runtime.CallAsync<global::Example.Weather.Models.@BatchGetGraphsOutput>("BatchGetGraphs", input, cancellationToken);
+    /// <summary>
+    /// Reads several graphs at once.
+    /// </summary>
+    /// <remarks>
+    /// <para>Blocking form, run on the thread pool.</para>
+    /// <para>Requires no permission.</para>
+    /// <para>Each graph requires <c>graph:read</c>. The response reports inaccessible or missing graphs as item-level failures.</para>
+    /// </remarks>
+    /// <param name="input">The request.</param>
+    /// <param name="cancellationToken">Cancels the call.</param>
+    /// <returns>The decoded response.</returns>
+    /// <exception cref="global::Example.Weather.Models.ValidationException">The service returned crucible.errors#ValidationException.</exception>
+    /// <exception cref="global::Example.Weather.Models.InternalServerException">The service returned crucible.errors#InternalServerException.</exception>
+    /// <exception cref="global::Example.Weather.LeylineException">Any other error response.</exception>
+    /// <exception cref="global::Example.Weather.NetworkError">The transport failed.</exception>
+    public global::Example.Weather.Models.@BatchGetGraphsOutput @BatchGetGraphs(global::Example.Weather.Models.@BatchGetGraphsInput input, global::System.Threading.CancellationToken cancellationToken = default) => global::System.Threading.Tasks.Task.Run(() => @BatchGetGraphsAsync(input, cancellationToken), cancellationToken).GetAwaiter().GetResult();
+    /// <summary>
     /// Calls the CreateGraph operation.
     /// </summary>
     /// <remarks>
@@ -278,6 +310,38 @@ public sealed class LeylineClient : global::System.IDisposable {
     /// <exception cref="global::Example.Weather.LeylineException">Any other error response.</exception>
     /// <exception cref="global::Example.Weather.NetworkError">The transport failed.</exception>
     public global::Example.Weather.Models.@ListGraphsOutput @ListGraphs(global::Example.Weather.Models.@ListGraphsInput input, global::System.Threading.CancellationToken cancellationToken = default) => global::System.Threading.Tasks.Task.Run(() => @ListGraphsAsync(input, cancellationToken), cancellationToken).GetAwaiter().GetResult();
+    /// <summary>
+    /// The organizations the caller belongs to.
+    /// </summary>
+    /// <remarks>
+    /// <para>Asynchronous form.</para>
+    /// <para>This operation is read-only; the client may retry it.</para>
+    /// <para>Requires no permission.</para>
+    /// <para>Returns only what the caller may see.</para>
+    /// </remarks>
+    /// <param name="cancellationToken">Cancels the call.</param>
+    /// <returns>The decoded response.</returns>
+    /// <exception cref="global::Example.Weather.Models.ValidationException">The service returned crucible.errors#ValidationException.</exception>
+    /// <exception cref="global::Example.Weather.Models.InternalServerException">The service returned crucible.errors#InternalServerException.</exception>
+    /// <exception cref="global::Example.Weather.LeylineException">Any other error response.</exception>
+    /// <exception cref="global::Example.Weather.NetworkError">The transport failed.</exception>
+    public global::System.Threading.Tasks.Task<global::Example.Weather.Models.@ListOrganizationsOutput> @ListOrganizationsAsync(global::System.Threading.CancellationToken cancellationToken = default) => runtime.CallAsync<global::Example.Weather.Models.@ListOrganizationsOutput>("ListOrganizations", null, cancellationToken);
+    /// <summary>
+    /// The organizations the caller belongs to.
+    /// </summary>
+    /// <remarks>
+    /// <para>Blocking form, run on the thread pool.</para>
+    /// <para>This operation is read-only; the client may retry it.</para>
+    /// <para>Requires no permission.</para>
+    /// <para>Returns only what the caller may see.</para>
+    /// </remarks>
+    /// <param name="cancellationToken">Cancels the call.</param>
+    /// <returns>The decoded response.</returns>
+    /// <exception cref="global::Example.Weather.Models.ValidationException">The service returned crucible.errors#ValidationException.</exception>
+    /// <exception cref="global::Example.Weather.Models.InternalServerException">The service returned crucible.errors#InternalServerException.</exception>
+    /// <exception cref="global::Example.Weather.LeylineException">Any other error response.</exception>
+    /// <exception cref="global::Example.Weather.NetworkError">The transport failed.</exception>
+    public global::Example.Weather.Models.@ListOrganizationsOutput @ListOrganizations(global::System.Threading.CancellationToken cancellationToken = default) => global::System.Threading.Tasks.Task.Run(() => @ListOrganizationsAsync(cancellationToken), cancellationToken).GetAwaiter().GetResult();
     /// <summary>
     /// Calls the RestoreBackup operation.
     /// </summary>

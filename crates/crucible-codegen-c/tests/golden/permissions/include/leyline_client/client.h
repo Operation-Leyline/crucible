@@ -33,6 +33,22 @@ leyline_status leyline_operations_archive_graph(leyline_client *client, const le
 void leyline_operations_archive_graph_result_free(leyline_operations_archive_graph_result *result);
 
 /** Zero-initialize results. Free before reuse; value borrows base.arena. */
+typedef struct { leyline_result base; const leyline_models_batch_get_graphs_output *value; } leyline_operations_batch_get_graphs_result;
+/**
+ * Reads several graphs at once.
+ *
+ * Requires no permission. Each graph requires `graph:read`. The response reports inaccessible or missing graphs as item-level failures.
+ *
+ * Input: BatchGetGraphsInput.
+ *
+ * Returns: BatchGetGraphsOutput.
+ *
+ * Modeled errors: ValidationException, InternalServerException. Transport, timeout and decoding failures can also occur.
+ */
+leyline_status leyline_operations_batch_get_graphs(leyline_client *client, const leyline_models_batch_get_graphs_input *input, leyline_cancelled_fn cancelled, void *cancel_user, leyline_operations_batch_get_graphs_result *result, leyline_error *error);
+void leyline_operations_batch_get_graphs_result_free(leyline_operations_batch_get_graphs_result *result);
+
+/** Zero-initialize results. Free before reuse; value borrows base.arena. */
 typedef struct { leyline_result base; const leyline_models_create_graph_output *value; } leyline_operations_create_graph_result;
 /**
  * Call CreateGraph.
@@ -151,6 +167,24 @@ typedef struct { leyline_result base; const leyline_models_list_graphs_output *v
  */
 leyline_status leyline_operations_list_graphs(leyline_client *client, const leyline_models_list_graphs_input *input, leyline_cancelled_fn cancelled, void *cancel_user, leyline_operations_list_graphs_result *result, leyline_error *error);
 void leyline_operations_list_graphs_result_free(leyline_operations_list_graphs_result *result);
+
+/** Zero-initialize results. Free before reuse; value borrows base.arena. */
+typedef struct { leyline_result base; const leyline_models_list_organizations_output *value; } leyline_operations_list_organizations_result;
+/**
+ * The organizations the caller belongs to.
+ *
+ * Requires no permission. Returns only what the caller may see.
+ *
+ * Input: no modeled input.
+ *
+ * Returns: ListOrganizationsOutput.
+ *
+ * Modeled errors: ValidationException, InternalServerException. Transport, timeout and decoding failures can also occur.
+ *
+ * This operation is safe to retry under the configured retry policy.
+ */
+leyline_status leyline_operations_list_organizations(leyline_client *client, leyline_cancelled_fn cancelled, void *cancel_user, leyline_operations_list_organizations_result *result, leyline_error *error);
+void leyline_operations_list_organizations_result_free(leyline_operations_list_organizations_result *result);
 
 /** Zero-initialize results. Free before reuse; value borrows base.arena. */
 typedef struct { leyline_result base; const leyline_models_restore_backup_output *value; } leyline_operations_restore_backup_result;
