@@ -660,6 +660,17 @@ fn describe_inner(
     {
         description.service["permissions"] = registry;
     }
+    // The role and scope registries (docs/roles.md §5), in catalogue
+    // order, as the permission registry: internal entries only in a
+    // server-audience description. Absent for a service without roles.
+    let roles = crate::roles::roles_registry(service, true);
+    if roles.as_array().is_some_and(|entries| !entries.is_empty()) {
+        description.service["roles"] = roles;
+        description.service["scopes"] = crate::roles::scopes_registry(service, true);
+        if crate::roles::custom(service) {
+            description.service["customRoles"] = json!(true);
+        }
+    }
     sort_objects(&mut description.service);
     for value in description
         .resources
@@ -765,6 +776,21 @@ fn operation(service: &Service, op: &Operation, explorer: bool) -> Value {
                 .collect::<Vec<_>>()
         );
         value["requirementSentences"] = json!(sentences);
+        // Which roles grant it (docs/roles.md §5), additive like the rest:
+        // `grantedBy` on each clause, `internalClauses` for those this
+        // audience does not see named, and the sentences that follow the
+        // requirement sentences. Absent for a service without roles.
+        crate::roles::annotate_requirements(service, op, &mut value["requirements"], true);
+        let granted = crate::roles::granted_by_sentences(service, op, true);
+        if !granted.is_empty() {
+            value["grantedByDocumentation"] = json!(
+                granted
+                    .iter()
+                    .map(|sentence| documentation(service, Some(sentence)))
+                    .collect::<Vec<_>>()
+            );
+            value["grantedBySentences"] = json!(granted);
+        }
     }
     if explorer {
         for (example, source) in value["examples"]

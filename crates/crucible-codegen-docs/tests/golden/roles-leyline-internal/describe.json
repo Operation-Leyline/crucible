@@ -1,0 +1,5972 @@
+{
+  "format": "crucible.describe/1",
+  "navigation": [
+    {
+      "level": 0,
+      "operations": [
+        "example.leyline#CreateBackup",
+        "example.leyline#GetOrganization",
+        "example.leyline#GetUsage",
+        "example.leyline#ListAuditEvents",
+        "example.leyline#PutRoleBinding"
+      ],
+      "resource": "example.leyline#Organization"
+    },
+    {
+      "level": 1,
+      "operations": [
+        "example.leyline#CreateGraph",
+        "example.leyline#DeleteGraph",
+        "example.leyline#GetGraph",
+        "example.leyline#WriteGraph"
+      ],
+      "resource": "example.leyline#Graph"
+    },
+    {
+      "level": 1,
+      "operations": [
+        "example.leyline#GetGraphHistory",
+        "example.leyline#RestoreGraphHistory"
+      ],
+      "resource": "example.leyline#GraphHistory"
+    },
+    {
+      "level": 0,
+      "operations": [
+        "example.leyline#ListRoles"
+      ],
+      "resource": null
+    }
+  ],
+  "operations": {
+    "example.leyline#CreateBackup": {
+      "auth": [
+        "crucible.api#httpBearerAuth"
+      ],
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "errors": [
+        "example.leyline#ResourceNotFound"
+      ],
+      "examples": [],
+      "grantedByDocumentation": [
+        {
+          "html": "<p>Granted by <code>owner</code> or <code>backupAdmin</code> at <code>organization</code>.</p>\n",
+          "markdown": "Granted by `owner` or `backupAdmin` at `organization`.",
+          "text": "Granted by owner or backupAdmin at organization."
+        }
+      ],
+      "grantedBySentences": [
+        "Granted by `owner` or `backupAdmin` at `organization`."
+      ],
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
+      "id": "example.leyline#CreateBackup",
+      "idempotencyToken": null,
+      "idempotent": false,
+      "input": "example.leyline#CreateBackupInput",
+      "inputSchema": {
+        "$defs": {
+          "example.leyline.CreateBackupInput": {
+            "properties": {
+              "organizationId": {
+                "maxLength": 40,
+                "minLength": 3,
+                "type": "string"
+              }
+            },
+            "required": [
+              "organizationId"
+            ],
+            "type": "object"
+          },
+          "example.leyline.OrganizationId": {
+            "maxLength": 40,
+            "minLength": 3,
+            "type": "string"
+          }
+        },
+        "properties": {
+          "organizationId": {
+            "maxLength": 40,
+            "minLength": 3,
+            "type": "string"
+          }
+        },
+        "required": [
+          "organizationId"
+        ],
+        "type": "object"
+      },
+      "internal": false,
+      "method": "POST",
+      "name": "CreateBackup",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "output": null,
+      "outputSchema": {
+        "$defs": {},
+        "maxProperties": 0,
+        "type": "object"
+      },
+      "pagination": null,
+      "protocol": "crucibleJson",
+      "protocolHeaders": {},
+      "readonly": false,
+      "request": {
+        "body": [],
+        "headerEncodings": {},
+        "headers": [],
+        "labels": [
+          "organizationId"
+        ],
+        "payload": null,
+        "query": [],
+        "timestampFormats": {}
+      },
+      "requirementDocumentation": [
+        {
+          "html": "<p>Requires <code>backup:manage</code> on the organization.</p>\n",
+          "markdown": "Requires `backup:manage` on the organization.",
+          "text": "Requires backup:manage on the organization."
+        }
+      ],
+      "requirementSentences": [
+        "Requires `backup:manage` on the organization."
+      ],
+      "requirements": {
+        "clauses": [
+          {
+            "bindings": [
+              {
+                "identifier": "organizationId",
+                "value": "organizationId"
+              }
+            ],
+            "grantedBy": {
+              "roles": [
+                {
+                  "role": "owner",
+                  "scopes": [
+                    "organization"
+                  ]
+                },
+                {
+                  "role": "backupAdmin",
+                  "scopes": [
+                    "organization"
+                  ]
+                }
+              ]
+            },
+            "mode": "check",
+            "permission": "backup:manage",
+            "resourceType": "organization",
+            "tier": "internal"
+          }
+        ],
+        "kind": "list"
+      },
+      "resources": [
+        "example.leyline#Organization"
+      ],
+      "response": {
+        "body": [],
+        "headerEncodings": {},
+        "headers": [],
+        "labels": [],
+        "payload": null,
+        "query": [],
+        "timestampFormats": {}
+      },
+      "responseProtocolHeaders": {},
+      "sample": {
+        "fallbacks": [],
+        "generated": true,
+        "input": {
+          "body": null,
+          "headers": {},
+          "labels": {
+            "organizationId": "organizationId"
+          },
+          "method": "POST",
+          "payload": null,
+          "query": [],
+          "uri": "/v1/organizations/organizationId/backups"
+        },
+        "minimalInput": {
+          "body": null,
+          "headers": {},
+          "labels": {
+            "organizationId": "organizationId"
+          },
+          "method": "POST",
+          "payload": null,
+          "query": [],
+          "uri": "/v1/organizations/organizationId/backups"
+        },
+        "output": {
+          "body": null,
+          "headers": {},
+          "labels": {},
+          "payload": null,
+          "query": []
+        }
+      },
+      "status": 200,
+      "summary": "",
+      "uri": "/v1/organizations/{organizationId}/backups"
+    },
+    "example.leyline#CreateGraph": {
+      "auth": [
+        "crucible.api#httpBearerAuth"
+      ],
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "errors": [
+        "example.leyline#ResourceNotFound"
+      ],
+      "examples": [],
+      "grantedByDocumentation": [
+        {
+          "html": "<p>Granted by <code>graphCreator</code> at <code>organization</code>; <code>graphAdmin</code> at <code>allGraphs</code>.</p>\n",
+          "markdown": "Granted by `graphCreator` at `organization`; `graphAdmin` at `allGraphs`.",
+          "text": "Granted by graphCreator at organization; graphAdmin at allGraphs."
+        }
+      ],
+      "grantedBySentences": [
+        "Granted by `graphCreator` at `organization`; `graphAdmin` at `allGraphs`."
+      ],
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
+      "id": "example.leyline#CreateGraph",
+      "idempotencyToken": null,
+      "idempotent": false,
+      "input": "example.leyline#CreateGraphInput",
+      "inputSchema": {
+        "$defs": {
+          "example.leyline.CreateGraphInput": {
+            "properties": {
+              "name": {
+                "maxLength": 64,
+                "minLength": 1,
+                "type": "string"
+              },
+              "organizationId": {
+                "maxLength": 40,
+                "minLength": 3,
+                "type": "string"
+              }
+            },
+            "required": [
+              "organizationId",
+              "name"
+            ],
+            "type": "object"
+          },
+          "example.leyline.Name": {
+            "maxLength": 64,
+            "minLength": 1,
+            "type": "string"
+          },
+          "example.leyline.OrganizationId": {
+            "maxLength": 40,
+            "minLength": 3,
+            "type": "string"
+          }
+        },
+        "properties": {
+          "name": {
+            "maxLength": 64,
+            "minLength": 1,
+            "type": "string"
+          },
+          "organizationId": {
+            "maxLength": 40,
+            "minLength": 3,
+            "type": "string"
+          }
+        },
+        "required": [
+          "organizationId",
+          "name"
+        ],
+        "type": "object"
+      },
+      "internal": false,
+      "method": "POST",
+      "name": "CreateGraph",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "output": null,
+      "outputSchema": {
+        "$defs": {},
+        "maxProperties": 0,
+        "type": "object"
+      },
+      "pagination": null,
+      "protocol": "crucibleJson",
+      "protocolHeaders": {
+        "Content-Type": "application/json"
+      },
+      "readonly": false,
+      "request": {
+        "body": [
+          "name"
+        ],
+        "headerEncodings": {},
+        "headers": [],
+        "labels": [
+          "organizationId"
+        ],
+        "payload": null,
+        "query": [],
+        "timestampFormats": {}
+      },
+      "requirementDocumentation": [
+        {
+          "html": "<p>Requires <code>graph:create</code> on every graph in the organization.</p>\n",
+          "markdown": "Requires `graph:create` on every graph in the organization.",
+          "text": "Requires graph:create on every graph in the organization."
+        }
+      ],
+      "requirementSentences": [
+        "Requires `graph:create` on every graph in the organization."
+      ],
+      "requirements": {
+        "clauses": [
+          {
+            "bindings": [
+              {
+                "identifier": "organizationId",
+                "value": "organizationId"
+              },
+              {
+                "identifier": "graphId",
+                "value": "*"
+              }
+            ],
+            "grantedBy": {
+              "roles": [
+                {
+                  "role": "graphCreator",
+                  "scopes": [
+                    "organization"
+                  ]
+                },
+                {
+                  "role": "graphAdmin",
+                  "scopes": [
+                    "allGraphs"
+                  ]
+                }
+              ]
+            },
+            "mode": "check",
+            "permission": "graph:create",
+            "resourceType": "graph",
+            "tier": "internal"
+          }
+        ],
+        "kind": "list"
+      },
+      "resources": [
+        "example.leyline#Graph"
+      ],
+      "response": {
+        "body": [],
+        "headerEncodings": {},
+        "headers": [],
+        "labels": [],
+        "payload": null,
+        "query": [],
+        "timestampFormats": {}
+      },
+      "responseProtocolHeaders": {},
+      "sample": {
+        "fallbacks": [],
+        "generated": true,
+        "input": {
+          "body": {
+            "name": "name"
+          },
+          "headers": {
+            "Content-Type": "application/json"
+          },
+          "labels": {
+            "organizationId": "organizationId"
+          },
+          "method": "POST",
+          "payload": null,
+          "query": [],
+          "uri": "/v1/organizations/organizationId/graphs"
+        },
+        "minimalInput": {
+          "body": {
+            "name": "name"
+          },
+          "headers": {
+            "Content-Type": "application/json"
+          },
+          "labels": {
+            "organizationId": "organizationId"
+          },
+          "method": "POST",
+          "payload": null,
+          "query": [],
+          "uri": "/v1/organizations/organizationId/graphs"
+        },
+        "output": {
+          "body": null,
+          "headers": {},
+          "labels": {},
+          "payload": null,
+          "query": []
+        }
+      },
+      "status": 200,
+      "summary": "",
+      "uri": "/v1/organizations/{organizationId}/graphs"
+    },
+    "example.leyline#DeleteGraph": {
+      "auth": [
+        "crucible.api#httpBearerAuth"
+      ],
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "errors": [
+        "example.leyline#ResourceNotFound"
+      ],
+      "examples": [],
+      "grantedByDocumentation": [
+        {
+          "html": "<p>Granted by <code>graphAdmin</code> at <code>allGraphs</code> or <code>graph</code>.</p>\n",
+          "markdown": "Granted by `graphAdmin` at `allGraphs` or `graph`.",
+          "text": "Granted by graphAdmin at allGraphs or graph."
+        }
+      ],
+      "grantedBySentences": [
+        "Granted by `graphAdmin` at `allGraphs` or `graph`."
+      ],
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
+      "id": "example.leyline#DeleteGraph",
+      "idempotencyToken": null,
+      "idempotent": true,
+      "input": "example.leyline#DeleteGraphInput",
+      "inputSchema": {
+        "$defs": {
+          "example.leyline.DeleteGraphInput": {
+            "properties": {
+              "graphId": {
+                "maxLength": 40,
+                "minLength": 3,
+                "type": "string"
+              },
+              "organizationId": {
+                "maxLength": 40,
+                "minLength": 3,
+                "type": "string"
+              }
+            },
+            "required": [
+              "organizationId",
+              "graphId"
+            ],
+            "type": "object"
+          },
+          "example.leyline.GraphId": {
+            "maxLength": 40,
+            "minLength": 3,
+            "type": "string"
+          },
+          "example.leyline.OrganizationId": {
+            "maxLength": 40,
+            "minLength": 3,
+            "type": "string"
+          }
+        },
+        "properties": {
+          "graphId": {
+            "maxLength": 40,
+            "minLength": 3,
+            "type": "string"
+          },
+          "organizationId": {
+            "maxLength": 40,
+            "minLength": 3,
+            "type": "string"
+          }
+        },
+        "required": [
+          "organizationId",
+          "graphId"
+        ],
+        "type": "object"
+      },
+      "internal": false,
+      "method": "DELETE",
+      "name": "DeleteGraph",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "output": null,
+      "outputSchema": {
+        "$defs": {},
+        "maxProperties": 0,
+        "type": "object"
+      },
+      "pagination": null,
+      "protocol": "crucibleJson",
+      "protocolHeaders": {},
+      "readonly": false,
+      "request": {
+        "body": [],
+        "headerEncodings": {},
+        "headers": [],
+        "labels": [
+          "organizationId",
+          "graphId"
+        ],
+        "payload": null,
+        "query": [],
+        "timestampFormats": {}
+      },
+      "requirementDocumentation": [
+        {
+          "html": "<p>Requires <code>graph:manage</code> on the graph.</p>\n",
+          "markdown": "Requires `graph:manage` on the graph.",
+          "text": "Requires graph:manage on the graph."
+        }
+      ],
+      "requirementSentences": [
+        "Requires `graph:manage` on the graph."
+      ],
+      "requirements": {
+        "clauses": [
+          {
+            "bindings": [
+              {
+                "identifier": "organizationId",
+                "value": "organizationId"
+              },
+              {
+                "identifier": "graphId",
+                "value": "graphId"
+              }
+            ],
+            "grantedBy": {
+              "roles": [
+                {
+                  "role": "graphAdmin",
+                  "scopes": [
+                    "allGraphs",
+                    "graph"
+                  ]
+                }
+              ]
+            },
+            "mode": "check",
+            "permission": "graph:manage",
+            "resourceType": "graph",
+            "tier": "internal"
+          }
+        ],
+        "kind": "list"
+      },
+      "resources": [
+        "example.leyline#Graph"
+      ],
+      "response": {
+        "body": [],
+        "headerEncodings": {},
+        "headers": [],
+        "labels": [],
+        "payload": null,
+        "query": [],
+        "timestampFormats": {}
+      },
+      "responseProtocolHeaders": {},
+      "sample": {
+        "fallbacks": [],
+        "generated": true,
+        "input": {
+          "body": null,
+          "headers": {},
+          "labels": {
+            "graphId": "graphId",
+            "organizationId": "organizationId"
+          },
+          "method": "DELETE",
+          "payload": null,
+          "query": [],
+          "uri": "/v1/organizations/organizationId/graphs/graphId"
+        },
+        "minimalInput": {
+          "body": null,
+          "headers": {},
+          "labels": {
+            "graphId": "graphId",
+            "organizationId": "organizationId"
+          },
+          "method": "DELETE",
+          "payload": null,
+          "query": [],
+          "uri": "/v1/organizations/organizationId/graphs/graphId"
+        },
+        "output": {
+          "body": null,
+          "headers": {},
+          "labels": {},
+          "payload": null,
+          "query": []
+        }
+      },
+      "status": 200,
+      "summary": "",
+      "uri": "/v1/organizations/{organizationId}/graphs/{graphId}"
+    },
+    "example.leyline#GetGraph": {
+      "auth": [
+        "crucible.api#httpBearerAuth"
+      ],
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "errors": [
+        "example.leyline#ResourceNotFound"
+      ],
+      "examples": [],
+      "grantedByDocumentation": [
+        {
+          "html": "<p>Granted by <code>graphReader</code>, <code>graphWriter</code> or <code>graphAdmin</code> at <code>allGraphs</code> or <code>graph</code>.</p>\n",
+          "markdown": "Granted by `graphReader`, `graphWriter` or `graphAdmin` at `allGraphs` or `graph`.",
+          "text": "Granted by graphReader, graphWriter or graphAdmin at allGraphs or graph."
+        }
+      ],
+      "grantedBySentences": [
+        "Granted by `graphReader`, `graphWriter` or `graphAdmin` at `allGraphs` or `graph`."
+      ],
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
+      "id": "example.leyline#GetGraph",
+      "idempotencyToken": null,
+      "idempotent": false,
+      "input": "example.leyline#GetGraphInput",
+      "inputSchema": {
+        "$defs": {
+          "example.leyline.GetGraphInput": {
+            "properties": {
+              "graphId": {
+                "maxLength": 40,
+                "minLength": 3,
+                "type": "string"
+              },
+              "organizationId": {
+                "maxLength": 40,
+                "minLength": 3,
+                "type": "string"
+              }
+            },
+            "required": [
+              "organizationId",
+              "graphId"
+            ],
+            "type": "object"
+          },
+          "example.leyline.GraphId": {
+            "maxLength": 40,
+            "minLength": 3,
+            "type": "string"
+          },
+          "example.leyline.OrganizationId": {
+            "maxLength": 40,
+            "minLength": 3,
+            "type": "string"
+          }
+        },
+        "properties": {
+          "graphId": {
+            "maxLength": 40,
+            "minLength": 3,
+            "type": "string"
+          },
+          "organizationId": {
+            "maxLength": 40,
+            "minLength": 3,
+            "type": "string"
+          }
+        },
+        "required": [
+          "organizationId",
+          "graphId"
+        ],
+        "type": "object"
+      },
+      "internal": false,
+      "method": "GET",
+      "name": "GetGraph",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "output": "example.leyline#GetGraphOutput",
+      "outputSchema": {
+        "$defs": {
+          "example.leyline.GetGraphOutput": {
+            "properties": {
+              "name": {
+                "maxLength": 64,
+                "minLength": 1,
+                "type": "string"
+              }
+            },
+            "required": [
+              "name"
+            ],
+            "type": "object"
+          },
+          "example.leyline.Name": {
+            "maxLength": 64,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "properties": {
+          "name": {
+            "maxLength": 64,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "type": "object"
+      },
+      "pagination": null,
+      "protocol": "crucibleJson",
+      "protocolHeaders": {},
+      "readonly": true,
+      "request": {
+        "body": [],
+        "headerEncodings": {},
+        "headers": [],
+        "labels": [
+          "organizationId",
+          "graphId"
+        ],
+        "payload": null,
+        "query": [],
+        "timestampFormats": {}
+      },
+      "requirementDocumentation": [
+        {
+          "html": "<p>Requires <code>graph:read</code> on the graph.</p>\n",
+          "markdown": "Requires `graph:read` on the graph.",
+          "text": "Requires graph:read on the graph."
+        }
+      ],
+      "requirementSentences": [
+        "Requires `graph:read` on the graph."
+      ],
+      "requirements": {
+        "clauses": [
+          {
+            "bindings": [
+              {
+                "identifier": "organizationId",
+                "value": "organizationId"
+              },
+              {
+                "identifier": "graphId",
+                "value": "graphId"
+              }
+            ],
+            "grantedBy": {
+              "roles": [
+                {
+                  "role": "graphReader",
+                  "scopes": [
+                    "allGraphs",
+                    "graph"
+                  ]
+                },
+                {
+                  "role": "graphWriter",
+                  "scopes": [
+                    "allGraphs",
+                    "graph"
+                  ]
+                },
+                {
+                  "role": "graphAdmin",
+                  "scopes": [
+                    "allGraphs",
+                    "graph"
+                  ]
+                }
+              ]
+            },
+            "mode": "check",
+            "permission": "graph:read",
+            "resourceType": "graph",
+            "tier": "internal"
+          }
+        ],
+        "kind": "list"
+      },
+      "resources": [
+        "example.leyline#Graph"
+      ],
+      "response": {
+        "body": [
+          "name"
+        ],
+        "headerEncodings": {},
+        "headers": [],
+        "labels": [],
+        "payload": null,
+        "query": [],
+        "timestampFormats": {}
+      },
+      "responseProtocolHeaders": {
+        "Content-Type": "application/json"
+      },
+      "sample": {
+        "fallbacks": [],
+        "generated": true,
+        "input": {
+          "body": null,
+          "headers": {},
+          "labels": {
+            "graphId": "graphId",
+            "organizationId": "organizationId"
+          },
+          "method": "GET",
+          "payload": null,
+          "query": [],
+          "uri": "/v1/organizations/organizationId/graphs/graphId"
+        },
+        "minimalInput": {
+          "body": null,
+          "headers": {},
+          "labels": {
+            "graphId": "graphId",
+            "organizationId": "organizationId"
+          },
+          "method": "GET",
+          "payload": null,
+          "query": [],
+          "uri": "/v1/organizations/organizationId/graphs/graphId"
+        },
+        "output": {
+          "body": {
+            "name": "name"
+          },
+          "headers": {
+            "Content-Type": "application/json"
+          },
+          "labels": {},
+          "payload": null,
+          "query": []
+        }
+      },
+      "status": 200,
+      "summary": "",
+      "uri": "/v1/organizations/{organizationId}/graphs/{graphId}"
+    },
+    "example.leyline#GetGraphHistory": {
+      "auth": [
+        "crucible.api#httpBearerAuth"
+      ],
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "errors": [
+        "example.leyline#ResourceNotFound"
+      ],
+      "examples": [],
+      "grantedByDocumentation": [
+        {
+          "html": "<p>Granted by <code>owner</code> at <code>organization</code>; <code>historyReader</code> or <code>historyAdmin</code> at <code>allHistories</code> or <code>history</code>; <code>graphAdmin</code> at <code>allGraphs</code> or <code>graph</code>, as the service decides (the history of a graph this binding covers, while the graph is live).</p>\n",
+          "markdown": "Granted by `owner` at `organization`; `historyReader` or `historyAdmin` at `allHistories` or `history`; `graphAdmin` at `allGraphs` or `graph`, as the service decides (the history of a graph this binding covers, while the graph is live).",
+          "text": "Granted by owner at organization; historyReader or historyAdmin at allHistories or history; graphAdmin at allGraphs or graph, as the service decides (the history of a graph this binding covers, while the graph is live)."
+        }
+      ],
+      "grantedBySentences": [
+        "Granted by `owner` at `organization`; `historyReader` or `historyAdmin` at `allHistories` or `history`; `graphAdmin` at `allGraphs` or `graph`, as the service decides (the history of a graph this binding covers, while the graph is live)."
+      ],
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
+      "id": "example.leyline#GetGraphHistory",
+      "idempotencyToken": null,
+      "idempotent": false,
+      "input": "example.leyline#GetGraphHistoryInput",
+      "inputSchema": {
+        "$defs": {
+          "example.leyline.GetGraphHistoryInput": {
+            "properties": {
+              "historyId": {
+                "maxLength": 40,
+                "minLength": 3,
+                "type": "string"
+              },
+              "organizationId": {
+                "maxLength": 40,
+                "minLength": 3,
+                "type": "string"
+              }
+            },
+            "required": [
+              "organizationId",
+              "historyId"
+            ],
+            "type": "object"
+          },
+          "example.leyline.HistoryId": {
+            "maxLength": 40,
+            "minLength": 3,
+            "type": "string"
+          },
+          "example.leyline.OrganizationId": {
+            "maxLength": 40,
+            "minLength": 3,
+            "type": "string"
+          }
+        },
+        "properties": {
+          "historyId": {
+            "maxLength": 40,
+            "minLength": 3,
+            "type": "string"
+          },
+          "organizationId": {
+            "maxLength": 40,
+            "minLength": 3,
+            "type": "string"
+          }
+        },
+        "required": [
+          "organizationId",
+          "historyId"
+        ],
+        "type": "object"
+      },
+      "internal": false,
+      "method": "GET",
+      "name": "GetGraphHistory",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "output": null,
+      "outputSchema": {
+        "$defs": {},
+        "maxProperties": 0,
+        "type": "object"
+      },
+      "pagination": null,
+      "protocol": "crucibleJson",
+      "protocolHeaders": {},
+      "readonly": true,
+      "request": {
+        "body": [],
+        "headerEncodings": {},
+        "headers": [],
+        "labels": [
+          "organizationId",
+          "historyId"
+        ],
+        "payload": null,
+        "query": [],
+        "timestampFormats": {}
+      },
+      "requirementDocumentation": [
+        {
+          "html": "<p>Requires <code>history:read</code> on the graph history.</p>\n",
+          "markdown": "Requires `history:read` on the graph history.",
+          "text": "Requires history:read on the graph history."
+        }
+      ],
+      "requirementSentences": [
+        "Requires `history:read` on the graph history."
+      ],
+      "requirements": {
+        "clauses": [
+          {
+            "bindings": [
+              {
+                "identifier": "organizationId",
+                "value": "organizationId"
+              },
+              {
+                "identifier": "historyId",
+                "value": "historyId"
+              }
+            ],
+            "grantedBy": {
+              "byService": [
+                {
+                  "documentation": "The history of a graph this binding covers, while the graph is live.",
+                  "role": "graphAdmin",
+                  "scopes": [
+                    "allGraphs",
+                    "graph"
+                  ]
+                }
+              ],
+              "roles": [
+                {
+                  "role": "owner",
+                  "scopes": [
+                    "organization"
+                  ]
+                },
+                {
+                  "role": "historyReader",
+                  "scopes": [
+                    "allHistories",
+                    "history"
+                  ]
+                },
+                {
+                  "role": "historyAdmin",
+                  "scopes": [
+                    "allHistories",
+                    "history"
+                  ]
+                }
+              ]
+            },
+            "mode": "check",
+            "permission": "history:read",
+            "resourceType": "graphHistory",
+            "tier": "internal"
+          }
+        ],
+        "kind": "list"
+      },
+      "resources": [
+        "example.leyline#GraphHistory"
+      ],
+      "response": {
+        "body": [],
+        "headerEncodings": {},
+        "headers": [],
+        "labels": [],
+        "payload": null,
+        "query": [],
+        "timestampFormats": {}
+      },
+      "responseProtocolHeaders": {},
+      "sample": {
+        "fallbacks": [],
+        "generated": true,
+        "input": {
+          "body": null,
+          "headers": {},
+          "labels": {
+            "historyId": "historyId",
+            "organizationId": "organizationId"
+          },
+          "method": "GET",
+          "payload": null,
+          "query": [],
+          "uri": "/v1/organizations/organizationId/histories/historyId"
+        },
+        "minimalInput": {
+          "body": null,
+          "headers": {},
+          "labels": {
+            "historyId": "historyId",
+            "organizationId": "organizationId"
+          },
+          "method": "GET",
+          "payload": null,
+          "query": [],
+          "uri": "/v1/organizations/organizationId/histories/historyId"
+        },
+        "output": {
+          "body": null,
+          "headers": {},
+          "labels": {},
+          "payload": null,
+          "query": []
+        }
+      },
+      "status": 200,
+      "summary": "",
+      "uri": "/v1/organizations/{organizationId}/histories/{historyId}"
+    },
+    "example.leyline#GetOrganization": {
+      "auth": [
+        "crucible.api#httpBearerAuth"
+      ],
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "errors": [
+        "example.leyline#ResourceNotFound"
+      ],
+      "examples": [],
+      "grantedByDocumentation": [
+        {
+          "html": "<p>Granted by <code>owner</code>, <code>accessAdmin</code>, <code>graphGroupAdmin</code>, <code>usageViewer</code>, <code>auditViewer</code>, <code>auditAdmin</code>, <code>backupViewer</code> or <code>backupAdmin</code> at <code>organization</code>.</p>\n",
+          "markdown": "Granted by `owner`, `accessAdmin`, `graphGroupAdmin`, `usageViewer`, `auditViewer`, `auditAdmin`, `backupViewer` or `backupAdmin` at `organization`.",
+          "text": "Granted by owner, accessAdmin, graphGroupAdmin, usageViewer, auditViewer, auditAdmin, backupViewer or backupAdmin at organization."
+        }
+      ],
+      "grantedBySentences": [
+        "Granted by `owner`, `accessAdmin`, `graphGroupAdmin`, `usageViewer`, `auditViewer`, `auditAdmin`, `backupViewer` or `backupAdmin` at `organization`."
+      ],
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
+      "id": "example.leyline#GetOrganization",
+      "idempotencyToken": null,
+      "idempotent": false,
+      "input": "example.leyline#GetOrganizationInput",
+      "inputSchema": {
+        "$defs": {
+          "example.leyline.GetOrganizationInput": {
+            "properties": {
+              "organizationId": {
+                "maxLength": 40,
+                "minLength": 3,
+                "type": "string"
+              }
+            },
+            "required": [
+              "organizationId"
+            ],
+            "type": "object"
+          },
+          "example.leyline.OrganizationId": {
+            "maxLength": 40,
+            "minLength": 3,
+            "type": "string"
+          }
+        },
+        "properties": {
+          "organizationId": {
+            "maxLength": 40,
+            "minLength": 3,
+            "type": "string"
+          }
+        },
+        "required": [
+          "organizationId"
+        ],
+        "type": "object"
+      },
+      "internal": false,
+      "method": "GET",
+      "name": "GetOrganization",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "output": "example.leyline#GetOrganizationOutput",
+      "outputSchema": {
+        "$defs": {
+          "example.leyline.GetOrganizationOutput": {
+            "properties": {
+              "name": {
+                "maxLength": 64,
+                "minLength": 1,
+                "type": "string"
+              }
+            },
+            "required": [
+              "name"
+            ],
+            "type": "object"
+          },
+          "example.leyline.Name": {
+            "maxLength": 64,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "properties": {
+          "name": {
+            "maxLength": 64,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "type": "object"
+      },
+      "pagination": null,
+      "protocol": "crucibleJson",
+      "protocolHeaders": {},
+      "readonly": true,
+      "request": {
+        "body": [],
+        "headerEncodings": {},
+        "headers": [],
+        "labels": [
+          "organizationId"
+        ],
+        "payload": null,
+        "query": [],
+        "timestampFormats": {}
+      },
+      "requirementDocumentation": [
+        {
+          "html": "<p>Requires <code>organization:read</code> on the organization.</p>\n",
+          "markdown": "Requires `organization:read` on the organization.",
+          "text": "Requires organization:read on the organization."
+        }
+      ],
+      "requirementSentences": [
+        "Requires `organization:read` on the organization."
+      ],
+      "requirements": {
+        "clauses": [
+          {
+            "bindings": [
+              {
+                "identifier": "organizationId",
+                "value": "organizationId"
+              }
+            ],
+            "grantedBy": {
+              "roles": [
+                {
+                  "role": "owner",
+                  "scopes": [
+                    "organization"
+                  ]
+                },
+                {
+                  "role": "accessAdmin",
+                  "scopes": [
+                    "organization"
+                  ]
+                },
+                {
+                  "role": "graphGroupAdmin",
+                  "scopes": [
+                    "organization"
+                  ]
+                },
+                {
+                  "role": "usageViewer",
+                  "scopes": [
+                    "organization"
+                  ]
+                },
+                {
+                  "role": "auditViewer",
+                  "scopes": [
+                    "organization"
+                  ]
+                },
+                {
+                  "role": "auditAdmin",
+                  "scopes": [
+                    "organization"
+                  ]
+                },
+                {
+                  "role": "backupViewer",
+                  "scopes": [
+                    "organization"
+                  ]
+                },
+                {
+                  "role": "backupAdmin",
+                  "scopes": [
+                    "organization"
+                  ]
+                }
+              ]
+            },
+            "mode": "check",
+            "permission": "organization:read",
+            "resourceType": "organization",
+            "tier": "internal"
+          }
+        ],
+        "kind": "list"
+      },
+      "resources": [
+        "example.leyline#Organization"
+      ],
+      "response": {
+        "body": [
+          "name"
+        ],
+        "headerEncodings": {},
+        "headers": [],
+        "labels": [],
+        "payload": null,
+        "query": [],
+        "timestampFormats": {}
+      },
+      "responseProtocolHeaders": {
+        "Content-Type": "application/json"
+      },
+      "sample": {
+        "fallbacks": [],
+        "generated": true,
+        "input": {
+          "body": null,
+          "headers": {},
+          "labels": {
+            "organizationId": "organizationId"
+          },
+          "method": "GET",
+          "payload": null,
+          "query": [],
+          "uri": "/v1/organizations/organizationId"
+        },
+        "minimalInput": {
+          "body": null,
+          "headers": {},
+          "labels": {
+            "organizationId": "organizationId"
+          },
+          "method": "GET",
+          "payload": null,
+          "query": [],
+          "uri": "/v1/organizations/organizationId"
+        },
+        "output": {
+          "body": {
+            "name": "name"
+          },
+          "headers": {
+            "Content-Type": "application/json"
+          },
+          "labels": {},
+          "payload": null,
+          "query": []
+        }
+      },
+      "status": 200,
+      "summary": "",
+      "uri": "/v1/organizations/{organizationId}"
+    },
+    "example.leyline#GetUsage": {
+      "auth": [
+        "crucible.api#httpBearerAuth"
+      ],
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "errors": [
+        "example.leyline#ResourceNotFound"
+      ],
+      "examples": [],
+      "grantedByDocumentation": [
+        {
+          "html": "<p>Granted by <code>owner</code> or <code>usageViewer</code> at <code>organization</code>.</p>\n",
+          "markdown": "Granted by `owner` or `usageViewer` at `organization`.",
+          "text": "Granted by owner or usageViewer at organization."
+        }
+      ],
+      "grantedBySentences": [
+        "Granted by `owner` or `usageViewer` at `organization`."
+      ],
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
+      "id": "example.leyline#GetUsage",
+      "idempotencyToken": null,
+      "idempotent": false,
+      "input": "example.leyline#GetUsageInput",
+      "inputSchema": {
+        "$defs": {
+          "example.leyline.GetUsageInput": {
+            "properties": {
+              "organizationId": {
+                "maxLength": 40,
+                "minLength": 3,
+                "type": "string"
+              }
+            },
+            "required": [
+              "organizationId"
+            ],
+            "type": "object"
+          },
+          "example.leyline.OrganizationId": {
+            "maxLength": 40,
+            "minLength": 3,
+            "type": "string"
+          }
+        },
+        "properties": {
+          "organizationId": {
+            "maxLength": 40,
+            "minLength": 3,
+            "type": "string"
+          }
+        },
+        "required": [
+          "organizationId"
+        ],
+        "type": "object"
+      },
+      "internal": false,
+      "method": "GET",
+      "name": "GetUsage",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "output": null,
+      "outputSchema": {
+        "$defs": {},
+        "maxProperties": 0,
+        "type": "object"
+      },
+      "pagination": null,
+      "protocol": "crucibleJson",
+      "protocolHeaders": {},
+      "readonly": true,
+      "request": {
+        "body": [],
+        "headerEncodings": {},
+        "headers": [],
+        "labels": [
+          "organizationId"
+        ],
+        "payload": null,
+        "query": [],
+        "timestampFormats": {}
+      },
+      "requirementDocumentation": [
+        {
+          "html": "<p>Requires <code>usage:read</code> on the organization.</p>\n",
+          "markdown": "Requires `usage:read` on the organization.",
+          "text": "Requires usage:read on the organization."
+        }
+      ],
+      "requirementSentences": [
+        "Requires `usage:read` on the organization."
+      ],
+      "requirements": {
+        "clauses": [
+          {
+            "bindings": [
+              {
+                "identifier": "organizationId",
+                "value": "organizationId"
+              }
+            ],
+            "grantedBy": {
+              "roles": [
+                {
+                  "role": "owner",
+                  "scopes": [
+                    "organization"
+                  ]
+                },
+                {
+                  "role": "usageViewer",
+                  "scopes": [
+                    "organization"
+                  ]
+                }
+              ]
+            },
+            "mode": "check",
+            "permission": "usage:read",
+            "resourceType": "organization",
+            "tier": "internal"
+          }
+        ],
+        "kind": "list"
+      },
+      "resources": [
+        "example.leyline#Organization"
+      ],
+      "response": {
+        "body": [],
+        "headerEncodings": {},
+        "headers": [],
+        "labels": [],
+        "payload": null,
+        "query": [],
+        "timestampFormats": {}
+      },
+      "responseProtocolHeaders": {},
+      "sample": {
+        "fallbacks": [],
+        "generated": true,
+        "input": {
+          "body": null,
+          "headers": {},
+          "labels": {
+            "organizationId": "organizationId"
+          },
+          "method": "GET",
+          "payload": null,
+          "query": [],
+          "uri": "/v1/organizations/organizationId/usage"
+        },
+        "minimalInput": {
+          "body": null,
+          "headers": {},
+          "labels": {
+            "organizationId": "organizationId"
+          },
+          "method": "GET",
+          "payload": null,
+          "query": [],
+          "uri": "/v1/organizations/organizationId/usage"
+        },
+        "output": {
+          "body": null,
+          "headers": {},
+          "labels": {},
+          "payload": null,
+          "query": []
+        }
+      },
+      "status": 200,
+      "summary": "",
+      "uri": "/v1/organizations/{organizationId}/usage"
+    },
+    "example.leyline#ListAuditEvents": {
+      "auth": [
+        "crucible.api#httpBearerAuth"
+      ],
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "errors": [
+        "example.leyline#ResourceNotFound"
+      ],
+      "examples": [],
+      "grantedByDocumentation": [
+        {
+          "html": "<p>Granted by <code>owner</code>, <code>auditViewer</code> or <code>auditAdmin</code> at <code>organization</code>.</p>\n",
+          "markdown": "Granted by `owner`, `auditViewer` or `auditAdmin` at `organization`.",
+          "text": "Granted by owner, auditViewer or auditAdmin at organization."
+        }
+      ],
+      "grantedBySentences": [
+        "Granted by `owner`, `auditViewer` or `auditAdmin` at `organization`."
+      ],
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
+      "id": "example.leyline#ListAuditEvents",
+      "idempotencyToken": null,
+      "idempotent": false,
+      "input": "example.leyline#ListAuditEventsInput",
+      "inputSchema": {
+        "$defs": {
+          "example.leyline.ListAuditEventsInput": {
+            "properties": {
+              "organizationId": {
+                "maxLength": 40,
+                "minLength": 3,
+                "type": "string"
+              }
+            },
+            "required": [
+              "organizationId"
+            ],
+            "type": "object"
+          },
+          "example.leyline.OrganizationId": {
+            "maxLength": 40,
+            "minLength": 3,
+            "type": "string"
+          }
+        },
+        "properties": {
+          "organizationId": {
+            "maxLength": 40,
+            "minLength": 3,
+            "type": "string"
+          }
+        },
+        "required": [
+          "organizationId"
+        ],
+        "type": "object"
+      },
+      "internal": false,
+      "method": "GET",
+      "name": "ListAuditEvents",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "output": null,
+      "outputSchema": {
+        "$defs": {},
+        "maxProperties": 0,
+        "type": "object"
+      },
+      "pagination": null,
+      "protocol": "crucibleJson",
+      "protocolHeaders": {},
+      "readonly": true,
+      "request": {
+        "body": [],
+        "headerEncodings": {},
+        "headers": [],
+        "labels": [
+          "organizationId"
+        ],
+        "payload": null,
+        "query": [],
+        "timestampFormats": {}
+      },
+      "requirementDocumentation": [
+        {
+          "html": "<p>Requires <code>audit:read</code> on the organization.</p>\n",
+          "markdown": "Requires `audit:read` on the organization.",
+          "text": "Requires audit:read on the organization."
+        }
+      ],
+      "requirementSentences": [
+        "Requires `audit:read` on the organization."
+      ],
+      "requirements": {
+        "clauses": [
+          {
+            "bindings": [
+              {
+                "identifier": "organizationId",
+                "value": "organizationId"
+              }
+            ],
+            "grantedBy": {
+              "roles": [
+                {
+                  "role": "owner",
+                  "scopes": [
+                    "organization"
+                  ]
+                },
+                {
+                  "role": "auditViewer",
+                  "scopes": [
+                    "organization"
+                  ]
+                },
+                {
+                  "role": "auditAdmin",
+                  "scopes": [
+                    "organization"
+                  ]
+                }
+              ]
+            },
+            "mode": "check",
+            "permission": "audit:read",
+            "resourceType": "organization",
+            "tier": "internal"
+          }
+        ],
+        "kind": "list"
+      },
+      "resources": [
+        "example.leyline#Organization"
+      ],
+      "response": {
+        "body": [],
+        "headerEncodings": {},
+        "headers": [],
+        "labels": [],
+        "payload": null,
+        "query": [],
+        "timestampFormats": {}
+      },
+      "responseProtocolHeaders": {},
+      "sample": {
+        "fallbacks": [],
+        "generated": true,
+        "input": {
+          "body": null,
+          "headers": {},
+          "labels": {
+            "organizationId": "organizationId"
+          },
+          "method": "GET",
+          "payload": null,
+          "query": [],
+          "uri": "/v1/organizations/organizationId/audit-events"
+        },
+        "minimalInput": {
+          "body": null,
+          "headers": {},
+          "labels": {
+            "organizationId": "organizationId"
+          },
+          "method": "GET",
+          "payload": null,
+          "query": [],
+          "uri": "/v1/organizations/organizationId/audit-events"
+        },
+        "output": {
+          "body": null,
+          "headers": {},
+          "labels": {},
+          "payload": null,
+          "query": []
+        }
+      },
+      "status": 200,
+      "summary": "",
+      "uri": "/v1/organizations/{organizationId}/audit-events"
+    },
+    "example.leyline#ListRoles": {
+      "auth": [
+        "crucible.api#httpBearerAuth"
+      ],
+      "documentation": {
+        "html": "<p>Every role a binding may name.\nAnswers from the model's own catalogue, the same for every caller.</p>\n",
+        "markdown": "Every role a binding may name.\nAnswers from the model's own catalogue, the same for every caller.",
+        "text": "Every role a binding may name.\nAnswers from the model's own catalogue, the same for every caller."
+      },
+      "errors": [],
+      "examples": [],
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
+      "id": "example.leyline#ListRoles",
+      "idempotencyToken": null,
+      "idempotent": false,
+      "input": null,
+      "inputSchema": {
+        "$defs": {},
+        "maxProperties": 0,
+        "type": "object"
+      },
+      "internal": false,
+      "method": "GET",
+      "name": "ListRoles",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "output": "example.leyline#ListRolesOutput",
+      "outputSchema": {
+        "$defs": {
+          "example.leyline.ListRolesOutput": {
+            "properties": {
+              "roles": {
+                "$ref": "#/$defs/example.leyline.RoleSummaries"
+              }
+            },
+            "required": [
+              "roles"
+            ],
+            "type": "object"
+          },
+          "example.leyline.PrincipalType": {
+            "description": "Who a credential belongs to.",
+            "enum": [
+              "user",
+              "apiKey"
+            ],
+            "type": "string"
+          },
+          "example.leyline.PrincipalTypes": {
+            "items": {
+              "$ref": "#/$defs/example.leyline.PrincipalType"
+            },
+            "type": "array",
+            "uniqueItems": false
+          },
+          "example.leyline.Role": {
+            "description": "The roles a binding names.",
+            "enum": [
+              "owner",
+              "accessAdmin",
+              "graphGroupAdmin",
+              "usageViewer",
+              "auditViewer",
+              "auditAdmin",
+              "backupViewer",
+              "backupAdmin",
+              "graphCreator",
+              "graphReader",
+              "graphWriter",
+              "graphAdmin",
+              "historyReader",
+              "historyAdmin"
+            ],
+            "type": "string"
+          },
+          "example.leyline.RoleScopeType": {
+            "description": "Where a binding is made.",
+            "enum": [
+              "organization",
+              "allGraphs",
+              "graph",
+              "allHistories",
+              "history"
+            ],
+            "type": "string"
+          },
+          "example.leyline.RoleScopeTypes": {
+            "items": {
+              "$ref": "#/$defs/example.leyline.RoleScopeType"
+            },
+            "type": "array",
+            "uniqueItems": false
+          },
+          "example.leyline.RoleSummaries": {
+            "items": {
+              "$ref": "#/$defs/example.leyline.RoleSummary"
+            },
+            "type": "array",
+            "uniqueItems": false
+          },
+          "example.leyline.RoleSummary": {
+            "description": "One role a console offers.",
+            "properties": {
+              "holders": {
+                "$ref": "#/$defs/example.leyline.PrincipalTypes"
+              },
+              "role": {
+                "$ref": "#/$defs/example.leyline.Role"
+              },
+              "scopes": {
+                "$ref": "#/$defs/example.leyline.RoleScopeTypes"
+              }
+            },
+            "required": [
+              "role",
+              "scopes",
+              "holders"
+            ],
+            "type": "object"
+          }
+        },
+        "properties": {
+          "roles": {
+            "$ref": "#/$defs/example.leyline.RoleSummaries"
+          }
+        },
+        "required": [
+          "roles"
+        ],
+        "type": "object"
+      },
+      "pagination": null,
+      "protocol": "crucibleJson",
+      "protocolHeaders": {},
+      "readonly": true,
+      "request": {
+        "body": [],
+        "headerEncodings": {},
+        "headers": [],
+        "labels": [],
+        "payload": null,
+        "query": [],
+        "timestampFormats": {}
+      },
+      "requirementDocumentation": [
+        {
+          "html": "<p>Requires no permission.</p>\n",
+          "markdown": "Requires no permission.",
+          "text": "Requires no permission."
+        }
+      ],
+      "requirementSentences": [
+        "Requires no permission."
+      ],
+      "requirements": {
+        "kind": "none"
+      },
+      "resources": [],
+      "response": {
+        "body": [
+          "roles"
+        ],
+        "headerEncodings": {},
+        "headers": [],
+        "labels": [],
+        "payload": null,
+        "query": [],
+        "timestampFormats": {}
+      },
+      "responseProtocolHeaders": {
+        "Content-Type": "application/json"
+      },
+      "sample": {
+        "fallbacks": [],
+        "generated": true,
+        "input": {
+          "body": null,
+          "headers": {},
+          "labels": {},
+          "method": "GET",
+          "payload": null,
+          "query": [],
+          "uri": "/v1/roles"
+        },
+        "minimalInput": {
+          "body": null,
+          "headers": {},
+          "labels": {},
+          "method": "GET",
+          "payload": null,
+          "query": [],
+          "uri": "/v1/roles"
+        },
+        "output": {
+          "body": {
+            "roles": [
+              {
+                "holders": [
+                  "user"
+                ],
+                "role": "owner",
+                "scopes": [
+                  "organization"
+                ]
+              }
+            ]
+          },
+          "headers": {
+            "Content-Type": "application/json"
+          },
+          "labels": {},
+          "payload": null,
+          "query": []
+        }
+      },
+      "status": 200,
+      "summary": "Every role a binding may name.",
+      "uri": "/v1/roles"
+    },
+    "example.leyline#PutRoleBinding": {
+      "auth": [
+        "crucible.api#httpBearerAuth"
+      ],
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "errors": [
+        "example.leyline#ResourceNotFound"
+      ],
+      "examples": [],
+      "grantedByDocumentation": [
+        {
+          "html": "<p>Granted by <code>owner</code> or <code>accessAdmin</code> at <code>organization</code>.</p>\n",
+          "markdown": "Granted by `owner` or `accessAdmin` at `organization`.",
+          "text": "Granted by owner or accessAdmin at organization."
+        }
+      ],
+      "grantedBySentences": [
+        "Granted by `owner` or `accessAdmin` at `organization`."
+      ],
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
+      "id": "example.leyline#PutRoleBinding",
+      "idempotencyToken": null,
+      "idempotent": true,
+      "input": "example.leyline#PutRoleBindingInput",
+      "inputSchema": {
+        "$defs": {
+          "example.leyline.Name": {
+            "maxLength": 64,
+            "minLength": 1,
+            "type": "string"
+          },
+          "example.leyline.OrganizationId": {
+            "maxLength": 40,
+            "minLength": 3,
+            "type": "string"
+          },
+          "example.leyline.PutRoleBindingInput": {
+            "properties": {
+              "organizationId": {
+                "maxLength": 40,
+                "minLength": 3,
+                "type": "string"
+              },
+              "principal": {
+                "maxLength": 64,
+                "minLength": 1,
+                "type": "string"
+              },
+              "role": {
+                "$ref": "#/$defs/example.leyline.Role"
+              },
+              "scope": {
+                "$ref": "#/$defs/example.leyline.RoleScopeType"
+              }
+            },
+            "required": [
+              "organizationId",
+              "principal",
+              "role",
+              "scope"
+            ],
+            "type": "object"
+          },
+          "example.leyline.Role": {
+            "description": "The roles a binding names.",
+            "enum": [
+              "owner",
+              "accessAdmin",
+              "graphGroupAdmin",
+              "usageViewer",
+              "auditViewer",
+              "auditAdmin",
+              "backupViewer",
+              "backupAdmin",
+              "graphCreator",
+              "graphReader",
+              "graphWriter",
+              "graphAdmin",
+              "historyReader",
+              "historyAdmin"
+            ],
+            "type": "string"
+          },
+          "example.leyline.RoleScopeType": {
+            "description": "Where a binding is made.",
+            "enum": [
+              "organization",
+              "allGraphs",
+              "graph",
+              "allHistories",
+              "history"
+            ],
+            "type": "string"
+          }
+        },
+        "properties": {
+          "organizationId": {
+            "maxLength": 40,
+            "minLength": 3,
+            "type": "string"
+          },
+          "principal": {
+            "maxLength": 64,
+            "minLength": 1,
+            "type": "string"
+          },
+          "role": {
+            "$ref": "#/$defs/example.leyline.Role"
+          },
+          "scope": {
+            "$ref": "#/$defs/example.leyline.RoleScopeType"
+          }
+        },
+        "required": [
+          "organizationId",
+          "principal",
+          "role",
+          "scope"
+        ],
+        "type": "object"
+      },
+      "internal": false,
+      "method": "PUT",
+      "name": "PutRoleBinding",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "output": null,
+      "outputSchema": {
+        "$defs": {},
+        "maxProperties": 0,
+        "type": "object"
+      },
+      "pagination": null,
+      "protocol": "crucibleJson",
+      "protocolHeaders": {
+        "Content-Type": "application/json"
+      },
+      "readonly": false,
+      "request": {
+        "body": [
+          "role",
+          "scope"
+        ],
+        "headerEncodings": {},
+        "headers": [],
+        "labels": [
+          "organizationId",
+          "principal"
+        ],
+        "payload": null,
+        "query": [],
+        "timestampFormats": {}
+      },
+      "requirementDocumentation": [
+        {
+          "html": "<p>Requires <code>roleBinding:manage</code> on the organization.</p>\n",
+          "markdown": "Requires `roleBinding:manage` on the organization.",
+          "text": "Requires roleBinding:manage on the organization."
+        }
+      ],
+      "requirementSentences": [
+        "Requires `roleBinding:manage` on the organization."
+      ],
+      "requirements": {
+        "clauses": [
+          {
+            "bindings": [
+              {
+                "identifier": "organizationId",
+                "value": "organizationId"
+              }
+            ],
+            "grantedBy": {
+              "roles": [
+                {
+                  "role": "owner",
+                  "scopes": [
+                    "organization"
+                  ]
+                },
+                {
+                  "role": "accessAdmin",
+                  "scopes": [
+                    "organization"
+                  ]
+                }
+              ]
+            },
+            "mode": "check",
+            "permission": "roleBinding:manage",
+            "resourceType": "organization",
+            "tier": "internal"
+          }
+        ],
+        "kind": "list"
+      },
+      "resources": [
+        "example.leyline#Organization"
+      ],
+      "response": {
+        "body": [],
+        "headerEncodings": {},
+        "headers": [],
+        "labels": [],
+        "payload": null,
+        "query": [],
+        "timestampFormats": {}
+      },
+      "responseProtocolHeaders": {},
+      "sample": {
+        "fallbacks": [],
+        "generated": true,
+        "input": {
+          "body": {
+            "role": "owner",
+            "scope": "organization"
+          },
+          "headers": {
+            "Content-Type": "application/json"
+          },
+          "labels": {
+            "organizationId": "organizationId",
+            "principal": "principal"
+          },
+          "method": "PUT",
+          "payload": null,
+          "query": [],
+          "uri": "/v1/organizations/organizationId/role-bindings/principal"
+        },
+        "minimalInput": {
+          "body": {
+            "role": "owner",
+            "scope": "organization"
+          },
+          "headers": {
+            "Content-Type": "application/json"
+          },
+          "labels": {
+            "organizationId": "organizationId",
+            "principal": "principal"
+          },
+          "method": "PUT",
+          "payload": null,
+          "query": [],
+          "uri": "/v1/organizations/organizationId/role-bindings/principal"
+        },
+        "output": {
+          "body": null,
+          "headers": {},
+          "labels": {},
+          "payload": null,
+          "query": []
+        }
+      },
+      "status": 200,
+      "summary": "",
+      "uri": "/v1/organizations/{organizationId}/role-bindings/{principal}"
+    },
+    "example.leyline#RestoreGraphHistory": {
+      "auth": [
+        "crucible.api#httpBearerAuth"
+      ],
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "errors": [
+        "example.leyline#ResourceNotFound"
+      ],
+      "examples": [],
+      "grantedByDocumentation": [
+        {
+          "html": "<p>Granted by <code>owner</code> at <code>organization</code>; <code>historyAdmin</code> at <code>allHistories</code> or <code>history</code>.</p>\n",
+          "markdown": "Granted by `owner` at `organization`; `historyAdmin` at `allHistories` or `history`.",
+          "text": "Granted by owner at organization; historyAdmin at allHistories or history."
+        }
+      ],
+      "grantedBySentences": [
+        "Granted by `owner` at `organization`; `historyAdmin` at `allHistories` or `history`."
+      ],
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
+      "id": "example.leyline#RestoreGraphHistory",
+      "idempotencyToken": null,
+      "idempotent": false,
+      "input": "example.leyline#RestoreGraphHistoryInput",
+      "inputSchema": {
+        "$defs": {
+          "example.leyline.HistoryId": {
+            "maxLength": 40,
+            "minLength": 3,
+            "type": "string"
+          },
+          "example.leyline.OrganizationId": {
+            "maxLength": 40,
+            "minLength": 3,
+            "type": "string"
+          },
+          "example.leyline.RestoreGraphHistoryInput": {
+            "properties": {
+              "historyId": {
+                "maxLength": 40,
+                "minLength": 3,
+                "type": "string"
+              },
+              "organizationId": {
+                "maxLength": 40,
+                "minLength": 3,
+                "type": "string"
+              }
+            },
+            "required": [
+              "organizationId",
+              "historyId"
+            ],
+            "type": "object"
+          }
+        },
+        "properties": {
+          "historyId": {
+            "maxLength": 40,
+            "minLength": 3,
+            "type": "string"
+          },
+          "organizationId": {
+            "maxLength": 40,
+            "minLength": 3,
+            "type": "string"
+          }
+        },
+        "required": [
+          "organizationId",
+          "historyId"
+        ],
+        "type": "object"
+      },
+      "internal": false,
+      "method": "POST",
+      "name": "RestoreGraphHistory",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "output": null,
+      "outputSchema": {
+        "$defs": {},
+        "maxProperties": 0,
+        "type": "object"
+      },
+      "pagination": null,
+      "protocol": "crucibleJson",
+      "protocolHeaders": {},
+      "readonly": false,
+      "request": {
+        "body": [],
+        "headerEncodings": {},
+        "headers": [],
+        "labels": [
+          "organizationId",
+          "historyId"
+        ],
+        "payload": null,
+        "query": [],
+        "timestampFormats": {}
+      },
+      "requirementDocumentation": [
+        {
+          "html": "<p>Requires <code>history:restore</code> on the graph history.</p>\n",
+          "markdown": "Requires `history:restore` on the graph history.",
+          "text": "Requires history:restore on the graph history."
+        }
+      ],
+      "requirementSentences": [
+        "Requires `history:restore` on the graph history."
+      ],
+      "requirements": {
+        "clauses": [
+          {
+            "bindings": [
+              {
+                "identifier": "organizationId",
+                "value": "organizationId"
+              },
+              {
+                "identifier": "historyId",
+                "value": "historyId"
+              }
+            ],
+            "grantedBy": {
+              "roles": [
+                {
+                  "role": "owner",
+                  "scopes": [
+                    "organization"
+                  ]
+                },
+                {
+                  "role": "historyAdmin",
+                  "scopes": [
+                    "allHistories",
+                    "history"
+                  ]
+                }
+              ]
+            },
+            "mode": "check",
+            "permission": "history:restore",
+            "resourceType": "graphHistory",
+            "tier": "internal"
+          }
+        ],
+        "kind": "list"
+      },
+      "resources": [
+        "example.leyline#GraphHistory"
+      ],
+      "response": {
+        "body": [],
+        "headerEncodings": {},
+        "headers": [],
+        "labels": [],
+        "payload": null,
+        "query": [],
+        "timestampFormats": {}
+      },
+      "responseProtocolHeaders": {},
+      "sample": {
+        "fallbacks": [],
+        "generated": true,
+        "input": {
+          "body": null,
+          "headers": {},
+          "labels": {
+            "historyId": "historyId",
+            "organizationId": "organizationId"
+          },
+          "method": "POST",
+          "payload": null,
+          "query": [],
+          "uri": "/v1/organizations/organizationId/histories/historyId/restore"
+        },
+        "minimalInput": {
+          "body": null,
+          "headers": {},
+          "labels": {
+            "historyId": "historyId",
+            "organizationId": "organizationId"
+          },
+          "method": "POST",
+          "payload": null,
+          "query": [],
+          "uri": "/v1/organizations/organizationId/histories/historyId/restore"
+        },
+        "output": {
+          "body": null,
+          "headers": {},
+          "labels": {},
+          "payload": null,
+          "query": []
+        }
+      },
+      "status": 200,
+      "summary": "",
+      "uri": "/v1/organizations/{organizationId}/histories/{historyId}/restore"
+    },
+    "example.leyline#WriteGraph": {
+      "auth": [
+        "crucible.api#httpBearerAuth"
+      ],
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "errors": [
+        "example.leyline#ResourceNotFound"
+      ],
+      "examples": [],
+      "grantedByDocumentation": [
+        {
+          "html": "<p>Granted by <code>graphWriter</code> or <code>graphAdmin</code> at <code>allGraphs</code> or <code>graph</code>.</p>\n",
+          "markdown": "Granted by `graphWriter` or `graphAdmin` at `allGraphs` or `graph`.",
+          "text": "Granted by graphWriter or graphAdmin at allGraphs or graph."
+        }
+      ],
+      "grantedBySentences": [
+        "Granted by `graphWriter` or `graphAdmin` at `allGraphs` or `graph`."
+      ],
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
+      "id": "example.leyline#WriteGraph",
+      "idempotencyToken": null,
+      "idempotent": false,
+      "input": "example.leyline#WriteGraphInput",
+      "inputSchema": {
+        "$defs": {
+          "example.leyline.GraphId": {
+            "maxLength": 40,
+            "minLength": 3,
+            "type": "string"
+          },
+          "example.leyline.OrganizationId": {
+            "maxLength": 40,
+            "minLength": 3,
+            "type": "string"
+          },
+          "example.leyline.WriteGraphInput": {
+            "properties": {
+              "graphId": {
+                "maxLength": 40,
+                "minLength": 3,
+                "type": "string"
+              },
+              "organizationId": {
+                "maxLength": 40,
+                "minLength": 3,
+                "type": "string"
+              }
+            },
+            "required": [
+              "organizationId",
+              "graphId"
+            ],
+            "type": "object"
+          }
+        },
+        "properties": {
+          "graphId": {
+            "maxLength": 40,
+            "minLength": 3,
+            "type": "string"
+          },
+          "organizationId": {
+            "maxLength": 40,
+            "minLength": 3,
+            "type": "string"
+          }
+        },
+        "required": [
+          "organizationId",
+          "graphId"
+        ],
+        "type": "object"
+      },
+      "internal": false,
+      "method": "POST",
+      "name": "WriteGraph",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "output": null,
+      "outputSchema": {
+        "$defs": {},
+        "maxProperties": 0,
+        "type": "object"
+      },
+      "pagination": null,
+      "protocol": "crucibleJson",
+      "protocolHeaders": {},
+      "readonly": false,
+      "request": {
+        "body": [],
+        "headerEncodings": {},
+        "headers": [],
+        "labels": [
+          "organizationId",
+          "graphId"
+        ],
+        "payload": null,
+        "query": [],
+        "timestampFormats": {}
+      },
+      "requirementDocumentation": [
+        {
+          "html": "<p>Requires <code>graph:write</code> on the graph.</p>\n",
+          "markdown": "Requires `graph:write` on the graph.",
+          "text": "Requires graph:write on the graph."
+        }
+      ],
+      "requirementSentences": [
+        "Requires `graph:write` on the graph."
+      ],
+      "requirements": {
+        "clauses": [
+          {
+            "bindings": [
+              {
+                "identifier": "organizationId",
+                "value": "organizationId"
+              },
+              {
+                "identifier": "graphId",
+                "value": "graphId"
+              }
+            ],
+            "grantedBy": {
+              "roles": [
+                {
+                  "role": "graphWriter",
+                  "scopes": [
+                    "allGraphs",
+                    "graph"
+                  ]
+                },
+                {
+                  "role": "graphAdmin",
+                  "scopes": [
+                    "allGraphs",
+                    "graph"
+                  ]
+                }
+              ]
+            },
+            "mode": "check",
+            "permission": "graph:write",
+            "resourceType": "graph",
+            "tier": "internal"
+          }
+        ],
+        "kind": "list"
+      },
+      "resources": [
+        "example.leyline#Graph"
+      ],
+      "response": {
+        "body": [],
+        "headerEncodings": {},
+        "headers": [],
+        "labels": [],
+        "payload": null,
+        "query": [],
+        "timestampFormats": {}
+      },
+      "responseProtocolHeaders": {},
+      "sample": {
+        "fallbacks": [],
+        "generated": true,
+        "input": {
+          "body": null,
+          "headers": {},
+          "labels": {
+            "graphId": "graphId",
+            "organizationId": "organizationId"
+          },
+          "method": "POST",
+          "payload": null,
+          "query": [],
+          "uri": "/v1/organizations/organizationId/graphs/graphId/writes"
+        },
+        "minimalInput": {
+          "body": null,
+          "headers": {},
+          "labels": {
+            "graphId": "graphId",
+            "organizationId": "organizationId"
+          },
+          "method": "POST",
+          "payload": null,
+          "query": [],
+          "uri": "/v1/organizations/organizationId/graphs/graphId/writes"
+        },
+        "output": {
+          "body": null,
+          "headers": {},
+          "labels": {},
+          "payload": null,
+          "query": []
+        }
+      },
+      "status": 200,
+      "summary": "",
+      "uri": "/v1/organizations/{organizationId}/graphs/{graphId}/writes"
+    }
+  },
+  "resources": {
+    "example.leyline#Graph": {
+      "documentation": {
+        "html": "<p>One graph.</p>\n",
+        "markdown": "One graph.",
+        "text": "One graph."
+      },
+      "id": "example.leyline#Graph",
+      "identifiers": {
+        "graphId": "example.leyline#GraphId",
+        "organizationId": "example.leyline#OrganizationId"
+      },
+      "internal": false,
+      "lifecycle": {
+        "create": null,
+        "delete": null,
+        "list": null,
+        "put": null,
+        "read": null,
+        "update": null
+      },
+      "name": "Graph",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "operations": [
+        "example.leyline#CreateGraph",
+        "example.leyline#DeleteGraph",
+        "example.leyline#GetGraph",
+        "example.leyline#WriteGraph"
+      ],
+      "properties": {
+        "name": "example.leyline#Name"
+      },
+      "resources": [],
+      "summary": "One graph."
+    },
+    "example.leyline#GraphHistory": {
+      "documentation": {
+        "html": "<p>The retained past of a graph, kept after the graph is deleted.</p>\n",
+        "markdown": "The retained past of a graph, kept after the graph is deleted.",
+        "text": "The retained past of a graph, kept after the graph is deleted."
+      },
+      "id": "example.leyline#GraphHistory",
+      "identifiers": {
+        "historyId": "example.leyline#HistoryId",
+        "organizationId": "example.leyline#OrganizationId"
+      },
+      "internal": false,
+      "lifecycle": {
+        "create": null,
+        "delete": null,
+        "list": null,
+        "put": null,
+        "read": null,
+        "update": null
+      },
+      "name": "GraphHistory",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "operations": [
+        "example.leyline#GetGraphHistory",
+        "example.leyline#RestoreGraphHistory"
+      ],
+      "properties": {},
+      "resources": [],
+      "summary": "The retained past of a graph, kept after the graph is deleted."
+    },
+    "example.leyline#Organization": {
+      "documentation": {
+        "html": "<p>The tenant: every graph, member and history belongs to one.</p>\n",
+        "markdown": "The tenant: every graph, member and history belongs to one.",
+        "text": "The tenant: every graph, member and history belongs to one."
+      },
+      "id": "example.leyline#Organization",
+      "identifiers": {
+        "organizationId": "example.leyline#OrganizationId"
+      },
+      "internal": false,
+      "lifecycle": {
+        "create": null,
+        "delete": null,
+        "list": null,
+        "put": null,
+        "read": null,
+        "update": null
+      },
+      "name": "Organization",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "operations": [
+        "example.leyline#CreateBackup",
+        "example.leyline#GetOrganization",
+        "example.leyline#GetUsage",
+        "example.leyline#ListAuditEvents",
+        "example.leyline#PutRoleBinding"
+      ],
+      "properties": {
+        "name": "example.leyline#Name"
+      },
+      "resources": [
+        "example.leyline#Graph",
+        "example.leyline#GraphHistory"
+      ],
+      "summary": "The tenant: every graph, member and history belongs to one."
+    }
+  },
+  "service": {
+    "auth": [
+      "crucible.api#httpBearerAuth"
+    ],
+    "authSchemes": {
+      "crucible.api#httpBearerAuth": {
+        "kind": "bearer"
+      }
+    },
+    "documentation": {
+      "html": "<p>Graphs, organized by organization.</p>\n",
+      "markdown": "Graphs, organized by organization.",
+      "text": "Graphs, organized by organization."
+    },
+    "errors": [],
+    "id": "example.leyline#Leyline",
+    "internal": false,
+    "name": "Leyline",
+    "notes": {
+      "deprecated": null,
+      "externalDocs": {},
+      "since": null,
+      "unstable": false
+    },
+    "permissions": [
+      {
+        "identifiers": [
+          "organizationId",
+          "graphId"
+        ],
+        "permissions": [
+          {
+            "deprecated": false,
+            "description": "",
+            "grantable": true,
+            "symbol": "create",
+            "tier": "internal",
+            "value": "graph:create"
+          },
+          {
+            "deprecated": false,
+            "description": "",
+            "grantable": true,
+            "symbol": "manage",
+            "tier": "internal",
+            "value": "graph:manage"
+          },
+          {
+            "deprecated": false,
+            "description": "",
+            "grantable": true,
+            "symbol": "read",
+            "tier": "internal",
+            "value": "graph:read"
+          },
+          {
+            "deprecated": false,
+            "description": "",
+            "grantable": true,
+            "symbol": "write",
+            "tier": "internal",
+            "value": "graph:write"
+          }
+        ],
+        "resourceType": "graph"
+      },
+      {
+        "identifiers": [
+          "organizationId",
+          "historyId"
+        ],
+        "permissions": [
+          {
+            "deprecated": false,
+            "description": "",
+            "grantable": true,
+            "symbol": "read",
+            "tier": "internal",
+            "value": "history:read"
+          },
+          {
+            "deprecated": false,
+            "description": "",
+            "grantable": true,
+            "symbol": "restore",
+            "tier": "internal",
+            "value": "history:restore"
+          }
+        ],
+        "resourceType": "graphHistory"
+      },
+      {
+        "identifiers": [
+          "organizationId"
+        ],
+        "permissions": [
+          {
+            "deprecated": false,
+            "description": "",
+            "grantable": true,
+            "symbol": "apiKeyManage",
+            "tier": "internal",
+            "value": "apiKey:manage"
+          },
+          {
+            "deprecated": false,
+            "description": "",
+            "grantable": true,
+            "symbol": "apiKeyRead",
+            "tier": "internal",
+            "value": "apiKey:read"
+          },
+          {
+            "deprecated": false,
+            "description": "",
+            "grantable": true,
+            "symbol": "auditManage",
+            "tier": "internal",
+            "value": "audit:manage"
+          },
+          {
+            "deprecated": false,
+            "description": "",
+            "grantable": true,
+            "symbol": "auditRead",
+            "tier": "internal",
+            "value": "audit:read"
+          },
+          {
+            "deprecated": false,
+            "description": "",
+            "grantable": true,
+            "symbol": "backupManage",
+            "tier": "internal",
+            "value": "backup:manage"
+          },
+          {
+            "deprecated": false,
+            "description": "",
+            "grantable": true,
+            "symbol": "backupRead",
+            "tier": "internal",
+            "value": "backup:read"
+          },
+          {
+            "deprecated": false,
+            "description": "",
+            "grantable": true,
+            "symbol": "graphGroupManage",
+            "tier": "internal",
+            "value": "graphGroup:manage"
+          },
+          {
+            "deprecated": false,
+            "description": "",
+            "grantable": true,
+            "symbol": "graphGroupRead",
+            "tier": "internal",
+            "value": "graphGroup:read"
+          },
+          {
+            "deprecated": false,
+            "description": "",
+            "grantable": true,
+            "symbol": "memberManage",
+            "tier": "internal",
+            "value": "member:manage"
+          },
+          {
+            "deprecated": false,
+            "description": "",
+            "grantable": true,
+            "symbol": "memberRead",
+            "tier": "internal",
+            "value": "member:read"
+          },
+          {
+            "deprecated": false,
+            "description": "",
+            "grantable": true,
+            "symbol": "organizationRead",
+            "tier": "internal",
+            "value": "organization:read"
+          },
+          {
+            "deprecated": false,
+            "description": "",
+            "grantable": true,
+            "symbol": "roleBindingManage",
+            "tier": "internal",
+            "value": "roleBinding:manage"
+          },
+          {
+            "deprecated": false,
+            "description": "",
+            "grantable": true,
+            "symbol": "roleBindingRead",
+            "tier": "internal",
+            "value": "roleBinding:read"
+          },
+          {
+            "deprecated": false,
+            "description": "",
+            "grantable": true,
+            "symbol": "settingsManage",
+            "tier": "internal",
+            "value": "settings:manage"
+          },
+          {
+            "deprecated": false,
+            "description": "",
+            "grantable": true,
+            "symbol": "settingsRead",
+            "tier": "internal",
+            "value": "settings:read"
+          },
+          {
+            "deprecated": false,
+            "description": "",
+            "grantable": true,
+            "symbol": "usageRead",
+            "tier": "internal",
+            "value": "usage:read"
+          }
+        ],
+        "resourceType": "organization"
+      }
+    ],
+    "protocol": "crucibleJson",
+    "resourceRoots": [
+      "example.leyline#Organization"
+    ],
+    "roles": [
+      {
+        "assignedBy": [
+          "owner"
+        ],
+        "deprecated": false,
+        "description": "Everything in the organization, and every history in it.",
+        "holders": [
+          "user"
+        ],
+        "permissions": [
+          {
+            "permission": "history:read",
+            "resourceType": "graphHistory"
+          },
+          {
+            "permission": "history:restore",
+            "resourceType": "graphHistory"
+          },
+          {
+            "permission": "organization:read",
+            "resourceType": "organization"
+          },
+          {
+            "permission": "settings:read",
+            "resourceType": "organization"
+          },
+          {
+            "permission": "settings:manage",
+            "resourceType": "organization"
+          },
+          {
+            "permission": "member:read",
+            "resourceType": "organization"
+          },
+          {
+            "permission": "member:manage",
+            "resourceType": "organization"
+          },
+          {
+            "permission": "apiKey:read",
+            "resourceType": "organization"
+          },
+          {
+            "permission": "apiKey:manage",
+            "resourceType": "organization"
+          },
+          {
+            "permission": "roleBinding:read",
+            "resourceType": "organization"
+          },
+          {
+            "permission": "roleBinding:manage",
+            "resourceType": "organization"
+          },
+          {
+            "permission": "graphGroup:read",
+            "resourceType": "organization"
+          },
+          {
+            "permission": "graphGroup:manage",
+            "resourceType": "organization"
+          },
+          {
+            "permission": "usage:read",
+            "resourceType": "organization"
+          },
+          {
+            "permission": "audit:read",
+            "resourceType": "organization"
+          },
+          {
+            "permission": "audit:manage",
+            "resourceType": "organization"
+          },
+          {
+            "permission": "backup:read",
+            "resourceType": "organization"
+          },
+          {
+            "permission": "backup:manage",
+            "resourceType": "organization"
+          }
+        ],
+        "scopes": [
+          "organization"
+        ],
+        "value": "owner"
+      },
+      {
+        "assignedBy": [
+          "owner"
+        ],
+        "deprecated": false,
+        "description": "Who belongs to the organization, its keys, and who holds which role.",
+        "holders": [
+          "user"
+        ],
+        "permissions": [
+          {
+            "permission": "organization:read",
+            "resourceType": "organization"
+          },
+          {
+            "permission": "settings:read",
+            "resourceType": "organization"
+          },
+          {
+            "permission": "member:read",
+            "resourceType": "organization"
+          },
+          {
+            "permission": "member:manage",
+            "resourceType": "organization"
+          },
+          {
+            "permission": "apiKey:read",
+            "resourceType": "organization"
+          },
+          {
+            "permission": "apiKey:manage",
+            "resourceType": "organization"
+          },
+          {
+            "permission": "roleBinding:read",
+            "resourceType": "organization"
+          },
+          {
+            "permission": "roleBinding:manage",
+            "resourceType": "organization"
+          }
+        ],
+        "scopes": [
+          "organization"
+        ],
+        "value": "accessAdmin"
+      },
+      {
+        "assignedBy": [],
+        "deprecated": false,
+        "description": "The organization's graph groups.",
+        "holders": [],
+        "permissions": [
+          {
+            "permission": "organization:read",
+            "resourceType": "organization"
+          },
+          {
+            "permission": "graphGroup:read",
+            "resourceType": "organization"
+          },
+          {
+            "permission": "graphGroup:manage",
+            "resourceType": "organization"
+          }
+        ],
+        "scopes": [
+          "organization"
+        ],
+        "value": "graphGroupAdmin"
+      },
+      {
+        "assignedBy": [],
+        "deprecated": false,
+        "description": "What the organization uses and is billed for.",
+        "holders": [],
+        "permissions": [
+          {
+            "permission": "organization:read",
+            "resourceType": "organization"
+          },
+          {
+            "permission": "usage:read",
+            "resourceType": "organization"
+          }
+        ],
+        "scopes": [
+          "organization"
+        ],
+        "value": "usageViewer"
+      },
+      {
+        "assignedBy": [],
+        "deprecated": false,
+        "description": "The organization's audit log.",
+        "holders": [],
+        "permissions": [
+          {
+            "permission": "organization:read",
+            "resourceType": "organization"
+          },
+          {
+            "permission": "audit:read",
+            "resourceType": "organization"
+          }
+        ],
+        "scopes": [
+          "organization"
+        ],
+        "value": "auditViewer"
+      },
+      {
+        "assignedBy": [
+          "owner"
+        ],
+        "deprecated": false,
+        "description": "The audit log and its retention.",
+        "holders": [
+          "user"
+        ],
+        "permissions": [
+          {
+            "permission": "organization:read",
+            "resourceType": "organization"
+          },
+          {
+            "permission": "audit:read",
+            "resourceType": "organization"
+          },
+          {
+            "permission": "audit:manage",
+            "resourceType": "organization"
+          }
+        ],
+        "scopes": [
+          "organization"
+        ],
+        "value": "auditAdmin"
+      },
+      {
+        "assignedBy": [],
+        "deprecated": false,
+        "description": "The organization's backups.",
+        "holders": [],
+        "permissions": [
+          {
+            "permission": "organization:read",
+            "resourceType": "organization"
+          },
+          {
+            "permission": "backup:read",
+            "resourceType": "organization"
+          }
+        ],
+        "scopes": [
+          "organization"
+        ],
+        "value": "backupViewer"
+      },
+      {
+        "assignedBy": [],
+        "deprecated": false,
+        "description": "Take and manage backups.",
+        "holders": [],
+        "permissions": [
+          {
+            "permission": "organization:read",
+            "resourceType": "organization"
+          },
+          {
+            "permission": "backup:read",
+            "resourceType": "organization"
+          },
+          {
+            "permission": "backup:manage",
+            "resourceType": "organization"
+          }
+        ],
+        "scopes": [
+          "organization"
+        ],
+        "value": "backupAdmin"
+      },
+      {
+        "assignedBy": [],
+        "deprecated": false,
+        "description": "Create graphs; the create handler makes the creator `graphAdmin` on each.",
+        "holders": [],
+        "permissions": [
+          {
+            "permission": "graph:create",
+            "resourceType": "graph"
+          }
+        ],
+        "scopes": [
+          "organization"
+        ],
+        "value": "graphCreator"
+      },
+      {
+        "assignedBy": [],
+        "deprecated": false,
+        "description": "Read graph data.",
+        "holders": [],
+        "permissions": [
+          {
+            "permission": "graph:read",
+            "resourceType": "graph"
+          }
+        ],
+        "scopes": [
+          "allGraphs",
+          "graph"
+        ],
+        "value": "graphReader"
+      },
+      {
+        "assignedBy": [],
+        "deprecated": false,
+        "description": "Read and write graph data.",
+        "holders": [],
+        "permissions": [
+          {
+            "permission": "graph:read",
+            "resourceType": "graph"
+          },
+          {
+            "permission": "graph:write",
+            "resourceType": "graph"
+          }
+        ],
+        "scopes": [
+          "allGraphs",
+          "graph"
+        ],
+        "value": "graphWriter"
+      },
+      {
+        "assignedBy": [],
+        "byService": [
+          {
+            "documentation": "The history of a graph this binding covers, while the graph is live.",
+            "permission": "history:read",
+            "resourceType": "graphHistory"
+          }
+        ],
+        "deprecated": false,
+        "description": "Read, write, configure and delete graphs.",
+        "holders": [],
+        "permissions": [
+          {
+            "permission": "graph:read",
+            "resourceType": "graph"
+          },
+          {
+            "permission": "graph:write",
+            "resourceType": "graph"
+          },
+          {
+            "permission": "graph:manage",
+            "resourceType": "graph"
+          },
+          {
+            "permission": "graph:create",
+            "resourceType": "graph"
+          }
+        ],
+        "scopes": [
+          "allGraphs",
+          "graph"
+        ],
+        "value": "graphAdmin"
+      },
+      {
+        "assignedBy": [],
+        "deprecated": false,
+        "description": "Read graph histories.",
+        "holders": [],
+        "permissions": [
+          {
+            "permission": "history:read",
+            "resourceType": "graphHistory"
+          }
+        ],
+        "scopes": [
+          "allHistories",
+          "history"
+        ],
+        "value": "historyReader"
+      },
+      {
+        "assignedBy": [],
+        "deprecated": false,
+        "description": "Read and restore graph histories.",
+        "holders": [],
+        "permissions": [
+          {
+            "permission": "history:read",
+            "resourceType": "graphHistory"
+          },
+          {
+            "permission": "history:restore",
+            "resourceType": "graphHistory"
+          }
+        ],
+        "scopes": [
+          "allHistories",
+          "history"
+        ],
+        "value": "historyAdmin"
+      }
+    ],
+    "scopes": [
+      {
+        "deprecated": false,
+        "description": "The organization itself: membership, keys, usage, audit and ownership.",
+        "kind": "instance",
+        "resource": "example.leyline#Organization",
+        "resourceType": "organization",
+        "value": "organization"
+      },
+      {
+        "deprecated": false,
+        "description": "Every graph in the organization, including graphs created later.",
+        "kind": "every",
+        "resource": "example.leyline#Graph",
+        "resourceType": "graph",
+        "value": "allGraphs"
+      },
+      {
+        "deprecated": false,
+        "description": "One graph.",
+        "kind": "instance",
+        "resource": "example.leyline#Graph",
+        "resourceType": "graph",
+        "value": "graph"
+      },
+      {
+        "deprecated": false,
+        "description": "Every graph history in the organization, retired ones too.",
+        "kind": "every",
+        "resource": "example.leyline#GraphHistory",
+        "resourceType": "graphHistory",
+        "value": "allHistories"
+      },
+      {
+        "deprecated": false,
+        "description": "One graph history.",
+        "kind": "instance",
+        "resource": "example.leyline#GraphHistory",
+        "resourceType": "graphHistory",
+        "value": "history"
+      }
+    ],
+    "summary": "Graphs, organized by organization.",
+    "title": "Leyline",
+    "version": "2026-09-04"
+  },
+  "shapes": {
+    "crucible.api#String": {
+      "constraints": {
+        "length": null,
+        "pattern": null,
+        "range": null,
+        "uniqueItems": false
+      },
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
+      "id": "crucible.api#String",
+      "internal": false,
+      "kind": "string",
+      "members": [],
+      "name": "String",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false,
+      "summary": ""
+    },
+    "example.leyline#CreateBackupInput": {
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "error": null,
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
+      "id": "example.leyline#CreateBackupInput",
+      "internal": false,
+      "kind": "structure",
+      "members": [
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": {
+              "max": 40,
+              "min": 3
+            },
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "organizationId",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": false,
+          "required": true,
+          "sensitive": false,
+          "target": "example.leyline#OrganizationId",
+          "targetName": "OrganizationId",
+          "targetType": "string",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "organizationId"
+        }
+      ],
+      "name": "CreateBackupInput",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false,
+      "summary": ""
+    },
+    "example.leyline#CreateGraphInput": {
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "error": null,
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
+      "id": "example.leyline#CreateGraphInput",
+      "internal": false,
+      "kind": "structure",
+      "members": [
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": {
+              "max": 40,
+              "min": 3
+            },
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "organizationId",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": false,
+          "required": true,
+          "sensitive": false,
+          "target": "example.leyline#OrganizationId",
+          "targetName": "OrganizationId",
+          "targetType": "string",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "organizationId"
+        },
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": {
+              "max": 64,
+              "min": 1
+            },
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "name",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": false,
+          "required": true,
+          "sensitive": false,
+          "target": "example.leyline#Name",
+          "targetName": "Name",
+          "targetType": "string",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "name"
+        }
+      ],
+      "name": "CreateGraphInput",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false,
+      "summary": ""
+    },
+    "example.leyline#DeleteGraphInput": {
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "error": null,
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
+      "id": "example.leyline#DeleteGraphInput",
+      "internal": false,
+      "kind": "structure",
+      "members": [
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": {
+              "max": 40,
+              "min": 3
+            },
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "organizationId",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": false,
+          "required": true,
+          "sensitive": false,
+          "target": "example.leyline#OrganizationId",
+          "targetName": "OrganizationId",
+          "targetType": "string",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "organizationId"
+        },
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": {
+              "max": 40,
+              "min": 3
+            },
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "graphId",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": false,
+          "required": true,
+          "sensitive": false,
+          "target": "example.leyline#GraphId",
+          "targetName": "GraphId",
+          "targetType": "string",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "graphId"
+        }
+      ],
+      "name": "DeleteGraphInput",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false,
+      "summary": ""
+    },
+    "example.leyline#GetGraphHistoryInput": {
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "error": null,
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
+      "id": "example.leyline#GetGraphHistoryInput",
+      "internal": false,
+      "kind": "structure",
+      "members": [
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": {
+              "max": 40,
+              "min": 3
+            },
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "organizationId",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": false,
+          "required": true,
+          "sensitive": false,
+          "target": "example.leyline#OrganizationId",
+          "targetName": "OrganizationId",
+          "targetType": "string",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "organizationId"
+        },
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": {
+              "max": 40,
+              "min": 3
+            },
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "historyId",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": false,
+          "required": true,
+          "sensitive": false,
+          "target": "example.leyline#HistoryId",
+          "targetName": "HistoryId",
+          "targetType": "string",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "historyId"
+        }
+      ],
+      "name": "GetGraphHistoryInput",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false,
+      "summary": ""
+    },
+    "example.leyline#GetGraphInput": {
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "error": null,
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
+      "id": "example.leyline#GetGraphInput",
+      "internal": false,
+      "kind": "structure",
+      "members": [
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": {
+              "max": 40,
+              "min": 3
+            },
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "organizationId",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": false,
+          "required": true,
+          "sensitive": false,
+          "target": "example.leyline#OrganizationId",
+          "targetName": "OrganizationId",
+          "targetType": "string",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "organizationId"
+        },
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": {
+              "max": 40,
+              "min": 3
+            },
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "graphId",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": false,
+          "required": true,
+          "sensitive": false,
+          "target": "example.leyline#GraphId",
+          "targetName": "GraphId",
+          "targetType": "string",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "graphId"
+        }
+      ],
+      "name": "GetGraphInput",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false,
+      "summary": ""
+    },
+    "example.leyline#GetGraphOutput": {
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "error": null,
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
+      "id": "example.leyline#GetGraphOutput",
+      "internal": false,
+      "kind": "structure",
+      "members": [
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": {
+              "max": 64,
+              "min": 1
+            },
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "name",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": false,
+          "required": true,
+          "sensitive": false,
+          "target": "example.leyline#Name",
+          "targetName": "Name",
+          "targetType": "string",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "name"
+        }
+      ],
+      "name": "GetGraphOutput",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false,
+      "summary": ""
+    },
+    "example.leyline#GetOrganizationInput": {
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "error": null,
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
+      "id": "example.leyline#GetOrganizationInput",
+      "internal": false,
+      "kind": "structure",
+      "members": [
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": {
+              "max": 40,
+              "min": 3
+            },
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "organizationId",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": false,
+          "required": true,
+          "sensitive": false,
+          "target": "example.leyline#OrganizationId",
+          "targetName": "OrganizationId",
+          "targetType": "string",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "organizationId"
+        }
+      ],
+      "name": "GetOrganizationInput",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false,
+      "summary": ""
+    },
+    "example.leyline#GetOrganizationOutput": {
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "error": null,
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
+      "id": "example.leyline#GetOrganizationOutput",
+      "internal": false,
+      "kind": "structure",
+      "members": [
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": {
+              "max": 64,
+              "min": 1
+            },
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "name",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": false,
+          "required": true,
+          "sensitive": false,
+          "target": "example.leyline#Name",
+          "targetName": "Name",
+          "targetType": "string",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "name"
+        }
+      ],
+      "name": "GetOrganizationOutput",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false,
+      "summary": ""
+    },
+    "example.leyline#GetUsageInput": {
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "error": null,
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
+      "id": "example.leyline#GetUsageInput",
+      "internal": false,
+      "kind": "structure",
+      "members": [
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": {
+              "max": 40,
+              "min": 3
+            },
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "organizationId",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": false,
+          "required": true,
+          "sensitive": false,
+          "target": "example.leyline#OrganizationId",
+          "targetName": "OrganizationId",
+          "targetType": "string",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "organizationId"
+        }
+      ],
+      "name": "GetUsageInput",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false,
+      "summary": ""
+    },
+    "example.leyline#GraphId": {
+      "constraints": {
+        "length": {
+          "max": 40,
+          "min": 3
+        },
+        "pattern": null,
+        "range": null,
+        "uniqueItems": false
+      },
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
+      "id": "example.leyline#GraphId",
+      "internal": false,
+      "kind": "string",
+      "members": [],
+      "name": "GraphId",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false,
+      "summary": ""
+    },
+    "example.leyline#HistoryId": {
+      "constraints": {
+        "length": {
+          "max": 40,
+          "min": 3
+        },
+        "pattern": null,
+        "range": null,
+        "uniqueItems": false
+      },
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
+      "id": "example.leyline#HistoryId",
+      "internal": false,
+      "kind": "string",
+      "members": [],
+      "name": "HistoryId",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false,
+      "summary": ""
+    },
+    "example.leyline#ListAuditEventsInput": {
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "error": null,
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
+      "id": "example.leyline#ListAuditEventsInput",
+      "internal": false,
+      "kind": "structure",
+      "members": [
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": {
+              "max": 40,
+              "min": 3
+            },
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "organizationId",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": false,
+          "required": true,
+          "sensitive": false,
+          "target": "example.leyline#OrganizationId",
+          "targetName": "OrganizationId",
+          "targetType": "string",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "organizationId"
+        }
+      ],
+      "name": "ListAuditEventsInput",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false,
+      "summary": ""
+    },
+    "example.leyline#ListRolesOutput": {
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "error": null,
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
+      "id": "example.leyline#ListRolesOutput",
+      "internal": false,
+      "kind": "structure",
+      "members": [
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "roles",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": false,
+          "required": true,
+          "sensitive": false,
+          "target": "example.leyline#RoleSummaries",
+          "targetName": "RoleSummaries",
+          "targetType": "list",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "roles"
+        }
+      ],
+      "name": "ListRolesOutput",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false,
+      "summary": ""
+    },
+    "example.leyline#Name": {
+      "constraints": {
+        "length": {
+          "max": 64,
+          "min": 1
+        },
+        "pattern": null,
+        "range": null,
+        "uniqueItems": false
+      },
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
+      "id": "example.leyline#Name",
+      "internal": false,
+      "kind": "string",
+      "members": [],
+      "name": "Name",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false,
+      "summary": ""
+    },
+    "example.leyline#OrganizationId": {
+      "constraints": {
+        "length": {
+          "max": 40,
+          "min": 3
+        },
+        "pattern": null,
+        "range": null,
+        "uniqueItems": false
+      },
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
+      "id": "example.leyline#OrganizationId",
+      "internal": false,
+      "kind": "string",
+      "members": [],
+      "name": "OrganizationId",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false,
+      "summary": ""
+    },
+    "example.leyline#PrincipalType": {
+      "documentation": {
+        "html": "<p>Who a credential belongs to.</p>\n",
+        "markdown": "Who a credential belongs to.",
+        "text": "Who a credential belongs to."
+      },
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
+      "id": "example.leyline#PrincipalType",
+      "internal": false,
+      "kind": "enum",
+      "members": [],
+      "name": "PrincipalType",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false,
+      "summary": "Who a credential belongs to.",
+      "values": [
+        {
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "USER",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "value": "user"
+        },
+        {
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "API_KEY",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "value": "apiKey"
+        }
+      ]
+    },
+    "example.leyline#PrincipalTypes": {
+      "constraints": {
+        "length": null,
+        "pattern": null,
+        "range": null,
+        "uniqueItems": false
+      },
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
+      "id": "example.leyline#PrincipalTypes",
+      "internal": false,
+      "kind": "list",
+      "members": [
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "member",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": true,
+          "required": false,
+          "sensitive": false,
+          "target": "example.leyline#PrincipalType",
+          "targetName": "PrincipalType",
+          "targetType": "enum",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "member"
+        }
+      ],
+      "name": "PrincipalTypes",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false,
+      "set": false,
+      "sparse": false,
+      "summary": ""
+    },
+    "example.leyline#PutRoleBindingInput": {
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "error": null,
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
+      "id": "example.leyline#PutRoleBindingInput",
+      "internal": false,
+      "kind": "structure",
+      "members": [
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": {
+              "max": 40,
+              "min": 3
+            },
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "organizationId",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": false,
+          "required": true,
+          "sensitive": false,
+          "target": "example.leyline#OrganizationId",
+          "targetName": "OrganizationId",
+          "targetType": "string",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "organizationId"
+        },
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": {
+              "max": 64,
+              "min": 1
+            },
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "principal",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": false,
+          "required": true,
+          "sensitive": false,
+          "target": "example.leyline#Name",
+          "targetName": "Name",
+          "targetType": "string",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "principal"
+        },
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "role",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": false,
+          "required": true,
+          "sensitive": false,
+          "target": "example.leyline#Role",
+          "targetName": "Role",
+          "targetType": "enum",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "role"
+        },
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "scope",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": false,
+          "required": true,
+          "sensitive": false,
+          "target": "example.leyline#RoleScopeType",
+          "targetName": "RoleScopeType",
+          "targetType": "enum",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "scope"
+        }
+      ],
+      "name": "PutRoleBindingInput",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false,
+      "summary": ""
+    },
+    "example.leyline#ResourceNotFound": {
+      "documentation": {
+        "html": "<p>The resource is missing, or the caller may not know it exists.</p>\n",
+        "markdown": "The resource is missing, or the caller may not know it exists.",
+        "text": "The resource is missing, or the caller may not know it exists."
+      },
+      "error": {
+        "bindings": {
+          "body": [
+            "message"
+          ],
+          "headerEncodings": {},
+          "headers": [],
+          "labels": [],
+          "payload": null,
+          "query": [],
+          "timestampFormats": {}
+        },
+        "bodyDiscriminator": "ResourceNotFound",
+        "discriminatorHeader": "X-Crucible-Error",
+        "fault": "client",
+        "protocolHeaders": {
+          "Content-Type": "application/json"
+        },
+        "reasons": [],
+        "retryable": null,
+        "sample": {
+          "fallbacks": [],
+          "generated": true,
+          "message": {
+            "body": {
+              "__type": "ResourceNotFound",
+              "message": "message"
+            },
+            "headers": {
+              "Content-Type": "application/json",
+              "X-Crucible-Error": "ResourceNotFound"
+            },
+            "labels": {},
+            "payload": null,
+            "query": []
+          }
+        },
+        "shape": "example.leyline#ResourceNotFound",
+        "status": 404,
+        "wireCode": "ResourceNotFound"
+      },
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
+      "id": "example.leyline#ResourceNotFound",
+      "internal": false,
+      "kind": "structure",
+      "members": [
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "message",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": false,
+          "required": true,
+          "sensitive": false,
+          "target": "crucible.api#String",
+          "targetName": "String",
+          "targetType": "string",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "message"
+        }
+      ],
+      "name": "ResourceNotFound",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false,
+      "summary": "The resource is missing, or the caller may not know it exists."
+    },
+    "example.leyline#RestoreGraphHistoryInput": {
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "error": null,
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
+      "id": "example.leyline#RestoreGraphHistoryInput",
+      "internal": false,
+      "kind": "structure",
+      "members": [
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": {
+              "max": 40,
+              "min": 3
+            },
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "organizationId",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": false,
+          "required": true,
+          "sensitive": false,
+          "target": "example.leyline#OrganizationId",
+          "targetName": "OrganizationId",
+          "targetType": "string",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "organizationId"
+        },
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": {
+              "max": 40,
+              "min": 3
+            },
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "historyId",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": false,
+          "required": true,
+          "sensitive": false,
+          "target": "example.leyline#HistoryId",
+          "targetName": "HistoryId",
+          "targetType": "string",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "historyId"
+        }
+      ],
+      "name": "RestoreGraphHistoryInput",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false,
+      "summary": ""
+    },
+    "example.leyline#Role": {
+      "documentation": {
+        "html": "<p>The roles a binding names.</p>\n",
+        "markdown": "The roles a binding names.",
+        "text": "The roles a binding names."
+      },
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
+      "id": "example.leyline#Role",
+      "internal": false,
+      "kind": "enum",
+      "members": [],
+      "name": "Role",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false,
+      "summary": "The roles a binding names.",
+      "values": [
+        {
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "OWNER",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "value": "owner"
+        },
+        {
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "ACCESS_ADMIN",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "value": "accessAdmin"
+        },
+        {
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "GRAPH_GROUP_ADMIN",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "value": "graphGroupAdmin"
+        },
+        {
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "USAGE_VIEWER",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "value": "usageViewer"
+        },
+        {
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "AUDIT_VIEWER",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "value": "auditViewer"
+        },
+        {
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "AUDIT_ADMIN",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "value": "auditAdmin"
+        },
+        {
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "BACKUP_VIEWER",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "value": "backupViewer"
+        },
+        {
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "BACKUP_ADMIN",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "value": "backupAdmin"
+        },
+        {
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "GRAPH_CREATOR",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "value": "graphCreator"
+        },
+        {
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "GRAPH_READER",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "value": "graphReader"
+        },
+        {
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "GRAPH_WRITER",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "value": "graphWriter"
+        },
+        {
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "GRAPH_ADMIN",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "value": "graphAdmin"
+        },
+        {
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "HISTORY_READER",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "value": "historyReader"
+        },
+        {
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "HISTORY_ADMIN",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "value": "historyAdmin"
+        }
+      ]
+    },
+    "example.leyline#RoleScopeType": {
+      "documentation": {
+        "html": "<p>Where a binding is made.</p>\n",
+        "markdown": "Where a binding is made.",
+        "text": "Where a binding is made."
+      },
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
+      "id": "example.leyline#RoleScopeType",
+      "internal": false,
+      "kind": "enum",
+      "members": [],
+      "name": "RoleScopeType",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false,
+      "summary": "Where a binding is made.",
+      "values": [
+        {
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "ORGANIZATION",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "value": "organization"
+        },
+        {
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "ALL_GRAPHS",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "value": "allGraphs"
+        },
+        {
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "GRAPH",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "value": "graph"
+        },
+        {
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "ALL_HISTORIES",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "value": "allHistories"
+        },
+        {
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "HISTORY",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "value": "history"
+        }
+      ]
+    },
+    "example.leyline#RoleScopeTypes": {
+      "constraints": {
+        "length": null,
+        "pattern": null,
+        "range": null,
+        "uniqueItems": false
+      },
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
+      "id": "example.leyline#RoleScopeTypes",
+      "internal": false,
+      "kind": "list",
+      "members": [
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "member",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": true,
+          "required": false,
+          "sensitive": false,
+          "target": "example.leyline#RoleScopeType",
+          "targetName": "RoleScopeType",
+          "targetType": "enum",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "member"
+        }
+      ],
+      "name": "RoleScopeTypes",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false,
+      "set": false,
+      "sparse": false,
+      "summary": ""
+    },
+    "example.leyline#RoleSummaries": {
+      "constraints": {
+        "length": null,
+        "pattern": null,
+        "range": null,
+        "uniqueItems": false
+      },
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
+      "id": "example.leyline#RoleSummaries",
+      "internal": false,
+      "kind": "list",
+      "members": [
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "member",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": true,
+          "required": false,
+          "sensitive": false,
+          "target": "example.leyline#RoleSummary",
+          "targetName": "RoleSummary",
+          "targetType": "structure",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "member"
+        }
+      ],
+      "name": "RoleSummaries",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false,
+      "set": false,
+      "sparse": false,
+      "summary": ""
+    },
+    "example.leyline#RoleSummary": {
+      "documentation": {
+        "html": "<p>One role a console offers.</p>\n",
+        "markdown": "One role a console offers.",
+        "text": "One role a console offers."
+      },
+      "error": null,
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
+      "id": "example.leyline#RoleSummary",
+      "internal": false,
+      "kind": "structure",
+      "members": [
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "role",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": false,
+          "required": true,
+          "sensitive": false,
+          "target": "example.leyline#Role",
+          "targetName": "Role",
+          "targetType": "enum",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "role"
+        },
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "scopes",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": false,
+          "required": true,
+          "sensitive": false,
+          "target": "example.leyline#RoleScopeTypes",
+          "targetName": "RoleScopeTypes",
+          "targetType": "list",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "scopes"
+        },
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "holders",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": false,
+          "required": true,
+          "sensitive": false,
+          "target": "example.leyline#PrincipalTypes",
+          "targetName": "PrincipalTypes",
+          "targetType": "list",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "holders"
+        }
+      ],
+      "name": "RoleSummary",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false,
+      "summary": "One role a console offers."
+    },
+    "example.leyline#WriteGraphInput": {
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "error": null,
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
+      "id": "example.leyline#WriteGraphInput",
+      "internal": false,
+      "kind": "structure",
+      "members": [
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": {
+              "max": 40,
+              "min": 3
+            },
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "organizationId",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": false,
+          "required": true,
+          "sensitive": false,
+          "target": "example.leyline#OrganizationId",
+          "targetName": "OrganizationId",
+          "targetType": "string",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "organizationId"
+        },
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": {
+              "max": 40,
+              "min": 3
+            },
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "graphId",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": false,
+          "required": true,
+          "sensitive": false,
+          "target": "example.leyline#GraphId",
+          "targetName": "GraphId",
+          "targetType": "string",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "graphId"
+        }
+      ],
+      "name": "WriteGraphInput",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false,
+      "summary": ""
+    }
+  },
+  "versions": {
+    "carrier": {
+      "kind": "header",
+      "name": "Crucible-Version"
+    },
+    "current": "2026-09-04",
+    "releases": [
+      {
+        "changes": [],
+        "current": true,
+        "documentation": {
+          "html": "",
+          "markdown": "",
+          "text": ""
+        },
+        "from": null,
+        "name": "2026-09-04",
+        "retired": [],
+        "sunset": null,
+        "sunsetDocumentation": {
+          "html": "",
+          "markdown": "",
+          "text": ""
+        }
+      }
+    ]
+  }
+}

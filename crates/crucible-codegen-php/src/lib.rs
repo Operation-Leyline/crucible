@@ -4,6 +4,7 @@ mod links;
 mod models;
 mod names;
 mod permissions;
+mod roles;
 mod snippet;
 mod surface;
 
@@ -145,6 +146,7 @@ fn diagnose(service: &Service, options: &Options) -> Diagnostics {
         }
     }
     permissions::check_names(service, &mut result);
+    roles::check_names(service, &mut result);
     let mut methods = BTreeSet::from(["close".to_string()]);
     for op in &service.operations {
         let name = operation_method(op);
@@ -188,8 +190,17 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
     let require =
         serde_json::json!({"php":">=8.3 <9", "php-64bit":"*", "ext-curl":"*", "ext-json":"*"});
     let mut autoload = serde_json::json!({"psr-4":{format!("{}\\",options.namespace):"src/"}});
+    // The registries declare namespace constants, which Composer loads as
+    // files; a model without roles lists only what it listed before.
+    let mut registries = Vec::new();
     if permissions::present(service) {
-        autoload["files"] = serde_json::json!([permissions::REGISTRY]);
+        registries.push(permissions::REGISTRY);
+    }
+    if roles::present(service) {
+        registries.push(roles::REGISTRY);
+    }
+    if !registries.is_empty() {
+        autoload["files"] = serde_json::json!(registries);
     }
     let manifest = serde_json::to_string_pretty(&serde_json::json!({
         "name":options.package_name, "version":options.package_version, "type":"library",
@@ -289,6 +300,17 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
     if permissions::present(service) {
         files.extend(permissions::emit(service, namespace));
         for (name, source) in permissions::RUNTIME {
+            files.push(File {
+                path: format!("src/Runtime/{name}.php"),
+                contents: source.replace("CrucibleGenerated", namespace),
+            });
+        }
+    }
+    // The role registry (docs/roles.md §7 "Clients"), its own namespace
+    // too, with its record types only for a client that has one.
+    if roles::present(service) {
+        files.extend(roles::emit(service, namespace));
+        for (name, source) in roles::RUNTIME {
             files.push(File {
                 path: format!("src/Runtime/{name}.php"),
                 contents: source.replace("CrucibleGenerated", namespace),

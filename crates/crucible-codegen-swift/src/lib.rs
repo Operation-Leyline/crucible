@@ -4,6 +4,7 @@ mod error_docs;
 mod links;
 mod models;
 mod permissions;
+mod roles;
 mod snippet;
 mod surface;
 
@@ -528,6 +529,7 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
         }
     }
     permissions::check(service, &options.module_name, &mut diagnostics);
+    roles::check(service, &options.module_name, &mut diagnostics);
     if !diagnostics.is_empty() {
         return Err(diagnostics);
     }
@@ -556,6 +558,12 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
     if let Some(contents) = permissions::emit(service) {
         files.push(File {
             path: format!("{source}/{}.swift", permissions::NAMESPACE),
+            contents,
+        });
+    }
+    if let Some(contents) = roles::emit(service) {
+        files.push(File {
+            path: format!("{source}/{}.swift", roles::NAMESPACE),
             contents,
         });
     }

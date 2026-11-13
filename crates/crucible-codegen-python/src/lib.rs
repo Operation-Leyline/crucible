@@ -3,6 +3,7 @@ mod error_docs;
 mod links;
 mod names;
 mod permissions;
+mod roles;
 mod snippet;
 mod surface;
 
@@ -224,6 +225,7 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
         }
     }
     permissions::check_names(service, &mut diagnostics);
+    roles::check_names(service, &mut diagnostics);
     if !diagnostics.is_empty() {
         return Err(diagnostics);
     }
@@ -598,6 +600,10 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
             format!("src/{module}/permissions.py"),
             permissions::emit(service),
         ));
+    }
+    // The role registry (docs/roles.md §7 "Clients"), its own module too.
+    if roles::present(service) {
+        files.push(file(format!("src/{module}/roles.py"), roles::emit(service)));
     }
     files.extend([
         file(

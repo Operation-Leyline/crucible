@@ -1,0 +1,20 @@
+schema_version = 1
+
+# Granted-by and the client role registries (docs/roles.md §5 and §7
+# "Clients"): every output that states which roles grant an operation, and
+# every client registry, is generated from this package. Public and
+# internal permissions on three resources, an internal scope and role, a
+# public role granting internal permissions through `*`, holders and
+# owner-only assignment, inclusion, a `by service` grant, `custom` roles,
+# and one clause of each kind: an instance, `R(*)`, a filter, `by handler`,
+# `when`, all-internal requirements and a list mixing public and internal
+# clauses. It compiles with no diagnostic.
+[model]
+namespace = "example.notes"
+language = 1
+sources = ["."]
+imports = []
+
+[model.naming]
+input = "{Operation}Input"
+output = "{Operation}Output"

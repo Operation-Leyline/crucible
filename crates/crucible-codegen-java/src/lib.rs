@@ -1,5 +1,6 @@
 //! Java 17 models and synchronous/asynchronous HTTP clients packaged for Gradle and Maven.
 mod permissions;
+mod roles;
 mod snippet;
 mod surface;
 use crucible_codegen_common::documentation as docs;
@@ -398,7 +399,7 @@ fn operation_javadoc(
     // What the caller must hold, as the model states it (docs/permissions.md
     // §6.3): Markdown holding model text, rendered like model documentation.
     let requirements: Vec<String> =
-        crucible_codegen_common::permissions::requirement_sentences(service, op, false)
+        crucible_codegen_common::docs::requirement_sentences(service, op)
             .iter()
             .flat_map(|sentence| docs::javadoc(sentence))
             .collect();
@@ -699,6 +700,7 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
         }
     }
     permissions::check(service, &mut diagnostics);
+    roles::check(service, &mut diagnostics);
     if !diagnostics.is_empty() {
         return Err(diagnostics);
     }
@@ -1216,6 +1218,7 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
     ];
     files.extend(model_files);
     files.extend(permissions::files(service, package, &source));
+    files.extend(roles::files(service, package, &source));
     {
         use crucible_codegen_common::guide;
         let surface = surface::surface(service, options);

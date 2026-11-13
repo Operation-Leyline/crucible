@@ -3,6 +3,7 @@ mod links;
 mod models;
 mod names;
 mod permissions;
+mod roles;
 mod snippet;
 mod surface;
 
@@ -214,6 +215,7 @@ fn diagnose(service: &Service, options: &Options) -> Diagnostics {
         }
     }
     permissions::check_names(service, &mut diagnostics);
+    roles::check_names(service, &mut diagnostics);
     let mut methods = BTreeSet::from(["close".to_owned(), "call".to_owned(), "pages".to_owned()]);
     for op in &service.operations {
         let name = operation_method(op);
@@ -327,6 +329,16 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
             });
         }
     }
+    // The role registry's record types, only for a client that has one.
+    if roles::present(service) {
+        for (name, source) in roles::RUNTIME {
+            entry.push_str(&format!("require_relative '{package}/runtime/{name}'\n"));
+            files.push(File {
+                path: format!("lib/{package}/runtime/{name}.rb"),
+                contents: source.replace("CrucibleGenerated", module),
+            });
+        }
+    }
     let exception = crucible_codegen_common::service_exception_name(service);
     entry.push_str(&format!(
         "module {module}\n  {exception} = Runtime::{exception}\nend\n"
@@ -348,6 +360,14 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
             contents: permissions::emit(service, module),
         });
         entry.push_str(&format!("require_relative '{package}/permissions'\n"));
+    }
+    // The role registry (docs/roles.md §7 "Clients"), its own module too.
+    if roles::present(service) {
+        files.push(File {
+            path: format!("lib/{package}/roles.rb"),
+            contents: roles::emit(service, module),
+        });
+        entry.push_str(&format!("require_relative '{package}/roles'\n"));
     }
     entry.push_str(&format!("require_relative '{package}/client'\n"));
     let mut client = format!(
