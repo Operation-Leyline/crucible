@@ -46,12 +46,17 @@ pub trait Operation: Send + Sync + 'static {
     /// that applies, in clause order. Generated, so it reads fields rather
     /// than JSON; `None` for an operation with no such clause.
     const CHECKS: Option<crate::permissions::Checks<Self::Input>> = None;
-    /// Whether the model explicitly makes the operation public (no
-    /// authentication: `@auth([])` on the operation, a `.cru` public
+    /// Whether the model explicitly makes the operation anonymous (it takes
+    /// no credential: `@auth([])` on the operation, a `.cru` `anonymous`
     /// operation), so it carries no requirements and there is nothing to
     /// authorize. Never inferred from an empty list of schemes, which also
     /// describes a service authenticated outside the model.
-    const PUBLIC: bool = false;
+    const ANONYMOUS: bool = false;
+    /// The former name of [`Operation::ANONYMOUS`]. The runtime treats an
+    /// operation as anonymous when either is `true`, so a hand-written marker
+    /// that still sets this keeps working until the shim is removed.
+    #[deprecated(since = "0.10.0", note = "use `ANONYMOUS`")]
+    const PUBLIC: bool = Self::ANONYMOUS;
     const HAS_INPUT: bool = true;
     const HAS_OUTPUT: bool = true;
     type Input: DeserializeOwned + Serialize + Validate + Send + Sync + 'static;

@@ -110,10 +110,10 @@ fn the_generated_descriptions_state_the_model() {
         }
     );
     assert_eq!(<mail::GetMe as Operation>::REQUIREMENTS, Requirements::None);
-    // Public by the model's `public`, so nothing to authorize; an
+    // Anonymous by the model's `anonymous`, so nothing to authorize; an
     // authenticated operation never is.
-    const { assert!(<mail::Health as Operation>::PUBLIC) };
-    const { assert!(!<mail::GetMe as Operation>::PUBLIC) };
+    const { assert!(<mail::Health as Operation>::ANONYMOUS) };
+    const { assert!(!<mail::GetMe as Operation>::ANONYMOUS) };
     assert_eq!(
         <mail::Health as Operation>::REQUIREMENTS,
         Requirements::Undeclared
@@ -306,7 +306,7 @@ impl Operation for Miswired {
 }
 
 /// Authenticated, with no requirement metadata. Its service could as well
-/// authenticate outside the model (no schemes): only `PUBLIC` exempts it.
+/// authenticate outside the model (no schemes): only `ANONYMOUS` exempts it.
 struct Legacy;
 impl Operation for Legacy {
     const INFO: &'static OperationInfo = &LEGACY;
@@ -1086,7 +1086,7 @@ async fn none_and_pending_pass_and_undeclared_is_a_wiring_error_unless_allowed()
         harness.audit.last().pending,
         Some("guard::allow in get_usage.rs")
     );
-    // A public operation has no principal to authorize.
+    // An anonymous operation has no principal to authorize.
     assert_eq!(harness.get("/health", "stranger").await.status, 200);
     // No requirement metadata on an authenticated operation: refused as a
     // wiring error, a sanitized 500, not a 403 the caller earned.
@@ -1886,7 +1886,7 @@ fn registering_permissions_after_page_tokens_fails_the_build() {
 }
 
 /// The operations of `permissions/mail.cru` that declare requirements, as
-/// opposed to `requires pending`, `requires none`, public or undeclared.
+/// opposed to `requires pending`, `requires none`, anonymous or undeclared.
 const DECLARING: [&str; 10] = [
     "GetInbox",
     "SendMessage",
@@ -1942,7 +1942,7 @@ fn permissions_scoped_away_from_a_declaring_operation_fails_the_build() {
         .build();
     assert!(split.is_ok());
     // What declares nothing to enforce may be left out: `requires pending`
-    // and `requires none` pass anyway, and a public operation has nobody
+    // and `requires none` pass anyway, and an anonymous operation has nobody
     // to authorize.
     assert!(build(&["RenameInbox", "GetUsage", "GetMe", "Health", "Legacy"]).is_ok());
 }

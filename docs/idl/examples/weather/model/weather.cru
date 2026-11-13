@@ -3,7 +3,7 @@
 //
 // Members are required unless marked `name?:`; `= value` gives a default.
 // Range bounds (`1..100`, `..5`) are inclusive at both ends.
-// Keywords (readonly, idempotent, strict, public) are closed compiler-validated
+// Keywords (readonly, idempotent, strict, anonymous) are closed compiler-validated
 // modifiers; @annotations carry values or bind members (bindings, @token, metadata).
 
 @externalDocs("Home" = "https://weather.example/docs")

@@ -1118,7 +1118,7 @@ pub mod leyline {
     impl ::crucible_server_runtime_rust::__generated::Operation for Health {
         const AUTH_BEARER: bool = false;
         const AUTH_SCHEMES: ::std::option::Option<&'static [::crucible_server_runtime_rust::__generated::operation::AuthScheme]> = Some(&[]);
-        const PUBLIC: bool = true;
+        const ANONYMOUS: bool = true;
         const API_VERSION: ::std::option::Option<&'static str> = ::std::option::Option::Some("2026-10-01");
         const HAS_INPUT: bool = false;
         const INFO: &'static ::crucible_server_runtime_rust::__generated::OperationInfo = &HEALTH_OPERATION;

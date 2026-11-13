@@ -61,7 +61,7 @@ pub enum Context {
 const MODIFIERS: &[&str] = &[
     "readonly",
     "idempotent",
-    "public",
+    "anonymous",
     "internal",
     "strict",
     "sensitive",
@@ -326,7 +326,9 @@ fn statement_head<'t>(before: &[&Token], index: usize, text: &'t str) -> Option<
             }
             TokenKind::Ident => {
                 let word = &text[token.span.start as usize..token.span.end as usize];
-                if !MODIFIERS.contains(&word) {
+                // `public` is the deprecated spelling of `anonymous`: never
+                // offered, but still skipped.
+                if !MODIFIERS.contains(&word) && word != "public" {
                     return Some(word);
                 }
             }
@@ -1121,6 +1123,13 @@ mod tests {
             at("readonly operation Op reads Item {\n    ht|\n}"),
             Context::Operation
         );
+        // Either spelling of `anonymous` is a modifier the head skips.
+        for modifier in ["anonymous", "public"] {
+            assert_eq!(
+                at(&format!("{modifier} readonly operation Op {{\n    ht|\n}}")),
+                Context::Operation
+            );
+        }
         assert_eq!(
             at("operation Op {\n    input {\n        |\n    }\n}"),
             Context::Members
@@ -1533,6 +1542,9 @@ resource Message in Inbox {
                 .iter()
                 .all(|item| item.insert_text_format != Some(InsertTextFormat::SNIPPET))
         );
+        // `anonymous` is offered; `public`, its deprecated spelling, is not.
+        assert!(plain.iter().any(|item| item.label == "anonymous"));
+        assert!(plain.iter().all(|item| item.label != "public"));
     }
 
     #[test]

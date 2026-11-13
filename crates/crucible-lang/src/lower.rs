@@ -30,7 +30,7 @@ use crate::ast::{
     NumLit, OpEntry, Operation, Resource, ResourceEntry, ResourceEntryKind, TypeRef, Value,
 };
 use crate::compile::{FileDiagnostic, Location, Naming, Package, SourceMap};
-use crate::diagnostic::Diagnostic;
+use crate::diagnostic::{Diagnostic, deprecated_public};
 use crate::literal::resolve_enum_symbols;
 use crate::span::Span;
 
@@ -2166,10 +2166,15 @@ impl<'a> Lowerer<'a> {
             }
         }
         // A key may conflict with another key or with a modifier.
+        // `public` and `anonymous` are one modifier under two spellings, so
+        // a key that conflicts with either conflicts with both.
         let present: BTreeSet<&str> = annotations
             .iter()
             .map(|a| a.name.name.as_str())
-            .chain(modifiers.iter().map(|m| m.name.as_str()))
+            .chain(modifiers.iter().flat_map(|m| match m.name.as_str() {
+                "public" | "anonymous" => vec!["public", "anonymous"],
+                name => vec![name],
+            }))
             .collect();
         for (name, metadata) in custom {
             for conflict in &metadata.conflicts {
@@ -2227,6 +2232,7 @@ impl<'a> Lowerer<'a> {
             "strict",
             "readonly",
             "idempotent",
+            "anonymous",
             "public",
             "sparse",
         ];
@@ -2291,6 +2297,11 @@ impl<'a> Lowerer<'a> {
                             conflict.name
                         ),
                     );
+                } else if conflict.name == "public" && self.decl("public").is_none() {
+                    self.diagnostics.push(FileDiagnostic {
+                        file: Some(file),
+                        diagnostic: deprecated_public(conflict.span, "in `conflicts`"),
+                    });
                 }
             }
             if let Some(retention) = &metadata.retention
@@ -4812,11 +4823,17 @@ impl<'a> Lowerer<'a> {
         };
         let id = self.ref_id(&operation.name.name);
         self.locate(id.clone(), file, item.span);
-        let modifiers = self.modifiers(
+        let mut modifiers = self.modifiers(
             file,
             item,
-            &["readonly", "idempotent", "public", "internal"],
+            &["readonly", "idempotent", "anonymous", "public", "internal"],
         );
+        // `public` is the deprecated spelling of `anonymous` (the parser
+        // warns): it said "takes no credential", which read as the opposite
+        // of `internal`.
+        if modifiers.remove("public") {
+            modifiers.insert("anonymous".to_owned());
+        }
         let annotations = self.annotations(
             file,
             &item.annotations,
@@ -5128,14 +5145,14 @@ impl<'a> Lowerer<'a> {
         }
         let requirements = self.requirements(file, &id, operation);
         // Its clauses failed to lower, so the IR says `Undeclared` and the
-        // shared check, which reads a public operation without
+        // shared check, which reads an anonymous operation without
         // requirements as correct, cannot tell it declared some.
-        if modifiers.contains("public") && self.unlowered_requirements.contains(&id) {
+        if modifiers.contains("anonymous") && self.unlowered_requirements.contains(&id) {
             self.error(
                 file,
                 operation.name.span,
                 format!(
-                    "permissions.public: `{}` is public, so there is no caller to authorize; remove its requirement declarations",
+                    "permissions.anonymous: `{}` is anonymous, so there is no caller to authorize; remove its requirement declarations",
                     operation.name.name
                 ),
             );
@@ -5246,7 +5263,7 @@ impl<'a> Lowerer<'a> {
         if let Some(docs) = &docs {
             traits.insert(builtin("documentation"), Json::String(docs.clone()));
         }
-        let auth = if modifiers.contains("public") {
+        let auth = if modifiers.contains("anonymous") {
             traits.insert(builtin("auth"), Json::Array(Vec::new()));
             Vec::new()
         } else {
@@ -5275,7 +5292,7 @@ impl<'a> Lowerer<'a> {
             internal: modifiers.contains("internal"),
             id,
             auth,
-            public: modifiers.contains("public"),
+            anonymous: modifiers.contains("anonymous"),
             resource,
             intent: docs
                 .as_deref()

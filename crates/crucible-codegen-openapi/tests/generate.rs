@@ -629,7 +629,7 @@ fn an_invalid_example_stops_the_model_compiling() {
 fn auth_overrides_are_resolved_per_operation() {
     let doc = document(&edited(&[(
         "readonly operation Ping",
-        "public readonly operation Ping",
+        "anonymous readonly operation Ping",
     )]));
     assert_eq!(
         doc["components"]["securitySchemes"]["crucible.api.httpBearerAuth"]["scheme"],
