@@ -92,6 +92,7 @@ mod artifact;
 mod artifact_index;
 #[cfg(feature = "c")]
 mod c_sdk;
+mod cargo_invocation;
 #[cfg(feature = "cdk")]
 mod cdk_output;
 #[cfg(feature = "cli")]
