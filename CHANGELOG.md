@@ -180,6 +180,15 @@ version's section when it is prepared.
   set, and fills `OperationMetadata::public` with the same value as
   `anonymous`.
 
+### Fixed
+
+- `crucible-build`: with Cargo 1.100 or newer, a build that wrote
+  `generate_into` exports or a `model_output` export no longer reruns the
+  build script on the next build. Cargo 1.100's build directory keeps the
+  build-script start stamp under `run/` beside `OUT_DIR`, so crucible-build
+  did not find it and left the exports dated after the run. It now looks in
+  both layouts.
+
 ### Migration
 
 - `.cru`: write `anonymous` where an operation or a rule condition says
