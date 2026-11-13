@@ -1,13 +1,14 @@
 # Roles
 
-**Status: R1, R2 and R3 implemented** (§10): the language and the IR,
-with the §6 compile errors (the syntax is in
+**Status: R1, R2, R3 and R4 implemented** (§10): the language and the
+IR, with the §6 compile errors (the syntax is in
 [idl/reference.md](idl/reference.md#roles)); the generated Rust catalogue,
 `RoleAuthorizer`, `ShadowAuthorizer` and the conformance harness (see
-[framework.md](framework.md#roles)); and the outputs (granted-by in every
-reference, OpenAPI and the client role registries). *As built* notes below
-mark where they differ from this design. R4 and later (compatibility,
-adoption) are proposed. It reverses one non-goal of
+[framework.md](framework.md#roles)); the outputs (granted-by in every
+reference, OpenAPI and the client role registries); and the §6
+compatibility rules (see [api-policy.md](api-policy.md#comparing-contracts)).
+*As built* notes below mark where they differ from this design. R5 and
+later (adoption) are proposed. It reverses one non-goal of
 [permissions.md](permissions.md) ("No roles in the model", §2) and narrows
 another ("Crucible does not decide"); §2 says how far. Leyline is the worked
 example (§8), because its role table has every awkward case we know of:
@@ -381,6 +382,15 @@ permissions outside roles (§6's "grants permissions directly"), which the
 model had no way to say. Like `custom`, it turns off `roles.ungranted`, and
 it changes nothing else.
 
+*As built (R4).* Predefined values shadow custom ids: `RoleAuthorizer`
+resolves a binding's role against the predefined roles before it asks for
+a custom one, so a predefined role added under a value a customer already
+uses for a custom role takes that customer's bindings over. The model
+cannot see stored custom ids, so with `custom` on in the baseline every
+predefined value added is a `compatibility.role-widened` warning (§6).
+A service should keep custom ids apart, for example with a prefix
+predefined values never use (`custom:…`).
+
 ### 4.8 Tiers
 
 A role or scope may be `internal`, with the projection rules every other
@@ -528,6 +538,127 @@ Compatibility, in `crucible-policy`, against the baseline:
 - a role granting more, by an edit or by a `*` expanding: a warning,
   `compatibility.role-widened`, since widening is a security review, not a
   break.
+
+*As built (R4).* The rules are `compatibility.scope` and
+`compatibility.role` (errors) and `compatibility.role-widened` (a warning),
+in `crucible-policy` beside the permission rules and run with them under
+`[compatibility] wire`; [api-policy.md](api-policy.md#comparing-contracts)
+lists them. Roles and scopes are matched by value, what a binding stores,
+and grants by the stored pair (authorization name, permission value), so a
+symbol renamed with its value kept is the same role, and a grant whose
+value became a deprecated alias of a primary the role grants is kept. A
+finding is reported at `namespace#symbol` of the release's role or scope,
+which is what an exception names; the editor shows it at the service, since
+roles have no shape of their own. Besides the design's rules:
+
+- *Holders narrowed* (`holders` dropping a kind, or naming kinds where it
+  named none) is a `compatibility.role` error, compared by the `principals`
+  enum's wire values. Holders are compared as the runtime's `valid_for`
+  reads them: a role without `holders` is valid for any kind, a principal
+  of no known kind included, so naming kinds where it named none narrows it
+  even when it names every value of the enum. Admitting more kinds (another named, or `holders`
+  dropped) is `compatibility.role-widened`: no migration step converts
+  stored bindings, so bindings a narrowing made inert take effect again.
+  A role without `holders` in both releases is held by every kind; a value
+  the `principals` enum gained is reported on it for review
+  (`compatibility.role-widened`), and a value it lost is not reported on
+  it: such a role is valid for any kind (the runtime's `valid_for` reads no
+  enum), so nobody is refused.
+  Binding at more scopes gives no holder
+  anything either, but whoever may assign the role can now grant it there,
+  so it is `compatibility.role-widened`.
+- *A scope moved* to another resource, or between one instance and
+  `R(*)`, is a `compatibility.scope` error: a stored binding names an
+  instance of what the scope was on. So is a scope whose instance is named
+  another way: the path from the root to its resource, each resource with
+  the identifiers it adds (a `R(*)` instance without its own), compared
+  whole, so a resource moved under another parent whose identifier has the
+  same name, or a renamed identifier, is reported even where no route
+  changed. Identifiers are compared in declaration order
+  (`crucible_ir::roles::identifiers`, which the generated catalogue states
+  and the runtime matches a binding's values against by position), so a
+  composite identifier reordered is reported too. A resource is the same one when its authorization name is, if
+  both releases give it one (a renamed shape that keeps it has not moved),
+  and otherwise when its shape is (one that declares its first permission
+  has not moved either).
+- *A grant moving between the model and the service.* `by service` added to
+  a grant the model decided is a `compatibility.role` **warning**: whether
+  holders lose it depends on the service's hook, which the model cannot
+  see, so it is a review, not a refusal. `by service` removed, the model now
+  granting it outright, is `compatibility.role-widened`, as is a new `by
+  service` grant.
+  Where the role keeps a scope that does not cover both the resource and
+  its collection (`R(*)`, which `requires .. on R(*)` checks and a scope on
+  one instance never covers), `by service` removed is also a
+  `compatibility.role` error at that scope: the service's hook could allow
+  it there, the model cannot. The coverage comparison uses the same test.
+- *`custom` and `direct`*, compared at the service: turned on is
+  `compatibility.role-widened` (a role or grant the model does not list may
+  meet a requirement, and ones stored before take effect); turned off is a
+  `compatibility.role` error (their holders are refused what they had),
+  declared by an exception at the service, since no migration step names
+  the catalogue as a whole. With `custom` on in both releases, a permission
+  both declare whose tier became grantable (`crucible_ir::roles::grantable`,
+  the rule granted-by uses: public or `@permissionOnly`) is
+  `compatibility.role-widened`, and one no longer grantable a
+  `compatibility.role` error, declared the same way. A custom binding is
+  valid at any scope, so with `custom` on in both, what each scope's
+  binding covers (one instance and `R(*)`) of each permission grantable in
+  both is compared too: a resource moved in beneath a scope, or a scope
+  added, is `compatibility.role-widened`; one moved out, a
+  `compatibility.role` error at the service.
+- *Coverage.* Coverage follows the resource tree, so a resource moved out
+  from under a scope's resource narrows every role bound there that grants
+  on it, though its scopes and grants read the same: for each scope a
+  role keeps and each resource the model still grants on (not `by
+  service`, which applies whatever the scope covers), the binding's coverage
+  (one instance and `R(*)`) is compared, lost coverage a
+  `compatibility.role` error and gained coverage
+  `compatibility.role-widened`. A scope whose resource or instance path
+  changed is left out: `compatibility.scope` reports it.
+- *Assigners.* `assignedBy` is compared by the assigner roles' values:
+  one dropped, or a list where there was none (whoever the binding
+  operation admits), is a `compatibility.role` error, since an assigner
+  can no longer grant or revoke the role; one added, or the list dropped,
+  is `compatibility.role-widened`. `narrow role` declares the error.
+- *Reported once.* A permission gone altogether is
+  `compatibility.permissions`' finding and a scope gone `compatibility.scope`'s;
+  neither is reported again for each role that granted or bound at it. A
+  role that includes a narrowed role narrows too, and is reported in its
+  own right: its holders are the ones refused.
+- *`internal`.* A public role or scope removed, or made `internal`, is a
+  `compatibility.sdk` finding, as a permission constant is; making one
+  public again is additive. So is a public role or scope whose symbol now
+  has another value, even when every value keeps its role or scope (two
+  swapped, bodies and all): bindings mean what they did, but a client's
+  constant sends the other value. A projected (external) model drops internal
+  roles, so a release plan comparing those views sees one made internal as
+  removed, as it does a permission.
+- *Declaring a break.* A migration step declares each: `remove role r` and
+  `remove scope s` (the release's value names nothing now; its stored
+  bindings are declared, and its SDK constant when the symbol went too: a
+  symbol kept under another value sends that value, a `compatibility.sdk`
+  break the step does not declare), and `narrow role r` (its value still names a role, which
+  narrowed; it declares `compatibility.role` there). A step that matches no
+  change is an error, as for the other steps. They lower to nothing in the
+  IR: roles are not versioned, so the server converts nothing for them, and
+  the snapshot format is unchanged. For the same reason the check that
+  rebuilds each older release from the current model (decision 68) leaves
+  role findings out: every release is served the current catalogue. A
+  change of `internal`, or a moved scope, is declared by an exception.
+- A baseline frozen before roles existed has no roles to compare, so a
+  catalogue added since reports nothing.
+- *Predefined values added under `custom`.* With `custom` on in the
+  baseline, each predefined role value added (a new role, or a value
+  changed) is `compatibility.role-widened` at the role: a custom role a
+  customer stored under that id would now mean the predefined role (§4.7).
+- *Retired values stay reserved.* The baseline comparison sees a role
+  whose value an older release had, and a later one removed, as new. A
+  stored binding keeps the value as a string, and the authorizer resolves
+  it against the current catalogue, so the guard reads every frozen
+  release in the lock (`crucible_policy::reused_values`): reusing such a
+  value is a `compatibility.role` (`compatibility.scope`) error at the
+  current declaration, declared only by an exception.
 
 ## 7. Generated code and the framework
 
@@ -890,7 +1021,8 @@ a bundle its customers already store as a permission.
 4. **R3, outputs** (built). Granted-by in `crucible-ir`; `describe.json`,
    the Markdown and HTML references, OpenAPI, `llms.txt`; client
    registries.
-5. **R4, compatibility.** The §6 rules in `crucible-policy`.
+5. **R4, compatibility** (built). The §6 rules in `crucible-policy`, and
+   the migration steps that declare them.
 6. **R5, Leyline.** Declare the catalogue, link `Role` and
    `RoleScopeType`, return the generated catalogue from `ListRoles`, run
    `RoleAuthorizer` in shadow beside its own, then switch and delete the

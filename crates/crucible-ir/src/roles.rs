@@ -204,6 +204,12 @@ pub fn expand<'s>(service: &'s Service, grant: &Grant) -> Vec<&'s str> {
     }
 }
 
+/// Whether a custom role may include `permission` (docs/roles.md §4.7):
+/// a public or `@permissionOnly` one, not `internal` or `@notGrantable`.
+pub fn grantable(permission: &crate::ir::Permission) -> bool {
+    matches!(permission.tier, Tier::Public | Tier::PermissionOnly)
+}
+
 /// Whether `*` includes `permission`: a primary that is not
 /// `@permissionOnly`.
 pub fn in_star(permission: &crate::ir::Permission) -> bool {
@@ -447,7 +453,7 @@ fn clause_grants(service: &Service, clause: &Requirement, index: usize) -> Claus
         .permissions
         .get(&clause.resource)
         .and_then(|r| r.permission(&clause.permission))
-        .is_some_and(|p| matches!(p.tier, Tier::Public | Tier::PermissionOnly));
+        .is_some_and(grantable);
     ClauseGrants {
         clause: Some(index),
         mode: clause.mode,

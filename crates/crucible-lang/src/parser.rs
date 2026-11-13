@@ -2187,8 +2187,21 @@ impl<'s> Parser<'s> {
             }
             "remove" => {
                 self.pos += 1;
-                self.expect_word("operation");
-                StepKind::RemoveOperation(self.ident("an operation name"))
+                if self.eat_word("role") {
+                    StepKind::RemoveRole(self.ident("a role name"))
+                } else if self.eat_word("scope") {
+                    StepKind::RemoveScope(self.ident("a scope name"))
+                } else {
+                    if !self.eat_word("operation") {
+                        self.expected("`operation`, `role` or `scope`");
+                    }
+                    StepKind::RemoveOperation(self.ident("an operation name"))
+                }
+            }
+            "narrow" => {
+                self.pos += 1;
+                self.expect_word("role");
+                StepKind::NarrowRole(self.ident("a role name"))
             }
             "behavior" => {
                 self.pos += 1;
@@ -2209,7 +2222,7 @@ impl<'s> Parser<'s> {
             _ => {
                 self.expected(
                     "a migration step: `rename`, `require`, `add`, `move`, `reshape`, \
-                     `remove`, `behavior`, `retype` or `sunset`",
+                     `remove`, `narrow`, `behavior`, `retype` or `sunset`",
                 );
                 return None;
             }

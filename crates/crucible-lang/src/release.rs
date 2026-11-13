@@ -92,6 +92,15 @@ impl Releases {
         Ok(service)
     }
 
+    /// Every release the lock in `dir` records, each as [`Self::load`]
+    /// reads it, in the lock's order.
+    pub fn all(&self, dir: &Path) -> Result<Vec<Arc<Service>>, String> {
+        read_lock(dir)?
+            .keys()
+            .map(|name| self.load(&dir.join(name)))
+            .collect()
+    }
+
     /// How many releases have been parsed and kept.
     pub fn len(&self) -> usize {
         self.loaded

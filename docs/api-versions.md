@@ -217,6 +217,7 @@ Host
 | `retype S.m -> T by hook` | the service's `upgrade_s_m`, on the member | the service's `downgrade_s_m`, on the member |
 | `require S.m by hook` | absent `m` becomes the service's `require_s_m` of the request | nothing |
 | `remove operation Op` | the service's legacy `op` handler serves it | the legacy handler answers in its own version's shapes |
+| `remove role r`, `remove scope s`, `narrow role r` | nothing | nothing; roles are not versioned, so the step only declares the break ([roles.md](roles.md) §6) |
 
 A step that appears in an operation's input or output only converts the
 direction it is needed in, as the compiler knows from the IR.

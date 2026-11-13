@@ -762,6 +762,16 @@ pub enum StepKind {
         hook: Hook,
     },
     RemoveOperation(Ident),
+    /// `remove role name`: bindings stored under the role's value no
+    /// longer match (docs/roles.md §6).
+    RemoveRole(Ident),
+    /// `remove scope name`: bindings stored at the scope's value no longer
+    /// match.
+    RemoveScope(Ident),
+    /// `narrow role name`: the role grants less, binds at fewer scopes, or
+    /// admits fewer kinds of principal; its holders are refused what they
+    /// had.
+    NarrowRole(Ident),
     Behavior(Dotted),
     Sunset(StrLit),
     Retype {

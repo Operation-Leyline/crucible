@@ -25,8 +25,28 @@ version's section when it is prepared.
   wire enums. The IR gains `Service::roles`, `Service::role_scopes` and
   `Service::role_settings` (each role with its effective grants, inclusion
   and `*` expanded), and `crucible_ir::roles` answers coverage. A model
-  without roles lowers to the same IR as before. Generators, the
-  `RoleAuthorizer` and compatibility rules follow in later releases.
+  without roles lowers to the same IR as before.
+- Roles R4 ([docs/roles.md](docs/roles.md) §6): compatibility rules for
+  roles and scopes, compared by value against the baseline.
+  `compatibility.scope` and `compatibility.role` (errors) report a role or
+  scope removed or with a changed value, a scope moved to another resource
+  or whose instance is named another way (reparented, or an identifier
+  renamed), and a role that grants less, binds at fewer scopes, admits
+  fewer holders, covers less from a scope it keeps, or may be assigned by
+  fewer roles, and a service that turns `custom` or `direct` off or,
+  under `custom`, makes a permission no longer grantable;
+  `compatibility.role-widened` (a warning) reports a role that grants
+  more, by an edit, because its `*` covers a new permission, or because a
+  scope it keeps now covers more, or because more roles may assign it or
+  it may be bound at more scopes or held by more kinds of principal, and a
+  service that turns `custom` or `direct` on or, under `custom`, makes a
+  permission grantable, or adds a predefined role value a custom role's id
+  could already use. A
+  public role or scope removed, made `internal`, or whose symbol now sends
+  another value is a `compatibility.sdk` finding. Migrations declare the
+  breaks with `remove role`, `remove scope` and `narrow role`. A role or scope value an earlier frozen release
+  retired stays reserved: reusing it is an error. A baseline frozen before
+  roles existed reports nothing. The rule IDs join `crucible_policy::RULE_IDS`.
 - Roles R2 ([docs/roles.md](docs/roles.md) §7, [framework
   guide](docs/framework.md#roles)): Rust server bindings of a model with
   roles gain a `roles` module: `roles::CATALOGUE`, a `'static`

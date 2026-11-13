@@ -1,0 +1,15 @@
+schema_version = 1
+
+# Refused: role steps that match no change. `remove role` and `remove
+# scope` of a role and a scope whose values still name one, `narrow role`
+# of a role that grants, binds and admits what it did, and of a role the
+# release does not have (crucible-lang/tests/role_compatibility.rs).
+# Release 1 is frozen under releases/; 2 is current, unchanged.
+[model]
+namespace = "example.shop"
+language = 1
+sources = ["."]
+imports = []
+
+[model.baseline]
+path = "releases/1.json"

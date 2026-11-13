@@ -1,0 +1,1236 @@
+//! Role compatibility (docs/roles.md §6). A binding stores a role's value
+//! and a scope's value, with the instance the scope names, so removing a
+//! role or scope, or changing its value, orphans the bindings stored under
+//! it. Holders rely on what a role grants: one that grants less, binds at
+//! fewer scopes or admits fewer kinds of principal refuses them what they
+//! had. One that grants more, by an edit or because its `*` covers a new
+//! permission, is a security review, reported and never refused.
+//!
+//! Roles and scopes are matched by value, what bindings store, not by
+//! symbol, and grants are compared by the stored pair (authorization name,
+//! permission value), as requirements are: a grant whose value is now a
+//! deprecated alias of a primary the role grants is kept. A permission
+//! that is gone altogether is `compatibility.permissions`' finding, and a
+//! scope that is gone `compatibility.scope`'s, so neither is reported again
+//! for every role that granted or bound at it.
+
+use std::collections::{BTreeMap, BTreeSet};
+
+use crucible_ir::ShapeId;
+use crucible_ir::ir::{GrantedSet, Role, ScopeTarget, Service, Shape};
+use crucible_ir::roles::{Target, covers, grantable, identifiers, parent, with_included};
+
+use crate::checker::Checker;
+use crate::{Config, Report, Severity};
+
+/// Where a role or scope finding is reported, and what a `[[exceptions]]`
+/// entry names: `namespace#symbol` in the service's namespace. A role or
+/// scope is a declaration of its own, and declaration names are unique in a
+/// namespace, so the id names one of them.
+pub fn role_id(service: &Service, symbol: &str) -> ShapeId {
+    ShapeId::new(service.id.namespace(), symbol)
+}
+
+/// Whether the role `symbol` of `old` still names a role of `new` by its
+/// value, and that role grants less, binds at fewer scopes, admits fewer
+/// kinds of principal, or leaves a grant to the service: what a migration's
+/// `narrow role` declares.
+pub fn role_narrowed(old: &Service, new: &Service, symbol: &str) -> bool {
+    let Some(role) = old.role(symbol) else {
+        return false;
+    };
+    if !new.roles.iter().any(|r| r.value == role.value) {
+        return false;
+    }
+    let site = role_id(old, symbol);
+    changes(old, new)
+        .iter()
+        .any(|change| change.rule == "compatibility.role" && change.site == site)
+}
+
+/// Role and scope values the package retired, reused by `current`: each
+/// value some release in `frozen` had and `baseline` does not, which a
+/// role (scope) of `current` has again. A binding stores the value as a
+/// string, a migration converts no stored binding, and the authorizer
+/// resolves a binding against the current catalogue, so bindings stored
+/// under it while it was released, inert since it was retired, would take
+/// effect again with whatever the role grants or the scope covers now.
+/// Once retired, a value stays reserved: each reuse is an error at the
+/// current declaration, declared only by an exception. The comparison with
+/// the baseline cannot see it: there the role is new.
+pub fn reused_values(
+    frozen: &[&Service],
+    baseline: &Service,
+    current: &Service,
+    config: &Config,
+) -> Report {
+    let mut report = Report::default();
+    let compatibility = &config.compatibility;
+    if !compatibility.wire.value {
+        return report;
+    }
+    let severity = compatibility.wire.severity_in(compatibility.severity);
+    // Each retired value, by the releases that had it.
+    let mut roles: BTreeMap<&str, BTreeSet<&str>> = BTreeMap::new();
+    let mut scopes: BTreeMap<&str, BTreeSet<&str>> = BTreeMap::new();
+    for release in frozen {
+        for role in &release.roles {
+            if !baseline.roles.iter().any(|r| r.value == role.value) {
+                roles
+                    .entry(&role.value)
+                    .or_default()
+                    .insert(&release.version);
+            }
+        }
+        for scope in &release.role_scopes {
+            if !baseline.role_scopes.iter().any(|s| s.value == scope.value) {
+                scopes
+                    .entry(&scope.value)
+                    .or_default()
+                    .insert(&release.version);
+            }
+        }
+    }
+    let had = |versions: &BTreeSet<&str>| {
+        versions
+            .iter()
+            .map(|v| format!("\"{v}\""))
+            .collect::<Vec<_>>()
+            .join(", ")
+    };
+    for scope in &current.role_scopes {
+        if let Some(versions) = scopes.get(scope.value.as_str()) {
+            report.push(
+                "compatibility.scope",
+                role_id(current, &scope.symbol),
+                severity,
+                format!(
+                    "the scope `{}` reuses {:?}, which release {} had and a later release retired: bindings stored at it then, inert since, would take effect again; give it a new value",
+                    scope.symbol,
+                    scope.value,
+                    had(versions)
+                ),
+            );
+        }
+    }
+    for role in &current.roles {
+        if let Some(versions) = roles.get(role.value.as_str()) {
+            report.push(
+                "compatibility.role",
+                role_id(current, &role.symbol),
+                severity,
+                format!(
+                    "the role `{}` reuses {:?}, which release {} had and a later release retired: bindings stored under it then, inert since, would take effect again with what it grants now; give it a new value",
+                    role.symbol,
+                    role.value,
+                    had(versions)
+                ),
+            );
+        }
+    }
+    report.finish(config)
+}
+
+/// One role or scope change, at the old declaration.
+pub(crate) struct Change {
+    pub(crate) site: ShapeId,
+    pub(crate) rule: &'static str,
+    /// An error at the configured severity; otherwise a warning, reported
+    /// for review.
+    pub(crate) breaking: bool,
+    pub(crate) message: String,
+}
+
+impl Checker<'_> {
+    /// Stored bindings and what their holders may do.
+    pub(crate) fn roles_wire(&mut self) {
+        for change in changes(self.old, self.new) {
+            if change.breaking {
+                self.push(change.rule, &change.site, change.message);
+            } else if self.severity != Severity::Off {
+                self.report
+                    .push(change.rule, &change.site, Severity::Warning, change.message);
+            }
+        }
+    }
+
+    /// Generated SDK constants, by symbol, as permissions' are.
+    pub(crate) fn roles_sdk(&mut self) {
+        for old in self.old.roles.iter().filter(|r| !r.internal) {
+            let site = role_id(self.old, &old.symbol);
+            match self.new.role(&old.symbol) {
+                None => self.push(
+                    "compatibility.sdk",
+                    &site,
+                    format!(
+                        "the role constant `{}` was removed from client SDKs",
+                        old.symbol
+                    ),
+                ),
+                Some(now) if now.internal => self.push(
+                    "compatibility.sdk",
+                    &site,
+                    format!(
+                        "`{}` became internal, so client SDKs lose its constant",
+                        old.symbol
+                    ),
+                ),
+                // A client's constant sends its value: kept under a new
+                // value, it asks for another role, though stored bindings
+                // may still match (two swapped, bodies and all).
+                Some(now) if now.value != old.value => self.push(
+                    "compatibility.sdk",
+                    &site,
+                    format!(
+                        "the role constant `{}` now sends {:?}, where it sent {:?}: a client that still names it asks for another role",
+                        old.symbol, now.value, old.value
+                    ),
+                ),
+                Some(_) => {}
+            }
+        }
+        for old in self.old.role_scopes.iter().filter(|s| !s.internal) {
+            let site = role_id(self.old, &old.symbol);
+            match self.new.scope(&old.symbol) {
+                None => self.push(
+                    "compatibility.sdk",
+                    &site,
+                    format!(
+                        "the scope constant `{}` was removed from client SDKs",
+                        old.symbol
+                    ),
+                ),
+                Some(now) if now.internal => self.push(
+                    "compatibility.sdk",
+                    &site,
+                    format!(
+                        "`{}` became internal, so client SDKs lose its constant",
+                        old.symbol
+                    ),
+                ),
+                // A client's constant sends its value: kept under a new
+                // value, it asks for another scope, though stored bindings
+                // may still match (two swapped, bodies and all).
+                Some(now) if now.value != old.value => self.push(
+                    "compatibility.sdk",
+                    &site,
+                    format!(
+                        "the scope constant `{}` now sends {:?}, where it sent {:?}: a client that still names it asks for another scope",
+                        old.symbol, now.value, old.value
+                    ),
+                ),
+                Some(_) => {}
+            }
+        }
+    }
+}
+
+/// Every role and scope change from `old` to `new`, scopes first, each
+/// catalogue in its declaration order. A baseline without roles or scopes
+/// has none: a catalogue added since is new, not changed.
+pub(crate) fn changes(old: &Service, new: &Service) -> Vec<Change> {
+    let mut out = Vec::new();
+    for scope in &old.role_scopes {
+        let site = role_id(old, &scope.symbol);
+        let Some(now) = new.role_scopes.iter().find(|s| s.value == scope.value) else {
+            let message = match new.scope(&scope.symbol) {
+                Some(renamed) => format!(
+                    "`{}` changed its value from {:?} to {:?}; bindings stored at the old value no longer match it: keep the value",
+                    scope.symbol, scope.value, renamed.value
+                ),
+                None => format!(
+                    "the scope {:?} (`{}`) was removed; bindings stored at it no longer match: keep it, and mark it `@deprecated`",
+                    scope.value, scope.symbol
+                ),
+            };
+            out.push(Change {
+                site,
+                rule: "compatibility.scope",
+                breaking: true,
+                message,
+            });
+            continue;
+        };
+        let (was, is) = (target(old, &scope.on), target(new, &now.on));
+        if !same_target(&was, &is) {
+            out.push(Change {
+                site,
+                rule: "compatibility.scope",
+                breaking: true,
+                message: format!(
+                    "the scope {:?} (`{}`) is now on {}, where it was on {}; bindings stored at it name an instance of what it was on",
+                    scope.value,
+                    scope.symbol,
+                    describe_target(&now.on),
+                    describe_target(&scope.on)
+                ),
+            });
+            continue;
+        }
+        let (was, is) = (instance(old, &scope.on), instance(new, &now.on));
+        if !same_path(&was, &is) {
+            out.push(Change {
+                site,
+                rule: "compatibility.scope",
+                breaking: true,
+                message: format!(
+                    "the scope {:?} (`{}`) now names its instance as {}, where it named it as {}; bindings stored at it carry the old path",
+                    scope.value,
+                    scope.symbol,
+                    describe_instance(&is),
+                    describe_instance(&was)
+                ),
+            });
+        }
+    }
+    for role in &old.roles {
+        let site = role_id(old, &role.symbol);
+        let Some(now) = new.roles.iter().find(|r| r.value == role.value) else {
+            let message = match new.role(&role.symbol) {
+                Some(renamed) => format!(
+                    "`{}` changed its value from {:?} to {:?}; bindings stored under the old value no longer match it: keep the value",
+                    role.symbol, role.value, renamed.value
+                ),
+                None => format!(
+                    "the role {:?} (`{}`) was removed; bindings stored under it no longer match: keep it, and mark it `@deprecated`",
+                    role.value, role.symbol
+                ),
+            };
+            out.push(Change {
+                site,
+                rule: "compatibility.role",
+                breaking: true,
+                message,
+            });
+            continue;
+        };
+        let mut role_changes = RoleChanges {
+            old,
+            new,
+            role,
+            now,
+            site,
+            out: &mut out,
+        };
+        role_changes.scopes();
+        role_changes.holders();
+        role_changes.grants();
+        role_changes.coverage();
+        role_changes.assigners();
+    }
+    settings(old, new, &mut out);
+    out
+}
+
+/// The catalogue's settings, at the service: `custom` (customers define
+/// roles at runtime, which the authorizer resolves through a hook) and
+/// `direct` (the service grants permissions outside roles). Turning either
+/// on lets something the model does not list grant permissions, and
+/// bindings or grants stored for it take effect: a widening. Turning
+/// either off refuses what such roles or grants gave: an error, declared by
+/// an exception at the service, since no step names one role. A baseline
+/// without a catalogue has nothing to compare.
+fn settings(old: &Service, new: &Service, out: &mut Vec<Change>) {
+    if old.roles.is_empty() && old.role_scopes.is_empty() && old.role_settings.is_default() {
+        return;
+    }
+    let name = old.id.name();
+    for (was, is, what, whom) in [
+        (
+            old.role_settings.custom,
+            new.role_settings.custom,
+            "lets customers define roles (`custom`)",
+            "custom roles",
+        ),
+        (
+            old.role_settings.direct,
+            new.role_settings.direct,
+            "grants permissions outside roles (`direct`)",
+            "permissions granted outside roles",
+        ),
+    ] {
+        match (was, is) {
+            (false, true) => out.push(Change {
+                site: old.id.clone(),
+                rule: "compatibility.role-widened",
+                breaking: false,
+                message: format!(
+                    "`{name}` now {what}: a requirement may be met by what the model does not list, and {whom} stored before take effect"
+                ),
+            }),
+            (true, false) => out.push(Change {
+                site: old.id.clone(),
+                rule: "compatibility.role",
+                breaking: true,
+                message: format!(
+                    "`{name}` no longer {what}: holders of {whom} are refused what they had"
+                ),
+            }),
+            _ => {}
+        }
+    }
+    if old.role_settings.custom && new.role_settings.custom {
+        grantable_changes(old, new, out);
+        custom_coverage(old, new, out);
+    }
+    if old.role_settings.custom {
+        shadowed_custom_ids(old, new, out);
+    }
+}
+
+/// With `custom` on in the baseline, customers may have stored custom
+/// roles under ids the model cannot see. The authorizer resolves a
+/// binding's role against the predefined roles first, so a predefined
+/// value added since (a new role, or a role's value changed) that equals a
+/// stored custom id takes it over: the customer's binding switches from
+/// its custom definition to the predefined role's grants. Every value
+/// added is reported for review, at the role that adds it.
+fn shadowed_custom_ids(old: &Service, new: &Service, out: &mut Vec<Change>) {
+    let name = old.id.name();
+    for role in &new.roles {
+        if old.roles.iter().any(|r| r.value == role.value) {
+            continue;
+        }
+        out.push(Change {
+            site: role_id(new, &role.symbol),
+            rule: "compatibility.role-widened",
+            breaking: false,
+            message: format!(
+                "`{name}` lets customers define roles (`custom`), and `{}` adds the predefined value {:?}: a custom role a customer stored under that id would now mean `{}`; check the stored custom role ids, or choose a value they cannot take",
+                role.symbol, role.value, role.symbol
+            ),
+        });
+    }
+}
+
+/// With `custom` on in both releases, what a custom-role binding at each
+/// catalogue scope covers of each permission a custom role may hold. A
+/// custom binding is valid at any scope, and no predefined role need grant
+/// the permission, so a resource moved in beneath a scope (or a scope
+/// added) lets custom holders reach it without a new binding: a widening.
+/// One moved out from under a scope takes it from them: an error, declared
+/// by an exception at the service. A scope whose resource or instance path
+/// changed is `compatibility.scope`'s, a removed one too; a permission
+/// whose tier changed is the grantable comparison's.
+fn custom_coverage(old: &Service, new: &Service, out: &mut Vec<Change>) {
+    let name = old.id.name();
+    // Each permission grantable in both, by stored pair: its resource in
+    // each release, and its value.
+    let mut permissions: BTreeMap<(&ShapeId, &ShapeId), Vec<&str>> = BTreeMap::new();
+    for (was_on, resource) in &old.permissions {
+        let Some((is_on, now)) = new
+            .permissions
+            .iter()
+            .find(|(_, r)| r.name == resource.name)
+        else {
+            continue;
+        };
+        for permission in resource.permissions.iter().filter(|p| grantable(p)) {
+            if now.by_value(&permission.value).is_some_and(grantable) {
+                permissions
+                    .entry((was_on, is_on))
+                    .or_default()
+                    .push(permission.value.as_str());
+            }
+        }
+    }
+    // Each scope of the new catalogue, with the one of the baseline that
+    // has its value, unless it changed what it is on.
+    for now in &new.role_scopes {
+        let scope = old.role_scopes.iter().find(|s| s.value == now.value);
+        if let Some(scope) = scope
+            && (!same_target(&target(old, &scope.on), &target(new, &now.on))
+                || !same_path(&instance(old, &scope.on), &instance(new, &now.on)))
+        {
+            continue;
+        }
+        for ((was_on, is_on), values) in &permissions {
+            let before = scope.map_or((false, false), |scope| reach(old, &scope.on, was_on));
+            let after = reach(new, &now.on, is_on);
+            if before.0 && !after.0 || before.1 && !after.1 {
+                out.push(Change {
+                    site: old.id.clone(),
+                    rule: "compatibility.role",
+                    breaking: true,
+                    message: format!(
+                        "`{name}` lets customers define roles (`custom`), and a custom role bound at {:?} no longer covers `{}`, where it may grant {}; holders of custom roles bound there are refused it",
+                        now.value,
+                        was_on.name(),
+                        quoted(values)
+                    ),
+                });
+            }
+            if !before.0 && after.0 || !before.1 && after.1 {
+                out.push(Change {
+                    site: old.id.clone(),
+                    rule: "compatibility.role-widened",
+                    breaking: false,
+                    message: format!(
+                        "`{name}` lets customers define roles (`custom`), and a custom role bound at {:?} now covers `{}`, where it may grant {}; holders of custom roles bound there gain it without a new binding",
+                        now.value,
+                        is_on.name(),
+                        quoted(values)
+                    ),
+                });
+            }
+        }
+    }
+}
+
+/// With `custom` on in both releases, the permissions a custom role may
+/// include, by stored pair (authorization name, value), among those both
+/// releases declare: one newly grantable lets customer-defined roles
+/// acquire it (a widening); one no longer grantable takes it from custom
+/// roles that hold it (an error, declared by an exception at the service).
+/// The rule is [`grantable`], the one granted-by uses.
+fn grantable_changes(old: &Service, new: &Service, out: &mut Vec<Change>) {
+    let name = old.id.name();
+    let tiers = |service: &Service| -> BTreeMap<(String, String), (bool, String)> {
+        service
+            .permissions
+            .iter()
+            .flat_map(|(id, resource)| {
+                resource.permissions.iter().map(move |p| {
+                    (
+                        (resource.name.clone(), p.value.clone()),
+                        (grantable(p), id.name().to_owned()),
+                    )
+                })
+            })
+            .collect()
+    };
+    let (was, is) = (tiers(old), tiers(new));
+    for ((authorization, value), (before, resource)) in &was {
+        let Some((after, now)) = is.get(&(authorization.clone(), value.clone())) else {
+            continue;
+        };
+        match (before, after) {
+            (false, true) => out.push(Change {
+                site: old.id.clone(),
+                rule: "compatibility.role-widened",
+                breaking: false,
+                message: format!(
+                    "`{name}` lets customers define roles (`custom`), and {value:?} on `{now}` is now grantable: a custom role may include it"
+                ),
+            }),
+            (true, false) => out.push(Change {
+                site: old.id.clone(),
+                rule: "compatibility.role",
+                breaking: true,
+                message: format!(
+                    "`{name}` lets customers define roles (`custom`), and {value:?} on `{resource}` is no longer grantable: holders of custom roles that include it are refused it"
+                ),
+            }),
+            _ => {}
+        }
+    }
+}
+
+/// A resource as a stored binding's scope instance names it.
+#[derive(Debug, Clone)]
+struct Named {
+    shape: ShapeId,
+    /// Its authorization name, when it declares permissions.
+    authorization: Option<String>,
+}
+
+impl Named {
+    fn of(service: &Service, id: &ShapeId) -> Self {
+        Self {
+            shape: id.clone(),
+            authorization: service.permissions.get(id).map(|r| r.name.clone()),
+        }
+    }
+
+    /// The same resource in two models: by authorization name when both
+    /// declare permissions, so a renamed shape that keeps it is the same;
+    /// otherwise by shape, so a resource that gains its first permission
+    /// (and with it an authorization name) has not moved.
+    fn same(&self, other: &Self) -> bool {
+        match (&self.authorization, &other.authorization) {
+            (Some(a), Some(b)) => a == b,
+            _ => self.shape == other.shape,
+        }
+    }
+
+    fn label(&self) -> &str {
+        self.authorization
+            .as_deref()
+            .unwrap_or_else(|| self.shape.name())
+    }
+}
+
+/// What a scope's instance names, as stored data: the service, or one
+/// instance of a resource, or every one under a parent.
+fn target(service: &Service, on: &ScopeTarget) -> (u8, Option<Named>) {
+    match on {
+        ScopeTarget::Service => (0, None),
+        ScopeTarget::Instance(id) => (1, Some(Named::of(service, id))),
+        ScopeTarget::Every(id) => (2, Some(Named::of(service, id))),
+    }
+}
+
+fn same_target(a: &(u8, Option<Named>), b: &(u8, Option<Named>)) -> bool {
+    a.0 == b.0
+        && match (&a.1, &b.1) {
+            (Some(a), Some(b)) => a.same(b),
+            (a, b) => a.is_none() && b.is_none(),
+        }
+}
+
+/// One resource on the path a scope instance is named by, and the
+/// identifiers it adds, in order.
+type Segment = (Named, Vec<String>);
+
+fn same_path(a: &[Segment], b: &[Segment]) -> bool {
+    a.len() == b.len()
+        && a.iter()
+            .zip(b)
+            .all(|((a, ids), (b, other))| ids == other && a.same(b))
+}
+
+/// The path a scope's stored instance is named by, root first: each
+/// resource from the root down to the scope's, with the identifiers it
+/// adds. A `R(*)` instance is named by its parent, so its own identifier
+/// is left out. A resource moved under another parent, or an identifier
+/// renamed, changes what a stored instance means even where no
+/// operation's route shows it.
+fn instance(service: &Service, on: &ScopeTarget) -> Vec<Segment> {
+    let Some(resource) = on.resource() else {
+        return Vec::new();
+    };
+    let mut chain = vec![resource];
+    // A cycle is refused where resources are lowered; the bound keeps a
+    // hand-built IR from looping.
+    while chain.len() <= service.resources.len() {
+        match parent(service, chain[chain.len() - 1]) {
+            Some(up) => chain.push(up),
+            None => break,
+        }
+    }
+    chain.reverse();
+    // In declaration order, root to leaf, as the generated catalogue states
+    // them and the runtime compares a stored binding's values: by
+    // position, so a composite identifier reordered names another
+    // instance.
+    let mut path = Vec::new();
+    let mut inherited = 0;
+    for id in chain {
+        let all = identifiers(service, id);
+        let own = all.get(inherited..).unwrap_or_default().to_vec();
+        inherited = all.len();
+        path.push((Named::of(service, id), own));
+    }
+    if matches!(on, ScopeTarget::Every(_))
+        && let Some((_, own)) = path.last_mut()
+    {
+        own.clear();
+    }
+    path
+}
+
+/// `` `organization(organizationId)`/`graph(*)` ``.
+fn describe_instance(path: &[Segment]) -> String {
+    let last = path.len().saturating_sub(1);
+    path.iter()
+        .enumerate()
+        .map(|(index, (named, own))| {
+            let ids = if own.is_empty() && index == last {
+                "*".to_owned()
+            } else {
+                own.join(", ")
+            };
+            format!("`{}({ids})`", named.label())
+        })
+        .collect::<Vec<_>>()
+        .join("/")
+}
+
+fn describe_target(on: &ScopeTarget) -> String {
+    match on {
+        ScopeTarget::Service => "the service".to_owned(),
+        ScopeTarget::Instance(id) => format!("`{}`", id.name()),
+        ScopeTarget::Every(id) => format!("`{}(*)`", id.name()),
+    }
+}
+
+/// One role of the baseline against the role of the new model that has its
+/// value.
+struct RoleChanges<'a, 'o> {
+    old: &'a Service,
+    new: &'a Service,
+    role: &'a Role,
+    now: &'a Role,
+    site: ShapeId,
+    out: &'o mut Vec<Change>,
+}
+
+/// A granted permission, as the role's settled grants name it.
+type Granted<'a> = (&'a ShapeId, &'a str);
+
+/// The values a role still grants on one resource: as the baseline stores
+/// them, and as the new model does.
+type Kept<'a> = (Vec<&'a str>, Vec<&'a str>);
+
+impl<'a> RoleChanges<'a, '_> {
+    fn push(&mut self, rule: &'static str, breaking: bool, message: String) {
+        self.out.push(Change {
+            site: self.site.clone(),
+            rule,
+            breaking,
+            message,
+        });
+    }
+
+    /// Scopes it may be bound at, by value. A scope that is gone is
+    /// `compatibility.scope`'s finding. One it may be bound at that it could
+    /// not be gives no holder anything, but whoever may assign it can now
+    /// grant it there: a security review.
+    fn scopes(&mut self) {
+        let values = |service: &'a Service, role: &'a Role| -> Vec<&'a str> {
+            role.scopes
+                .iter()
+                .filter_map(|symbol| service.scope(symbol))
+                .map(|scope| scope.value.as_str())
+                .collect()
+        };
+        let now = values(self.new, self.now);
+        let lost: Vec<String> = values(self.old, self.role)
+            .into_iter()
+            .filter(|value| !now.contains(value))
+            .filter(|value| self.new.role_scopes.iter().any(|s| s.value == *value))
+            .map(|value| format!("{value:?}"))
+            .collect();
+        if !lost.is_empty() {
+            let message = format!(
+                "`{}` can no longer be bound at {}; its holders bound there are refused what they had",
+                self.role.symbol,
+                lost.join(", ")
+            );
+            self.push("compatibility.role", true, message);
+        }
+        let was = values(self.old, self.role);
+        let gained: Vec<String> = now
+            .iter()
+            .filter(|value| !was.contains(value))
+            .map(|value| format!("{value:?}"))
+            .collect();
+        if !gained.is_empty() {
+            let message = format!(
+                "`{}` may now be bound at {}; whoever may assign it can grant it there without a new binding",
+                self.role.symbol,
+                gained.join(", ")
+            );
+            self.push("compatibility.role-widened", false, message);
+        }
+    }
+
+    /// The kinds of principal that may hold it, as the runtime's
+    /// `valid_for` reads them: a role without `holders` is valid for any
+    /// kind, including a principal whose kind the binding source does not
+    /// know; one with `holders` only for the kinds it names, by the
+    /// `principals` enum's wire values. Naming kinds where it named none
+    /// narrows it, even when it names them all, since a principal of no
+    /// known kind loses it; naming none where it named some widens it.
+    fn holders(&mut self) {
+        let symbol = &self.role.symbol;
+        let (Some(was), Some(is)) = (holders(self.old, self.role), holders(self.new, self.now))
+        else {
+            return;
+        };
+        match (was, is) {
+            (Holders::Unrestricted, Holders::Unrestricted) => {
+                // A kind the `principals` enum gained is one more that may
+                // hold it: reported for review. A kind it lost refuses
+                // nobody here (the role is valid for any kind); the enum's
+                // own change is `compatibility.enum`'s.
+                let (Some(was), Some(is)) = (kinds(self.old), kinds(self.new)) else {
+                    return;
+                };
+                let gained: Vec<&String> = is
+                    .iter()
+                    .filter(|(value, _)| !was.contains_key(*value))
+                    .map(|(_, name)| name)
+                    .collect();
+                if !gained.is_empty() {
+                    let message = format!(
+                        "`{symbol}` names no `holders`, so every kind of principal may hold it, and `principals` now has {}: review whether those kinds should",
+                        names(gained.into_iter())
+                    );
+                    self.push("compatibility.role-widened", false, message);
+                }
+            }
+            (Holders::Unrestricted, Holders::Only(is)) => {
+                let message = format!(
+                    "`{symbol}` may now be held only by {}; its other holders, those of no known kind among them, are refused what they had",
+                    names(is.values())
+                );
+                self.push("compatibility.role", true, message);
+            }
+            (Holders::Only(was), Holders::Unrestricted) => {
+                // A binding for a kind a narrowing made inert is valid
+                // again: no migration step converts stored bindings.
+                let message = format!(
+                    "`{symbol}` may now be held by every kind of principal, where only {} could; bindings of the other kinds, inert until now, take effect",
+                    names(was.values())
+                );
+                self.push("compatibility.role-widened", false, message);
+            }
+            (Holders::Only(was), Holders::Only(is)) => {
+                let lost: Vec<&String> = was
+                    .iter()
+                    .filter(|(value, _)| !is.contains_key(*value))
+                    .map(|(_, name)| name)
+                    .collect();
+                if !lost.is_empty() {
+                    let message = format!(
+                        "`{symbol}` may no longer be held by {}; its holders among them are refused what they had",
+                        names(lost.into_iter())
+                    );
+                    self.push("compatibility.role", true, message);
+                }
+                let gained: Vec<&String> = is
+                    .iter()
+                    .filter(|(value, _)| !was.contains_key(*value))
+                    .map(|(_, name)| name)
+                    .collect();
+                if !gained.is_empty() {
+                    let message = format!(
+                        "`{symbol}` may now be held by {}; bindings of those kinds, inert until now, take effect",
+                        names(gained.into_iter())
+                    );
+                    self.push("compatibility.role-widened", false, message);
+                }
+            }
+        }
+    }
+
+    /// What a binding at each scope it keeps covers of what the model still
+    /// grants.
+    /// Coverage follows the resource tree, so a resource moved out from
+    /// under a scope (or in beneath one) changes what a stored binding there
+    /// gives its holder, though the role's scopes and grants read the same.
+    /// A scope whose resource or instance path changed is
+    /// `compatibility.scope`'s finding, so it is left out here.
+    fn coverage(&mut self) {
+        let old_scopes: Vec<_> = self
+            .role
+            .scopes
+            .iter()
+            .filter_map(|symbol| self.old.scope(symbol))
+            .collect();
+        let new_scopes: Vec<_> = self
+            .now
+            .scopes
+            .iter()
+            .filter_map(|symbol| self.new.scope(symbol))
+            .collect();
+        // Only what the model grants: a `by service` grant applies where the
+        // service decides, whatever the scope covers (it is exempt from
+        // reachability), and a grant moving to or from the service is the
+        // grant comparison's finding.
+        let model: BTreeSet<Granted> = self
+            .now
+            .effective
+            .iter()
+            .map(|g| (&g.resource, g.permission.as_str()))
+            .collect();
+        // What the model still grants, by resource in both models: the old
+        // resource, the new one, and the values granted on it in each.
+        let mut kept: BTreeMap<(&ShapeId, &ShapeId), Kept> = BTreeMap::new();
+        for (resource, permission) in self
+            .role
+            .effective
+            .iter()
+            .map(|g| (&g.resource, g.permission.as_str()))
+        {
+            let Some(now) = land(self.old, self.new, resource, permission) else {
+                continue;
+            };
+            if !model.contains(&now) {
+                continue;
+            }
+            let entry = kept.entry((resource, now.0)).or_default();
+            entry.0.push(value(self.old, resource, permission));
+            entry.1.push(value(self.new, now.0, now.1));
+        }
+        for scope in old_scopes {
+            let Some(now) = new_scopes.iter().find(|s| s.value == scope.value) else {
+                continue;
+            };
+            if !same_target(&target(self.old, &scope.on), &target(self.new, &now.on))
+                || !same_path(&instance(self.old, &scope.on), &instance(self.new, &now.on))
+            {
+                continue;
+            }
+            for ((was_on, is_on), (was_values, is_values)) in &kept {
+                let before = reach(self.old, &scope.on, was_on);
+                let after = reach(self.new, &now.on, is_on);
+                let symbol = &self.role.symbol;
+                if before.0 && !after.0 || before.1 && !after.1 {
+                    let message = format!(
+                        "`{symbol}` bound at {:?} no longer covers `{}`, where it grants {}; its holders bound there are refused what they had",
+                        scope.value,
+                        was_on.name(),
+                        quoted(was_values)
+                    );
+                    self.push("compatibility.role", true, message);
+                }
+                if !before.0 && after.0 || !before.1 && after.1 {
+                    let message = format!(
+                        "`{symbol}` bound at {:?} now covers `{}`, where it grants {}; its holders bound there gain it without a new binding",
+                        now.value,
+                        is_on.name(),
+                        quoted(is_values)
+                    );
+                    self.push("compatibility.role-widened", false, message);
+                }
+            }
+        }
+    }
+
+    /// Who may grant or revoke it, by the values of the roles `assignedBy`
+    /// names. None named is whoever the binding operation admits, which
+    /// includes every holder of any role, so naming some narrows it and
+    /// naming none again widens it. Assignment is authority over bindings:
+    /// an assigner that loses it can no longer grant or revoke what it
+    /// could, and one that gains it is a security review. An assigner role
+    /// that is gone altogether is `compatibility.role`'s finding at that
+    /// role, not again here.
+    fn assigners(&mut self) {
+        let values = |service: &'a Service, role: &'a Role| -> Vec<&'a str> {
+            role.assigned_by
+                .iter()
+                .filter_map(|symbol| service.role(symbol))
+                .map(|assigner| assigner.value.as_str())
+                .collect()
+        };
+        let (was, is) = (values(self.old, self.role), values(self.new, self.now));
+        let symbol = &self.role.symbol;
+        match (self.role.assigned_by.is_empty(), self.now.assigned_by.is_empty()) {
+            (true, true) => {}
+            (true, false) => self.push(
+                "compatibility.role",
+                true,
+                format!(
+                    "`{symbol}` may now be assigned only by holders of {}; others the binding operation admits can no longer grant or revoke it",
+                    quoted(&is)
+                ),
+            ),
+            (false, true) => self.push(
+                "compatibility.role-widened",
+                false,
+                format!(
+                    "`{symbol}` may now be assigned by whoever the binding operation admits, where only holders of {} could; they can grant or revoke it without a new binding",
+                    quoted(&was)
+                ),
+            ),
+            (false, false) => {
+                let lost: Vec<&str> = was
+                    .iter()
+                    .copied()
+                    .filter(|value| !is.contains(value))
+                    .filter(|value| self.new.roles.iter().any(|r| r.value == *value))
+                    .collect();
+                let gained: Vec<&str> = is
+                    .iter()
+                    .copied()
+                    .filter(|value| !was.contains(value))
+                    .collect();
+                if !lost.is_empty() {
+                    self.push(
+                        "compatibility.role",
+                        true,
+                        format!(
+                            "`{symbol}` may no longer be assigned by holders of {}; they can no longer grant or revoke it",
+                            quoted(&lost)
+                        ),
+                    );
+                }
+                if !gained.is_empty() {
+                    self.push(
+                        "compatibility.role-widened",
+                        false,
+                        format!(
+                            "`{symbol}` may now be assigned by holders of {}; they can grant or revoke it without a new binding",
+                            quoted(&gained)
+                        ),
+                    );
+                }
+            }
+        }
+    }
+
+    /// The values of the scopes the role keeps (by value) whose bindings
+    /// cover no instance of `resource` in the new model: where a grant the
+    /// model decides does not apply, though one the service decides could.
+    fn uncovering_scopes(&self, resource: &ShapeId) -> Vec<&'a str> {
+        let was: Vec<&str> = self
+            .role
+            .scopes
+            .iter()
+            .filter_map(|symbol| self.old.scope(symbol))
+            .map(|scope| scope.value.as_str())
+            .collect();
+        self.now
+            .scopes
+            .iter()
+            .filter_map(|symbol| self.new.scope(symbol))
+            .filter(|scope| was.contains(&scope.value.as_str()))
+            // The service could allow it for an instance or the whole
+            // collection (`R(*)`) at any scope; losing either is a loss.
+            .filter(|scope| reach(self.new, &scope.on, resource) != (true, true))
+            .map(|scope| scope.value.as_str())
+            .collect()
+    }
+
+    /// What it grants, the model or the service deciding.
+    fn grants(&mut self) {
+        let model: BTreeSet<Granted> = self
+            .now
+            .effective
+            .iter()
+            .map(|g| (&g.resource, g.permission.as_str()))
+            .collect();
+        let service: BTreeSet<Granted> = self
+            .now
+            .by_service
+            .iter()
+            .map(|g| (&g.resource, g.permission.as_str()))
+            .collect();
+        // Where each old grant landed: kept, left to the service, or lost.
+        let mut landed: BTreeSet<Granted> = BTreeSet::new();
+        for (resource, permission, by_service) in self
+            .role
+            .effective
+            .iter()
+            .map(|g| (&g.resource, g.permission.as_str(), false))
+            .chain(
+                self.role
+                    .by_service
+                    .iter()
+                    .map(|g| (&g.resource, g.permission.as_str(), true)),
+            )
+        {
+            // A permission gone altogether: `compatibility.permissions`.
+            let Some(now) = land(self.old, self.new, resource, permission) else {
+                continue;
+            };
+            landed.insert(now);
+            let what = describe(self.old, resource, permission);
+            let symbol = &self.role.symbol;
+            match (by_service, model.contains(&now), service.contains(&now)) {
+                (false, true, _) | (true, false, true) => {}
+                (false, false, true) => self.push(
+                    "compatibility.role",
+                    false,
+                    format!(
+                        "`{symbol}` now leaves {what} to the service (`by service`); its holders keep it only where the service allows"
+                    ),
+                ),
+                (true, true, _) => {
+                    // The service could allow it at any scope; the model
+                    // grants it only where a scope covers the resource.
+                    let lost = self.uncovering_scopes(now.0);
+                    if !lost.is_empty() {
+                        let message = format!(
+                            "`{symbol}` bound at {} no longer grants {what}: the model decides it now, where the service did (`by service`), and those scopes do not cover both `{}` and its collection; its holders bound there are refused what the service could allow",
+                            quoted(&lost),
+                            now.0.name()
+                        );
+                        self.push("compatibility.role", true, message);
+                    }
+                    self.push(
+                        "compatibility.role-widened",
+                        false,
+                        format!(
+                            "`{symbol}` now grants {what} outright, where the service decided (`by service`); its holders gain it without the service's check"
+                        ),
+                    );
+                }
+                (false, false, false) => self.push(
+                    "compatibility.role",
+                    true,
+                    format!(
+                        "`{symbol}` no longer grants {what}; its holders are refused what they had"
+                    ),
+                ),
+                (true, false, false) => self.push(
+                    "compatibility.role",
+                    true,
+                    format!(
+                        "`{symbol}` no longer grants {what} (`by service`); its holders are refused what they had"
+                    ),
+                ),
+            }
+        }
+        for (granted, by_service) in model
+            .iter()
+            .map(|g| (*g, false))
+            .chain(service.iter().map(|g| (*g, true)))
+        {
+            if landed.contains(&granted) {
+                continue;
+            }
+            let (resource, permission) = granted;
+            let what = describe(self.new, resource, permission);
+            let star = if self.through_new_star(resource, permission, by_service) {
+                ", a new permission its `*` grant covers"
+            } else {
+                ""
+            };
+            let symbol = &self.role.symbol;
+            let message = if by_service {
+                format!(
+                    "`{symbol}` now grants {what}{star} where the service decides (`by service`); its holders may gain it without a new binding"
+                )
+            } else {
+                format!(
+                    "`{symbol}` now grants {what}{star}; its holders gain it without a new binding"
+                )
+            };
+            self.push("compatibility.role-widened", false, message);
+        }
+    }
+
+    /// Whether the new role grants `permission` because a `*` grant of it
+    /// (or of a role it includes) covers it, and no permission of the
+    /// baseline stored under any value lands on it: a permission added
+    /// since, which widened the role without an edit to it.
+    fn through_new_star(&self, resource: &ShapeId, permission: &str, by_service: bool) -> bool {
+        let star = with_included(self.new, self.now)
+            .iter()
+            .flat_map(|role| &role.grants)
+            .any(|grant| {
+                &grant.resource == resource
+                    && grant.by_service == by_service
+                    && matches!(grant.permissions, GrantedSet::All { .. })
+            });
+        let Some(name) = self.new.permissions.get(resource).map(|r| &r.name) else {
+            return false;
+        };
+        let released = self
+            .old
+            .permissions
+            .iter()
+            .filter(|(_, r)| &r.name == name)
+            .any(|(id, r)| {
+                r.permissions.iter().any(|p| {
+                    land(self.old, self.new, id, &p.symbol) == Some((resource, permission))
+                })
+            });
+        star && !released
+    }
+}
+
+/// Where a grant of `old`'s `permission` on `resource` lands in `new`: the
+/// primary that a value stored under it satisfies there, matched by
+/// authorization name and value, an alias standing for its primary. None
+/// when the resource or the value is gone.
+fn land<'n>(
+    old: &Service,
+    new: &'n Service,
+    resource: &ShapeId,
+    permission: &str,
+) -> Option<Granted<'n>> {
+    let before = old.permissions.get(resource)?;
+    let value = &before.permission(permission)?.value;
+    let (id, after) = new
+        .permissions
+        .iter()
+        .find(|(_, r)| r.name == before.name)?;
+    let holder = after.by_value(value)?;
+    Some((id, after.primary(holder).symbol.as_str()))
+}
+
+/// What a binding at a scope `on` covers of `resource`: one instance, and
+/// the whole collection (`R(*)`, which `requires .. on R(*)` checks).
+fn reach(service: &Service, on: &ScopeTarget, resource: &ShapeId) -> (bool, bool) {
+    (
+        covers(service, on, Target::Instance(resource)),
+        covers(service, on, Target::Every(resource)),
+    )
+}
+
+/// The stored value of `permission` on `resource`.
+fn value<'s>(service: &'s Service, resource: &ShapeId, permission: &'s str) -> &'s str {
+    service
+        .permissions
+        .get(resource)
+        .and_then(|r| r.permission(permission))
+        .map_or(permission, |p| p.value.as_str())
+}
+
+fn quoted(values: &[&str]) -> String {
+    values
+        .iter()
+        .map(|value| format!("{value:?}"))
+        .collect::<Vec<_>>()
+        .join(", ")
+}
+
+/// `"graph:read" on `Graph``: the stored value and the resource.
+fn describe(service: &Service, resource: &ShapeId, permission: &str) -> String {
+    let value = service
+        .permissions
+        .get(resource)
+        .and_then(|r| r.permission(permission))
+        .map_or(permission, |p| p.value.as_str());
+    format!("{value:?} on `{}`", resource.name())
+}
+
+/// Who may hold a role, as the runtime's `valid_for` decides it.
+enum Holders {
+    /// No `holders`: any kind, a principal of no known kind included.
+    Unrestricted,
+    /// These kinds, wire value to the name the model writes.
+    Only(BTreeMap<String, String>),
+}
+
+/// The values of the service's `principals` enum, wire value to name.
+fn kinds(service: &Service) -> Option<BTreeMap<String, String>> {
+    let shape = service
+        .role_settings
+        .principals
+        .as_ref()
+        .and_then(|id| service.shapes.get(id))?;
+    match shape {
+        Shape::Enum(e) => Some(
+            e.values
+                .iter()
+                .map(|v| (v.value.clone(), v.name.clone()))
+                .collect(),
+        ),
+        Shape::IntEnum(e) => Some(
+            e.values
+                .iter()
+                .map(|v| (v.value.to_string(), v.name.clone()))
+                .collect(),
+        ),
+        _ => None,
+    }
+}
+
+/// Who may hold `role`. None when it names holders the `principals` enum
+/// does not have, which the compiler refuses.
+fn holders(service: &Service, role: &Role) -> Option<Holders> {
+    if role.holders.is_empty() {
+        return Some(Holders::Unrestricted);
+    }
+    let by_name: BTreeMap<String, String> = kinds(service)?
+        .into_iter()
+        .map(|(value, name)| (name, value))
+        .collect();
+    role.holders
+        .iter()
+        .map(|name| by_name.get(name).map(|value| (value.clone(), name.clone())))
+        .collect::<Option<BTreeMap<_, _>>>()
+        .map(Holders::Only)
+}
+
+fn names<'n>(names: impl Iterator<Item = &'n String>) -> String {
+    names
+        .map(|name| format!("`{name}`"))
+        .collect::<Vec<_>>()
+        .join(", ")
+}

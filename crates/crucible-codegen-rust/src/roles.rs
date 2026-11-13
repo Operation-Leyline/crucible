@@ -4,7 +4,7 @@
 //! decides stays in the runtime; what a role grants and which resources a
 //! scope covers are the IR's (`crucible_ir::roles`), tabulated here.
 
-use crucible_ir::ir::{Role, ScopeTarget, Service, Shape, Tier};
+use crucible_ir::ir::{Role, ScopeTarget, Service, Shape};
 use crucible_ir::{Diagnostics, ShapeId};
 
 use crate::names::{check_distinct, documented_text, literal, variant};
@@ -229,7 +229,8 @@ fn catalogue(service: &Service, bits: &Bits<'_>, diagnostics: &mut Diagnostics) 
     let grantable: Vec<usize> = bits
         .iter()
         .enumerate()
-        .filter(|(_, (_, p, _))| matches!(p.tier, Tier::Public | Tier::PermissionOnly))
+        // The rule granted-by and the compatibility check use too.
+        .filter(|(_, (_, p, _))| crucible_ir::roles::grantable(p))
         .map(|(bit, _)| bit)
         .collect();
     out.push_str(&format!(

@@ -302,6 +302,7 @@ migration "2026-11-01" from "2026-09-04" {
     reshape GraphData { sizeBytes, indexBytes } -> storage by hook
     retype Usage.cost -> Money by hook
     remove operation GetWrite
+    narrow role graphWriter
     behavior ListGraphs.excludesRetiring
     sunset "2028-11-01"
 }
@@ -312,7 +313,15 @@ declares still fails, and each step must match what changed between the
 baseline and the current model: a `rename` whose old member is still there,
 a `move` whose old route was not the baseline's, an `add` of a value that
 already existed, or a `remove operation` of an operation that still exists
-is an error at that step. A `rename` declares the new name alone: any
+is an error at that step. `remove role`, `remove scope` and `narrow role`
+declare the role findings ([below](#comparing-contracts)): a role or scope
+whose value names nothing now (with its SDK constant only when the symbol
+went too, since a symbol kept under another value sends that value), and a role whose holders lose something (a
+`narrow role` whose role lost nothing is an error too). A role that
+includes a narrowed one narrows with it and needs its own step. A widening
+is a warning and needs none. A change of `internal`, or a scope moved to
+another resource, is declared by an exception. A `rename` declares the new
+name alone: any
 other change to the member, such as an optional input that became
 required, needs its own step, which names the member as it is now
 (`require CreateIndex.input.kind default ..` after a rename to `kind`).
@@ -379,10 +388,96 @@ warning: reported, never refused, because it is how holes get closed. The
 `crucible.errors#NotFoundException` such a requirement attaches is part of
 that change, not a `compatibility.error` or `compatibility.sdk` finding.
 
+Roles and scopes ([roles.md](roles.md) §6) are stored data too: a binding
+stores a role's value and a scope's value. They are compared by value,
+and grants by the stored pair, so a symbol renamed with its value kept is
+the same role, and a grant whose value is now a deprecated alias of a
+primary the role grants is kept. Findings are reported at the role or
+scope, as `namespace#symbol` (`example.api#graphWriter`), which is what an
+exception names.
+
+- `compatibility.scope` (error): a scope removed, its value changed, or
+  moved to another resource, or between one instance and `R(*)`, since a
+  stored binding names an instance of what it was on; and a scope whose
+  instance is named another way: its resource, or one above it, moved
+  under another parent, or an identifier the instance carries renamed or
+  reordered (a binding's values are matched by position).
+  The instance's path (each resource from the root, with the identifiers
+  it adds) is compared whether or not an operation's route shows the
+  change. A resource is the same one when its authorization name is, if
+  both releases give it one, and otherwise when its shape is: one that
+  declares its first permission has not moved.
+- `compatibility.role` (error): a role removed or its value changed; a role
+  that no longer grants a permission it granted (its own grants, an
+  included role's, or a `*` that covers less, `by service` grants
+  included), that can no longer be bound at a scope it could, or that no
+  longer admits a kind of principal it did (`holders`), or one whose
+  binding at a scope it keeps no longer covers a resource the model still
+  grants on (a `by service` grant applies whatever the scope covers),
+  because the resource moved out from under the scope's. Its holders are
+  refused what they had. So is a role whose `assignedBy` no longer names a
+  role it named, or names roles where it named none (whoever the binding
+  operation admits): an assigner can no longer grant or revoke it. A role
+  that names `holders` where it named none narrows even when it names every
+  kind, since a principal of no known kind loses it. A
+  permission or scope that is gone altogether is
+  reported once, by `compatibility.permissions` or `compatibility.scope`,
+  not again for each role. A grant the service decided that the model now
+  decides is one at each scope the role keeps that does not cover both
+  its resource and its collection (`R(*)`), where the service could allow
+  it and the model cannot. At the
+  service, `custom` or `direct` turned off is one too: holders of custom
+  roles, or of permissions granted outside roles, are refused what they
+  had; an exception at the service declares it. So is, with `custom` on
+  in both releases, a permission that is no longer grantable (now
+  `internal` or `@notGrantable`): custom roles that include it lose it;
+  and a grantable permission's resource moved out from under a scope,
+  which a custom binding there no longer covers.
+- `compatibility.role` (warning): a grant the model decided now left to
+  the service (`by service`). Holders keep it where the service's hook
+  allows, which only a review of the hook can tell.
+- `compatibility.role-widened` (warning): a role that grants more, by an
+  edit, through a role it includes, because its `*` covers a permission
+  added since, because a grant the service decided is now the model's, or
+  because a binding at one of its scopes now covers a resource it grants
+  on that moved in beneath the scope's.
+  Widening is a security review, not a break: reported, never refused.
+  So is a role more roles may assign (`assignedBy` naming another, or
+  dropped so the binding operation decides), and one bound at a scope it
+  could not be: no holder gains anything, but whoever may assign it can
+  now grant it there; and one that admits more kinds of principal
+  (`holders` naming another, or dropped so every kind may hold it), since
+  bindings a narrowing made inert take effect again; for a role without
+  `holders`, a kind the `principals` enum gained is one more that may hold
+  it. At the service,
+  `custom` or `direct` turned on is one too: a requirement may be met by
+  what the model does not list; and, with `custom` on in both, a permission
+  that became grantable (public or `@permissionOnly`), which custom roles
+  may now include, or a scope (moved in beneath, or added) whose custom
+  bindings now cover a grantable permission's resource. With `custom` on in
+  the baseline, a predefined role value added is one too, at the role: the
+  authorizer resolves predefined roles before custom ones, so a custom role
+  a customer stored under that id would now mean the predefined role.
+  Namespace custom ids so predefined values cannot take them.
+
+A baseline frozen before roles existed has no roles to compare, so adding a
+catalogue reports nothing.
+
+Role and scope values stay reserved once retired. The guard also reads
+every release frozen beside the baseline (each one `releases/crucible.lock`
+records): a role or scope of the current model whose value one of them had
+and the baseline does not is a `compatibility.role` or `compatibility.scope`
+error at it. Bindings stored under the value while it was released, inert
+since it was retired, would take effect again with what it grants or
+covers now. No migration step declares it; an exception does.
+
 `sdk_source` checks model-level public types, operations, members, enums,
 collection representations, service/client identity,
-and permission constants: one removed, or moved to `internal`, is a
-`compatibility.sdk` finding.
+and permission, role and scope constants: one removed, or moved to
+`internal`, is a `compatibility.sdk` finding. Making one public again is
+additive. A role or scope constant whose value changed is one too, even
+when every value keeps its role (two swapped, bodies and all): a client
+that still names the constant sends the other value.
 A new optional member (not required, no default) added after a structure's
 existing members passes, unless the structure is an error: generated clients
 accept it without a source change (Rust models are `#[non_exhaustive]` and

@@ -32,6 +32,7 @@ pub fn diff_renamed(old: &Service, new: &Service, config: &Config, renames: &Ren
         checker.severity = compatibility.wire.severity_in(compatibility.severity);
         checker.wire();
         checker.permissions_wire();
+        checker.roles_wire();
     }
     if compatibility.sdk_source.value {
         // SDKs are generated from the client view, without the operations a
@@ -50,6 +51,7 @@ pub fn diff_renamed(old: &Service, new: &Service, config: &Config, renames: &Ren
         };
         sdk.sdk();
         sdk.permissions_sdk();
+        sdk.roles_sdk();
         checker.report = sdk.report;
     }
     checker.report.finish(config)
