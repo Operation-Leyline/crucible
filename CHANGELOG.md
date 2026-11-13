@@ -56,8 +56,8 @@ version's section when it is prepared.
   `Authorizer::decide_naming_bindings`, which `Permissions` now calls (its
   default asks `decide`, so existing Authorizers are unchanged), and
   `Decision::allowed_by`, the binding that allowed a check.
-  `crucible_ir::roles` gains `identifiers`, `scope_identifiers`, `coverage`
-  and `Coverage`.
+  `crucible_ir::roles` gains `identifiers`, `scope_identifiers`, `coverage`,
+  `Coverage` and `covers_scope`.
 - `.cru`: the `///` on `requires none` is the reader-facing reason, and every
   output that says "Requires no permission." now follows the sentence with it:
   `describe.json` (`requirements.documentation` and `renderedDocumentation`,
