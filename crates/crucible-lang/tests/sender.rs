@@ -19,7 +19,7 @@ fn id(name: &str) -> ShapeId {
 }
 
 #[test]
-fn sender_lowers_to_a_typed_field_beside_public() {
+fn sender_lowers_to_a_typed_field_beside_anonymous() {
     let service = load_service(&model("sender-signed")).unwrap();
     let operation = |name: &str| {
         service
@@ -36,7 +36,7 @@ fn sender_lowers_to_a_typed_field_beside_public() {
             signature: "signature".into(),
         })
     );
-    assert!(payment.public && payment.auth.is_empty());
+    assert!(payment.anonymous && payment.auth.is_empty());
     assert_eq!(payment.signature_header(), Some("Payment-Signature"));
     // An optional header member carries a signature too.
     let keys = operation("ReportLeakedKeys");
@@ -53,7 +53,7 @@ fn misused_sender_is_refused_at_each_use() {
     for (position, message) in [
         (
             "refused.cru:25:1:",
-            "sender.public: NotPublic is called by Stripe, which holds no credential of this service: declare it `public`, and let its signature authenticate it",
+            "sender.anonymous: NotAnonymous is called by Stripe, which holds no credential of this service: declare it `anonymous`, and let its signature authenticate it",
         ),
         (
             "refused.cru:34:1:",

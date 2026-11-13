@@ -32,7 +32,7 @@ operation RetryUnsafe {
     errors [Ordinary, Transient, Throttled]
 }
 
-public readonly operation PublicPing {
+anonymous readonly operation PublicPing {
     http GET "/public" -> 204
 }
 """

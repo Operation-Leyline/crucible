@@ -236,7 +236,7 @@ test("navigation follows the description's resource tree, and an older descripti
   delete older.navigation;
   const before = x.navigation(x.index(older)).filter((g) => g.kind === "resource");
   assert.deepEqual(before.map((g) => [g.label, g.depth]), [["Graph", 0], ["History", 0], ["Organization", 0]]);
-  assert.deepEqual(before[0].entries.map((e) => e.item.name), ["ArchiveGraph", "CreateGraph", "ExecuteQuery", "GetGraph", "ListGraphs", "RewriteGraph"]);
+  assert.deepEqual(before[0].entries.map((e) => e.item.name), ["ArchiveGraph", "BatchGetGraphs", "CreateGraph", "ExecuteQuery", "GetGraph", "ListGraphs", "RewriteGraph"]);
 });
 
 test("search needs every term, keeps matching groups and finds by method or path", () => {
@@ -581,6 +581,18 @@ test("an operation states what the caller must hold, and the overview lists the 
   const external = x.index(PERMISSIONS_EXTERNAL);
   assert.match(textOf(x.operationView(external, "example.leyline#GetOrganization", null)), /Requires permissions internal to the service\./);
   assert.ok(!textOf(x.overviewView(external)).includes("organization:read"));
+  // `requires none` keeps its reason, rendered as model Markdown after the
+  // sentence; without one it says the sentence alone.
+  const batch = x.operationView(external, "example.leyline#BatchGetGraphs", null);
+  assert.match(textOf(batch), /Requires no permission\./);
+  assert.match(htmlOf(batch), /Each graph requires <code>graph:read<\/code>\. The response reports inaccessible/);
+  assert.ok(!textOf(x.operationView(external, "example.leyline#GetUser", null)).includes("Returns only"));
+  // A listing narrowed only by an internal filter says so, naming nothing.
+  const organizations = textOf(x.operationView(external, "example.leyline#ListOrganizations", null));
+  assert.match(organizations, /Requires no permission\.[\s\S]*Returns only what the caller may see\./);
+  assert.ok(!organizations.includes("organization:read"));
+  // A pending clause's `///` is the server's, like its reason.
+  assert.match(htmlOf(x.operationView(m, "example.leyline#RestoreBackup", null)), /<p>Restores are checked against the backup ledger.<\/p>/);
   assert.match(htmlOf(x.operationView(external, "example.leyline#CreateGraph", null)), /<code>graph:write<\/code>/);
 });
 

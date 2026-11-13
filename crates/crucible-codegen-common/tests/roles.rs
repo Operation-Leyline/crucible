@@ -204,7 +204,22 @@ fn a_filter_is_granted_by_any_binding_that_covers_an_instance() {
     let client = project(&server, Audience::External).unwrap();
     assert_eq!(
         sentences(&client, "ListNotes", false),
-        ["Returns only what the caller may see through `owner` at `workspace`."]
+        ["What the caller sees is granted by `owner` at `workspace`."]
+    );
+    // An SDK method says it in order: the requirement sentence, the
+    // filtered note, then which roles grant it.
+    let list = client
+        .operations
+        .iter()
+        .find(|op| op.id.name() == "ListNotes")
+        .unwrap();
+    assert_eq!(
+        crucible_codegen_common::docs::requirement_sentences(&client, list),
+        [
+            "Requires no permission.",
+            "Returns only what the caller may see.",
+            "What the caller sees is granted by `owner` at `workspace`."
+        ]
     );
     assert_eq!(
         sentences(&server, "ListNotes", true),

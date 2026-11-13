@@ -751,7 +751,11 @@ fn operation(service: &Service, op: &Operation, explorer: bool) -> Value {
     if let Some(mut requirements) = crate::permissions::requirements(service, op) {
         // A clause's documentation is model Markdown: beside the raw string,
         // (additive) the same text rendered like any other documentation, so
-        // a reader shows it as prose rather than as Markdown source.
+        // a reader shows it as prose rather than as Markdown source. So is
+        // the `///` on `requires none` and `requires pending`.
+        if let Some(docs) = requirements["documentation"].as_str() {
+            requirements["renderedDocumentation"] = documentation(service, Some(docs));
+        }
         let clauses = requirements
             .get_mut("clauses")
             .and_then(Value::as_array_mut);

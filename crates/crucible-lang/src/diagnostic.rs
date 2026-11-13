@@ -17,6 +17,22 @@ pub enum Severity {
     Advice,
 }
 
+/// The code that starts the warning for `public`, the deprecated spelling of
+/// `anonymous` on an operation and in a rule condition. Its span is the word
+/// itself, so an editor's quick fix replaces the span with `anonymous`.
+pub const DEPRECATED_PUBLIC: &str = "deprecated.public";
+
+/// The warning for the deprecated `public` at `span`; `place` says where it
+/// was written, such as "on an operation".
+pub(crate) fn deprecated_public(span: Span, place: &str) -> Diagnostic {
+    Diagnostic::warning(
+        span,
+        format!(
+            "{DEPRECATED_PUBLIC}: `public` {place} is deprecated: write `anonymous`, which says what it means (the operation takes no credential); `public` is accepted until the next minor release"
+        ),
+    )
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Diagnostic {
     pub span: Span,

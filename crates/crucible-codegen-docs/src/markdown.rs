@@ -1,5 +1,6 @@
 use crucible_codegen_common::describe::Description;
 use crucible_codegen_common::documentation;
+use crucible_codegen_common::permissions::{FILTERED_RESULTS, NO_PERMISSION};
 use crucible_ir::ir::Service;
 use serde_json::Value;
 
@@ -1508,13 +1509,31 @@ fn authorization(op: &Value) -> String {
         return String::new();
     };
     let mut out = "## Authorization\n\n".to_owned();
+    // The `///` on `requires none` or `requires pending`: the reader-facing
+    // reason, after the sentence, as model documentation.
+    let reason = |out: &mut String| {
+        if let Some(html) = requirements["renderedDocumentation"]["html"].as_str() {
+            out.push_str(&html_block(html));
+            out.push('\n');
+        }
+    };
     match kind {
-        "none" => out.push_str("Requires no permission.\n\n"),
+        "none" => {
+            out.push_str(&format!("{NO_PERMISSION}\n\n"));
+            // Internal filters narrow the answer; which ones is not said.
+            if requirements["filtered"].as_bool() == Some(true) {
+                out.push_str(&format!("{FILTERED_RESULTS}\n\n"));
+            }
+            reason(&mut out);
+        }
         // Only the server audience keeps a pending operation's reason.
-        "pending" => out.push_str(&format!(
-            "Requirements not declared yet; the service checks them itself: {}\n\n",
-            escaped(string(&requirements["reason"]))
-        )),
+        "pending" => {
+            out.push_str(&format!(
+                "Requirements not declared yet; the service checks them itself: {}\n\n",
+                escaped(string(&requirements["reason"]))
+            ));
+            reason(&mut out);
+        }
         "internal" => out.push_str("Requires permissions internal to the service.\n\n"),
         _ => {
             for sentence in list(&op["requirementDocumentation"]) {

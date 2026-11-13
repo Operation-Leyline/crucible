@@ -262,6 +262,8 @@ trait when a project defines it.
     *Why:* 99, 70 and 5 uses; `@auth` with a non-empty list has no other
     use; RFC 9110 defines safe and idempotent methods, and the retry
     contract in every runtime reads exactly these flags.
+    *Amended by decision 84:* the third keyword is now spelled `anonymous`;
+    `public` is its deprecated spelling.
 
 27. **`@token` marks the input member a client fills with a fresh
     idempotency token.** It is an annotation, not a keyword, by the rule in
@@ -272,7 +274,8 @@ trait when a project defines it.
     modifier from a closed set the compiler validates and the IR models as
     a flag: `readonly`, `idempotent`, `public`, `strict`, `internal`,
     `sensitive`, `unique`, `retryable`, and on properties `readonly` (34a),
-    `immutable` and `writeonly`. An `@annotation(..)` carries a value or
+    `immutable` and `writeonly`. (`public` is now `anonymous`, decision
+    84.) An `@annotation(..)` carries a value or
     binds a member to something outside the type system: HTTP
     bindings, `@token`, documentation notes, and all project metadata.
     Annotation arguments are type-checked. *Replaces:* Smithy's "everything
@@ -1757,6 +1760,8 @@ references are to the code as of the design.
     declared once and documented with the other request parameters. The
     verification scheme (HMAC, ECDSA, a key id) stays the handler's and
     the documentation's: senders differ, and no generator acts on it.
+    *Since decision 84* the operation is spelled `anonymous`, and the check
+    is `sender.anonymous`.
 
 ## Migration hooks
 
@@ -1852,6 +1857,31 @@ references are to the code as of the design.
     resource that becomes public are unchanged, so it finds nothing; an SDK
     release plan compares external views, which only gain, except that a
     public output enum gaining a value is its usual finding.
+
+## Anonymous operations
+
+84. **An operation that takes no credential is `anonymous`; `public` is
+    its deprecated spelling.** `anonymous operation Health` lowers exactly
+    as `public operation Health` did: no authentication schemes, nothing to
+    authorize, no requirement allowed (`permissions.anonymous`), and the
+    one modifier `@sender` requires (`sender.anonymous`). A rule reads it
+    as `where anonymous`. `public` is still accepted for one minor release
+    on an operation, in a rule condition and in a metadata key's
+    `conflicts`, with the same meaning and a `deprecated.public` warning
+    at the word; the formatter writes the modifier as `anonymous` and the
+    language server offers the replacement. The IR field is
+    `Operation::anonymous`, serialized as `public`, so every frozen
+    release and lock reads and writes unchanged and the snapshot format is
+    not bumped. The runtime's `Operation::ANONYMOUS` and
+    `OperationMetadata::anonymous` replace `PUBLIC` and `public`, which
+    stay one minor as `#[deprecated]` shims. *Amends:* decisions 26, 27a,
+    37, 46 and 81, whose text is kept as written. *Why:* everywhere else in
+    Crucible "public" means visible to clients (the `public` permission
+    tier, client registries) and `internal` means outside the client
+    audience, so a webhook receiver anyone may call but no client should
+    see read `public internal operation`, a contradiction that needed a
+    paragraph to explain. `anonymous` is the sense `[AllowAnonymous]`
+    already names in the frameworks (docs/permissions.md).
 
 ## Settled in the syntax pass
 

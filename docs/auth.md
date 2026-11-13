@@ -12,8 +12,9 @@ tenant membership for token callers, permissions, and authorization;
 
 ## Configuring Cognito
 
-Declare `auth bearer` on the service; a `public` operation opts out. Bearer is
-the only scheme.
+Declare `auth bearer` on the service; an `anonymous` operation opts out: it
+takes no credential. Bearer is the only scheme. (`public` is the deprecated
+spelling of `anonymous`.)
 
 ```
 service Example {
@@ -24,7 +25,7 @@ service Example {
 
 operation Read { .. }
 
-public operation Health { .. }
+anonymous operation Health { .. }
 ```
 
 Add `crucible-auth` from the same revision as your runtime. Construct an ID-token

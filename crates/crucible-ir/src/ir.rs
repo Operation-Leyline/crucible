@@ -1003,11 +1003,16 @@ pub struct Operation {
     pub id: ShapeId,
     /// Effective authentication schemes, after service and operation overrides.
     pub auth: Vec<ShapeId>,
-    /// Declared public: the `.cru` `public` modifier. Empty `auth` alone does not say so: a service that
-    /// declares no scheme leaves every operation without one
-    /// (docs/permissions.md §6.1).
-    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
-    pub public: bool,
+    /// Declared anonymous: the `.cru` `anonymous` modifier (formerly
+    /// `public`), so the operation takes no credential. Empty `auth` alone
+    /// does not say so: a service that declares no scheme leaves every
+    /// operation without one (docs/permissions.md §6.1).
+    ///
+    /// Serialized as `public`, its name when releases were first frozen: the
+    /// IR's serde names are the release snapshot format, so committed
+    /// snapshots and locks load unchanged.
+    #[serde(rename = "public", default, skip_serializing_if = "std::ops::Not::not")]
+    pub anonymous: bool,
     /// The resource that binds the operation; `None` when the service does.
     pub resource: Option<ShapeId>,
     pub docs: Option<String>,

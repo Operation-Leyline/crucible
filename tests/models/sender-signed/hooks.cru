@@ -40,7 +40,7 @@ readonly operation GetAccount {
 /// Receive an event from the payment processor. A request whose signature
 /// does not verify is refused with [AccessDenied].
 @sender("Payments Inc.", signature: signature)
-public operation RecordPaymentEvent {
+anonymous operation RecordPaymentEvent {
     http POST "/payment-events"
     input {
         @header("Payment-Signature")
@@ -65,7 +65,7 @@ list LeakedKeys: LeakedKey { length 1..100 }
 /// signature header is optional in the model, so that a request without one
 /// is refused like a wrong one, with [AccessDenied].
 @sender("CodeHost", signature: signature)
-public operation ReportLeakedKeys {
+anonymous operation ReportLeakedKeys {
     http POST "/leaked-keys" -> 200
     input {
         @header("Scanner-Key-Identifier")

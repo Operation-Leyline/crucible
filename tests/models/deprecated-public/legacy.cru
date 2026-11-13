@@ -1,0 +1,38 @@
+/// A service whose model predates `anonymous`.
+service Legacy {
+    version "2026-11-01"
+    protocol json
+    auth bearer
+    operations [Health, RecordEvent, GetStatus]
+}
+
+readonly public operation Health {
+    http GET "/health"
+    output {
+        ok: boolean
+    }
+}
+
+/// Receive an event from the payment processor, which signs it.
+@sender("Payments Inc.", signature: signature)
+public operation RecordEvent {
+    http POST "/events"
+    input {
+        @header("Payment-Signature")
+        signature: string
+    }
+}
+
+/// Reads the caller's status. Called with a bearer token.
+readonly operation GetStatus {
+    http GET "/status"
+    output {
+        ok: boolean
+    }
+}
+
+/// An operation anyone may call says why.
+rule AnonymousIsExplained advice {
+    every operation where public
+    must documented
+}

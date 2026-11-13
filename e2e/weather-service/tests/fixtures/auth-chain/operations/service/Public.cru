@@ -1,4 +1,4 @@
-readonly public operation Public {
+readonly anonymous operation Public {
     http GET "/public" -> 200
     output {
         subject?: string

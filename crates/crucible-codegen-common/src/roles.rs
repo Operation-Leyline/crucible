@@ -20,7 +20,7 @@ use crucible_ir::ir::{
 use serde_json::{Value, json};
 
 use crate::permissions::{
-    HandlerDocs, clause_target, clause_text, client_visible, code_span, handler_docs, noun,
+    ClauseDocs, clause_target, clause_text, client_visible, code_span, handler_docs, noun,
 };
 
 /// Whether a reader of this audience sees `role`.
@@ -112,7 +112,7 @@ fn grantors(
         );
         // One paragraph reads inline, as a handler clause's does; more is
         // the role's to say on the Roles page.
-        if let HandlerDocs::Inline(docs) = handler_docs(docs) {
+        if let ClauseDocs::Inline(docs) = handler_docs(docs) {
             text.push_str(&format!(" ({docs})"));
         }
         parts.push(text);
@@ -157,7 +157,10 @@ fn subject(service: &Service, op: &Operation, grants: &ClauseGrants, internal: b
 /// requirement sentence's "Returns only the notes the caller holds
 /// `note:read` on" does: "Returns each note the caller holds `note:read`
 /// on through `owner` at `workspace`; `viewer` at `allNotes` or `note`".
-/// Each instance is its own check, so a binding on one note counts.
+/// Each instance is its own check, so a binding on one note counts. A
+/// filter this audience does not see named follows "Returns only what the
+/// caller may see.": "What the caller sees is granted by `owner` at
+/// `workspace`."
 fn filtered(
     service: &Service,
     op: &Operation,
@@ -173,7 +176,7 @@ fn filtered(
             noun(&resource.name),
             code_span(&permission.value)
         ),
-        None => format!("Returns only what the caller may see through {roles}."),
+        None => format!("What the caller sees is granted by {roles}."),
     }
 }
 

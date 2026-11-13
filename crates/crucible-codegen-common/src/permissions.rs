@@ -181,20 +181,50 @@ fn identified(identifier: &str) -> String {
     )
 }
 
-/// A handler clause's documentation, as its requirement sentence carries
-/// it.
-pub(crate) enum HandlerDocs {
+/// A clause's documentation, as the requirement sentences carry it.
+pub(crate) enum ClauseDocs {
     None,
-    /// One paragraph, read inline: `(only when the parsed query writes)`.
+    /// One paragraph, read inline: a handler clause's `(only when the
+    /// parsed query writes)`, or the sentences after `requires none`'s.
     Inline(String),
     /// Anything longer, carried whole after the sentences.
     Below(String),
 }
 
-/// One paragraph reads inline, its first word lowercased only when that
-/// word is an ordinary capitalised one (never `HTTP`, `GraphQL` or `I`);
-/// anything else (several paragraphs, a list, a code block) is kept whole.
-pub(crate) fn handler_docs(docs: Option<&str>) -> HandlerDocs {
+/// A handler clause's documentation: [`clause_docs`], its one paragraph
+/// read inside a sentence, the first word lowercased only when that word
+/// is an ordinary capitalised one (never `HTTP`, `GraphQL` or `I`), and the
+/// sentence's own period dropped.
+pub(crate) fn handler_docs(docs: Option<&str>) -> ClauseDocs {
+    let text = match clause_docs(docs) {
+        ClauseDocs::Inline(text) => text,
+        other => return other,
+    };
+    // The sentence's own period only: an ellipsis keeps its dots.
+    let text = text
+        .strip_suffix('.')
+        .filter(|rest| !rest.ends_with('.'))
+        .unwrap_or(&text);
+    let first_word = text
+        .split(|c: char| !c.is_alphanumeric())
+        .next()
+        .unwrap_or_default();
+    let mut chars = first_word.chars();
+    let ordinary = chars.next().is_some_and(char::is_uppercase)
+        && first_word != "I"
+        && !chars.any(char::is_uppercase);
+    ClauseDocs::Inline(if ordinary {
+        let mut chars = text.chars();
+        let first = chars.next().map(|c| c.to_lowercase().collect::<String>());
+        format!("{}{}", first.unwrap_or_default(), chars.as_str())
+    } else {
+        text.to_owned()
+    })
+}
+
+/// One paragraph reads inline, its soft line breaks as spaces; anything
+/// else (several paragraphs, a list, a code block) is kept whole.
+fn clause_docs(docs: Option<&str>) -> ClauseDocs {
     // Model text inside generated prose: escaped once here, as every
     // target's model documentation is, so a line-start `@see` is no JSDoc
     // tag and a bare `[ops]` no rustdoc link, in every client at once. The
@@ -205,7 +235,7 @@ pub(crate) fn handler_docs(docs: Option<&str>) -> HandlerDocs {
         .map(|d| d.trim().to_owned())
         .filter(|d| !d.is_empty())
     else {
-        return HandlerDocs::None;
+        return ClauseDocs::None;
     };
     let mut depth = 0usize;
     let mut blocks = 0usize;
@@ -229,30 +259,10 @@ pub(crate) fn handler_docs(docs: Option<&str>) -> HandlerDocs {
         }
     }
     if blocks != 1 || !paragraph {
-        return HandlerDocs::Below(docs);
+        return ClauseDocs::Below(docs);
     }
     // One paragraph: its soft line breaks read as spaces already.
-    let text = docs.lines().map(str::trim).collect::<Vec<_>>().join(" ");
-    // The sentence's own period only: an ellipsis keeps its dots.
-    let text = text
-        .strip_suffix('.')
-        .filter(|rest| !rest.ends_with('.'))
-        .unwrap_or(&text);
-    let first_word = text
-        .split(|c: char| !c.is_alphanumeric())
-        .next()
-        .unwrap_or_default();
-    let mut chars = first_word.chars();
-    let ordinary = chars.next().is_some_and(char::is_uppercase)
-        && first_word != "I"
-        && !chars.any(char::is_uppercase);
-    HandlerDocs::Inline(if ordinary {
-        let mut chars = text.chars();
-        let first = chars.next().map(|c| c.to_lowercase().collect::<String>());
-        format!("{}{}", first.unwrap_or_default(), chars.as_str())
-    } else {
-        text.to_owned()
-    })
+    ClauseDocs::Inline(docs.lines().map(str::trim).collect::<Vec<_>>().join(" "))
 }
 
 /// A Markdown code span for `text`, which may itself hold backticks: the
@@ -293,10 +303,10 @@ fn clause_prose(service: &Service, clause: &Requirement) -> Option<(String, Opti
         Mode::Handler => {
             let mut text = format!("{value} on the {noun}, checked by the service");
             match handler_docs(clause.docs.as_deref()) {
-                HandlerDocs::None => {}
+                ClauseDocs::None => {}
                 // "(only when the parsed query writes)": a clause inside a sentence.
-                HandlerDocs::Inline(docs) => text.push_str(&format!(" ({docs})")),
-                HandlerDocs::Below(docs) => {
+                ClauseDocs::Inline(docs) => text.push_str(&format!(" ({docs})")),
+                ClauseDocs::Below(docs) => {
                     text.push_str(" (see below)");
                     below = Some(format!(
                         "{value} on the {noun}, checked by the service:\n\n{docs}"
@@ -349,7 +359,7 @@ fn visible_clauses<'a>(
         Requirements::List(clauses) => (clauses.as_slice(), false),
         Requirements::Partial(clauses) => (clauses.as_slice(), true),
         Requirements::Internal => (&[][..], true),
-        Requirements::Undeclared | Requirements::None | Requirements::Pending { .. } => {
+        Requirements::Undeclared | Requirements::None { .. } | Requirements::Pending { .. } => {
             return None;
         }
     };
@@ -367,6 +377,32 @@ fn visible_clauses<'a>(
     Some((visible, hidden))
 }
 
+/// The sentence `requires none` gets.
+pub const NO_PERMISSION: &str = "Requires no permission.";
+
+/// The sentence an operation gets whose only clauses are `filters` on
+/// permissions the reader does not see: nothing refuses the caller, but the
+/// answer is narrowed, and which permission narrows it is not said.
+pub const FILTERED_RESULTS: &str = "Returns only what the caller may see.";
+
+/// `requires none`'s sentences: [`NO_PERMISSION`], [`FILTERED_RESULTS`]
+/// when internal filters narrow the answer, then the clause's `///`, the
+/// reader-facing reason, as sentences of its own when it is one paragraph
+/// and as a block after them otherwise.
+fn none_parts(docs: Option<&str>, filtered: bool) -> (Vec<String>, Vec<String>) {
+    let mut sentences = vec![NO_PERMISSION.to_owned()];
+    if filtered {
+        sentences.push(FILTERED_RESULTS.to_owned());
+    }
+    let mut blocks = Vec::new();
+    match clause_docs(docs) {
+        ClauseDocs::None => {}
+        ClauseDocs::Inline(text) => sentences.push(text),
+        ClauseDocs::Below(text) => blocks.push(text),
+    }
+    (sentences, blocks)
+}
+
 /// The requirement sentences, and the Markdown blocks that follow them (a
 /// handler clause's documentation of more than one paragraph).
 fn requirement_parts(
@@ -374,8 +410,8 @@ fn requirement_parts(
     op: &Operation,
     internal: bool,
 ) -> (Vec<String>, Vec<String>) {
-    if matches!(op.requirements, Requirements::None) {
-        return (vec!["Requires no permission.".to_owned()], Vec::new());
+    if let Requirements::None { docs, filtered } = &op.requirements {
+        return none_parts(docs.as_deref(), *filtered);
     }
     // Undeclared, or pending: the server-audience docs state a pending
     // reason themselves.
@@ -383,9 +419,10 @@ fn requirement_parts(
         return (Vec::new(), Vec::new());
     };
     // Every clause an internal `filters` left out: nothing refuses the
-    // caller, as the client audience projection says (`requires none`).
+    // caller, but the answer is narrowed, as the client audience projection
+    // says (`requires none`, filtered).
     if clauses.is_empty() && !hidden {
-        return (vec!["Requires no permission.".to_owned()], Vec::new());
+        return none_parts(None, true);
     }
     let mut sentences = Vec::new();
     let mut blocks = Vec::new();
@@ -430,8 +467,9 @@ fn requirement_parts(
 /// entry. Each entry is Markdown holding model text (a clause's
 /// documentation, a `when` literal), so a target renders it the way it
 /// renders model documentation, never as plain text. `requires none` says
-/// so; a pending operation says nothing (the server-audience docs state its
-/// reason themselves).
+/// so, then that the answer is narrowed when internal filters narrow it
+/// ([`FILTERED_RESULTS`]), then its `///`; a pending operation says nothing
+/// (the server-audience docs state its reason themselves).
 ///
 /// `internal` names internal permissions, for server-audience docs,
 /// OpenAPI and descriptions only, as [`registry`] lists them; a client
@@ -507,14 +545,31 @@ pub fn registry(service: &Service, internal: bool) -> Value {
 
 /// An operation's requirements as data (`x-crucible-requires`, the
 /// description's `requirements`), or `None` when it declares nothing.
+/// `requires none` and `requires pending` carry their `///` as
+/// `documentation`, and a `none` whose answer internal filters narrow says
+/// `filtered`; each is absent otherwise.
 pub fn requirements(service: &Service, op: &Operation) -> Option<Value> {
+    fn documented(mut value: Value, docs: Option<&String>) -> Value {
+        if let Some(docs) = docs.map(|d| d.trim()).filter(|d| !d.is_empty()) {
+            value["documentation"] = json!(docs);
+        }
+        value
+    }
     Some(match &op.requirements {
         Requirements::Undeclared => return None,
-        Requirements::None => json!({"kind": "none"}),
+        Requirements::None { docs, filtered } => {
+            let mut value = json!({"kind": "none"});
+            if *filtered {
+                value["filtered"] = json!(true);
+            }
+            documented(value, docs.as_ref())
+        }
         // Requirements on permissions this audience does not see: they
         // exist, but none is named.
         Requirements::Internal => json!({"kind": "internal"}),
-        Requirements::Pending { reason } => json!({"kind": "pending", "reason": reason}),
+        Requirements::Pending { reason, docs } => {
+            documented(json!({"kind": "pending", "reason": reason}), docs.as_ref())
+        }
         Requirements::List(clauses) | Requirements::Partial(clauses) => {
             let clauses: Vec<Value> = clauses
                 .iter()
@@ -547,15 +602,7 @@ pub fn requirements(service: &Service, op: &Operation) -> Option<Value> {
                     if let Some(when) = &clause.when {
                         value["when"] = json!(when.text());
                     }
-                    if let Some(docs) = clause
-                        .docs
-                        .as_deref()
-                        .map(str::trim)
-                        .filter(|d| !d.is_empty())
-                    {
-                        value["documentation"] = json!(docs);
-                    }
-                    Some(value)
+                    Some(documented(value, clause.docs.as_ref()))
                 })
                 .collect();
             let mut value = json!({"kind": "list", "clauses": clauses});
@@ -743,7 +790,7 @@ mod tests {
 
 #[cfg(test)]
 mod prose {
-    use super::{HandlerDocs, code_span, handler_docs};
+    use super::{ClauseDocs, code_span, handler_docs};
 
     #[test]
     fn code_spans_survive_backticks() {
@@ -756,9 +803,9 @@ mod prose {
 
     fn inline(docs: &str) -> String {
         match handler_docs(Some(docs)) {
-            HandlerDocs::Inline(text) => text,
-            HandlerDocs::Below(_) => panic!("{docs} reads inline"),
-            HandlerDocs::None => panic!("{docs} is documentation"),
+            ClauseDocs::Inline(text) => text,
+            ClauseDocs::Below(_) => panic!("{docs} reads inline"),
+            ClauseDocs::None => panic!("{docs} is documentation"),
         }
     }
 
@@ -776,13 +823,13 @@ mod prose {
         assert_eq!(inline("Only sometimes..."), "only sometimes...");
         assert_eq!(inline("Ask [ops] first."), "ask \\[ops] first");
         match handler_docs(Some("Checked twice:\n\n@see the runbook")) {
-            HandlerDocs::Below(text) => {
+            ClauseDocs::Below(text) => {
                 assert!(text.ends_with("\n\\@see the runbook"), "{text}");
             }
             _ => panic!("two paragraphs follow the sentence"),
         }
         match handler_docs(Some("Run:\n\n```\n@retry\n```")) {
-            HandlerDocs::Below(text) => assert!(text.contains("\n\\@retry\n"), "{text}"),
+            ClauseDocs::Below(text) => assert!(text.contains("\n\\@retry\n"), "{text}"),
             _ => panic!("a code block follows the sentence"),
         }
         for docs in [
@@ -792,10 +839,10 @@ mod prose {
             "Line one  \nline two",
         ] {
             assert!(
-                matches!(handler_docs(Some(docs)), HandlerDocs::Below(_)),
+                matches!(handler_docs(Some(docs)), ClauseDocs::Below(_)),
                 "{docs}"
             );
         }
-        assert!(matches!(handler_docs(Some("  ")), HandlerDocs::None));
+        assert!(matches!(handler_docs(Some("  ")), ClauseDocs::None));
     }
 }

@@ -57,7 +57,7 @@ pub fn client_view(service: &Service) -> Service {
                 .chain(&service.export_roots)
                 .chain(entries)
                 .cloned()
-                .chain(catalogue_roots(service)),
+                .chain(catalogue_roots(service, Audience::Internal)),
         )
     };
     let before = reach(&mut service.operations.iter());
@@ -112,23 +112,32 @@ pub fn client_view(service: &Service) -> Service {
     result
 }
 
-/// The enums a public role catalogue names, which no operation need use:
-/// the `principals` enum its holders are values of, and the `@roleTypes`
-/// and `@scopeTypes` wire enums. They are part of the contract as the
-/// catalogue is, so every view that keeps shapes by reachability ([`project`]
-/// and [`client_view`]) roots them here; otherwise a holder restriction
-/// would lose its enum and read as none (docs/roles.md §4.4).
-fn catalogue_roots(service: &Service) -> Vec<ShapeId> {
-    let public_roles = !service.internal && service.roles.iter().any(|r| !r.internal);
-    let public_scopes = !service.internal && service.role_scopes.iter().any(|s| !s.internal);
+/// The enums a role catalogue names, which no operation need use: the
+/// `principals` enum its holders are values of, and the `@roleTypes` and
+/// `@scopeTypes` wire enums. They are part of the contract as the
+/// catalogue is, so every view that keeps shapes by reachability roots
+/// them here; otherwise a holder restriction would lose its enum and read
+/// as none (docs/roles.md §4.4).
+///
+/// `audience` is the catalogue the view keeps of `service`: `External`
+/// for [`project`], which keeps only public roles and scopes of a public
+/// service; `Internal` for [`client_view`], whose input is already an
+/// audience's projection and keeps every role and scope it has.
+fn catalogue_roots(service: &Service, audience: Audience) -> Vec<ShapeId> {
+    let kept = |internal: bool| match audience {
+        Audience::External => !internal && !service.internal,
+        Audience::Internal => true,
+    };
+    let roles = service.roles.iter().any(|r| kept(r.internal));
+    let scopes = service.role_scopes.iter().any(|s| kept(s.internal));
     let settings = &service.role_settings;
     [
-        (public_roles, &settings.principals),
-        (public_roles, &settings.role_types),
-        (public_scopes, &settings.scope_types),
+        (roles, &settings.principals),
+        (roles, &settings.role_types),
+        (scopes, &settings.scope_types),
     ]
     .into_iter()
-    .filter_map(|(public, id)| id.clone().filter(|_| public))
+    .filter_map(|(kept, id)| id.clone().filter(|_| kept))
     .collect()
 }
 
@@ -228,7 +237,7 @@ fn external(service: &Service, lenient: bool) -> Result<Service, Diagnostics> {
         .chain(&result.errors)
         .chain(&result.export_roots)
         .cloned()
-        .chain(catalogue_roots(service))
+        .chain(catalogue_roots(service, Audience::External))
         .collect();
     // A resource names its entries' types without reaching them: the
     // audience's shapes are what its operations and explicit exports reach.
@@ -758,10 +767,14 @@ fn project_permissions(result: &mut Service) {
                 };
             } else if clauses.is_empty() {
                 // Only internal filters: no caller is refused for lacking a
-                // permission, so to the client it requires none (what it
-                // answers is narrowed, as any listing's may be). Not
-                // `Undeclared`, which the shared check refuses.
-                op.requirements = Requirements::None;
+                // permission, so to the client it requires none, but what it
+                // answers is narrowed, which the client is told without the
+                // permission being named. Not `Undeclared`, which the shared
+                // check refuses.
+                op.requirements = Requirements::None {
+                    docs: None,
+                    filtered: true,
+                };
             }
         }
     }
@@ -839,9 +852,17 @@ fn project_granted_by(result: &mut Service) {
 /// internal permission leaves its declared and effective grants, the role
 /// stays. The compiler refuses what would mislead once removed (a public
 /// role at an internal scope, assigned by an internal role, held by an
-/// internal kind: `roles.internal`), so what remains is complete.
+/// internal kind: `roles.internal`), so what remains is complete. An
+/// internal service has no external contract, so its whole catalogue goes,
+/// whatever its roles' own flags say, as its operations and resources do.
 fn project_roles(result: &mut Service) {
-    use crate::ir::GrantedSet;
+    use crate::ir::{GrantedSet, RoleSettings};
+    if result.internal {
+        result.roles.clear();
+        result.role_scopes.clear();
+        result.role_settings = RoleSettings::default();
+        return;
+    }
     result.roles.retain(|r| !r.internal);
     result.role_scopes.retain(|s| !s.internal);
     let roles: BTreeSet<String> = result.roles.iter().map(|r| r.symbol.clone()).collect();

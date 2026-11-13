@@ -93,7 +93,7 @@ fn fenced(fence: &str, text: &str) -> String {
 }
 
 fn bearer(service: &Service, operation: &Operation) -> bool {
-    !operation.public && operation.auth.iter().any(|s| service.is_bearer(s))
+    !operation.anonymous && operation.auth.iter().any(|s| service.is_bearer(s))
 }
 
 /// Whether any operation's request or response body is a payload of its
@@ -158,12 +158,12 @@ fn request(facts: &Facts) -> Draft {
 
     out.push_str("\nSend these headers:\n\n| Header | Value | On |\n|---|---|---|\n");
     if with_bearer {
-        let public = service
+        let without_token = service
             .operations
             .iter()
             .filter(|op| !bearer(service, op))
             .count();
-        let on = match public {
+        let on = match without_token {
             0 => "every request".to_owned(),
             1 => "every request but the one operation that takes no bearer token".to_owned(),
             n => format!("every request but the {n} operations that take no bearer token"),
@@ -210,7 +210,7 @@ fn request(facts: &Facts) -> Draft {
     if service
         .operations
         .iter()
-        .any(|op| !op.public && op.auth.iter().any(|s| !service.is_bearer(s)))
+        .any(|op| !op.anonymous && op.auth.iter().any(|s| !service.is_bearer(s)))
     {
         out.push_str(
             " An operation that takes another credential than a bearer token says so on its page.",

@@ -192,6 +192,17 @@ fn permission_constants_match_golden() {
         client.contains("Requires permissions internal to the service."),
         "{client}"
     );
+    // `requires none` keeps its `///` as the reason after the sentence; a
+    // listing narrowed only by an internal filter says so, naming nothing.
+    assert!(
+        client.contains("Requires no permission. Each graph requires `graph:read`. The response reports inaccessible or missing graphs as item-level failures.\n"),
+        "{client}"
+    );
+    assert!(
+        client.contains("Requires no permission. Returns only what the caller may see.\n"),
+        "{client}"
+    );
+    assert!(client.contains("Requires no permission.\n"), "{client}");
     let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/golden/permissions.ts");
     if std::env::var_os("CRUCIBLE_BLESS").is_some() {
         fs::write(&path, &permissions).unwrap();
@@ -333,6 +344,11 @@ fn an_internal_audience_client_names_no_internal_permission() {
     );
     assert!(
         client.contains("Requires permissions internal to the service."),
+        "{client}"
+    );
+    // The internal filter is left out the way the projection leaves it out.
+    assert!(
+        client.contains("Requires no permission. Returns only what the caller may see.\n"),
         "{client}"
     );
 }
