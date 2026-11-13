@@ -288,6 +288,81 @@ fn settings(old: &Service, new: &Service, out: &mut Vec<Change>) {
     }
     if old.role_settings.custom && new.role_settings.custom {
         grantable_changes(old, new, out);
+        custom_coverage(old, new, out);
+    }
+}
+
+/// With `custom` on in both releases, what a custom-role binding at each
+/// catalogue scope covers of each permission a custom role may hold. A
+/// custom binding is valid at any scope, and no predefined role need grant
+/// the permission, so a resource moved in beneath a scope (or a scope
+/// added) lets custom holders reach it without a new binding: a widening.
+/// One moved out from under a scope takes it from them: an error, declared
+/// by an exception at the service. A scope whose resource or instance path
+/// changed is `compatibility.scope`'s, a removed one too; a permission
+/// whose tier changed is the grantable comparison's.
+fn custom_coverage(old: &Service, new: &Service, out: &mut Vec<Change>) {
+    let name = old.id.name();
+    // Each permission grantable in both, by stored pair: its resource in
+    // each release, and its value.
+    let mut permissions: BTreeMap<(&ShapeId, &ShapeId), Vec<&str>> = BTreeMap::new();
+    for (was_on, resource) in &old.permissions {
+        let Some((is_on, now)) = new
+            .permissions
+            .iter()
+            .find(|(_, r)| r.name == resource.name)
+        else {
+            continue;
+        };
+        for permission in resource.permissions.iter().filter(|p| grantable(p)) {
+            if now.by_value(&permission.value).is_some_and(grantable) {
+                permissions
+                    .entry((was_on, is_on))
+                    .or_default()
+                    .push(permission.value.as_str());
+            }
+        }
+    }
+    // Each scope of the new catalogue, with the one of the baseline that
+    // has its value, unless it changed what it is on.
+    for now in &new.role_scopes {
+        let scope = old.role_scopes.iter().find(|s| s.value == now.value);
+        if let Some(scope) = scope
+            && (!same_target(&target(old, &scope.on), &target(new, &now.on))
+                || !same_path(&instance(old, &scope.on), &instance(new, &now.on)))
+        {
+            continue;
+        }
+        for ((was_on, is_on), values) in &permissions {
+            let before = scope.map_or((false, false), |scope| reach(old, &scope.on, was_on));
+            let after = reach(new, &now.on, is_on);
+            if before.0 && !after.0 || before.1 && !after.1 {
+                out.push(Change {
+                    site: old.id.clone(),
+                    rule: "compatibility.role",
+                    breaking: true,
+                    message: format!(
+                        "`{name}` lets customers define roles (`custom`), and a custom role bound at {:?} no longer covers `{}`, where it may grant {}; holders of custom roles bound there are refused it",
+                        now.value,
+                        was_on.name(),
+                        quoted(values)
+                    ),
+                });
+            }
+            if !before.0 && after.0 || !before.1 && after.1 {
+                out.push(Change {
+                    site: old.id.clone(),
+                    rule: "compatibility.role-widened",
+                    breaking: false,
+                    message: format!(
+                        "`{name}` lets customers define roles (`custom`), and a custom role bound at {:?} now covers `{}`, where it may grant {}; holders of custom roles bound there gain it without a new binding",
+                        now.value,
+                        is_on.name(),
+                        quoted(values)
+                    ),
+                });
+            }
+        }
     }
 }
 
@@ -542,23 +617,28 @@ impl<'a> RoleChanges<'a, '_> {
         }
     }
 
-    /// The kinds of principal that may hold it, by the `principals` enum's
-    /// wire values. A role that names none is held by every kind, so it
-    /// narrows when it names some; one that names some widens when it names
-    /// another, or none.
+    /// The kinds of principal that may hold it, as the runtime's
+    /// `valid_for` reads them: a role without `holders` is valid for any
+    /// kind, including a principal whose kind the binding source does not
+    /// know; one with `holders` only for the kinds it names, by the
+    /// `principals` enum's wire values. Naming kinds where it named none
+    /// narrows it, even when it names them all, since a principal of no
+    /// known kind loses it; naming none where it named some widens it.
     fn holders(&mut self) {
         let symbol = &self.role.symbol;
-        let (was_every, is_every) = (self.role.holders.is_empty(), self.now.holders.is_empty());
-        if was_every && is_every {
-            // Every kind may hold it in both. A kind the `principals` enum
-            // gained is one more that may: reported for review. A kind it
-            // lost refuses nobody here, since a role without `holders` is
-            // valid for any kind (the runtime's `valid_for`, which reads
-            // no enum); the enum's own change is `compatibility.enum`'s.
-            // Without the enum in either release there is nothing to name.
-            if let (Some(Holders::Only(was)), Some(Holders::Only(is))) =
-                (holders(self.old, self.role), holders(self.new, self.now))
-            {
+        let (Some(was), Some(is)) = (holders(self.old, self.role), holders(self.new, self.now))
+        else {
+            return;
+        };
+        match (was, is) {
+            (Holders::Unrestricted, Holders::Unrestricted) => {
+                // A kind the `principals` enum gained is one more that may
+                // hold it: reported for review. A kind it lost refuses
+                // nobody here (the role is valid for any kind); the enum's
+                // own change is `compatibility.enum`'s.
+                let (Some(was), Some(is)) = (kinds(self.old), kinds(self.new)) else {
+                    return;
+                };
                 let gained: Vec<&String> = is
                     .iter()
                     .filter(|(value, _)| !was.contains_key(*value))
@@ -572,37 +652,23 @@ impl<'a> RoleChanges<'a, '_> {
                     self.push("compatibility.role-widened", false, message);
                 }
             }
-            return;
-        }
-        let (Some(was), Some(is)) = (holders(self.old, self.role), holders(self.new, self.now))
-        else {
-            return;
-        };
-        if is_every {
-            // Every kind may hold it now. A binding for a kind a narrowing
-            // made inert is valid again: no migration step converts stored
-            // bindings, so they were kept.
-            if let Holders::Only(was) = was {
+            (Holders::Unrestricted, Holders::Only(is)) => {
+                let message = format!(
+                    "`{symbol}` may now be held only by {}; its other holders, those of no known kind among them, are refused what they had",
+                    names(is.values())
+                );
+                self.push("compatibility.role", true, message);
+            }
+            (Holders::Only(was), Holders::Unrestricted) => {
+                // A binding for a kind a narrowing made inert is valid
+                // again: no migration step converts stored bindings.
                 let message = format!(
                     "`{symbol}` may now be held by every kind of principal, where only {} could; bindings of the other kinds, inert until now, take effect",
                     names(was.values())
                 );
                 self.push("compatibility.role-widened", false, message);
             }
-            return;
-        }
-        let Holders::Only(is) = is else {
-            return;
-        };
-        match was {
-            Holders::Every => {
-                let message = format!(
-                    "`{symbol}` may now be held only by {}; its other holders are refused what they had",
-                    names(is.values())
-                );
-                self.push("compatibility.role", true, message);
-            }
-            Holders::Only(was) => {
+            (Holders::Only(was), Holders::Only(is)) => {
                 let lost: Vec<&String> = was
                     .iter()
                     .filter(|(value, _)| !is.contains_key(*value))
@@ -615,21 +681,17 @@ impl<'a> RoleChanges<'a, '_> {
                     );
                     self.push("compatibility.role", true, message);
                 }
-                // A role that named every kind (no `holders`) cannot gain
-                // one; one that named some can.
-                if !was_every {
-                    let gained: Vec<&String> = is
-                        .iter()
-                        .filter(|(value, _)| !was.contains_key(*value))
-                        .map(|(_, name)| name)
-                        .collect();
-                    if !gained.is_empty() {
-                        let message = format!(
-                            "`{symbol}` may now be held by {}; bindings of those kinds, inert until now, take effect",
-                            names(gained.into_iter())
-                        );
-                        self.push("compatibility.role-widened", false, message);
-                    }
+                let gained: Vec<&String> = is
+                    .iter()
+                    .filter(|(value, _)| !was.contains_key(*value))
+                    .map(|(_, name)| name)
+                    .collect();
+                if !gained.is_empty() {
+                    let message = format!(
+                        "`{symbol}` may now be held by {}; bindings of those kinds, inert until now, take effect",
+                        names(gained.into_iter())
+                    );
+                    self.push("compatibility.role-widened", false, message);
                 }
             }
         }
@@ -1009,52 +1071,51 @@ fn describe(service: &Service, resource: &ShapeId, permission: &str) -> String {
     format!("{value:?} on `{}`", resource.name())
 }
 
+/// Who may hold a role, as the runtime's `valid_for` decides it.
 enum Holders {
-    /// Every kind of principal: `holders` absent, and no `principals` enum
-    /// to list the kinds.
-    Every,
+    /// No `holders`: any kind, a principal of no known kind included.
+    Unrestricted,
     /// These kinds, wire value to the name the model writes.
     Only(BTreeMap<String, String>),
 }
 
-/// Who may hold `role`: its `holders`, or every value of the `principals`
-/// enum when it names none. None when the role names holders the enum does
-/// not have, which the compiler refuses.
-fn holders(service: &Service, role: &Role) -> Option<Holders> {
-    let values: Option<BTreeMap<String, String>> = service
+/// The values of the service's `principals` enum, wire value to name.
+fn kinds(service: &Service) -> Option<BTreeMap<String, String>> {
+    let shape = service
         .role_settings
         .principals
         .as_ref()
-        .and_then(|id| service.shapes.get(id))
-        .and_then(|shape| match shape {
-            Shape::Enum(e) => Some(
-                e.values
-                    .iter()
-                    .map(|v| (v.name.clone(), v.value.clone()))
-                    .collect(),
-            ),
-            Shape::IntEnum(e) => Some(
-                e.values
-                    .iter()
-                    .map(|v| (v.name.clone(), v.value.to_string()))
-                    .collect(),
-            ),
-            _ => None,
-        });
-    if role.holders.is_empty() {
-        return Some(values.map_or(Holders::Every, |values| {
-            Holders::Only(
-                values
-                    .into_iter()
-                    .map(|(name, value)| (value, name))
-                    .collect(),
-            )
-        }));
+        .and_then(|id| service.shapes.get(id))?;
+    match shape {
+        Shape::Enum(e) => Some(
+            e.values
+                .iter()
+                .map(|v| (v.value.clone(), v.name.clone()))
+                .collect(),
+        ),
+        Shape::IntEnum(e) => Some(
+            e.values
+                .iter()
+                .map(|v| (v.value.to_string(), v.name.clone()))
+                .collect(),
+        ),
+        _ => None,
     }
-    let values = values?;
+}
+
+/// Who may hold `role`. None when it names holders the `principals` enum
+/// does not have, which the compiler refuses.
+fn holders(service: &Service, role: &Role) -> Option<Holders> {
+    if role.holders.is_empty() {
+        return Some(Holders::Unrestricted);
+    }
+    let by_name: BTreeMap<String, String> = kinds(service)?
+        .into_iter()
+        .map(|(value, name)| (name, value))
+        .collect();
     role.holders
         .iter()
-        .map(|name| values.get(name).map(|value| (value.clone(), name.clone())))
+        .map(|name| by_name.get(name).map(|value| (value.clone(), name.clone())))
         .collect::<Option<BTreeMap<_, _>>>()
         .map(Holders::Only)
 }

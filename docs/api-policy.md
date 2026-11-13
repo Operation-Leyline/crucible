@@ -416,7 +416,9 @@ exception names.
   because the resource moved out from under the scope's. Its holders are
   refused what they had. So is a role whose `assignedBy` no longer names a
   role it named, or names roles where it named none (whoever the binding
-  operation admits): an assigner can no longer grant or revoke it. A
+  operation admits): an assigner can no longer grant or revoke it. A role
+  that names `holders` where it named none narrows even when it names every
+  kind, since a principal of no known kind loses it. A
   permission or scope that is gone altogether is
   reported once, by `compatibility.permissions` or `compatibility.scope`,
   not again for each role. A grant the service decided that the model now
@@ -427,7 +429,9 @@ exception names.
   roles, or of permissions granted outside roles, are refused what they
   had; an exception at the service declares it. So is, with `custom` on
   in both releases, a permission that is no longer grantable (now
-  `internal` or `@notGrantable`): custom roles that include it lose it.
+  `internal` or `@notGrantable`): custom roles that include it lose it;
+  and a grantable permission's resource moved out from under a scope,
+  which a custom binding there no longer covers.
 - `compatibility.role` (warning): a grant the model decided now left to
   the service (`by service`). Holders keep it where the service's hook
   allows, which only a review of the hook can tell.
@@ -448,7 +452,8 @@ exception names.
   `custom` or `direct` turned on is one too: a requirement may be met by
   what the model does not list; and, with `custom` on in both, a permission
   that became grantable (public or `@permissionOnly`), which custom roles
-  may now include.
+  may now include, or a scope (moved in beneath, or added) whose custom
+  bindings now cover a grantable permission's resource.
 
 A baseline frozen before roles existed has no roles to compare, so adding a
 catalogue reports nothing.

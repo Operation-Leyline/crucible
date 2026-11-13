@@ -544,7 +544,10 @@ roles have no shape of their own. Besides the design's rules:
 
 - *Holders narrowed* (`holders` dropping a kind, or naming kinds where it
   named none) is a `compatibility.role` error, compared by the `principals`
-  enum's wire values. Admitting more kinds (another named, or `holders`
+  enum's wire values. Holders are compared as the runtime's `valid_for`
+  reads them: a role without `holders` is valid for any kind, a principal
+  of no known kind included, so naming kinds where it named none narrows it
+  even when it names every value of the enum. Admitting more kinds (another named, or `holders`
   dropped) is `compatibility.role-widened`: no migration step converts
   stored bindings, so bindings a narrowing made inert take effect again.
   A role without `holders` in both releases is held by every kind; a value
@@ -586,7 +589,12 @@ roles have no shape of their own. Besides the design's rules:
   both declare whose tier became grantable (`crucible_ir::roles::grantable`,
   the rule granted-by uses: public or `@permissionOnly`) is
   `compatibility.role-widened`, and one no longer grantable a
-  `compatibility.role` error, declared the same way.
+  `compatibility.role` error, declared the same way. A custom binding is
+  valid at any scope, so with `custom` on in both, what each scope's
+  binding covers (one instance and `R(*)`) of each permission grantable in
+  both is compared too: a resource moved in beneath a scope, or a scope
+  added, is `compatibility.role-widened`; one moved out, a
+  `compatibility.role` error at the service.
 - *Coverage.* Coverage follows the resource tree, so a resource moved out
   from under a scope's resource narrows every role bound there that grants
   on it, though its scopes and grants read the same: for each scope a

@@ -768,7 +768,21 @@ fn a_role_admitting_fewer_kinds_of_principal_refuses_its_holders() {
     assert_eq!(
         at(&found, "compatibility.role", "graphReader"),
         [
-            "error: `graphReader` may no longer be held by `API_KEY`; its holders among them are refused what they had"
+            "error: `graphReader` may now be held only by `USER`; its other holders, those of no known kind among them, are refused what they had"
+        ]
+    );
+    // Every kind, then all of them named: a principal of no known kind
+    // (`BindingSource::kind` answering none) is refused now, as the
+    // runtime's `valid_for` decides.
+    let found = findings(&edit(
+        BASE,
+        "{ at [allGraphs, graph]; grants Graph [read] }",
+        "{ at [allGraphs, graph]; holders [USER, API_KEY]; grants Graph [read] }",
+    ));
+    assert_eq!(
+        at(&found, "compatibility.role", "graphReader"),
+        [
+            "error: `graphReader` may now be held only by `API_KEY`, `USER`; its other holders, those of no known kind among them, are refused what they had"
         ]
     );
     // A kind named, then not.
@@ -983,6 +997,63 @@ fn a_kind_of_principal_added_widens_every_role_without_holders() {
     // is valid for any kind (the runtime's `valid_for`): no role finding.
     let found = findings_from(&more, BASE);
     none_of(&found, RULES);
+}
+
+/// `model` with `roles [..] custom`.
+fn with_custom(model: &str) -> String {
+    edit(
+        model,
+        "    roles [owner, graphReader, graphWriter, graphAdmin]\n",
+        "    roles [owner, graphReader, graphWriter, graphAdmin] custom\n",
+    )
+}
+
+#[test]
+fn under_custom_what_a_scope_covers_of_grantable_permissions_is_compared() {
+    // A custom binding is valid at any scope: History moved out from under
+    // Graph takes it from custom roles bound at a graph, though no
+    // predefined role grants it there.
+    let custom = with_custom(BASE);
+    let moved = history_under_organization(&custom);
+    let found = findings_from(&custom, &moved);
+    assert_eq!(
+        at(&found, "compatibility.role", "Atlas"),
+        [
+            "error: `Atlas` lets customers define roles (`custom`), and a custom role bound at \"allGraphs\" no longer covers `History`, where it may grant \"history:read\"; holders of custom roles bound there are refused it",
+            "error: `Atlas` lets customers define roles (`custom`), and a custom role bound at \"graph\" no longer covers `History`, where it may grant \"history:read\"; holders of custom roles bound there are refused it",
+        ]
+    );
+    // Moved back in beneath them, they gain it.
+    let found = findings_from(&moved, &custom);
+    assert_eq!(
+        at(&found, "compatibility.role-widened", "Atlas"),
+        [
+            "warning: `Atlas` lets customers define roles (`custom`), and a custom role bound at \"allGraphs\" now covers `History`, where it may grant \"history:read\"; holders of custom roles bound there gain it without a new binding",
+            "warning: `Atlas` lets customers define roles (`custom`), and a custom role bound at \"graph\" now covers `History`, where it may grant \"history:read\"; holders of custom roles bound there gain it without a new binding",
+        ]
+    );
+    assert!(at(&found, "compatibility.role", "Atlas").is_empty());
+    // A scope added is a place custom roles reach everything beneath.
+    let added = edit(
+        &custom,
+        "    scopes [organization, allGraphs, graph]\n",
+        "    scopes [organization, allGraphs, graph, everything]\n",
+    );
+    let added = edit(
+        &added,
+        "/// One graph.\n",
+        "/// The whole service.\nscope everything = \"everything\" on service\n/// One graph.\n",
+    );
+    let found = findings_from(&custom, &added);
+    let widened = at(&found, "compatibility.role-widened", "Atlas");
+    assert!(
+        widened.contains(&"warning: `Atlas` lets customers define roles (`custom`), and a custom role bound at \"everything\" now covers `Graph`, where it may grant \"graph:read\", \"graph:write\", \"graph:delete\"; holders of custom roles bound there gain it without a new binding".to_owned()),
+        "{widened:#?}"
+    );
+    assert_eq!(widened.len(), 3, "{widened:#?}");
+    // Without `custom`, the same move is the predefined roles' to report.
+    let found = findings_from(BASE, &history_under_organization(BASE));
+    assert!(at(&found, "compatibility.role", "Atlas").is_empty());
 }
 
 #[test]
