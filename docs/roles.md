@@ -241,6 +241,32 @@ proposed binding's scope; `RoleAuthorizer` offers it as
 only what you hold") is the same shape with a different function, so a
 service that wants it writes `assignedBy holders` (decision 6).
 
+**Assignment is an obligation, not a convention.** A handler that forgets
+`may_assign` would let an `accessAdmin` (who holds `roleBindingManage`)
+write an `owner` binding. So an operation whose input carries a role value
+(a member typed by the `@roleTypes` enum, or a list of it) must declare
+what it assigns, and the declaration lowers to an obligation the runtime
+verifies like a `by handler` clause (permissions.md §4.6):
+
+```
+operation PutRoleBinding puts RoleBinding {
+    requires roleBindingManage on Organization
+    assigns roles at RoleBinding(scopeType, scopeId)
+    ..
+}
+```
+
+`assigns <member> at <scope binding>` names the role member and where the
+binding is written. The handler discharges it with
+`roles::assign(obligation, role, at)`, which calls `may_assign` and
+refuses with the operation's 403 when it fails; a response with an
+undischarged assignment obligation is the internal error an undischarged
+`by handler` clause is. An operation that carries roles without
+assigning them (a read of bindings) writes `assigns none because "…"`.
+Carrying a `@roleTypes` value without either is a compile error,
+`roles.unassigned`, so a new binding-write operation cannot skip the
+check.
+
 ### 4.6 Grants the service decides
 
 Some grants follow a relationship the resource tree does not have.
@@ -348,6 +374,8 @@ Compile errors:
   operation requires that no role grants. Off when the service grants
   permissions directly or declares `custom`.
 - `roles.types`: `@roleTypes` and `@scopeTypes` mismatches (§4.9).
+- `roles.unassigned`: an operation whose input carries a role value
+  declares neither `assigns` nor `assigns none because "…"` (§4.5).
 
 Compatibility, in `crucible-policy`, against the baseline:
 
@@ -438,6 +466,25 @@ principal's kind. Then, per check:
    does not relate the binding to the target (a `graph` binding never
    covers a `GraphHistory`), so the hook decides whether the binding's
    relationship reaches it.
+
+**Listings** (`filters`, `Authorizer::visible`) follow the same two
+steps. A binding whose scope covers the whole listed collection (its
+parent or an ancestor, or a `(*)` scope on the listed resource) gives
+`Visibility::All`; bindings on single instances give `Only` with their
+identifiers. A `by service` grant cannot be resolved from bindings, since
+the binding names a different resource, so `ServiceGrants` has a second
+required method:
+
+```rust
+async fn visible_by_service(&self, principal: &Principal, binding: &Binding,
+    permission: Permission, collection: &ResourceRef) -> Result<Visibility, Unavailable>;
+```
+
+which returns the instances that binding's relationship reaches in the
+collection (`graphAdmin` on a graph: that graph's history). The answers
+are unioned (`All` absorbs; `Only` sets merge); with no binding that
+reaches the collection the parent's own check decides `Hidden` or
+`Denied`, as `refusal` does.
 
 Nothing else calls the hook. `refusal(covered)` counts only step 1's
 coverage. The answer records the binding that allowed it, so audit can say "allowed by
