@@ -227,17 +227,22 @@ the binding operation's own `requires` admits. Generated code exposes
 `Role::assigned_by()` and
 
 ```rust
-may_assign(assigner: &[Binding], role: Role, at: &ScopeRef) -> bool
+may_assign(assigner: &[Binding], kind: PrincipalKind, role: Role, at: &ScopeRef) -> bool
 ```
 
-which holds when one of the assigner's bindings carries an assigning role,
-is valid for its scope, and its scope instance covers `at`, the scope
+which holds when one of the assigner's bindings carries an assigning role
+that is valid for its scope **and for the assigner's principal kind**
+(`valid_for(role, scope, kind)`, as every decision applies it), and its
+scope instance covers `at`, the scope
 instance of the binding being written. A role is not enough on its own:
-an `owner` binding on organization A must not admit a binding in
+an `owner` binding stored for an API key, which `holders [USER]` makes
+inert, must not admit anything, and an `owner` binding on organization A
+must not admit a binding in
 organization B. The binding operation's handler calls it with the
 assigner's bindings (the same `BindingSource::bindings` read) and the
 proposed binding's scope; `RoleAuthorizer` offers it as
-`may_assign(principal, role, at)`, which does that read. Kubernetes' escalation rule ("you may grant
+`may_assign(principal, role, at)`, which does that read and takes the
+kind from `BindingSource::kind`. Kubernetes' escalation rule ("you may grant
 only what you hold") is the same shape with a different function, so a
 service that wants it writes `assignedBy holders` (decision 6).
 
