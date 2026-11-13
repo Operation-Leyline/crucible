@@ -565,7 +565,10 @@ roles have no shape of their own. Besides the design's rules:
   the identifiers it adds (a `R(*)` instance without its own), compared
   whole, so a resource moved under another parent whose identifier has the
   same name, or a renamed identifier, is reported even where no route
-  changed. A resource is the same one when its authorization name is, if
+  changed. Identifiers are compared in declaration order
+  (`crucible_ir::roles::identifiers`, which the generated catalogue states
+  and the runtime matches a binding's values against by position), so a
+  composite identifier reordered is reported too. A resource is the same one when its authorization name is, if
   both releases give it one (a renamed shape that keeps it has not moved),
   and otherwise when its shape is (one that declares its first permission
   has not moved either).

@@ -400,7 +400,8 @@ exception names.
   moved to another resource, or between one instance and `R(*)`, since a
   stored binding names an instance of what it was on; and a scope whose
   instance is named another way: its resource, or one above it, moved
-  under another parent, or an identifier the instance carries renamed.
+  under another parent, or an identifier the instance carries renamed or
+  reordered (a binding's values are matched by position).
   The instance's path (each resource from the root, with the identifiers
   it adds) is compared whether or not an operation's route shows the
   change. A resource is the same one when its authorization name is, if

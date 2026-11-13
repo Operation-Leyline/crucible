@@ -730,6 +730,50 @@ fn with_workspace(with: &str) -> String {
     )
 }
 
+/// `BASE` with a root `Document` named by two identifiers, in `order`, and
+/// a scope on one document.
+fn with_document(order: &str) -> String {
+    let model = edit(
+        BASE,
+        "    resources [Organization]\n",
+        "    resources [Organization, Document]\n",
+    );
+    let model = edit(
+        &model,
+        "    scopes [organization, allGraphs, graph]\n",
+        "    scopes [organization, allGraphs, graph, oneDocument]\n",
+    );
+    edit(
+        &model,
+        "/// The organization itself.\n",
+        &format!(
+            "string AccountId {{ pattern \"^a_[a-z0-9]+$\" }}\nstring DocumentId {{ pattern \"^d_[a-z0-9]+$\" }}\n\nresource Document {{\n{order}    permission read = \"document:read\"\n}}\n\n/// One document.\nscope oneDocument = \"document\" on Document\n/// The organization itself.\n"
+        ),
+    )
+}
+
+#[test]
+fn reordering_a_composite_identifier_orphans_bindings_at_its_scopes() {
+    // A stored binding's values are compared by position: `[A, B]` stored
+    // under the old order names another document under the new one.
+    let ordered = with_document("    id accountId: AccountId\n    id documentId: DocumentId\n");
+    let swapped = with_document("    id documentId: DocumentId\n    id accountId: AccountId\n");
+    let found = findings_from(&ordered, &swapped);
+    assert_eq!(
+        at(&found, "compatibility.scope", "oneDocument"),
+        [
+            "error: the scope \"document\" (`oneDocument`) now names its instance as `document(documentId, accountId)`, where it named it as `document(accountId, documentId)`; bindings stored at it carry the old path"
+        ]
+    );
+    let scope_findings: Vec<&Finding> = found
+        .iter()
+        .filter(|f| f.rule == "compatibility.scope")
+        .collect();
+    assert_eq!(scope_findings.len(), 1, "{scope_findings:#?}");
+    // The same order: nothing.
+    none_of(&findings_from(&ordered, &ordered), &["compatibility.scope"]);
+}
+
 #[test]
 fn a_resource_gaining_its_first_permission_keeps_its_scopes() {
     let bare = with_workspace("");

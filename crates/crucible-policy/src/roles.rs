@@ -18,7 +18,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use crucible_ir::ShapeId;
 use crucible_ir::ir::{GrantedSet, Role, ScopeTarget, Service, Shape};
-use crucible_ir::roles::{Target, covers, grantable, parent, with_included};
+use crucible_ir::roles::{Target, covers, grantable, identifiers, parent, with_included};
 
 use crate::Severity;
 use crate::checker::Checker;
@@ -498,20 +498,17 @@ fn instance(service: &Service, on: &ScopeTarget) -> Vec<Segment> {
         }
     }
     chain.reverse();
-    let identifiers = |id: &ShapeId| -> BTreeSet<&String> {
-        service
-            .resources
-            .get(id)
-            .map(|r| r.identifiers.keys().collect())
-            .unwrap_or_default()
-    };
+    // In declaration order, root to leaf, as the generated catalogue states
+    // them and the runtime compares a stored binding's values: by
+    // position, so a composite identifier reordered names another
+    // instance.
     let mut path = Vec::new();
-    let mut inherited = BTreeSet::new();
+    let mut inherited = 0;
     for id in chain {
-        let all = identifiers(id);
-        let own: Vec<String> = all.difference(&inherited).map(|n| (*n).clone()).collect();
+        let all = identifiers(service, id);
+        let own = all.get(inherited..).unwrap_or_default().to_vec();
+        inherited = all.len();
         path.push((Named::of(service, id), own));
-        inherited = all;
     }
     if matches!(on, ScopeTarget::Every(_))
         && let Some((_, own)) = path.last_mut()
