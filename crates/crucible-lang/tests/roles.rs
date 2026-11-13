@@ -455,6 +455,127 @@ fn the_client_view_keeps_a_catalogue_enum_a_sender_signed_operation_also_uses() 
     }
 }
 
+/// A catalogue of internal roles and scopes only, whose enums a
+/// sender-signed operation also uses.
+const INTERNAL_CATALOGUE: &str = r#"
+service Vault {
+    version "1"
+    protocol json
+    auth bearer
+    notFound Missing
+    resources [Box]
+    operations [RecordKind]
+    principals Kind
+    scopes [box]
+    roles [keeper]
+}
+
+error Missing {
+    status 404
+    message: string
+}
+
+enum Kind {
+    USER = "user"
+    ROBOT = "robot"
+}
+
+@roleTypes
+enum RoleName {
+    internal KEEPER = "keeper"
+}
+
+@scopeTypes
+enum ScopeName {
+    internal BOX = "box"
+}
+
+string BoxId { length 1..40 }
+
+resource Box {
+    id boxId: BoxId
+    internal permission open = "box:open"
+}
+
+readonly operation OpenBox on Box {
+    http GET "/boxes/{boxId}"
+    requires open
+    input {
+        $boxId
+    }
+}
+
+internal scope box = "box" on Box
+
+internal role keeper = "keeper" {
+    at [box]
+    holders [USER]
+    grants Box [open]
+}
+
+@sender("Identity Provider", signature: signature)
+public operation RecordKind {
+    http POST "/kinds"
+    input {
+        @header("Idp-Signature")
+        signature: string
+        kind: Kind
+        role: RoleName
+        scope: ScopeName
+    }
+}
+"#;
+
+/// An internal-audience SDK's client view keeps an internal catalogue's
+/// enums: the internal projection keeps the catalogue, so the view does.
+#[test]
+fn an_internal_client_view_keeps_an_internal_catalogues_enums() {
+    let mut package = crucible_lang::Package::new(
+        "example.vault",
+        vec![crucible_lang::SourceFile {
+            path: "vault.cru".to_owned(),
+            text: INTERNAL_CATALOGUE.to_owned(),
+        }],
+    );
+    package.imports = Vec::new();
+    let compiled = compile(&package, None);
+    assert!(compiled.diagnostics.is_empty(), "{}", compiled.render());
+    let full = compiled.service.unwrap();
+    let view = crucible_ir::client_view(&project(&full, Audience::Internal).unwrap());
+    assert!(view.operations.iter().all(|op| op.sender.is_none()));
+    let settings = &view.role_settings;
+    for (linked, name) in [
+        (&settings.principals, "Kind"),
+        (&settings.role_types, "RoleName"),
+        (&settings.scope_types, "ScopeName"),
+    ] {
+        let enum_id = id("example.vault", name);
+        assert_eq!(linked.as_ref(), Some(&enum_id));
+        assert!(view.shape(&enum_id).is_some(), "{name} is dropped");
+    }
+    assert_eq!(role(&view, "keeper").holders, ["USER"]);
+    // Externally the catalogue is internal: none of it, and nothing to root.
+    let external = crucible_ir::client_view(&project(&full, Audience::External).unwrap());
+    assert!(external.roles.is_empty() && external.role_scopes.is_empty());
+}
+
+/// An internal service has no external contract: projecting it drops its
+/// whole catalogue, roles not marked `internal` themselves included.
+#[test]
+fn an_internal_services_catalogue_is_not_external() {
+    let mut full = leyline();
+    full.internal = true;
+    let external = project(&full, Audience::External).unwrap();
+    assert!(external.operations.is_empty() && external.resources.is_empty());
+    assert!(external.roles.is_empty());
+    assert!(external.role_scopes.is_empty());
+    assert!(external.role_settings.is_default());
+    // The internal audience keeps it all.
+    let internal = project(&full, Audience::Internal).unwrap();
+    assert_eq!(internal.roles.len(), 14);
+    assert_eq!(internal.role_scopes.len(), 5);
+}
+
 /// An internal principals enum cannot restrict a public role: refused, so
 /// the projection never has to drop a holder.
 #[test]
