@@ -246,26 +246,38 @@ the binding operation's own `requires` admits. Generated code exposes
 `Role::assigned_by()` and
 
 ```rust
-may_assign(assigner: &[Binding], role: Role, at: &ScopeRef) -> bool
+may_assign(assigner: &[Binding], kind: PrincipalKind, role: Role, at: &ScopeRef) -> bool
 ```
 
-which holds when one of the assigner's bindings carries an assigning role,
-is valid for its scope, and its scope instance covers `at`, the scope
+which holds when one of the assigner's bindings carries an assigning role
+that is valid for its scope **and for the assigner's principal kind**
+(`valid_for(role, scope, kind)`, as every decision applies it), and its
+scope instance covers `at`, the scope
 instance of the binding being written. A role is not enough on its own:
-an `owner` binding on organization A must not admit a binding in
+an `owner` binding stored for an API key, which `holders [USER]` makes
+inert, must not admit anything, and an `owner` binding on organization A
+must not admit a binding in
 organization B. The binding operation's handler calls it with the
 assigner's bindings (the same `BindingSource::bindings` read) and the
 proposed binding's scope; `RoleAuthorizer` offers it as
-`may_assign(principal, role, at)`, which does that read. Kubernetes' escalation rule ("you may grant
+`may_assign(principal, role, at)`, which does that read and takes the
+kind from `BindingSource::kind`. Kubernetes' escalation rule ("you may grant
 only what you hold") is the same shape with a different function, so a
 service that wants it writes `assignedBy holders` (decision 6).
 
 **Assignment is an obligation, not a convention.** A handler that forgets
 `may_assign` would let an `accessAdmin` (who holds `roleBindingManage`)
-write an `owner` binding. So an operation whose input carries a role value
-(a member typed by the `@roleTypes` enum, or a list of it) must declare
-what it assigns, and the declaration lowers to an obligation the runtime
-verifies like a `by handler` clause (permissions.md §4.6):
+write an `owner` binding, or revoke one. So every operation that can change
+who holds a role must declare what it assigns, and the declaration lowers
+to an obligation the runtime verifies like a `by handler` clause
+(permissions.md §4.6). An operation must declare when either holds:
+
+- its input carries a role value (a member typed by the `@roleTypes` enum,
+  or a list of it), or
+- it `creates`, `puts`, `updates` or `deletes` a resource that has a
+  property typed by the `@roleTypes` enum (or a list of it): a binding
+  resource, whose roles a revocation loads from storage rather than
+  receiving them.
 
 ```
 operation PutRoleBinding puts RoleBinding {
@@ -273,26 +285,36 @@ operation PutRoleBinding puts RoleBinding {
     assigns roles at RoleBinding(scopeType, scopeId)
     ..
 }
+operation DeleteRoleBinding deletes RoleBinding {
+    requires roleBindingManage on Organization
+    assigns loaded at RoleBinding(scopeType, scopeId)
+    ..
+}
 ```
 
-`assigns <member> at <scope binding>` names the role member and where the
-binding is written. The handler discharges it with
-`roles::assign(obligation, role, at)`, which calls `may_assign` and
-refuses with the operation's 403 when it fails; a response with an
-undischarged assignment obligation is the internal error an undischarged
-`by handler` clause is. An operation that carries roles without
-assigning them (a read of bindings) writes `assigns none because "…"`.
-Carrying a `@roleTypes` value without either is a compile error,
-`roles.unassigned`, so a new binding-write operation cannot skip the
-check.
+`assigns <member> at <scope binding>` names the input member holding the
+roles and where the binding is. `assigns loaded at <scope binding>` says
+the roles come from the stored binding. A replacement (`puts` over an
+existing binding) is both: the roles added and the roles removed must each
+pass. The handler discharges the obligation with
+`roles::assign(obligation, roles, at)`, passing the input's roles, the
+loaded roles, or both; it calls `may_assign` for each role and refuses
+with the operation's 403 when any fails. A response with an undischarged
+assignment obligation is the internal error an undischarged `by handler`
+clause is. An operation that matches a trigger but changes no binding (a
+read, or a write of the resource's other fields) writes
+`assigns none because "…"`. Matching a trigger without either is a
+compile error, `roles.unassigned`, so a new binding grant or revocation
+cannot skip the check.
 
 *As built (R1).* `assignedBy` takes a list of roles only; `assignedBy
 holders` is refused as not supported yet, since no consumer needs it and
 its predicate belongs with the generated code (R2). `assigns .. at`,
 `assigns none because ".."` and `roles.unassigned` were added to this
-design after R1 was built and are not part of it: R1 neither parses
-`assigns` nor refuses an operation that carries a `@roleTypes` value
-without it (Leyline's test model's `PutRoleBinding` does).
+design after R1 was built and are not part of it (tracked in #479): R1
+neither parses `assigns` nor refuses an operation that carries a
+`@roleTypes` value without it (Leyline's test model's `PutRoleBinding`
+does).
 
 ### 4.6 Grants the service decides
 
@@ -414,12 +436,14 @@ Compile errors:
   operation requires that no role grants. Off when the service grants
   permissions directly or declares `custom`.
 - `roles.types`: `@roleTypes` and `@scopeTypes` mismatches (§4.9).
-- `roles.unassigned`: an operation whose input carries a role value
-  declares neither `assigns` nor `assigns none because "…"` (§4.5).
+- `roles.unassigned`: an operation whose input carries a role value, or
+  that creates, puts, updates or deletes a resource with a role-typed
+  property, declares neither `assigns` nor `assigns none because "…"`
+  (§4.5).
 
 *As built (R1).* The checks run once, in `crucible_ir::validate::roles`,
 over the IR. Besides the codes above, which keep their meaning (all but
-`roles.unassigned`, which is not built: §4.5's note), R1 refuses
+`roles.unassigned`, which is not built: §4.5's note, #479), R1 refuses
 what the design left implicit: `roles.unknown-role` (`includes` names no
 role of the service), `roles.grant` (a grant names a name the resource does
 not declare, an alias, the same permission twice, nothing, or an `except`
