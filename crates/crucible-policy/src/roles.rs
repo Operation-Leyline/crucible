@@ -373,6 +373,34 @@ fn settings(old: &Service, new: &Service, out: &mut Vec<Change>) {
         grantable_changes(old, new, out);
         custom_coverage(old, new, out);
     }
+    if old.role_settings.custom {
+        shadowed_custom_ids(old, new, out);
+    }
+}
+
+/// With `custom` on in the baseline, customers may have stored custom
+/// roles under ids the model cannot see. The authorizer resolves a
+/// binding's role against the predefined roles first, so a predefined
+/// value added since (a new role, or a role's value changed) that equals a
+/// stored custom id takes it over: the customer's binding switches from
+/// its custom definition to the predefined role's grants. Every value
+/// added is reported for review, at the role that adds it.
+fn shadowed_custom_ids(old: &Service, new: &Service, out: &mut Vec<Change>) {
+    let name = old.id.name();
+    for role in &new.roles {
+        if old.roles.iter().any(|r| r.value == role.value) {
+            continue;
+        }
+        out.push(Change {
+            site: role_id(new, &role.symbol),
+            rule: "compatibility.role-widened",
+            breaking: false,
+            message: format!(
+                "`{name}` lets customers define roles (`custom`), and `{}` adds the predefined value {:?}: a custom role a customer stored under that id would now mean `{}`; check the stored custom role ids, or choose a value they cannot take",
+                role.symbol, role.value, role.symbol
+            ),
+        });
+    }
 }
 
 /// With `custom` on in both releases, what a custom-role binding at each

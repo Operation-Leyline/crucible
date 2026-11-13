@@ -454,7 +454,11 @@ exception names.
   what the model does not list; and, with `custom` on in both, a permission
   that became grantable (public or `@permissionOnly`), which custom roles
   may now include, or a scope (moved in beneath, or added) whose custom
-  bindings now cover a grantable permission's resource.
+  bindings now cover a grantable permission's resource. With `custom` on in
+  the baseline, a predefined role value added is one too, at the role: the
+  authorizer resolves predefined roles before custom ones, so a custom role
+  a customer stored under that id would now mean the predefined role.
+  Namespace custom ids so predefined values cannot take them.
 
 A baseline frozen before roles existed has no roles to compare, so adding a
 catalogue reports nothing.

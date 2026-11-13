@@ -382,6 +382,15 @@ permissions outside roles (§6's "grants permissions directly"), which the
 model had no way to say. Like `custom`, it turns off `roles.ungranted`, and
 it changes nothing else.
 
+*As built (R4).* Predefined values shadow custom ids: `RoleAuthorizer`
+resolves a binding's role against the predefined roles before it asks for
+a custom one, so a predefined role added under a value a customer already
+uses for a custom role takes that customer's bindings over. The model
+cannot see stored custom ids, so with `custom` on in the baseline every
+predefined value added is a `compatibility.role-widened` warning (§6).
+A service should keep custom ids apart, for example with a prefix
+predefined values never use (`custom:…`).
+
 ### 4.8 Tiers
 
 A role or scope may be `internal`, with the projection rules every other
@@ -639,6 +648,10 @@ roles have no shape of their own. Besides the design's rules:
   change of `internal`, or a moved scope, is declared by an exception.
 - A baseline frozen before roles existed has no roles to compare, so a
   catalogue added since reports nothing.
+- *Predefined values added under `custom`.* With `custom` on in the
+  baseline, each predefined role value added (a new role, or a value
+  changed) is `compatibility.role-widened` at the role: a custom role a
+  customer stored under that id would now mean the predefined role (§4.7).
 - *Retired values stay reserved.* The baseline comparison sees a role
   whose value an older release had, and a later one removed, as new. A
   stored binding keeps the value as a string, and the authorizer resolves

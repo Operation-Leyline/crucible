@@ -40,7 +40,8 @@ version's section when it is prepared.
   scope it keeps now covers more, or because more roles may assign it or
   it may be bound at more scopes or held by more kinds of principal, and a
   service that turns `custom` or `direct` on or, under `custom`, makes a
-  permission grantable. A
+  permission grantable, or adds a predefined role value a custom role's id
+  could already use. A
   public role or scope removed, made `internal`, or whose symbol now sends
   another value is a `compatibility.sdk` finding. Migrations declare the
   breaks with `remove role`, `remove scope` and `narrow role`. A role or scope value an earlier frozen release

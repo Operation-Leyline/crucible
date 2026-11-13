@@ -1101,6 +1101,29 @@ fn under_custom_what_a_scope_covers_of_grantable_permissions_is_compared() {
 }
 
 #[test]
+fn under_custom_a_new_predefined_value_may_take_over_a_custom_id() {
+    // `model` with a predefined `admin`.
+    let with_admin = |model: &str| {
+        edit(model, ", graphAdmin]", ", graphAdmin, admin]")
+            + "\nrole admin = \"admin\" { at [organization]; grants Organization [read] }\n"
+    };
+    let custom = with_custom(BASE);
+    let found = findings_from(&custom, &with_admin(&custom));
+    assert_eq!(
+        at(&found, "compatibility.role-widened", "admin"),
+        [
+            "warning: `Atlas` lets customers define roles (`custom`), and `admin` adds the predefined value \"admin\": a custom role a customer stored under that id would now mean `admin`; check the stored custom role ids, or choose a value they cannot take"
+        ]
+    );
+    // Without custom roles in the baseline there is no id to take over.
+    let found = findings_from(BASE, &with_admin(BASE));
+    assert!(
+        at(&found, "compatibility.role-widened", "admin").is_empty(),
+        "{found:#?}"
+    );
+}
+
+#[test]
 fn turning_custom_or_direct_on_widens_and_off_narrows() {
     let roles = "    roles [owner, graphReader, graphWriter, graphAdmin]\n";
     for (word, on_message, off_message) in [
