@@ -23,8 +23,12 @@ python tools/test-consumers.py   # stable-surface consumers: starter, e2e/weathe
 CRUCIBLE_BLESS=1 cargo test       # rewrite golden files after an intended output change
 ```
 
-On a shared machine, use your own `CARGO_TARGET_DIR` and a low
-`CARGO_BUILD_JOBS`. Builds compete with other sessions' builds.
+On a shared machine, build into your worktree's own `target/`. Do not set
+`CARGO_TARGET_DIR` to a new folder per task: nothing collects one, and ten
+`target-*` folders held 174 GiB within a day (2026-11-13). If you share a
+checkout with another session, use one folder of your own, reuse it, and
+delete it when you finish. Keep `CARGO_BUILD_JOBS` low: builds compete with
+other sessions' builds.
 
 Stability: the policy for 0.x is in `docs/releases.md`; the runtime surface
 and the hidden `__generated` boundary are in `docs/stability.md`. A change to the
