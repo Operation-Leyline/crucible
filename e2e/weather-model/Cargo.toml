@@ -9,3 +9,6 @@ links = "weather_model"
 
 [build-dependencies]
 crucible-build = { path = "../../crates/crucible-build" }
+
+[lints]
+workspace = true

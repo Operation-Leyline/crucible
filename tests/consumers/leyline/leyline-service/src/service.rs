@@ -1,10 +1,11 @@
 use std::sync::Arc;
 
 use crucible_auth::{Authenticator, AuthenticatorChain};
+use crucible_server_runtime_rust::permissions::Permissions;
 use crucible_server_runtime_rust::{Crucible, InvokeProtocol, JsonProtocol};
 
 use crate::leyline::{self, AccessDeniedException};
-use crate::{Audit, Leyline, RequestTag, TenantGate};
+use crate::{Audit, Leyline, RequestTag, ScopeBindings, TenantGate};
 
 /// The service over a configured set of authenticators (JWT verification in
 /// production, a test issuer in tests) and an audit trail.
@@ -21,6 +22,11 @@ pub fn service(authenticators: Vec<Arc<dyn Authenticator>>, audit: Audit) -> Cru
         .middleware(RequestTag)
         .operation_middleware(TenantGate)
         .operation_middleware(chain)
+        // The model's roles, decided by the framework from the caller's
+        // bindings: a refused call never reaches the audit trail.
+        // The generated constructor requires the hooks the model needs:
+        // none beyond `BindingSource` here.
+        .interceptor(Permissions::new(leyline::roles::authorizer(ScopeBindings)))
         .interceptor(audit)
         .protocol(JsonProtocol)
         // Direct Lambda invokes: `{"operation": .., "input": ..}`.

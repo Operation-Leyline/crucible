@@ -197,6 +197,18 @@ fn main() {
             .unwrap(),
     )
     .unwrap();
+    // Roles: benches/roles.rs decides from Leyline's generated catalogue.
+    let roles = "../../tests/models/roles-leyline";
+    println!("cargo::rerun-if-changed={roles}");
+    std::fs::write(
+        out.join("roles_leyline.rs"),
+        crucible_build::model(roles)
+            .server()
+            .custom_rejections()
+            .render()
+            .unwrap(),
+    )
+    .unwrap();
     crucible_build::model("weather_model")
         .server()
         .explorer()

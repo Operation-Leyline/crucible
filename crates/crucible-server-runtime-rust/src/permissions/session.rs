@@ -184,13 +184,18 @@ impl Session {
             return Ok(Vec::new());
         }
         let request = AuthorizationRequest::new(context, self.0.facts);
+        let mut allowed_by = Vec::new();
         let verdicts = self
             .0
             .settings
             .authorizer
-            .decide(&request, checks)
+            .decide_naming_bindings(&request, checks, &mut allowed_by)
             .await
             .map_err(AuthorizerUnavailable::error)?;
+        // Names are kept only when there is one per check.
+        if allowed_by.len() != checks.len() {
+            allowed_by.clear();
+        }
         if verdicts.len() != checks.len() {
             return Err(Error::internal(format!(
                 "{}: the Authorizer answered {} verdicts for {} checks",
@@ -205,17 +210,24 @@ impl Session {
             .map(|(check, verdict)| self.something_to_hide(&check.resource, verdict))
             .collect();
         self.edit(|record| {
-            record
-                .decisions
-                .extend(
-                    checks
-                        .iter()
-                        .zip(&verdicts)
-                        .map(|(check, verdict)| Decision {
-                            check: check.clone(),
-                            verdict: *verdict,
-                        }),
-                );
+            record.decisions.extend(
+                checks
+                    .iter()
+                    .zip(&verdicts)
+                    .zip(
+                        allowed_by
+                            .into_iter()
+                            .map(Some)
+                            .chain(std::iter::repeat(None)),
+                    )
+                    .map(|((check, verdict), allowed_by)| Decision {
+                        check: check.clone(),
+                        verdict: *verdict,
+                        allowed_by: allowed_by
+                            .flatten()
+                            .filter(|_| *verdict == Verdict::Allowed),
+                    }),
+            );
         });
         Ok(verdicts)
     }
@@ -1103,6 +1115,68 @@ mod tests {
             .attribute::<crate::permissions::AuthorizationRecord>()
             .unwrap();
         assert_eq!(record.decisions.len(), 2);
+    }
+
+    #[tokio::test]
+    async fn the_record_names_the_binding_that_allowed_a_check() {
+        use crate::roles::RoleBinding;
+        /// Allows the workspace check, names a binding for each, and
+        /// refuses the inbox one.
+        struct Naming;
+        #[async_trait::async_trait]
+        impl Authorizer for Naming {
+            async fn decide(
+                &self,
+                _: &AuthorizationRequest<'_>,
+                checks: &[Check],
+            ) -> crate::Result<Vec<Verdict>> {
+                Ok(checks
+                    .iter()
+                    .map(|check| match check.permission.value {
+                        "workspace:admin" => Verdict::Allowed,
+                        _ => Verdict::Denied,
+                    })
+                    .collect())
+            }
+
+            async fn decide_naming_bindings(
+                &self,
+                request: &AuthorizationRequest<'_>,
+                checks: &[Check],
+                allowed_by: &mut Vec<Option<RoleBinding>>,
+            ) -> crate::Result<Vec<Verdict>> {
+                allowed_by.extend(
+                    checks
+                        .iter()
+                        .map(|_| Some(RoleBinding::new("admin", "workspace", ["w-1"]))),
+                );
+                self.decide(request, checks).await
+            }
+        }
+        let named = Session::new(settings(Naming, false), facts(&REQUIREMENTS));
+        let request = context();
+        let checks = [
+            Check::handler(&ADMIN, ResourceRef::new(&WORKSPACE, ["w-1"])),
+            Check::handler(&READ, ResourceRef::new(&INBOX, ["w-1", "i-1"])),
+        ];
+        named.decide_for_handler(&request, &checks).await.unwrap();
+        let record = request
+            .attribute::<crate::permissions::AuthorizationRecord>()
+            .unwrap();
+        // Only beside an allowed check.
+        assert_eq!(
+            record.decisions[0].allowed_by,
+            Some(RoleBinding::new("admin", "workspace", ["w-1"]))
+        );
+        assert_eq!(record.decisions[1].allowed_by, None);
+        // An Authorizer that names nothing leaves it empty.
+        let unnamed = session(Verdict::Allowed, false);
+        let request = context();
+        unnamed.decide_for_handler(&request, &checks).await.unwrap();
+        let record = request
+            .attribute::<crate::permissions::AuthorizationRecord>()
+            .unwrap();
+        assert!(record.decisions.iter().all(|d| d.allowed_by.is_none()));
     }
 
     #[tokio::test]

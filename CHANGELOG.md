@@ -25,8 +25,7 @@ version's section when it is prepared.
   wire enums. The IR gains `Service::roles`, `Service::role_scopes` and
   `Service::role_settings` (each role with its effective grants, inclusion
   and `*` expanded), and `crucible_ir::roles` answers coverage. A model
-  without roles lowers to the same IR as before. Generated server code and
-  the `RoleAuthorizer` follow in later releases.
+  without roles lowers to the same IR as before.
 - Roles R4 ([docs/roles.md](docs/roles.md) §6): compatibility rules for
   roles and scopes, compared by value against the baseline.
   `compatibility.scope` and `compatibility.role` (errors) report a role or
@@ -43,9 +42,40 @@ version's section when it is prepared.
   service that turns `custom` or `direct` on or, under `custom`, makes a
   permission grantable. A
   public role or scope removed, made `internal`, or whose symbol now sends
-  another value is a `compatibility.sdk` finding. Migrations declare the breaks with `remove role`, `remove scope`
-  and `narrow role`. A baseline frozen before roles existed reports
+  another value is a `compatibility.sdk` finding. Migrations declare the
+  breaks with `remove role`, `remove scope` and `narrow role`. A baseline frozen before roles existed reports
   nothing. The rule IDs join `crucible_policy::RULE_IDS`.
+- Roles R2 ([docs/roles.md](docs/roles.md) §7, [framework
+  guide](docs/framework.md#roles)): Rust server bindings of a model with
+  roles gain a `roles` module: `roles::CATALOGUE`, a `'static`
+  `RoleCatalogue` (each role's scopes, holders, assigners, description and
+  grants as `PermissionSet` bitsets; each scope's kind, identifiers and
+  coverage), and closed `Role` and `Scope` enums (`ALL`, `as_str`, `parse`,
+  `info`, and for roles `allows`, `scopes`, `holders`, `valid_for`,
+  `assigned_by`, `may_assign`, `description`); with `roles [..] custom`,
+  `PredefinedRole` is the closed enum and `Role` is `Predefined(..) |
+  Custom(String)` (only `Custom(String)` for `roles [] custom`). A model without roles generates the same bindings as
+  before. The runtime's `roles` module states the catalogue types
+  (`RoleCatalogue`, `RoleInfo`, `ScopeInfo`, `ScopeKind`, `PermissionSet`,
+  `Grant`, `RoleBinding`) without a feature. The new `roles` feature (which
+  enables `permissions`) adds `RoleAuthorizer<B: BindingSource>`, the
+  framework's `Authorizer` for a model with roles (`decide_for`,
+  `explain_for`, `capabilities`, `may_assign`), built by the generated
+  `roles::authorizer(source)`; `BindingSource` (`bindings`, and
+  `principal`, `kind`, `refusal` and `visible` with defaults), and
+  `ServiceGrants` and `CustomRoles`, which `roles::authorizer` requires of
+  a model with `by service` grants or custom roles; `Root`, `ByService`,
+  `ScopeRef`, `Refusal`, `Unavailable` and `Capabilities`;
+  `ShadowAuthorizer` with `ShadowCounts`, which enforces one Authorizer
+  and logs and counts where another disagrees; and
+  `roles::conformance` (`Conformance`, `Subject`, `Report`, `Disagreement`),
+  which compares any Authorizer with `RoleAuthorizer` over every case of a
+  catalogue. Additive in `permissions`: the provided method
+  `Authorizer::decide_naming_bindings`, which `Permissions` now calls (its
+  default asks `decide`, so existing Authorizers are unchanged), and
+  `Decision::allowed_by`, the binding that allowed a check.
+  `crucible_ir::roles` gains `identifiers`, `scope_identifiers`, `coverage`,
+  `Coverage` and `covers_scope`.
 - Roles R3 ([docs/roles.md](docs/roles.md) §5): which roles grant each
   operation. `crucible_ir::roles::settle` computes granted-by on the server
   contract (`Operation::granted_by`: per clause, the roles whose grants
@@ -249,6 +279,11 @@ version's section when it is prepared.
 
 ### Fixed
 
+- Rust server bindings of a model with typed permissions compile on the
+  MSRV (Rust 1.88): an operation's `REQUIREMENTS` names its clauses as a
+  `static` array instead of a `&[..]` temporary referring to
+  `PermissionInfo` statics, which only newer compilers promote. Generated
+  output changes for every operation that declares requirements.
 - `crucible-build`: with Cargo 1.100 or newer, a build that wrote
   `generate_into` exports or a `model_output` export no longer reruns the
   build script on the next build. Cargo 1.100's build directory keeps the

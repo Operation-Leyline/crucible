@@ -36,6 +36,12 @@ idempotency = ["dep:sha2"]
 # handler checks beside it. The requirement descriptions themselves are
 # always present, since generated code states them.
 permissions = []
+# Roles (`roles`): `RoleAuthorizer`, the framework's Authorizer for a model
+# that declares roles, deciding from the generated catalogue and a
+# service-supplied `BindingSource`; `ShadowAuthorizer` and the
+# `conformance` harness for moving a service onto it. The catalogue types
+# are always present, since generated code states them.
+roles = ["permissions"]
 # Test doubles, such as `MemoryIdempotencyStore`. Enable it from
 # [dev-dependencies]: nothing in a production build needs it. (This crate's
 # own tests always include it.)
@@ -69,6 +75,11 @@ base64 = { version = "0.22", optional = true }
 
 [dev-dependencies]
 tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
+# The roles tests: the differential test's naive interpreter reads the IR,
+# and the Leyline catalogue comes from tests/models.
+crucible-ir = { path = "../crucible-ir" }
+crucible-lang = { path = "../crucible-lang" }
+proptest = { version = "1", default-features = false, features = ["std"] }
 
 [lints]
 workspace = true

@@ -239,3 +239,43 @@ async fn lambda_events_reach_the_same_pipeline() {
     let body: Value = serde_json::from_str(http["body"].as_str().unwrap()).unwrap();
     assert_eq!(body["__type"], "AccessDeniedException");
 }
+
+#[tokio::test]
+async fn roles_decide_through_the_framework_role_authorizer() {
+    use crucible_server_runtime_rust::roles::Grant;
+    use leyline_service::leyline::permissions::GraphPermission;
+    use leyline_service::leyline::roles::{Role, Scope};
+
+    // The generated catalogue: a reader reads, an admin is for people only.
+    assert_eq!(Role::GraphReader.allows(GraphPermission::Read), Grant::Yes);
+    assert_eq!(Role::GraphReader.allows(GraphPermission::Create), Grant::No);
+    assert!(Role::GraphAdmin.valid_for(Scope::AllGraphs, "user"));
+    assert!(!Role::GraphAdmin.valid_for(Scope::AllGraphs, "apiKey"));
+
+    let (service, audit) = service();
+    let read = token("graphs:read");
+    let none = token("profile");
+    // A reader may not create: it holds a binding over every graph, so the
+    // refusal is a 403.
+    let refused = call(
+        &service,
+        "POST",
+        "/graphs",
+        &[("authorization", &read)],
+        Some(json!({ "name": "roads" })),
+    )
+    .await;
+    assert_eq!(refused.status, StatusCode::FORBIDDEN, "{}", refused.body);
+    // A caller with no binding at all is shown nothing: a 404.
+    let hidden = call(
+        &service,
+        "GET",
+        "/graphs/g-1",
+        &[("authorization", &none)],
+        None,
+    )
+    .await;
+    assert_eq!(hidden.status, StatusCode::NOT_FOUND, "{}", hidden.body);
+    assert_eq!(hidden.body["__type"], "NotFoundException");
+    assert!(audit.entries().is_empty(), "refused calls never run");
+}
