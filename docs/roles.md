@@ -249,8 +249,9 @@ role graphAdmin = "graphAdmin" {
 A `by service` grant is exempt from reachability. Generated
 `Role::allows` answers `Grant::ByService` for it rather than `Yes`, and a
 role-aware `Authorizer` (§7) passes it to a service hook, so the service
-cannot forget it: the hook is a required trait method once any grant is
-`by service`. The reference shows the grant with its `///`, marked as
+cannot forget it: once any grant is `by service`, the generated
+`roles::authorizer` constructor requires the `ServiceGrants` trait, whose
+hook has no default (§7.2). The reference shows the grant with its `///`, marked as
 decided by the service. This is the general hatch for relation-shaped
 rules (a Zanzibar relation, a team's access to a repository): the model
 names who and what, the service answers when.
@@ -386,20 +387,30 @@ pub trait BindingSource: Send + Sync {
     /// read; `fresh` asks for no cached answer (the operation mutates).
     async fn bindings(&self, principal: &Principal, root: &ResourceRef, fresh: bool)
         -> Result<Vec<Binding>, Unavailable>;      // Binding = (ScopeRef, RoleValue)
-    /// A `by service` grant (§4.6): whether `binding`'s relationship reaches
-    /// `target`. Required once the model has one.
-    async fn decide_by_service(&self, principal: &Principal, binding: &Binding,
-        permission: Permission, target: &ResourceRef) -> Result<bool, Unavailable> {
-        Ok(false)
-    }
-    /// A custom role's permissions (§4.7). Required with `custom`.
-    async fn custom_role(&self, id: &str) -> Result<Option<PermissionSet>, Unavailable> {
-        Ok(None)
-    }
     /// Whether a refusal hides the target (404) or denies (403).
     fn refusal(&self, covered: bool) -> Refusal { if covered { Refusal::Denied } else { Refusal::Hidden } }
 }
+
+/// A `by service` grant (§4.6): whether `binding`'s relationship reaches
+/// `target`. No default: a model with such a grant cannot build its
+/// authorizer without it.
+pub trait ServiceGrants: BindingSource {
+    async fn decide_by_service(&self, principal: &Principal, binding: &Binding,
+        permission: Permission, target: &ResourceRef) -> Result<bool, Unavailable>;
+}
+
+/// A custom role's permissions (§4.7). No default.
+pub trait CustomRoles: BindingSource {
+    async fn custom_role(&self, id: &str) -> Result<Option<PermissionSet>, Unavailable>;
+}
 ```
+
+**The hooks a model needs are compile-time obligations.** The service
+builds its authorizer through the generated `roles::authorizer(source)`,
+whose bound is `BindingSource`, plus `ServiceGrants` when any role has a
+`by service` grant, plus `CustomRoles` with `custom`. Forgetting a hook
+is a type error at that call, never a silent refusal at runtime. The
+framework's own constructor is `#[doc(hidden)]` under `__generated`.
 
 For each batch of checks it reads the principal's bindings once and drops
 roles `parse` does not know or `valid_for` refuses for their scope and the
