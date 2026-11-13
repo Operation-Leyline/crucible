@@ -37,7 +37,7 @@ pub use name_case::NameCase;
 pub use naming::Naming;
 pub use paths::Paths;
 pub use report::Report;
-pub use roles::{role_id, role_narrowed};
+pub use roles::{reused_values, role_id, role_narrowed};
 pub use rules::Rules;
 pub use severity::Severity;
 

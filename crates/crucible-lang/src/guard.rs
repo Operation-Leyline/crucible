@@ -253,6 +253,23 @@ fn guard_with(
     let report = crucible_policy::diff_renamed(&old, service, config, &renames);
     let mut undeclared = Vec::new();
     let mut declared = 0;
+    // A role or scope value an earlier release retired, reused now: every
+    // frozen release counts, supported or not, since a binding stored
+    // under the value outlives its release. No step declares it.
+    match releases.all(baseline.parent().unwrap_or(baseline)) {
+        Ok(frozen) => {
+            let frozen: Vec<&Service> = frozen.iter().map(|release| &**release).collect();
+            for finding in crucible_policy::reused_values(&frozen, &old, service, config).findings {
+                if finding.exception.is_none() && finding.severity != Severity::Off {
+                    undeclared.push(finding);
+                }
+            }
+        }
+        Err(problem) => problems.push(FileDiagnostic {
+            file: None,
+            diagnostic: Diagnostic::new(crate::span::Span::default(), problem),
+        }),
+    }
     for finding in report.findings {
         if finding.exception.is_some() || finding.severity == Severity::Off {
             continue;

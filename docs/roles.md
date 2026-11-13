@@ -639,6 +639,13 @@ roles have no shape of their own. Besides the design's rules:
   change of `internal`, or a moved scope, is declared by an exception.
 - A baseline frozen before roles existed has no roles to compare, so a
   catalogue added since reports nothing.
+- *Retired values stay reserved.* The baseline comparison sees a role
+  whose value an older release had, and a later one removed, as new. A
+  stored binding keeps the value as a string, and the authorizer resolves
+  it against the current catalogue, so the guard reads every frozen
+  release in the lock (`crucible_policy::reused_values`): reusing such a
+  value is a `compatibility.role` (`compatibility.scope`) error at the
+  current declaration, declared only by an exception.
 
 ## 7. Generated code and the framework
 

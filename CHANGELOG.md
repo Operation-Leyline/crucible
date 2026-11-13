@@ -43,8 +43,9 @@ version's section when it is prepared.
   permission grantable. A
   public role or scope removed, made `internal`, or whose symbol now sends
   another value is a `compatibility.sdk` finding. Migrations declare the
-  breaks with `remove role`, `remove scope` and `narrow role`. A baseline frozen before roles existed reports
-  nothing. The rule IDs join `crucible_policy::RULE_IDS`.
+  breaks with `remove role`, `remove scope` and `narrow role`. A role or scope value an earlier frozen release
+  retired stays reserved: reusing it is an error. A baseline frozen before
+  roles existed reports nothing. The rule IDs join `crucible_policy::RULE_IDS`.
 - Roles R2 ([docs/roles.md](docs/roles.md) §7, [framework
   guide](docs/framework.md#roles)): Rust server bindings of a model with
   roles gain a `roles` module: `roles::CATALOGUE`, a `'static`

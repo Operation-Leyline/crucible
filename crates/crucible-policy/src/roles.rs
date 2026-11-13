@@ -20,8 +20,8 @@ use crucible_ir::ShapeId;
 use crucible_ir::ir::{GrantedSet, Role, ScopeTarget, Service, Shape};
 use crucible_ir::roles::{Target, covers, grantable, identifiers, parent, with_included};
 
-use crate::Severity;
 use crate::checker::Checker;
+use crate::{Config, Report, Severity};
 
 /// Where a role or scope finding is reported, and what a `[[exceptions]]`
 /// entry names: `namespace#symbol` in the service's namespace. A role or
@@ -46,6 +46,89 @@ pub fn role_narrowed(old: &Service, new: &Service, symbol: &str) -> bool {
     changes(old, new)
         .iter()
         .any(|change| change.rule == "compatibility.role" && change.site == site)
+}
+
+/// Role and scope values the package retired, reused by `current`: each
+/// value some release in `frozen` had and `baseline` does not, which a
+/// role (scope) of `current` has again. A binding stores the value as a
+/// string, a migration converts no stored binding, and the authorizer
+/// resolves a binding against the current catalogue, so bindings stored
+/// under it while it was released, inert since it was retired, would take
+/// effect again with whatever the role grants or the scope covers now.
+/// Once retired, a value stays reserved: each reuse is an error at the
+/// current declaration, declared only by an exception. The comparison with
+/// the baseline cannot see it: there the role is new.
+pub fn reused_values(
+    frozen: &[&Service],
+    baseline: &Service,
+    current: &Service,
+    config: &Config,
+) -> Report {
+    let mut report = Report::default();
+    let compatibility = &config.compatibility;
+    if !compatibility.wire.value {
+        return report;
+    }
+    let severity = compatibility.wire.severity_in(compatibility.severity);
+    // Each retired value, by the releases that had it.
+    let mut roles: BTreeMap<&str, BTreeSet<&str>> = BTreeMap::new();
+    let mut scopes: BTreeMap<&str, BTreeSet<&str>> = BTreeMap::new();
+    for release in frozen {
+        for role in &release.roles {
+            if !baseline.roles.iter().any(|r| r.value == role.value) {
+                roles
+                    .entry(&role.value)
+                    .or_default()
+                    .insert(&release.version);
+            }
+        }
+        for scope in &release.role_scopes {
+            if !baseline.role_scopes.iter().any(|s| s.value == scope.value) {
+                scopes
+                    .entry(&scope.value)
+                    .or_default()
+                    .insert(&release.version);
+            }
+        }
+    }
+    let had = |versions: &BTreeSet<&str>| {
+        versions
+            .iter()
+            .map(|v| format!("\"{v}\""))
+            .collect::<Vec<_>>()
+            .join(", ")
+    };
+    for scope in &current.role_scopes {
+        if let Some(versions) = scopes.get(scope.value.as_str()) {
+            report.push(
+                "compatibility.scope",
+                role_id(current, &scope.symbol),
+                severity,
+                format!(
+                    "the scope `{}` reuses {:?}, which release {} had and a later release retired: bindings stored at it then, inert since, would take effect again; give it a new value",
+                    scope.symbol,
+                    scope.value,
+                    had(versions)
+                ),
+            );
+        }
+    }
+    for role in &current.roles {
+        if let Some(versions) = roles.get(role.value.as_str()) {
+            report.push(
+                "compatibility.role",
+                role_id(current, &role.symbol),
+                severity,
+                format!(
+                    "the role `{}` reuses {:?}, which release {} had and a later release retired: bindings stored under it then, inert since, would take effect again with what it grants now; give it a new value",
+                    role.symbol,
+                    role.value,
+                    had(versions)
+                ),
+            );
+        }
+    }
+    report.finish(config)
 }
 
 /// One role or scope change, at the old declaration.

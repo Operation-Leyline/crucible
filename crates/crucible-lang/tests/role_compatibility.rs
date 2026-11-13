@@ -1353,6 +1353,92 @@ fn package(name: &str, baseline: &str, current: &str, migration: &str) -> PathBu
     dir
 }
 
+/// The guard of a package whose `releases`, each a whole source naming its
+/// own version, are frozen in order, the last one its baseline, and whose
+/// model is `current`.
+fn run_releases(name: &str, releases: &[&str], current: &str) -> Guard {
+    let dir = Path::new(env!("CARGO_TARGET_TMPDIR")).join(format!("role-compatibility-{name}"));
+    let _ = std::fs::remove_dir_all(&dir);
+    let mut baseline = String::new();
+    for (index, source) in releases.iter().enumerate() {
+        let staging = dir.with_extension(format!("staging{index}"));
+        let _ = std::fs::remove_dir_all(&staging);
+        std::fs::create_dir_all(&staging).unwrap();
+        std::fs::write(staging.join("crucible.toml"), MANIFEST).unwrap();
+        std::fs::write(staging.join("atlas.cru"), source).unwrap();
+        let compiled = compile(&load_package(&staging).unwrap(), None);
+        assert!(compiled.service.is_some(), "{}", compiled.render());
+        let service = compiled.service.unwrap();
+        baseline = service.version.clone();
+        crucible_lang::release::freeze(&dir.join("releases"), &service, "test").unwrap();
+    }
+    std::fs::write(
+        dir.join("crucible.toml"),
+        format!("{MANIFEST}\n[model.baseline]\npath = \"releases/{baseline}.json\"\n"),
+    )
+    .unwrap();
+    std::fs::write(dir.join("atlas.cru"), current).unwrap();
+    let loaded = load_package(&dir).unwrap();
+    let own = loaded.files.len();
+    let compiled = compile(&loaded, None);
+    assert!(compiled.service.is_some(), "{}", compiled.render());
+    guard(&loaded, &compiled, own, &Config::default())
+        .expect("a baseline")
+        .expect("the baseline loads")
+}
+
+#[test]
+fn a_value_an_earlier_release_retired_stays_reserved() {
+    // v1 has graphAdmin; v2 removes it; v3 brings the value back.
+    let v1 = BASE.to_owned();
+    let v2 = edit(BASE, ", graphAdmin]", "]");
+    let v2 = v2[..v2.find("/// Read, write and delete graphs.").unwrap()]
+        .replace("version \"v1\"", "version \"v2\"");
+    let v3 =
+        BASE.replace("version \"v1\"", "version \"v3\"") + "\nmigration \"v3\" from \"v2\" {}\n";
+    let guard = run_releases("reused-role", &[&v1, &v2], &v3);
+    let reused: Vec<String> = guard
+        .undeclared
+        .iter()
+        .filter(|f| f.shape == "example.atlas#graphAdmin")
+        .map(|f| format!("{} {}", f.rule, f.message))
+        .collect();
+    assert_eq!(
+        reused,
+        [
+            "compatibility.role the role `graphAdmin` reuses \"graphAdmin\", which release \"v1\" had and a later release retired: bindings stored under it then, inert since, would take effect again with what it grants now; give it a new value"
+        ]
+    );
+    assert!(guard.has_errors());
+
+    // A scope's value, the same.
+    let v2 = edit(BASE, ", allGraphs, graph]", ", graph]");
+    let v2 = edit(
+        &v2,
+        "/// Every graph in the organization.\nscope allGraphs = \"allGraphs\" on Graph(*)\n",
+        "",
+    )
+    .replace("at [allGraphs, graph]", "at [graph]")
+    .replace("version \"v1\"", "version \"v2\"");
+    let guard = run_releases("reused-scope", &[&v1, &v2], &v3);
+    assert!(
+        undeclared_errors(&guard)
+            .contains(&"compatibility.scope example.atlas#allGraphs".to_owned()),
+        "{:?}",
+        undeclared_errors(&guard)
+    );
+
+    // A value no release had is new: nothing.
+    let v2 = BASE.replace("version \"v1\"", "version \"v2\"");
+    let added = edit(
+        &BASE.replace("version \"v1\"", "version \"v3\""),
+        ", graphAdmin]",
+        ", graphAdmin, auditor]",
+    ) + "\nrole auditor = \"auditor\" { at [graph]; grants Graph [read] }\n\nmigration \"v3\" from \"v2\" {}\n";
+    let guard = run_releases("new-value", &[&v1, &v2], &added);
+    assert_eq!(undeclared_errors(&guard), Vec::<String>::new());
+}
+
 fn run(name: &str, baseline: &str, current: &str, migration: &str) -> Guard {
     let dir = package(name, baseline, current, migration);
     let loaded = load_package(&dir).unwrap();

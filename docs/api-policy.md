@@ -459,6 +459,14 @@ exception names.
 A baseline frozen before roles existed has no roles to compare, so adding a
 catalogue reports nothing.
 
+Role and scope values stay reserved once retired. The guard also reads
+every release frozen beside the baseline (each one `releases/crucible.lock`
+records): a role or scope of the current model whose value one of them had
+and the baseline does not is a `compatibility.role` or `compatibility.scope`
+error at it. Bindings stored under the value while it was released, inert
+since it was retired, would take effect again with what it grants or
+covers now. No migration step declares it; an exception does.
+
 `sdk_source` checks model-level public types, operations, members, enums,
 collection representations, service/client identity,
 and permission, role and scope constants: one removed, or moved to
