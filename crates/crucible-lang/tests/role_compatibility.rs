@@ -343,6 +343,71 @@ fn moving_a_scopes_resource_under_another_parent_orphans_its_bindings() {
 }
 
 #[test]
+fn a_resource_moved_out_from_under_a_scope_narrows_the_roles_bound_there() {
+    // The owner is bound at an organization and at the service, so its
+    // graph grants stay reachable when `Graph` leaves `Organization`.
+    let wide = edit(
+        BASE,
+        "    scopes [organization, allGraphs, graph]\n",
+        "    scopes [organization, allGraphs, graph, everything]\n",
+    );
+    let wide = edit(
+        &wide,
+        "/// Every graph in the organization.\n",
+        "/// The whole service.\nscope everything = \"everything\" on service\n/// Every graph in the organization.\n",
+    );
+    let wide = edit(
+        &wide,
+        "    at [organization]\n",
+        "    at [organization, everything]\n",
+    );
+    let moved = edit(
+        &wide,
+        "    resources [Organization]\n",
+        "    resources [Organization, Workspace]\n",
+    );
+    let moved = edit(
+        &moved,
+        "resource Graph in Organization {",
+        "resource Workspace {\n    id organizationId: OrganizationId\n}\n\nresource Graph in Workspace {",
+    );
+    let found = findings_from(&wide, &moved);
+    // The scopes and grants read the same; what a binding at an
+    // organization covers does not.
+    assert_eq!(
+        at(&found, "compatibility.role", "owner"),
+        [
+            "error: `owner` bound at \"organization\" no longer covers `Graph`, where it grants \"graph:read\", \"graph:write\", \"graph:delete\"; its holders bound there are refused what they had",
+            "error: `owner` bound at \"organization\" no longer covers `History`, where it grants \"history:read\"; its holders bound there are refused what they had",
+        ]
+    );
+    // A migration declares it with `narrow role owner`.
+    assert!(crucible_policy::role_narrowed(
+        &lower(&wide),
+        &lower(&moved),
+        "owner"
+    ));
+    // `graph` and `allGraphs` changed their instance paths: reported at
+    // them, not again for the roles bound there.
+    assert_eq!(at(&found, "compatibility.scope", "graph").len(), 1);
+    assert_eq!(at(&found, "compatibility.scope", "allGraphs").len(), 1);
+    for role in ["graphReader", "graphWriter", "graphAdmin"] {
+        assert!(at(&found, "compatibility.role", role).is_empty(), "{role}");
+    }
+
+    // The reverse move widens it.
+    let found = findings_from(&moved, &wide);
+    assert_eq!(
+        at(&found, "compatibility.role-widened", "owner"),
+        [
+            "warning: `owner` bound at \"organization\" now covers `Graph`, where it grants \"graph:read\", \"graph:write\", \"graph:delete\"; its holders bound there gain it without a new binding",
+            "warning: `owner` bound at \"organization\" now covers `History`, where it grants \"history:read\"; its holders bound there gain it without a new binding",
+        ]
+    );
+    assert!(at(&found, "compatibility.role", "owner").is_empty());
+}
+
+#[test]
 fn renaming_an_identifier_a_scope_instance_carries_orphans_its_bindings() {
     let found = findings(&BASE.replace("graphId", "graphKey"));
     // Reported once, at the scope whose instance carries it; `allGraphs`

@@ -433,6 +433,14 @@ roles have no shape of their own. Besides the design's rules:
   see, so it is a review, not a refusal. `by service` removed, the model now
   granting it outright, is `compatibility.role-widened`, as is a new `by
   service` grant.
+- *Coverage.* Coverage follows the resource tree, so a resource moved out
+  from under a scope's resource narrows every role bound there that grants
+  on it, though its scopes and grants read the same: for each scope a
+  role keeps and each resource it still grants on, the binding's coverage
+  (one instance and `R(*)`) is compared, lost coverage a
+  `compatibility.role` error and gained coverage
+  `compatibility.role-widened`. A scope whose resource or instance path
+  changed is left out: `compatibility.scope` reports it.
 - *Reported once.* A permission gone altogether is
   `compatibility.permissions`' finding and a scope gone `compatibility.scope`'s;
   neither is reported again for each role that granted or bound at it. A

@@ -18,7 +18,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use crucible_ir::ShapeId;
 use crucible_ir::ir::{GrantedSet, Role, ScopeTarget, Service, Shape};
-use crucible_ir::roles::{parent, with_included};
+use crucible_ir::roles::{Target, covers, parent, with_included};
 
 use crate::Severity;
 use crate::checker::Checker;
@@ -210,6 +210,7 @@ pub(crate) fn changes(old: &Service, new: &Service) -> Vec<Change> {
         role_changes.scopes();
         role_changes.holders();
         role_changes.grants();
+        role_changes.coverage();
     }
     out
 }
@@ -320,6 +321,10 @@ struct RoleChanges<'a, 'o> {
 /// A granted permission, as the role's settled grants name it.
 type Granted<'a> = (&'a ShapeId, &'a str);
 
+/// The values a role still grants on one resource: as the baseline stores
+/// them, and as the new model does.
+type Kept<'a> = (Vec<&'a str>, Vec<&'a str>);
+
 impl<'a> RoleChanges<'a, '_> {
     fn push(&mut self, rule: &'static str, breaking: bool, message: String) {
         self.out.push(Change {
@@ -393,6 +398,103 @@ impl<'a> RoleChanges<'a, '_> {
             }
         };
         self.push("compatibility.role", true, message);
+    }
+
+    /// What a binding at each scope it keeps covers of what it still grants.
+    /// Coverage follows the resource tree, so a resource moved out from
+    /// under a scope (or in beneath one) changes what a stored binding there
+    /// gives its holder, though the role's scopes and grants read the same.
+    /// A scope whose resource or instance path changed is
+    /// `compatibility.scope`'s finding, so it is left out here.
+    fn coverage(&mut self) {
+        let old_scopes: Vec<_> = self
+            .role
+            .scopes
+            .iter()
+            .filter_map(|symbol| self.old.scope(symbol))
+            .collect();
+        let new_scopes: Vec<_> = self
+            .now
+            .scopes
+            .iter()
+            .filter_map(|symbol| self.new.scope(symbol))
+            .collect();
+        let model: BTreeSet<Granted> = self
+            .now
+            .effective
+            .iter()
+            .map(|g| (&g.resource, g.permission.as_str()))
+            .chain(
+                self.now
+                    .by_service
+                    .iter()
+                    .map(|g| (&g.resource, g.permission.as_str())),
+            )
+            .collect();
+        // What it still grants, by resource in both models: the old
+        // resource, the new one, and the values granted on it in each.
+        let mut kept: BTreeMap<(&ShapeId, &ShapeId), Kept> = BTreeMap::new();
+        for (resource, permission) in self
+            .role
+            .effective
+            .iter()
+            .map(|g| (&g.resource, g.permission.as_str()))
+            .chain(
+                self.role
+                    .by_service
+                    .iter()
+                    .map(|g| (&g.resource, g.permission.as_str())),
+            )
+        {
+            let Some(now) = land(self.old, self.new, resource, permission) else {
+                continue;
+            };
+            if !model.contains(&now) {
+                continue;
+            }
+            let entry = kept.entry((resource, now.0)).or_default();
+            entry.0.push(value(self.old, resource, permission));
+            entry.1.push(value(self.new, now.0, now.1));
+        }
+        for scope in old_scopes {
+            let Some(now) = new_scopes.iter().find(|s| s.value == scope.value) else {
+                continue;
+            };
+            if target(self.old, &scope.on) != target(self.new, &now.on)
+                || instance(self.old, &scope.on) != instance(self.new, &now.on)
+            {
+                continue;
+            }
+            for ((was_on, is_on), (was_values, is_values)) in &kept {
+                let reach = |service: &Service, on: &ScopeTarget, resource: &ShapeId| {
+                    (
+                        covers(service, on, Target::Instance(resource)),
+                        covers(service, on, Target::Every(resource)),
+                    )
+                };
+                let before = reach(self.old, &scope.on, was_on);
+                let after = reach(self.new, &now.on, is_on);
+                let symbol = &self.role.symbol;
+                if before.0 && !after.0 || before.1 && !after.1 {
+                    let message = format!(
+                        "`{symbol}` bound at {:?} no longer covers `{}`, where it grants {}; its holders bound there are refused what they had",
+                        scope.value,
+                        was_on.name(),
+                        quoted(was_values)
+                    );
+                    self.push("compatibility.role", true, message);
+                }
+                if !before.0 && after.0 || !before.1 && after.1 {
+                    let message = format!(
+                        "`{symbol}` bound at {:?} now covers `{}`, where it grants {}; its holders bound there gain it without a new binding",
+                        now.value,
+                        is_on.name(),
+                        quoted(is_values)
+                    );
+                    self.push("compatibility.role-widened", false, message);
+                }
+            }
+        }
     }
 
     /// What it grants, the model or the service deciding.
@@ -539,6 +641,23 @@ fn land<'n>(
         .find(|(_, r)| r.name == before.name)?;
     let holder = after.by_value(value)?;
     Some((id, after.primary(holder).symbol.as_str()))
+}
+
+/// The stored value of `permission` on `resource`.
+fn value<'s>(service: &'s Service, resource: &ShapeId, permission: &'s str) -> &'s str {
+    service
+        .permissions
+        .get(resource)
+        .and_then(|r| r.permission(permission))
+        .map_or(permission, |p| p.value.as_str())
+}
+
+fn quoted(values: &[&str]) -> String {
+    values
+        .iter()
+        .map(|value| format!("{value:?}"))
+        .collect::<Vec<_>>()
+        .join(", ")
 }
 
 /// `"graph:read" on `Graph``: the stored value and the resource.

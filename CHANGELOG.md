@@ -32,9 +32,11 @@ version's section when it is prepared.
   `compatibility.scope` and `compatibility.role` (errors) report a role or
   scope removed or with a changed value, a scope moved to another resource
   or whose instance is named another way (reparented, or an identifier
-  renamed), and a role that grants less, binds at fewer scopes or admits fewer
-  holders; `compatibility.role-widened` (a warning) reports a role that
-  grants more, by an edit or because its `*` covers a new permission. A
+  renamed), and a role that grants less, binds at fewer scopes, admits
+  fewer holders, or covers less from a scope it keeps;
+  `compatibility.role-widened` (a warning) reports a role that grants
+  more, by an edit, because its `*` covers a new permission, or because a
+  scope it keeps now covers more. A
   public role or scope removed or made `internal` is a `compatibility.sdk`
   finding. Migrations declare the breaks with `remove role`, `remove scope`
   and `narrow role`. A baseline frozen before roles existed reports
