@@ -7,7 +7,7 @@ service Desk {
 }
 
 /// Reads a ticket.
-public readonly operation GetTicket {
+anonymous readonly operation GetTicket {
     http GET "/tickets/{id}"
     input { id: string }
     output { subject: string }
@@ -28,7 +28,7 @@ readonly operation Ping {
 }
 
 /// Checks the service is up.
-public readonly operation Health {
+anonymous readonly operation Health {
     http GET "/health"
     output { ok: boolean }
 }

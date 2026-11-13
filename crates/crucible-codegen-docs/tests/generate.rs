@@ -1891,7 +1891,7 @@ fn model_text_cannot_inject_markup_into_llms_txt() {
     service.docs = Some(format!("{hostile}. Second sentence."));
     for op in &mut service.operations {
         op.docs = Some(hostile.into());
-        op.public = true;
+        op.anonymous = true;
         op.auth.clear();
         op.sender = Some(crucible_ir::ir::Sender {
             name: hostile.into(),

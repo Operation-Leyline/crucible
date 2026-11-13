@@ -171,13 +171,16 @@ pub(super) const FLAGS: &[&str] = &[
     "sensitive",
     "readonly",
     "idempotent",
-    "public",
+    "anonymous",
     "paginated",
     "enum",
     "referenced",
     "optional",
     "required",
     "template",
+    // The deprecated spelling of `anonymous`: read as it, with a warning,
+    // and left out of the flags a diagnostic lists.
+    "public",
 ];
 
 /// Whether the bare flag `name` can be read on `kind`.
@@ -186,7 +189,7 @@ pub(super) fn flag_applies(name: &str, kind: Kind) -> bool {
         "documented" => true,
         "internal" => kind != Kind::Service,
         "sensitive" => kind != Kind::Resource && kind != Kind::Service,
-        "readonly" | "idempotent" | "public" | "paginated" => kind == Kind::Operation,
+        "readonly" | "idempotent" | "anonymous" | "public" | "paginated" => kind == Kind::Operation,
         "enum" | "referenced" => kind.is_shape(),
         "optional" | "required" | "template" => kind.is_member(),
         _ => false,
@@ -270,7 +273,7 @@ pub(super) fn flags_for(kind: Kind) -> String {
     let names: Vec<&str> = FLAGS
         .iter()
         .copied()
-        .filter(|flag| flag_applies(flag, kind))
+        .filter(|flag| *flag != "public" && flag_applies(flag, kind))
         .collect();
     names.join(", ")
 }

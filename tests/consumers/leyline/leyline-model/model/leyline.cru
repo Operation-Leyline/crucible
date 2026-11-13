@@ -8,8 +8,8 @@ service Leyline {
     errors [AccessDeniedException, ValidationException, InternalServerException, UnknownOperationException]
 }
 
-/// Liveness probe; public.
-readonly public operation Health {
+/// Liveness probe; anonymous.
+readonly anonymous operation Health {
     http GET "/health" -> 200
     output {
         status: string

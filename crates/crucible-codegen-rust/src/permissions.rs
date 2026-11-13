@@ -551,17 +551,17 @@ pub(crate) fn not_found(service: &Service) -> String {
     })
 }
 
-/// `REQUIREMENTS`, `CHECKS` and `PUBLIC` for a server marker.
+/// `REQUIREMENTS`, `CHECKS` and `ANONYMOUS` for a server marker.
 pub(crate) fn marker_items(
     service: &Service,
     op: &Operation,
     diagnostics: &mut Diagnostics,
 ) -> String {
     let mut out = String::new();
-    // Only the model's explicit `public` exempts an operation, never an
+    // Only the model's explicit `anonymous` exempts an operation, never an
     // empty scheme list (a service authenticated outside the model).
-    if op.public {
-        out.push_str("    const PUBLIC: bool = true;\n");
+    if op.anonymous {
+        out.push_str("    const ANONYMOUS: bool = true;\n");
     }
     let requirements = match &op.requirements {
         // `Internal` exists only in a client projection; server bindings

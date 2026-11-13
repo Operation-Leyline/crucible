@@ -41,22 +41,30 @@ pub struct OperationMetadata {
     /// Evaluates the requirements' bindings and conditions against the
     /// decoded input ([`Operation::CHECKS`]).
     pub checks: Option<ErasedChecks>,
-    /// Whether the model explicitly makes the operation public
-    /// ([`Operation::PUBLIC`]), so there is nothing to authorize.
+    /// Whether the model explicitly makes the operation anonymous
+    /// ([`Operation::ANONYMOUS`]): it takes no credential, so there is
+    /// nothing to authorize.
+    pub anonymous: bool,
+    /// The former name of [`OperationMetadata::anonymous`], always equal to it.
+    #[deprecated(since = "0.10.0", note = "use `anonymous`")]
     pub public: bool,
 }
 
 impl OperationMetadata {
     /// Whether every request the operation serves has been authenticated:
-    /// it names an authentication scheme. An operation with no scheme (a
-    /// `public` one) or without
+    /// it names an authentication scheme. An operation with no scheme (an
+    /// `anonymous` one) or without
     /// authentication metadata (bindings older than it) admits anonymous
     /// callers.
     pub fn requires_authentication(&self) -> bool {
         self.auth_schemes.is_some_and(|schemes| !schemes.is_empty())
     }
 
+    // Fills the deprecated `public` beside `anonymous`, and reads the
+    // deprecated `Operation::PUBLIC` a hand-written marker may still set.
+    #[allow(deprecated)]
     pub(crate) fn of<O: Operation>() -> Self {
+        let anonymous = O::ANONYMOUS || O::PUBLIC;
         Self {
             auth_schemes: O::AUTH_SCHEMES,
             bearer_auth: O::AUTH_SCHEMES.is_some_and(|schemes| {
@@ -75,7 +83,8 @@ impl OperationMetadata {
                 Some(_) => Some(erased_checks::<O>),
                 None => None,
             },
-            public: O::PUBLIC,
+            anonymous,
+            public: anonymous,
         }
     }
 }
@@ -87,5 +96,72 @@ fn erased_checks<O: Operation>(input: &dyn Input, out: &mut Vec<Check>) -> bool 
             true
         }
         _ => false,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crucible_wire::__generated::operation_info;
+
+    use super::OperationMetadata;
+    use crate::operation::{Operation, OperationInfo, Unit};
+
+    static INFO: OperationInfo = operation_info(
+        "t#Ping",
+        "Ping",
+        None,
+        "GET",
+        &[],
+        &[],
+        200,
+        &[],
+        &[],
+        &[],
+        false,
+        false,
+        false,
+        None,
+        &[],
+    );
+
+    struct Anonymous;
+    impl Operation for Anonymous {
+        const INFO: &'static OperationInfo = &INFO;
+        const ANONYMOUS: bool = true;
+        type Input = Unit;
+        type Output = Unit;
+    }
+
+    /// A hand-written marker from before `ANONYMOUS` sets the deprecated
+    /// `PUBLIC`.
+    struct Public;
+    #[allow(deprecated)]
+    impl Operation for Public {
+        const INFO: &'static OperationInfo = &INFO;
+        const PUBLIC: bool = true;
+        type Input = Unit;
+        type Output = Unit;
+    }
+
+    struct Authenticated;
+    impl Operation for Authenticated {
+        const INFO: &'static OperationInfo = &INFO;
+        type Input = Unit;
+        type Output = Unit;
+    }
+
+    #[test]
+    #[allow(deprecated)]
+    fn anonymous_and_its_deprecated_name_agree() {
+        for (metadata, anonymous) in [
+            (OperationMetadata::of::<Anonymous>(), true),
+            (OperationMetadata::of::<Public>(), true),
+            (OperationMetadata::of::<Authenticated>(), false),
+        ] {
+            assert_eq!(metadata.anonymous, anonymous);
+            assert_eq!(metadata.public, anonymous);
+        }
+        // The deprecated constant defaults to the new one.
+        const { assert!(<Anonymous as Operation>::PUBLIC) };
     }
 }

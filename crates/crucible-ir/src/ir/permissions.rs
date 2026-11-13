@@ -122,7 +122,7 @@ pub struct PermissionTypes {
 #[derive(Debug, Clone, Default, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum Requirements {
     /// Nothing: a compile error on an authenticated operation once the
-    /// service declares any permission. What a public operation, and every
+    /// service declares any permission. What an anonymous operation, and every
     /// operation of a service without permissions, lowers to; the client
     /// projection also turns `Pending` into it.
     #[default]

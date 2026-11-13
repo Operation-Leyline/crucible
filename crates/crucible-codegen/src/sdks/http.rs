@@ -232,7 +232,7 @@ pub(super) fn document(
             .flatten()
             .map(|(name, value)| (name.clone(), value.as_str().unwrap_or_default().to_owned()))
             .collect();
-        let bearer = !operation.public && operation.auth.iter().any(|s| service.is_bearer(s));
+        let bearer = !operation.anonymous && operation.auth.iter().any(|s| service.is_bearer(s));
         if bearer {
             headers.push(("Authorization".into(), "Bearer <token>".into()));
         }

@@ -12,7 +12,7 @@ use super::vocabulary::{
     has_member_applies, path_type, type_is,
 };
 use crate::ast::{Expr, ExprKind, Operand, Operator, Path, Ref, Value};
-use crate::diagnostic::Diagnostic;
+use crate::diagnostic::{Diagnostic, deprecated_public};
 use crate::span::Span;
 
 pub(super) const ROLES: &[&str] = &[
@@ -188,6 +188,11 @@ impl Checker<'_, '_> {
                         flags_for(kind)
                     ),
                 );
+            } else if name == "public" {
+                self.problems.push(deprecated_public(
+                    path.head.name.span,
+                    "in a rule condition",
+                ));
             }
             return;
         }
