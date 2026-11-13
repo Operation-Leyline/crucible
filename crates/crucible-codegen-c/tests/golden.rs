@@ -151,6 +151,71 @@ fn colliding_permission_symbols_are_diagnostics() {
     );
 }
 
+/// The role registry (docs/roles.md §7 "Clients") from
+/// `tests/models/roles-granted-by`: open role and scope types and the
+/// static registry in catalogue order, public roles, scopes and permissions
+/// only, whatever the audience; checked in under `tests/golden/roles/`.
+#[test]
+fn roles_match_goldens() {
+    let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../tests/models/roles-granted-by");
+    let full = crucible_lang::load_service(&dir).unwrap();
+    let notes = Options {
+        package_name: "notes_client".into(),
+        prefix: "notes".into(),
+        ..options()
+    };
+    let roles = |audience| {
+        let service = crucible_ir::project(&full, audience).unwrap();
+        emit(&service, &notes)
+            .unwrap()
+            .into_iter()
+            .filter(|file| file.path.contains("roles."))
+            .collect::<Vec<_>>()
+    };
+    let external = roles(crucible_ir::Audience::External);
+    let internal = roles(crucible_ir::Audience::Internal);
+    assert_eq!(
+        external.iter().map(|f| &f.path).collect::<Vec<_>>(),
+        ["include/notes_client/roles.h", "src/roles.c"]
+    );
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/golden/roles");
+    for (file, server) in external.iter().zip(&internal) {
+        assert_eq!(file.contents, server.contents, "{}", file.path);
+        for hidden in ["auditor", "backOffice", "note:purge", "workspace:audit"] {
+            assert!(
+                !file.contents.contains(hidden),
+                "{} names {hidden}",
+                file.path
+            );
+        }
+        let path = root.join(&file.path);
+        if std::env::var_os("CRUCIBLE_BLESS").is_some() {
+            std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+            std::fs::write(&path, &file.contents).unwrap();
+        }
+        assert_eq!(
+            std::fs::read_to_string(&path)
+                .unwrap_or_default()
+                .replace("\r\n", "\n"),
+            file.contents,
+            "{}; rerun with CRUCIBLE_BLESS=1 and read the diff",
+            file.path
+        );
+    }
+    // A model without roles gets no role files.
+    let weather = crucible_lang::load_service(
+        &std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../tests/models/weather"),
+    )
+    .unwrap();
+    assert!(
+        emit(&weather, &options())
+            .unwrap()
+            .iter()
+            .all(|file| !file.path.contains("roles."))
+    );
+}
+
 /// A model without permissions gets no permission files.
 #[test]
 fn a_model_without_permissions_has_no_permission_files() {

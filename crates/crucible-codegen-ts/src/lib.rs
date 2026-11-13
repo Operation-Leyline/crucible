@@ -14,6 +14,7 @@ mod errors;
 mod models;
 mod names;
 mod permissions;
+mod roles;
 mod schemas;
 mod snippet;
 mod surface;
@@ -269,6 +270,7 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
         diagnostics.push(&service.id, format!("npm package metadata: {problem}"));
     }
     permissions::check_names(service, &mut diagnostics);
+    roles::check_names(service, &mut diagnostics);
     let methods = client::method_names(service)
         .into_iter()
         .map(|(id, (method, _))| (id, method))
@@ -284,6 +286,7 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
     let errors = errors::emit(service, &links, &mut diagnostics);
     let permissions =
         permissions::present(service).then(|| permissions::emit(service, &links, &mut diagnostics));
+    let roles = roles::present(service).then(|| roles::emit(service, &links, &mut diagnostics));
     if !diagnostics.is_empty() {
         return Err(diagnostics);
     }
@@ -299,13 +302,21 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
         file("src/client.ts", client::emit(service, options, &links)),
         file(
             "src/index.ts",
-            index(&client, &permissions::index_exports(service)),
+            index(
+                &client,
+                &format!(
+                    "{}{}",
+                    permissions::index_exports(service),
+                    roles::index_exports(service)
+                ),
+            ),
         ),
         file("package.json", package_json(service, options)),
         file("tsconfig.json", TSCONFIG.to_owned()),
     ]
     .into_iter()
     .chain(permissions.map(|contents| file("src/permissions.ts", contents)))
+    .chain(roles.map(|contents| file("src/roles.ts", contents)))
     .chain(package_docs(service, options))
     .chain(
         options

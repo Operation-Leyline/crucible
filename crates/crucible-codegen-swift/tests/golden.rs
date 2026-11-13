@@ -755,6 +755,70 @@ fn permissions_without_a_model_namespace_clash_or_twin_constants() {
     assert!(!files.iter().any(|f| f.path.ends_with("Permissions.swift")));
 }
 
+/// The role registry (docs/roles.md §7 "Clients") from
+/// `tests/models/roles-granted-by`: the `Roles` namespace, open `Role` and
+/// `Scope` types and `Roles.all` in catalogue order, public roles, scopes
+/// and permissions only, whatever the audience; checked in as
+/// `tests/golden/roles/Roles.swift`.
+#[test]
+fn role_registry_matches_golden() {
+    let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../tests/models/roles-granted-by");
+    let service = crucible_lang::load_service(&dir).unwrap();
+    let options = Options {
+        metadata: Default::default(),
+        package_name: "Notes".into(),
+        module_name: "Notes".into(),
+        package_version: "0.0.0-dev".into(),
+        endpoint: None,
+    };
+    let roles = |audience| {
+        let projected = crucible_ir::project(&service, audience).unwrap();
+        emit(&projected, &options)
+            .unwrap()
+            .into_iter()
+            .find(|f| f.path == "Sources/Notes/Roles.swift")
+            .expect("a Roles.swift")
+            .contents
+    };
+    let external = roles(crucible_ir::Audience::External);
+    assert_eq!(roles(crucible_ir::Audience::Internal), external);
+    for hidden in ["auditor", "backOffice", "note:purge", "workspace:audit"] {
+        assert!(!external.contains(hidden), "{hidden}");
+    }
+    let path =
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/golden/roles/Roles.swift");
+    if std::env::var_os("CRUCIBLE_BLESS").is_some() {
+        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+        std::fs::write(&path, &external).unwrap();
+    }
+    assert_eq!(
+        std::fs::read_to_string(&path)
+            .unwrap_or_default()
+            .replace("\r\n", "\n"),
+        external,
+        "rerun with CRUCIBLE_BLESS=1 and read the diff"
+    );
+    // A module named for the namespace is refused, never renamed.
+    let module = Options {
+        metadata: Default::default(),
+        package_name: "Notes".into(),
+        module_name: "Roles".into(),
+        package_version: "0.0.0-dev".into(),
+        endpoint: None,
+    };
+    let clash = emit(&service, &module).err().unwrap();
+    assert!(
+        clash
+            .to_string()
+            .contains("names the Swift namespace of the model's roles"),
+        "{clash}"
+    );
+    // A model without roles gets no file.
+    let files = emit(&weather(), &self::options()).unwrap();
+    assert!(!files.iter().any(|f| f.path.ends_with("Roles.swift")));
+}
+
 /// A hyphen in a permission's symbol (`mail-send`, which `.cru` allows)
 /// starts a word of the constant's name, since no client language allows
 /// one in a name (`constant_symbol`).

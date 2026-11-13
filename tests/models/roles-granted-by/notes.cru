@@ -1,0 +1,190 @@
+/// Notes, kept in workspaces.
+service Notes {
+    version "1"
+    protocol json
+    auth bearer
+    notFound Missing
+    resources [Workspace]
+    operations [GetCaller]
+    principals PrincipalKind
+    scopes [workspace, allNotes, note, backOffice]
+    roles [owner, viewer, editor, archivist, auditor] custom
+}
+
+/// The resource is missing, or the caller may not know it exists.
+error Missing {
+    status 404
+    message: string
+}
+
+/// Who a credential belongs to.
+enum PrincipalKind {
+    USER = "user"
+    SERVICE_ACCOUNT = "serviceAccount"
+}
+
+string WorkspaceId { length 1..40 }
+string NoteId { length 1..40 }
+string ArchiveId { length 1..40 }
+
+/// A team's workspace.
+resource Workspace {
+    id workspaceId: WorkspaceId
+    /// Read the workspace's settings.
+    permission read = "workspace:read"
+    /// Everything in the workspace, conferred whole.
+    @notGrantable permission admin = "workspace:admin"
+    /// Count what the workspace holds: the service's own jobs.
+    internal permission audit = "workspace:audit"
+}
+
+/// One note.
+resource Note in Workspace {
+    id noteId: NoteId
+    /// Read a note.
+    permission read = "note:read"
+    /// Change a note.
+    permission write = "note:write"
+    /// Write new notes.
+    permission create = "note:create"
+    /// Remove a note for good.
+    internal permission purge = "note:purge"
+}
+
+/// What a workspace keeps of its retired notes.
+resource Archive in Workspace {
+    id archiveId: ArchiveId
+    /// Read an archive.
+    permission read = "archive:read"
+}
+
+/// The workspace and everything in it.
+scope workspace = "workspace" on Workspace
+/// Every note in the workspace, including notes written later.
+scope allNotes = "allNotes" on Note(*)
+/// One note.
+scope note = "note" on Note
+/// The service's own jobs, everywhere.
+internal scope backOffice = "backOffice" on service
+
+/// Runs the workspace.
+role owner = "owner" {
+    at [workspace]
+    holders [USER]
+    assignedBy [owner]
+    grants Workspace [*]
+    grants Note [*]
+}
+
+/// Reads notes.
+role viewer = "viewer" {
+    at [workspace, allNotes, note]
+    grants Note [read]
+}
+
+/// Reads, changes and writes notes.
+role editor = "editor" {
+    at [allNotes, note]
+    includes [viewer]
+    grants Note [write, create]
+}
+
+/// Edits notes and reads the archives they came from.
+role archivist = "archivist" {
+    at [allNotes]
+    includes [editor]
+    /// The archives of the notes this binding covers, while they are retained.
+    grants Archive [read] by service
+}
+
+/// The service's own audits.
+internal role auditor = "auditor" {
+    at [backOffice]
+    grants Workspace [audit]
+    grants Note [purge]
+}
+
+/// Who is calling.
+readonly operation GetCaller {
+    http GET "/caller"
+    requires none
+    output {
+        kind: PrincipalKind
+    }
+}
+
+readonly operation GetWorkspace on Workspace {
+    http GET "/workspaces/{workspaceId}"
+    requires read
+    input {
+        $workspaceId
+    }
+}
+
+readonly operation GetNote on Note {
+    http GET "/workspaces/{workspaceId}/notes/{noteId}"
+    requires read
+    input {
+        $workspaceId
+        $noteId
+    }
+}
+
+readonly operation ListNotes on Note collection {
+    http GET "/workspaces/{workspaceId}/notes"
+    filters read on Note
+    input {
+        $workspaceId
+    }
+}
+
+operation CreateNote on Note collection {
+    http POST "/workspaces/{workspaceId}/notes"
+    requires create on Note(*)
+    input {
+        $workspaceId
+    }
+}
+
+/// A list mixing a public clause with an internal one: clients see which
+/// roles grant both, and only the public permission.
+operation UpdateNote on Note {
+    http POST "/workspaces/{workspaceId}/notes/{noteId}/update"
+    requires write
+    requires audit on Workspace when has audited
+    input {
+        $workspaceId
+        $noteId
+        audited?: boolean
+    }
+}
+
+/// Every requirement internal: clients still see which roles grant it.
+operation PurgeNote on Note {
+    http POST "/workspaces/{workspaceId}/notes/{noteId}/purge"
+    requires purge
+    input {
+        $workspaceId
+        $noteId
+    }
+}
+
+operation ShareNote on Note {
+    http POST "/workspaces/{workspaceId}/notes/{noteId}/share"
+    requires read
+    /// Only when the note is shared outside the workspace.
+    requires write by handler
+    input {
+        $workspaceId
+        $noteId
+    }
+}
+
+readonly operation GetArchive on Archive {
+    http GET "/workspaces/{workspaceId}/archives/{archiveId}"
+    requires read
+    input {
+        $workspaceId
+        $archiveId
+    }
+}

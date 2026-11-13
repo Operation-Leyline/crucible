@@ -228,8 +228,9 @@ an `Accept` header. The output's root therefore holds, beside `index.html`:
   an H1 with the service's title, a blockquote with the first sentence of
   its documentation, a paragraph on what every request sends, then
   sections of links, each with a one-line description: `Overview` (the
-  service overview and the permissions page), `Operations` (method, URI
-  and first sentence of each), `Data types` (kind, an error's status, and
+  service overview, the permissions page and the roles page), `Operations`
+  (method, URI and first sentence of each, then which roles grant it for
+  a service with roles), `Data types` (kind, an error's status, and
   first sentence), `Releases` (a chain of more than one release), and
   `Optional` (`llms-full.txt`, `describe.json`, `changes.json`).
   Operations and types are in shape-id order, and internal and deprecated
@@ -571,12 +572,40 @@ or SDK URL tables. Changing documentation metadata does not require a migration.
 | `requirements` | Absent when the operation declares nothing; else `{kind}`: `none` (with `filtered: true` in a client audience when the operation's only clauses are `filters` on internal permissions, so the answer is narrowed though nothing refuses the caller), `internal`, `pending` with `reason` (server audience only), or `list` with `clauses` (`mode`, `permission`, `resourceType`, `tier`, and optional `bindings`, `when`, `documentation`) and `partial: true` when further clauses name internal permissions this audience does not see. A clause's `documentation` is the model's raw Markdown string, not a common documentation object; beside it, `renderedDocumentation` is the same text as a common documentation object (`markdown`, `html`, `text`). `none` and `pending` carry the clause's `///` the same way, as `documentation` and `renderedDocumentation` beside `kind`; each optional field is absent when the model gives none |
 | `sender` | Absent unless a third party calls the operation and signs each request (`@sender`, decision 81): `{name, member, header}`, who sends it, the input member that carries the signature and its request header. Such an operation is public; the renderers say who calls it and where the signature travels, and show no `Authorization` or `Crucible-Version` header for it |
 | `requirementSentences`, `requirementDocumentation` | Beside `requirements`: what the caller must hold, as Markdown strings and as common documentation objects (`markdown`, `html`, `text`), since they carry model text. The two arrays are index-aligned. An entry may hold several paragraphs (a handler clause's longer documentation follows the sentences as its own entry). For `none`: "Requires no permission.", then "Returns only what the caller may see." when `filtered`, then the `///` as its own entry |
+| `grantedBySentences`, `grantedByDocumentation` | Absent for a service without roles. Beside `requirementSentences`: which roles grant what the operation requires ([Roles](#roles)), as Markdown strings and common documentation objects, index-aligned. Present even when every requirement is internal (`requirements.kind` `internal`): they name roles and scopes, never an internal permission |
 
 The JSON Schemas come from `crucible-codegen-common::json_schema`, also used by
 OpenAPI and MCP. They describe logical document values rather than an HTTP
 envelope; binding descriptions separately determine the wire location. Nullable/required/default
 behavior, effective constraints, and documentation notes reuse the shared schema
 implementation.
+
+### Roles
+
+A service that declares roles ([roles.md](roles.md)) adds, additively within
+version 1, a role and scope registry to `service` and granted-by data to
+each operation's `requirements`. A service without roles has none of these
+fields, and its description is unchanged. Every field is read from the
+granted-by analysis `crucible_ir::roles` settles on the server contract
+(`Operation::granted_by`), so no renderer re-derives which scopes cover
+which resources.
+
+| Field | Type and meaning |
+|---|---|
+| `service.roles` | Array in the service's catalogue order (its `roles [..]` list). Each: `value`, `description` (the model's Markdown, empty when none), `scopes` (scope values, catalogue order), `holders` (values of the service's `principals` enum; empty: any principal), `assignedBy` (role values whose holders alone assign it; empty: whoever may write bindings), `permissions` (`{resourceType, permission}`, what the model grants), optional `byService` (`{resourceType, permission, documentation?}`, what the service decides), `deprecated`, and `internal: true` on an internal role. A client-audience description lists only public roles, scopes, assigners and permissions |
+| `service.scopes` | Array in catalogue order. Each: `value`, `description`, `kind` (`service`, `instance` or `every`: on the whole service, one instance of `resource`, or every instance of it under one parent), `resource` (resource ID) and `resourceType` (its authorization name) unless `kind` is `service`, `deprecated`, and `internal: true` on an internal scope |
+| `service.customRoles` | `true` when customers may define further roles (`roles [..] custom`); absent otherwise |
+| `requirements.clauses[].grantedBy` | `{roles?, byService?, custom?}`: `roles` is `[{role, scopes}]`, the roles whose grants include the clause's permission in catalogue order, each with the scopes whose instances cover the clause's target (for a `filter` clause, any one instance it may return; for a check past a `*` binding, the whole collection); `byService` is `[{role, scopes, documentation?}]`, the roles that grant it as the service decides, with all their scopes and the grant's documentation; `custom: true` when a custom role may grant it (the service has custom roles and the permission is grantable). Values, not symbols |
+| `requirements.internalClauses` | Only where this audience does not see every clause (`kind` `internal`, or `partial`): one `{mode, conditional?, grantedBy}` per clause it does not see, in source order, naming roles and scopes and never the permission. `conditional: true` for a clause with a `when` condition |
+
+The Markdown reference shows the granted-by sentences under each
+operation's *Authorization* and lists the registries on a `roles.md` page
+(in `SUMMARY.md`, linked from the overview and from `llms.txt`, whose
+operation lines carry the sentences too); the static reference renders the
+same from `describe.json`. OpenAPI carries the registries as
+`x-crucible-roles` (`{roles, scopes, custom}`), each clause's `grantedBy`
+and `internalClauses` in `x-crucible-requires`, and the sentences in each
+operation's description.
 
 ### Operation schemas
 

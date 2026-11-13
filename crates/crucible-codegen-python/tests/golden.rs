@@ -416,6 +416,44 @@ fn permission_constant_collisions_are_diagnosed() {
     );
 }
 
+/// The role registry (docs/roles.md §7 "Clients") from
+/// `tests/models/roles-granted-by`: `roles.py`, checked in as
+/// `tests/golden/roles.py`, with public roles, scopes and permissions only
+/// whatever the audience; and no `roles.py` for a model without roles.
+#[test]
+fn role_registry_matches_golden() {
+    let service = load("roles-granted-by");
+    let roles = |audience| {
+        let projected = crucible_ir::project(&service, audience).unwrap();
+        emit(&projected, &options())
+            .unwrap()
+            .into_iter()
+            .find(|f| f.path == "src/weather_client/roles.py")
+            .expect("a roles.py")
+            .contents
+    };
+    let external = roles(crucible_ir::Audience::External);
+    assert_eq!(roles(crucible_ir::Audience::Internal), external);
+    for hidden in ["auditor", "backOffice", "note:purge", "workspace:audit"] {
+        assert!(!external.contains(hidden), "{hidden}");
+    }
+    let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/golden/roles.py");
+    if std::env::var_os("CRUCIBLE_BLESS").is_some() {
+        fs::write(&path, &external).unwrap();
+    }
+    assert_eq!(
+        fs::read_to_string(&path)
+            .unwrap_or_default()
+            .replace("\r\n", "\n"),
+        external,
+        "rerun with CRUCIBLE_BLESS=1 and read the diff"
+    );
+    for service in [weather(), permissions_service()] {
+        let files = emit(&service, &options()).unwrap();
+        assert!(!files.iter().any(|f| f.path.ends_with("/roles.py")));
+    }
+}
+
 /// No `permissions.py` without permissions; with them, the module and the
 /// registry's record types in the bundled runtime.
 #[test]

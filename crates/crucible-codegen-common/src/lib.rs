@@ -8,6 +8,7 @@ pub mod json_schema;
 pub mod mcp;
 pub mod metadata;
 pub mod permissions;
+pub mod roles;
 pub mod sample;
 pub mod snippet;
 pub mod surface;

@@ -1,0 +1,1576 @@
+{
+  "openapi": "3.1.1",
+  "info": {
+    "title": "Notes",
+    "version": "1",
+    "description": "Notes, kept in workspaces."
+  },
+  "paths": {
+    "/workspaces/{workspaceId}/notes": {
+      "post": {
+        "operationId": "CreateNote",
+        "responses": {
+          "200": {
+            "description": "Successful response"
+          },
+          "404": {
+            "description": "Missing",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "$ref": "#/components/schemas/crucible.api.String"
+                    },
+                    "__type": {
+                      "type": "string",
+                      "const": "Missing"
+                    }
+                  },
+                  "required": [
+                    "message",
+                    "__type"
+                  ]
+                }
+              }
+            },
+            "headers": {
+              "X-Crucible-Error": {
+                "schema": {
+                  "type": "string",
+                  "const": "Missing"
+                }
+              }
+            },
+            "x-crucible-errors": [
+              "example.notes#Missing"
+            ]
+          }
+        },
+        "security": [
+          {
+            "crucible.api.httpBearerAuth": []
+          }
+        ],
+        "x-crucible-shape": "example.notes#CreateNote",
+        "x-crucible-traits": {},
+        "description": "Requires `note:create` on every note in the workspace.\n\nGranted by `owner` at `workspace`; `editor` or `archivist` at `allNotes`; or a custom role that grants `note:create`.",
+        "x-crucible-requires": {
+          "kind": "list",
+          "clauses": [
+            {
+              "mode": "check",
+              "permission": "note:create",
+              "resourceType": "note",
+              "tier": "public",
+              "bindings": [
+                {
+                  "identifier": "workspaceId",
+                  "value": "workspaceId"
+                },
+                {
+                  "identifier": "noteId",
+                  "value": "*"
+                }
+              ],
+              "grantedBy": {
+                "roles": [
+                  {
+                    "role": "owner",
+                    "scopes": [
+                      "workspace"
+                    ]
+                  },
+                  {
+                    "role": "editor",
+                    "scopes": [
+                      "allNotes"
+                    ]
+                  },
+                  {
+                    "role": "archivist",
+                    "scopes": [
+                      "allNotes"
+                    ]
+                  }
+                ],
+                "custom": true
+              }
+            }
+          ]
+        },
+        "tags": [
+          "Note"
+        ],
+        "parameters": [
+          {
+            "name": "workspaceId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40
+            },
+            "style": "simple",
+            "explode": false
+          },
+          {
+            "name": "Crucible-Version",
+            "in": "header",
+            "required": true,
+            "description": "The release this request is written for: 1, the release this document describes.",
+            "schema": {
+              "type": "string",
+              "const": "1"
+            }
+          }
+        ]
+      },
+      "get": {
+        "operationId": "ListNotes",
+        "responses": {
+          "200": {
+            "description": "Successful response"
+          },
+          "404": {
+            "description": "Missing",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "$ref": "#/components/schemas/crucible.api.String"
+                    },
+                    "__type": {
+                      "type": "string",
+                      "const": "Missing"
+                    }
+                  },
+                  "required": [
+                    "message",
+                    "__type"
+                  ]
+                }
+              }
+            },
+            "headers": {
+              "X-Crucible-Error": {
+                "schema": {
+                  "type": "string",
+                  "const": "Missing"
+                }
+              }
+            },
+            "x-crucible-errors": [
+              "example.notes#Missing"
+            ]
+          }
+        },
+        "security": [
+          {
+            "crucible.api.httpBearerAuth": []
+          }
+        ],
+        "x-crucible-shape": "example.notes#ListNotes",
+        "x-crucible-traits": {},
+        "description": "Returns only the notes the caller holds `note:read` on in the workspace.\n\nReturns each note the caller holds `note:read` on through `owner` at `workspace`; `viewer` at `workspace`, `allNotes` or `note`; `editor` at `allNotes` or `note`; `archivist` at `allNotes`; or a custom role that grants `note:read`.",
+        "x-crucible-requires": {
+          "kind": "list",
+          "clauses": [
+            {
+              "mode": "filter",
+              "permission": "note:read",
+              "resourceType": "note",
+              "tier": "public",
+              "bindings": [
+                {
+                  "identifier": "workspaceId",
+                  "value": "workspaceId"
+                },
+                {
+                  "identifier": "noteId",
+                  "value": "*"
+                }
+              ],
+              "grantedBy": {
+                "roles": [
+                  {
+                    "role": "owner",
+                    "scopes": [
+                      "workspace"
+                    ]
+                  },
+                  {
+                    "role": "viewer",
+                    "scopes": [
+                      "workspace",
+                      "allNotes",
+                      "note"
+                    ]
+                  },
+                  {
+                    "role": "editor",
+                    "scopes": [
+                      "allNotes",
+                      "note"
+                    ]
+                  },
+                  {
+                    "role": "archivist",
+                    "scopes": [
+                      "allNotes"
+                    ]
+                  }
+                ],
+                "custom": true
+              }
+            }
+          ]
+        },
+        "tags": [
+          "Note"
+        ],
+        "x-crucible-readonly": true,
+        "parameters": [
+          {
+            "name": "workspaceId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40
+            },
+            "style": "simple",
+            "explode": false
+          },
+          {
+            "name": "Crucible-Version",
+            "in": "header",
+            "required": true,
+            "description": "The release this request is written for: 1, the release this document describes.",
+            "schema": {
+              "type": "string",
+              "const": "1"
+            }
+          }
+        ]
+      }
+    },
+    "/workspaces/{workspaceId}/archives/{archiveId}": {
+      "get": {
+        "operationId": "GetArchive",
+        "responses": {
+          "200": {
+            "description": "Successful response"
+          },
+          "404": {
+            "description": "Missing",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "$ref": "#/components/schemas/crucible.api.String"
+                    },
+                    "__type": {
+                      "type": "string",
+                      "const": "Missing"
+                    }
+                  },
+                  "required": [
+                    "message",
+                    "__type"
+                  ]
+                }
+              }
+            },
+            "headers": {
+              "X-Crucible-Error": {
+                "schema": {
+                  "type": "string",
+                  "const": "Missing"
+                }
+              }
+            },
+            "x-crucible-errors": [
+              "example.notes#Missing"
+            ]
+          }
+        },
+        "security": [
+          {
+            "crucible.api.httpBearerAuth": []
+          }
+        ],
+        "x-crucible-shape": "example.notes#GetArchive",
+        "x-crucible-traits": {},
+        "description": "Requires `archive:read` on the archive.\n\nGranted by `archivist` at `allNotes`, as the service decides (the archives of the notes this binding covers, while they are retained); or a custom role that grants `archive:read`.",
+        "x-crucible-requires": {
+          "kind": "list",
+          "clauses": [
+            {
+              "mode": "check",
+              "permission": "archive:read",
+              "resourceType": "archive",
+              "tier": "public",
+              "bindings": [
+                {
+                  "identifier": "workspaceId",
+                  "value": "workspaceId"
+                },
+                {
+                  "identifier": "archiveId",
+                  "value": "archiveId"
+                }
+              ],
+              "grantedBy": {
+                "byService": [
+                  {
+                    "role": "archivist",
+                    "scopes": [
+                      "allNotes"
+                    ],
+                    "documentation": "The archives of the notes this binding covers, while they are retained."
+                  }
+                ],
+                "custom": true
+              }
+            }
+          ]
+        },
+        "tags": [
+          "Archive"
+        ],
+        "x-crucible-readonly": true,
+        "parameters": [
+          {
+            "name": "workspaceId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40
+            },
+            "style": "simple",
+            "explode": false
+          },
+          {
+            "name": "archiveId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40
+            },
+            "style": "simple",
+            "explode": false
+          },
+          {
+            "name": "Crucible-Version",
+            "in": "header",
+            "required": true,
+            "description": "The release this request is written for: 1, the release this document describes.",
+            "schema": {
+              "type": "string",
+              "const": "1"
+            }
+          }
+        ]
+      }
+    },
+    "/caller": {
+      "get": {
+        "operationId": "GetCaller",
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "$ref": "#/components/schemas/example.notes.PrincipalKind"
+                    }
+                  },
+                  "required": [
+                    "kind"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "crucible.api.httpBearerAuth": []
+          }
+        ],
+        "x-crucible-shape": "example.notes#GetCaller",
+        "x-crucible-traits": {},
+        "description": "Who is calling.\n\nRequires no permission.",
+        "x-crucible-requires": {
+          "kind": "none"
+        },
+        "x-crucible-readonly": true,
+        "parameters": [
+          {
+            "name": "Crucible-Version",
+            "in": "header",
+            "required": true,
+            "description": "The release this request is written for: 1, the release this document describes.",
+            "schema": {
+              "type": "string",
+              "const": "1"
+            }
+          }
+        ]
+      }
+    },
+    "/workspaces/{workspaceId}/notes/{noteId}": {
+      "get": {
+        "operationId": "GetNote",
+        "responses": {
+          "200": {
+            "description": "Successful response"
+          },
+          "404": {
+            "description": "Missing",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "$ref": "#/components/schemas/crucible.api.String"
+                    },
+                    "__type": {
+                      "type": "string",
+                      "const": "Missing"
+                    }
+                  },
+                  "required": [
+                    "message",
+                    "__type"
+                  ]
+                }
+              }
+            },
+            "headers": {
+              "X-Crucible-Error": {
+                "schema": {
+                  "type": "string",
+                  "const": "Missing"
+                }
+              }
+            },
+            "x-crucible-errors": [
+              "example.notes#Missing"
+            ]
+          }
+        },
+        "security": [
+          {
+            "crucible.api.httpBearerAuth": []
+          }
+        ],
+        "x-crucible-shape": "example.notes#GetNote",
+        "x-crucible-traits": {},
+        "description": "Requires `note:read` on the note.\n\nGranted by `owner` at `workspace`; `viewer` at `workspace`, `allNotes` or `note`; `editor` at `allNotes` or `note`; `archivist` at `allNotes`; or a custom role that grants `note:read`.",
+        "x-crucible-requires": {
+          "kind": "list",
+          "clauses": [
+            {
+              "mode": "check",
+              "permission": "note:read",
+              "resourceType": "note",
+              "tier": "public",
+              "bindings": [
+                {
+                  "identifier": "workspaceId",
+                  "value": "workspaceId"
+                },
+                {
+                  "identifier": "noteId",
+                  "value": "noteId"
+                }
+              ],
+              "grantedBy": {
+                "roles": [
+                  {
+                    "role": "owner",
+                    "scopes": [
+                      "workspace"
+                    ]
+                  },
+                  {
+                    "role": "viewer",
+                    "scopes": [
+                      "workspace",
+                      "allNotes",
+                      "note"
+                    ]
+                  },
+                  {
+                    "role": "editor",
+                    "scopes": [
+                      "allNotes",
+                      "note"
+                    ]
+                  },
+                  {
+                    "role": "archivist",
+                    "scopes": [
+                      "allNotes"
+                    ]
+                  }
+                ],
+                "custom": true
+              }
+            }
+          ]
+        },
+        "tags": [
+          "Note"
+        ],
+        "x-crucible-readonly": true,
+        "parameters": [
+          {
+            "name": "workspaceId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40
+            },
+            "style": "simple",
+            "explode": false
+          },
+          {
+            "name": "noteId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40
+            },
+            "style": "simple",
+            "explode": false
+          },
+          {
+            "name": "Crucible-Version",
+            "in": "header",
+            "required": true,
+            "description": "The release this request is written for: 1, the release this document describes.",
+            "schema": {
+              "type": "string",
+              "const": "1"
+            }
+          }
+        ]
+      }
+    },
+    "/workspaces/{workspaceId}": {
+      "get": {
+        "operationId": "GetWorkspace",
+        "responses": {
+          "200": {
+            "description": "Successful response"
+          },
+          "404": {
+            "description": "Missing",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "$ref": "#/components/schemas/crucible.api.String"
+                    },
+                    "__type": {
+                      "type": "string",
+                      "const": "Missing"
+                    }
+                  },
+                  "required": [
+                    "message",
+                    "__type"
+                  ]
+                }
+              }
+            },
+            "headers": {
+              "X-Crucible-Error": {
+                "schema": {
+                  "type": "string",
+                  "const": "Missing"
+                }
+              }
+            },
+            "x-crucible-errors": [
+              "example.notes#Missing"
+            ]
+          }
+        },
+        "security": [
+          {
+            "crucible.api.httpBearerAuth": []
+          }
+        ],
+        "x-crucible-shape": "example.notes#GetWorkspace",
+        "x-crucible-traits": {},
+        "description": "Requires `workspace:read` on the workspace.\n\nGranted by `owner` at `workspace`; or a custom role that grants `workspace:read`.",
+        "x-crucible-requires": {
+          "kind": "list",
+          "clauses": [
+            {
+              "mode": "check",
+              "permission": "workspace:read",
+              "resourceType": "workspace",
+              "tier": "public",
+              "bindings": [
+                {
+                  "identifier": "workspaceId",
+                  "value": "workspaceId"
+                }
+              ],
+              "grantedBy": {
+                "roles": [
+                  {
+                    "role": "owner",
+                    "scopes": [
+                      "workspace"
+                    ]
+                  }
+                ],
+                "custom": true
+              }
+            }
+          ]
+        },
+        "tags": [
+          "Workspace"
+        ],
+        "x-crucible-readonly": true,
+        "parameters": [
+          {
+            "name": "workspaceId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40
+            },
+            "style": "simple",
+            "explode": false
+          },
+          {
+            "name": "Crucible-Version",
+            "in": "header",
+            "required": true,
+            "description": "The release this request is written for: 1, the release this document describes.",
+            "schema": {
+              "type": "string",
+              "const": "1"
+            }
+          }
+        ]
+      }
+    },
+    "/workspaces/{workspaceId}/notes/{noteId}/purge": {
+      "post": {
+        "operationId": "PurgeNote",
+        "responses": {
+          "200": {
+            "description": "Successful response"
+          },
+          "404": {
+            "description": "Missing",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "$ref": "#/components/schemas/crucible.api.String"
+                    },
+                    "__type": {
+                      "type": "string",
+                      "const": "Missing"
+                    }
+                  },
+                  "required": [
+                    "message",
+                    "__type"
+                  ]
+                }
+              }
+            },
+            "headers": {
+              "X-Crucible-Error": {
+                "schema": {
+                  "type": "string",
+                  "const": "Missing"
+                }
+              }
+            },
+            "x-crucible-errors": [
+              "example.notes#Missing"
+            ]
+          }
+        },
+        "security": [
+          {
+            "crucible.api.httpBearerAuth": []
+          }
+        ],
+        "x-crucible-shape": "example.notes#PurgeNote",
+        "x-crucible-traits": {},
+        "description": "Every requirement internal: clients still see which roles grant it.\n\nRequires permissions internal to the service.\n\nGranted by `owner` at `workspace`.",
+        "x-crucible-requires": {
+          "kind": "internal",
+          "internalClauses": [
+            {
+              "mode": "check",
+              "grantedBy": {
+                "roles": [
+                  {
+                    "role": "owner",
+                    "scopes": [
+                      "workspace"
+                    ]
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        "tags": [
+          "Note"
+        ],
+        "parameters": [
+          {
+            "name": "workspaceId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40
+            },
+            "style": "simple",
+            "explode": false
+          },
+          {
+            "name": "noteId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40
+            },
+            "style": "simple",
+            "explode": false
+          },
+          {
+            "name": "Crucible-Version",
+            "in": "header",
+            "required": true,
+            "description": "The release this request is written for: 1, the release this document describes.",
+            "schema": {
+              "type": "string",
+              "const": "1"
+            }
+          }
+        ]
+      }
+    },
+    "/workspaces/{workspaceId}/notes/{noteId}/share": {
+      "post": {
+        "operationId": "ShareNote",
+        "responses": {
+          "200": {
+            "description": "Successful response"
+          },
+          "404": {
+            "description": "Missing",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "$ref": "#/components/schemas/crucible.api.String"
+                    },
+                    "__type": {
+                      "type": "string",
+                      "const": "Missing"
+                    }
+                  },
+                  "required": [
+                    "message",
+                    "__type"
+                  ]
+                }
+              }
+            },
+            "headers": {
+              "X-Crucible-Error": {
+                "schema": {
+                  "type": "string",
+                  "const": "Missing"
+                }
+              }
+            },
+            "x-crucible-errors": [
+              "example.notes#Missing"
+            ]
+          }
+        },
+        "security": [
+          {
+            "crucible.api.httpBearerAuth": []
+          }
+        ],
+        "x-crucible-shape": "example.notes#ShareNote",
+        "x-crucible-traits": {},
+        "description": "Requires `note:read` on the note; `note:write` on the note, checked by the service (only when the note is shared outside the workspace).\n\n`note:read` on the note: granted by `owner` at `workspace`; `viewer` at `workspace`, `allNotes` or `note`; `editor` at `allNotes` or `note`; `archivist` at `allNotes`; or a custom role that grants `note:read`. `note:write` on the note, checked by the service (only when the note is shared outside the workspace): granted by `owner` at `workspace`; `editor` at `allNotes` or `note`; `archivist` at `allNotes`; or a custom role that grants `note:write`.",
+        "x-crucible-requires": {
+          "kind": "list",
+          "clauses": [
+            {
+              "mode": "check",
+              "permission": "note:read",
+              "resourceType": "note",
+              "tier": "public",
+              "bindings": [
+                {
+                  "identifier": "workspaceId",
+                  "value": "workspaceId"
+                },
+                {
+                  "identifier": "noteId",
+                  "value": "noteId"
+                }
+              ],
+              "grantedBy": {
+                "roles": [
+                  {
+                    "role": "owner",
+                    "scopes": [
+                      "workspace"
+                    ]
+                  },
+                  {
+                    "role": "viewer",
+                    "scopes": [
+                      "workspace",
+                      "allNotes",
+                      "note"
+                    ]
+                  },
+                  {
+                    "role": "editor",
+                    "scopes": [
+                      "allNotes",
+                      "note"
+                    ]
+                  },
+                  {
+                    "role": "archivist",
+                    "scopes": [
+                      "allNotes"
+                    ]
+                  }
+                ],
+                "custom": true
+              }
+            },
+            {
+              "mode": "handler",
+              "permission": "note:write",
+              "resourceType": "note",
+              "tier": "public",
+              "documentation": "Only when the note is shared outside the workspace.",
+              "grantedBy": {
+                "roles": [
+                  {
+                    "role": "owner",
+                    "scopes": [
+                      "workspace"
+                    ]
+                  },
+                  {
+                    "role": "editor",
+                    "scopes": [
+                      "allNotes",
+                      "note"
+                    ]
+                  },
+                  {
+                    "role": "archivist",
+                    "scopes": [
+                      "allNotes"
+                    ]
+                  }
+                ],
+                "custom": true
+              }
+            }
+          ]
+        },
+        "tags": [
+          "Note"
+        ],
+        "parameters": [
+          {
+            "name": "workspaceId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40
+            },
+            "style": "simple",
+            "explode": false
+          },
+          {
+            "name": "noteId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40
+            },
+            "style": "simple",
+            "explode": false
+          },
+          {
+            "name": "Crucible-Version",
+            "in": "header",
+            "required": true,
+            "description": "The release this request is written for: 1, the release this document describes.",
+            "schema": {
+              "type": "string",
+              "const": "1"
+            }
+          }
+        ]
+      }
+    },
+    "/workspaces/{workspaceId}/notes/{noteId}/update": {
+      "post": {
+        "operationId": "UpdateNote",
+        "responses": {
+          "200": {
+            "description": "Successful response"
+          },
+          "404": {
+            "description": "Missing",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "$ref": "#/components/schemas/crucible.api.String"
+                    },
+                    "__type": {
+                      "type": "string",
+                      "const": "Missing"
+                    }
+                  },
+                  "required": [
+                    "message",
+                    "__type"
+                  ]
+                }
+              }
+            },
+            "headers": {
+              "X-Crucible-Error": {
+                "schema": {
+                  "type": "string",
+                  "const": "Missing"
+                }
+              }
+            },
+            "x-crucible-errors": [
+              "example.notes#Missing"
+            ]
+          }
+        },
+        "security": [
+          {
+            "crucible.api.httpBearerAuth": []
+          }
+        ],
+        "x-crucible-shape": "example.notes#UpdateNote",
+        "x-crucible-traits": {},
+        "description": "A list mixing a public clause with an internal one: clients see which\nroles grant both, and only the public permission.\n\nRequires `note:write` on the note; and further permissions internal to the service.\n\n`note:write` on the note: granted by `owner` at `workspace`; `editor` at `allNotes` or `note`; `archivist` at `allNotes`; or a custom role that grants `note:write`. A permission internal to the service, when a condition on the input holds: granted by `owner` at `workspace`.",
+        "x-crucible-requires": {
+          "kind": "list",
+          "clauses": [
+            {
+              "mode": "check",
+              "permission": "note:write",
+              "resourceType": "note",
+              "tier": "public",
+              "bindings": [
+                {
+                  "identifier": "workspaceId",
+                  "value": "workspaceId"
+                },
+                {
+                  "identifier": "noteId",
+                  "value": "noteId"
+                }
+              ],
+              "grantedBy": {
+                "roles": [
+                  {
+                    "role": "owner",
+                    "scopes": [
+                      "workspace"
+                    ]
+                  },
+                  {
+                    "role": "editor",
+                    "scopes": [
+                      "allNotes",
+                      "note"
+                    ]
+                  },
+                  {
+                    "role": "archivist",
+                    "scopes": [
+                      "allNotes"
+                    ]
+                  }
+                ],
+                "custom": true
+              }
+            }
+          ],
+          "partial": true,
+          "internalClauses": [
+            {
+              "mode": "check",
+              "grantedBy": {
+                "roles": [
+                  {
+                    "role": "owner",
+                    "scopes": [
+                      "workspace"
+                    ]
+                  }
+                ]
+              },
+              "conditional": true
+            }
+          ]
+        },
+        "tags": [
+          "Note"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "audited": {
+                    "anyOf": [
+                      {
+                        "$ref": "#/components/schemas/crucible.api.Boolean"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "required": false
+        },
+        "parameters": [
+          {
+            "name": "workspaceId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40
+            },
+            "style": "simple",
+            "explode": false
+          },
+          {
+            "name": "noteId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40
+            },
+            "style": "simple",
+            "explode": false
+          },
+          {
+            "name": "Crucible-Version",
+            "in": "header",
+            "required": true,
+            "description": "The release this request is written for: 1, the release this document describes.",
+            "schema": {
+              "type": "string",
+              "const": "1"
+            }
+          }
+        ]
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "crucible.api.Boolean": {
+        "type": "boolean"
+      },
+      "crucible.api.String": {
+        "type": "string"
+      },
+      "example.notes.ArchiveId": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 40
+      },
+      "example.notes.CreateNoteInput": {
+        "type": "object",
+        "properties": {
+          "workspaceId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 40
+          }
+        },
+        "required": [
+          "workspaceId"
+        ]
+      },
+      "example.notes.GetArchiveInput": {
+        "type": "object",
+        "properties": {
+          "workspaceId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 40
+          },
+          "archiveId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 40
+          }
+        },
+        "required": [
+          "workspaceId",
+          "archiveId"
+        ]
+      },
+      "example.notes.GetCallerOutput": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "$ref": "#/components/schemas/example.notes.PrincipalKind"
+          }
+        },
+        "required": [
+          "kind"
+        ]
+      },
+      "example.notes.GetNoteInput": {
+        "type": "object",
+        "properties": {
+          "workspaceId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 40
+          },
+          "noteId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 40
+          }
+        },
+        "required": [
+          "workspaceId",
+          "noteId"
+        ]
+      },
+      "example.notes.GetWorkspaceInput": {
+        "type": "object",
+        "properties": {
+          "workspaceId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 40
+          }
+        },
+        "required": [
+          "workspaceId"
+        ]
+      },
+      "example.notes.ListNotesInput": {
+        "type": "object",
+        "properties": {
+          "workspaceId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 40
+          }
+        },
+        "required": [
+          "workspaceId"
+        ]
+      },
+      "example.notes.Missing": {
+        "type": "object",
+        "properties": {
+          "message": {
+            "$ref": "#/components/schemas/crucible.api.String"
+          }
+        },
+        "required": [
+          "message"
+        ],
+        "description": "The resource is missing, or the caller may not know it exists."
+      },
+      "example.notes.NoteId": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 40
+      },
+      "example.notes.PrincipalKind": {
+        "type": "string",
+        "enum": [
+          "user",
+          "serviceAccount"
+        ],
+        "description": "Who a credential belongs to."
+      },
+      "example.notes.PurgeNoteInput": {
+        "type": "object",
+        "properties": {
+          "workspaceId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 40
+          },
+          "noteId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 40
+          }
+        },
+        "required": [
+          "workspaceId",
+          "noteId"
+        ]
+      },
+      "example.notes.ShareNoteInput": {
+        "type": "object",
+        "properties": {
+          "workspaceId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 40
+          },
+          "noteId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 40
+          }
+        },
+        "required": [
+          "workspaceId",
+          "noteId"
+        ]
+      },
+      "example.notes.UpdateNoteInput": {
+        "type": "object",
+        "properties": {
+          "workspaceId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 40
+          },
+          "noteId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 40
+          },
+          "audited": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/crucible.api.Boolean"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "workspaceId",
+          "noteId"
+        ]
+      },
+      "example.notes.WorkspaceId": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 40
+      }
+    },
+    "securitySchemes": {
+      "crucible.api.httpBearerAuth": {
+        "type": "http",
+        "scheme": "bearer"
+      }
+    }
+  },
+  "x-crucible-service": "example.notes#Notes",
+  "x-crucible-protocol": "crucible.protocols#json",
+  "x-crucible-traits": {},
+  "x-crucible-permissions": [
+    {
+      "resourceType": "archive",
+      "identifiers": [
+        "workspaceId",
+        "archiveId"
+      ],
+      "permissions": [
+        {
+          "symbol": "read",
+          "value": "archive:read",
+          "description": "Read an archive.",
+          "tier": "public",
+          "grantable": true,
+          "deprecated": false
+        }
+      ]
+    },
+    {
+      "resourceType": "note",
+      "identifiers": [
+        "workspaceId",
+        "noteId"
+      ],
+      "permissions": [
+        {
+          "symbol": "create",
+          "value": "note:create",
+          "description": "Write new notes.",
+          "tier": "public",
+          "grantable": true,
+          "deprecated": false
+        },
+        {
+          "symbol": "read",
+          "value": "note:read",
+          "description": "Read a note.",
+          "tier": "public",
+          "grantable": true,
+          "deprecated": false
+        },
+        {
+          "symbol": "write",
+          "value": "note:write",
+          "description": "Change a note.",
+          "tier": "public",
+          "grantable": true,
+          "deprecated": false
+        }
+      ]
+    },
+    {
+      "resourceType": "workspace",
+      "identifiers": [
+        "workspaceId"
+      ],
+      "permissions": [
+        {
+          "symbol": "admin",
+          "value": "workspace:admin",
+          "description": "Everything in the workspace, conferred whole.",
+          "tier": "notGrantable",
+          "grantable": false,
+          "deprecated": false
+        },
+        {
+          "symbol": "read",
+          "value": "workspace:read",
+          "description": "Read the workspace's settings.",
+          "tier": "public",
+          "grantable": true,
+          "deprecated": false
+        }
+      ]
+    }
+  ],
+  "x-crucible-roles": {
+    "roles": [
+      {
+        "value": "owner",
+        "description": "Runs the workspace.",
+        "scopes": [
+          "workspace"
+        ],
+        "holders": [
+          "user"
+        ],
+        "assignedBy": [
+          "owner"
+        ],
+        "permissions": [
+          {
+            "resourceType": "note",
+            "permission": "note:read"
+          },
+          {
+            "resourceType": "note",
+            "permission": "note:write"
+          },
+          {
+            "resourceType": "note",
+            "permission": "note:create"
+          },
+          {
+            "resourceType": "workspace",
+            "permission": "workspace:read"
+          },
+          {
+            "resourceType": "workspace",
+            "permission": "workspace:admin"
+          }
+        ],
+        "deprecated": false
+      },
+      {
+        "value": "viewer",
+        "description": "Reads notes.",
+        "scopes": [
+          "workspace",
+          "allNotes",
+          "note"
+        ],
+        "holders": [],
+        "assignedBy": [],
+        "permissions": [
+          {
+            "resourceType": "note",
+            "permission": "note:read"
+          }
+        ],
+        "deprecated": false
+      },
+      {
+        "value": "editor",
+        "description": "Reads, changes and writes notes.",
+        "scopes": [
+          "allNotes",
+          "note"
+        ],
+        "holders": [],
+        "assignedBy": [],
+        "permissions": [
+          {
+            "resourceType": "note",
+            "permission": "note:read"
+          },
+          {
+            "resourceType": "note",
+            "permission": "note:write"
+          },
+          {
+            "resourceType": "note",
+            "permission": "note:create"
+          }
+        ],
+        "deprecated": false
+      },
+      {
+        "value": "archivist",
+        "description": "Edits notes and reads the archives they came from.",
+        "scopes": [
+          "allNotes"
+        ],
+        "holders": [],
+        "assignedBy": [],
+        "permissions": [
+          {
+            "resourceType": "note",
+            "permission": "note:read"
+          },
+          {
+            "resourceType": "note",
+            "permission": "note:write"
+          },
+          {
+            "resourceType": "note",
+            "permission": "note:create"
+          }
+        ],
+        "deprecated": false,
+        "byService": [
+          {
+            "resourceType": "archive",
+            "permission": "archive:read",
+            "documentation": "The archives of the notes this binding covers, while they are retained."
+          }
+        ]
+      }
+    ],
+    "scopes": [
+      {
+        "value": "workspace",
+        "description": "The workspace and everything in it.",
+        "kind": "instance",
+        "deprecated": false,
+        "resource": "example.notes#Workspace",
+        "resourceType": "workspace"
+      },
+      {
+        "value": "allNotes",
+        "description": "Every note in the workspace, including notes written later.",
+        "kind": "every",
+        "deprecated": false,
+        "resource": "example.notes#Note",
+        "resourceType": "note"
+      },
+      {
+        "value": "note",
+        "description": "One note.",
+        "kind": "instance",
+        "deprecated": false,
+        "resource": "example.notes#Note",
+        "resourceType": "note"
+      }
+    ],
+    "custom": true
+  }
+}

@@ -182,7 +182,7 @@ fn identified(identifier: &str) -> String {
 }
 
 /// A clause's documentation, as the requirement sentences carry it.
-enum ClauseDocs {
+pub(crate) enum ClauseDocs {
     None,
     /// One paragraph, read inline: a handler clause's `(only when the
     /// parsed query writes)`, or the sentences after `requires none`'s.
@@ -195,7 +195,7 @@ enum ClauseDocs {
 /// read inside a sentence, the first word lowercased only when that word
 /// is an ordinary capitalised one (never `HTTP`, `GraphQL` or `I`), and the
 /// sentence's own period dropped.
-fn handler_docs(docs: Option<&str>) -> ClauseDocs {
+pub(crate) fn handler_docs(docs: Option<&str>) -> ClauseDocs {
     let text = match clause_docs(docs) {
         ClauseDocs::Inline(text) => text,
         other => return other,

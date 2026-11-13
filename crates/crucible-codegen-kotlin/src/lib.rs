@@ -1,6 +1,7 @@
 //! Kotlin Multiplatform models and coroutine clients.
 mod models;
 mod permissions;
+mod roles;
 mod snippet;
 mod surface;
 
@@ -350,11 +351,10 @@ fn operation_kdoc(
     let (service, package) = (links.service, links.package);
     // What the caller must hold, as the model states it (docs/permissions.md
     // §6.3): Markdown holding model text, rendered like model documentation.
-    let mut notes: Vec<String> =
-        crucible_codegen_common::permissions::requirement_sentences(service, op, false)
-            .iter()
-            .flat_map(|sentence| docs::kdoc(sentence))
-            .collect();
+    let mut notes: Vec<String> = crucible_codegen_common::docs::requirement_sentences(service, op)
+        .iter()
+        .flat_map(|sentence| docs::kdoc(sentence))
+        .collect();
     if op.docs.is_none() {
         notes.push(format!("Calls the {} operation.", code(op.name())));
     }
@@ -618,6 +618,7 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
         }
     }
     permissions::check(service, &mut diagnostics);
+    roles::check(service, &mut diagnostics);
     if !diagnostics.is_empty() {
         return Err(diagnostics);
     }
@@ -720,6 +721,7 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
     ];
     files.push(File { path: format!("{source}/WireSchema.kt"), contents: format!("{header}internal fun loadSchema(): kotlinx.serialization.json.JsonObject = kotlinx.serialization.json.Json.parseToJsonElement(listOf({}).joinToString(\"\")) as kotlinx.serialization.json.JsonObject\n", schema.chars().collect::<Vec<_>>().chunks(6000).map(|chunk| literal(&chunk.iter().collect::<String>())).collect::<Vec<_>>().join(",\n")) });
     files.extend(permissions::files(service, package, &source));
+    files.extend(roles::files(service, package, &source));
     {
         use crucible_codegen_common::guide;
         let surface = surface::surface(service, options);

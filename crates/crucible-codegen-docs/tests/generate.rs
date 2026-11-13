@@ -1031,6 +1031,103 @@ fn permissions_match_reviewed_goldens() {
     assert!(page.contents.contains("### Internal"), "{}", page.contents);
 }
 
+/// Roles (docs/roles.md §5): a Roles page, a granted-by line under every
+/// operation's requirements, the role and scope registries and each
+/// clause's `grantedBy` in `describe.json`. Leyline's permissions are all
+/// internal: its public reference names the roles that grant each
+/// operation and never a permission.
+#[test]
+fn roles_match_reviewed_goldens() {
+    golden(
+        "roles-leyline-external",
+        "roles-leyline",
+        Audience::External,
+    );
+    golden(
+        "roles-leyline-internal",
+        "roles-leyline",
+        Audience::Internal,
+    );
+    golden(
+        "roles-granted-by-external",
+        "roles-granted-by",
+        Audience::External,
+    );
+    golden(
+        "roles-granted-by-internal",
+        "roles-granted-by",
+        Audience::Internal,
+    );
+
+    let server = documented("roles-leyline");
+    let internal: Vec<String> = server
+        .permissions
+        .values()
+        .flat_map(|r| r.permissions.iter().map(|p| p.value.clone()))
+        .collect();
+    let external = files("roles-leyline", Audience::External);
+    for file in &external {
+        for value in &internal {
+            assert!(
+                !file.contents.contains(value.as_str()),
+                "{} names {value}",
+                file.path
+            );
+        }
+    }
+    let page = |name: &str| {
+        &external
+            .iter()
+            .find(|f| f.path == format!("src/operations/API_{name}.md"))
+            .unwrap_or_else(|| panic!("{name}"))
+            .contents
+    };
+    // Every operation that requires a permission says which roles grant it.
+    for op in &server.operations {
+        let contents = page(op.id.name());
+        assert_eq!(
+            contents.contains("Granted by"),
+            !op.requirements.clauses().is_empty(),
+            "{}",
+            op.id
+        );
+    }
+    let code = |s: &str| format!("<code>{s}</code>");
+    assert!(page("GetGraph").contains(&format!(
+        "Granted by {}, {} or {} at {} or {}.",
+        code("graphReader"),
+        code("graphWriter"),
+        code("graphAdmin"),
+        code("allGraphs"),
+        code("graph")
+    )));
+    assert!(page("CreateGraph").contains(&format!(
+        "Granted by {} at {}; {} at {}.",
+        code("graphCreator"),
+        code("organization"),
+        code("graphAdmin"),
+        code("allGraphs")
+    )));
+    assert!(page("GetGraphHistory").contains(&format!(
+        "Granted by {} at {}; {} or {} at {} or {}; {} at {} or {}, as the service decides (the history of a graph this binding covers, while the graph is live).",
+        code("owner"),
+        code("organization"),
+        code("historyReader"),
+        code("historyAdmin"),
+        code("allHistories"),
+        code("history"),
+        code("graphAdmin"),
+        code("allGraphs"),
+        code("graph")
+    )));
+
+    // A model without roles has no Roles page and no granted-by.
+    for file in files(WEATHER, Audience::Internal) {
+        assert!(file.path != "src/roles.md");
+        assert!(!file.contents.contains("\"grantedBy"), "{}", file.path);
+    }
+}
+
 #[test]
 fn site_files_match_reviewed_goldens() {
     let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/golden/site");

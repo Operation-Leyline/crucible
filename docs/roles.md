@@ -1,10 +1,12 @@
 # Roles
 
-**Status: R1 implemented** (§10): the language and the IR, with the §6
-compile errors; its syntax is in [idl/reference.md](idl/reference.md#roles),
-and *As built* notes below mark where it differs from this design. R2 and
-later (generated code, `RoleAuthorizer`, outputs, compatibility) are
-proposed. It reverses one non-goal of
+**Status: R1 and R3 implemented** (§10): the language and the IR, with the
+§6 compile errors, and the outputs (granted-by in every reference, OpenAPI
+and the client role registries); the syntax is in
+[idl/reference.md](idl/reference.md#roles), and *As built* notes below mark
+where it differs from this design. R2 (generated server code,
+`RoleAuthorizer`) and R4 and later (compatibility, adoption) are proposed.
+It reverses one non-goal of
 [permissions.md](permissions.md) ("No roles in the model", §2) and narrows
 another ("Crucible does not decide"); §2 says how far. Leyline is the worked
 example (§8), because its role table has every awkward case we know of:
@@ -374,7 +376,7 @@ the **granted-by** answer survives: an operation whose requirements are
 internal can still say "granted by `graphReader` or `graphAdmin` on the
 graph" without naming the permission. This is the combination Leyline
 originally wanted (roles public, actions internal), and the public
-reference stops being empty either way.
+reference stops being empty either way. (R3 built it: §5's *As built*.)
 
 *As built (R1).* `crucible_ir::project` drops internal roles and scopes,
 and a public role's grants of permissions the client view lacks (internal
@@ -423,6 +425,46 @@ each clause and a `roles` and `scopes` registry to the service; the
 Markdown and HTML references show a "Granted by" line under "Requires" and
 a Roles page; OpenAPI adds `x-crucible-roles` and the roles to
 `x-crucible-requires`; `llms.txt` carries the sentence.
+
+*As built (R3).* `crucible_ir::roles::settle` fills `Operation::granted_by`
+on the server contract, after the effective grants: one `ClauseGrants` per
+clause in source order, holding its clause index, mode, whether it has a
+`when`, `roles` (`RoleGrant { role, scopes }` in catalogue order, each
+role's scopes in the service's `scopes [..]` order and only those that
+cover the clause's target), `by_service` (each such role with all its
+scopes and the grant's `///`) and `custom`. A check's target is
+`R(*)` (`Target::Every`) at the first identifier bound to `*`, else one
+`R`; a `by handler` clause is about one instance. A `filters` clause is
+about any one instance too: its `*` names the collection it lists, and the
+listing returns each instance the caller may see (permissions.md §4.5), so
+a binding on one note counts as much as one on all notes, while `requires
+create on Graph(*)` needs a scope that covers the whole collection. Its
+sentence says what the caller sees: "Returns each note the caller holds
+`note:read` on through `owner` at `workspace`; `viewer` at `workspace`,
+`allNotes` or `note`; …". A role that grants the
+permission but binds at no covering scope is left out. The client
+projection renumbers the entries of the clauses it keeps, keeps those it
+removes with `clause: None` (their mode and condition flag, never the
+permission), and drops internal roles and scopes from every entry; that
+is how the reference for an all-internal operation still names roles.
+Lists are in catalogue order, so the table above reads, in the generated
+reference: `GetGraph` "Granted by `graphReader`, `graphWriter` or
+`graphAdmin` at `allGraphs` or `graph`."; `CreateGraph` "Granted by
+`graphCreator` at `organization`; `graphAdmin` at `allGraphs`.";
+`GetGraphHistory` "Granted by `owner` at `organization`; `historyReader`
+or `historyAdmin` at `allHistories` or `history`; `graphAdmin` at
+`allGraphs` or `graph`, as the service decides (the history of a graph this
+binding covers, while the graph is live)." Roles that share their scopes
+are grouped. An operation with several clauses gets a sentence per clause,
+"`p` on the `r`: granted by …", and a clause the reader may not see named
+reads "A permission internal to the service[, checked by the service][,
+when a condition on the input holds]: granted by …": a hidden clause's
+`when` condition may read internal members, so it is not shown. One rule
+in `crucible_codegen_common::roles` writes the sentences
+(`granted_by_sentences`), the registries (`roles_registry`,
+`scopes_registry`) and each clause's data (`annotate_requirements`); the
+SDK documentation, the reference, MCP tool descriptions and OpenAPI all
+call it. `tests/models/roles-granted-by` exercises every clause kind.
 
 ## 6. Checks
 
@@ -611,6 +653,37 @@ language from one rule in `crucible-codegen-common`: `ROLES: { value,
 description, scopes, holders, assignedBy, permissions (public only) }[]`,
 open enums for role and scope values, as for permissions.
 
+*As built (R3).* The rule is `crucible_codegen_common::roles::{client_roles,
+client_scopes}`: public roles and scopes in catalogue order, whatever
+audience the IR was projected for; `scopes` and `assignedBy` as values,
+`holders` as the `principals` enum's wire values, `permissions` as
+`{resourceType, permission}` pairs of the role's model-decided grants a
+client may see (a `by service` grant is not listed). A model without a
+public role gets no new file in any language. Each language puts the
+registry where its permissions are and keeps the names off the models'
+namespace:
+
+| Language | Role and scope values | Registry |
+|---|---|---|
+| TypeScript | `{Service}Role.OWNER`, `{Service}Scope.ALL_NOTES` with `{Service}RoleValue`, `{Service}ScopeValue` (`roles.ts`) | `ROLES: readonly RoleDescription[]` |
+| Rust | `roles::Role::Owner`, `roles::Scope::AllNotes` (open enums) | `roles::ROLES: &[RoleDescription]` (`crucible_client_runtime_rust::roles`) |
+| Python | `roles.Role.OWNER`, `roles.Scope.ALL_NOTES` (`OpenEnum`) | `roles.ROLES` (frozen dataclasses) |
+| Go | `roles.RoleOwner`, `roles.ScopeAllNotes` (`roles` package) | `roles.Roles []RoleDescription` |
+| Java | `<package>.roles.Role.OWNER`, `Scope.ALL_NOTES` (open records) | `Roles.ROLES` |
+| Kotlin | `<package>.roles.Role.OWNER`, `Scope.ALL_NOTES` | `ROLES` (`Roles.ROLES` from Java) |
+| C# | `<Namespace>.Roles.Role.Owner`, `Scope.AllNotes` (open records) | `RoleRegistry.Roles` |
+| Swift | `Roles.Role.owner`, `Roles.Scope.allNotes` | `Roles.all` |
+| Dart | `Role.owner`, `Scope.allNotes` (`roles.dart`) | `roles` |
+| PHP | `<ns>\Roles\Role::OWNER`, `Scope::ALL_NOTES` | `<ns>\Roles\ROLES` |
+| Ruby | `Roles::Role::OWNER`, `Roles::Scope::ALL_NOTES` | `Roles::ROLES` |
+| C | `{prefix}_role_value_known_owner()`, `{prefix}_role_scope_value_known_all_notes()` | `{prefix}_roles[]`, `{prefix}_roles_count` |
+| C++ | `<ns>::roles::Role::known_owner()`, `Scope::known_all_notes()` | `<ns>::roles::registry` |
+| R | `NotesRole$owner`, `NotesScope$all_notes` | `ROLES` |
+
+Every SDK method's documentation carries the granted-by sentences after
+its requirement sentences (`crucible_codegen_common::docs::requirement_notes`
+and `documentation::operation`).
+
 ## 8. Leyline, written out
 
 Scopes and roles, from `fleet/src/access/policy.rs` (abridged docs):
@@ -701,8 +774,9 @@ a bundle its customers already store as a permission.
    tests, and `RoleAuthorizer` with its differential tests (§7.2, §7.3).
 3. **R2b, adoption tools.** The conformance harness and
    `ShadowAuthorizer` (§7.3).
-4. **R3, outputs.** Granted-by in `crucible-ir`; `describe.json`, the
-   Markdown and HTML references, OpenAPI, `llms.txt`; client registries.
+4. **R3, outputs** (built). Granted-by in `crucible-ir`; `describe.json`,
+   the Markdown and HTML references, OpenAPI, `llms.txt`; client
+   registries.
 5. **R4, compatibility.** The §6 rules in `crucible-policy`.
 6. **R5, Leyline.** Declare the catalogue, link `Role` and
    `RoleScopeType`, return the generated catalogue from `ListRoles`, run

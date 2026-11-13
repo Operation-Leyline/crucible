@@ -5,6 +5,7 @@ mod links;
 pub mod models;
 mod names;
 mod permissions;
+mod roles;
 mod snippet;
 mod surface;
 
@@ -138,7 +139,10 @@ fn diagnose(service: &Service, options: &Options) -> Diagnostics {
     // Permission symbols share C's one namespace with the models and
     // operations: a model `GraphPermission` would declare what a resource
     // `Graph`'s permission type does. Collected, never renamed.
-    for (id, symbol, what) in permissions::symbols(service, &options.prefix) {
+    for (id, symbol, what) in permissions::symbols(service, &options.prefix)
+        .into_iter()
+        .chain(roles::symbols(service, &options.prefix))
+    {
         if !names::identifier(&symbol) {
             errors.push(
                 &id,
@@ -184,6 +188,7 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
         .expect("schema");
     files.extend(client::emit(service, options, &schema));
     files.extend(permissions::emit(service, options));
+    files.extend(roles::emit(service, options));
     for (name, source) in [
         ("types.h", include_str!("../runtime/types.h")),
         ("internal.h", include_str!("../runtime/internal.h")),

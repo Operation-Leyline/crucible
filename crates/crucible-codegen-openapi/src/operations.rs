@@ -19,12 +19,21 @@ pub(crate) fn operation(service: &Service, op: &Operation) -> Value {
     // sentence in the description and the clauses as `x-crucible-requires`.
     // Never OAuth scopes: a scope list cannot name the resource.
     let requires = crucible_codegen_common::permissions::requirement_paragraph(service, op, true);
+    // Which roles grant it (docs/roles.md §5): the sentence after the
+    // requirements, and each clause's roles in `x-crucible-requires`.
+    let granted = crucible_codegen_common::roles::granted_by_paragraph(service, op, true);
+    let requires = match (requires, granted) {
+        (Some(requires), Some(granted)) => Some(format!("{requires}\n\n{granted}")),
+        (requires, granted) => requires.or(granted),
+    };
     let docs = match (op.docs.as_deref(), requires) {
         (Some(docs), Some(requires)) => Some(format!("{docs}\n\n{requires}")),
         (docs, requires) => docs.map(str::to_owned).or(requires),
     };
     description(service, &mut value, docs.as_deref());
-    if let Some(requirements) = crucible_codegen_common::permissions::requirements(service, op) {
+    if let Some(mut requirements) = crucible_codegen_common::permissions::requirements(service, op)
+    {
+        crucible_codegen_common::roles::annotate_requirements(service, op, &mut requirements, true);
         value["x-crucible-requires"] = requirements;
     }
     annotate(&mut value, &op.notes, Slot::Native);

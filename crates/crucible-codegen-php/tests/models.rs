@@ -403,6 +403,79 @@ fn permission_constant_collisions_are_diagnosed() {
     );
 }
 
+/// The role registry (docs/roles.md §7 "Clients") from
+/// `tests/models/roles-granted-by`: the `Roles` namespace (`Role`,
+/// `Scope` and the `ROLES` registry Composer loads), checked in under
+/// `tests/golden/roles/`, with public roles, scopes and permissions only
+/// whatever the audience; and nothing of it for a model without roles.
+#[test]
+fn role_registry_matches_golden() {
+    let service = load("roles-granted-by");
+    let generated = |audience| {
+        let projected = crucible_ir::project(&service, audience).unwrap();
+        emit(&projected, &options()).unwrap()
+    };
+    let roles = |files: &[crucible_codegen_php::File]| -> Vec<(String, String)> {
+        files
+            .iter()
+            .filter(|f| f.path.starts_with("src/Roles/"))
+            .map(|f| (f.path.clone(), f.contents.clone()))
+            .collect()
+    };
+    let files = generated(crucible_ir::Audience::External);
+    let external = roles(&files);
+    assert_eq!(roles(&generated(crucible_ir::Audience::Internal)), external);
+    let paths: Vec<&str> = external.iter().map(|(p, _)| p.as_str()).collect();
+    assert_eq!(
+        paths,
+        [
+            "src/Roles/Role.php",
+            "src/Roles/Scope.php",
+            "src/Roles/registry.php"
+        ]
+    );
+    let manifest: serde_json::Value = serde_json::from_str(
+        &files
+            .iter()
+            .find(|f| f.path == "composer.json")
+            .unwrap()
+            .contents,
+    )
+    .unwrap();
+    assert_eq!(
+        manifest["autoload"]["files"],
+        serde_json::json!(["src/Permissions/registry.php", "src/Roles/registry.php"])
+    );
+    for path in [
+        "src/Runtime/RoleDescription.php",
+        "src/Runtime/RolePermission.php",
+    ] {
+        assert!(files.iter().any(|f| f.path == path), "{path}");
+    }
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/golden/roles");
+    for (path, contents) in &external {
+        for hidden in ["auditor", "backOffice", "note:purge", "workspace:audit"] {
+            assert!(!contents.contains(hidden), "{path}: {hidden}");
+        }
+        let golden = root.join(path.strip_prefix("src/Roles/").unwrap());
+        if std::env::var_os("CRUCIBLE_BLESS").is_some() {
+            std::fs::create_dir_all(golden.parent().unwrap()).unwrap();
+            std::fs::write(&golden, contents).unwrap();
+        }
+        assert_eq!(
+            std::fs::read_to_string(&golden)
+                .unwrap_or_default()
+                .replace("\r\n", "\n"),
+            *contents,
+            "{path}; rerun with CRUCIBLE_BLESS=1 and read the diff"
+        );
+    }
+    for service in [weather(), permissions_service()] {
+        let files = emit(&service, &options()).unwrap();
+        assert!(!files.iter().any(|f| f.path.contains("Role")));
+    }
+}
+
 /// No `Permissions` namespace without permissions; with them, a class per
 /// resource, the registry file Composer loads and the record types.
 #[test]
