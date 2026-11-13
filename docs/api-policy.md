@@ -408,8 +408,8 @@ exception names.
   included role's, or a `*` that covers less, `by service` grants
   included), that can no longer be bound at a scope it could, or that no
   longer admits a kind of principal it did (`holders`), or one whose
-  binding at a scope it keeps no longer covers a resource it still grants
-  on, because the resource moved out from under the scope's. Its holders
+  binding at a scope it keeps no longer covers a resource the model still
+  grants on (a `by service` grant applies whatever the scope covers), because the resource moved out from under the scope's. Its holders
   are refused what they had. A permission or scope that is gone altogether is
   reported once, by `compatibility.permissions` or `compatibility.scope`,
   not again for each role. Binding at more scopes, or admitting more kinds,

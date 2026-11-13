@@ -436,7 +436,8 @@ roles have no shape of their own. Besides the design's rules:
 - *Coverage.* Coverage follows the resource tree, so a resource moved out
   from under a scope's resource narrows every role bound there that grants
   on it, though its scopes and grants read the same: for each scope a
-  role keeps and each resource it still grants on, the binding's coverage
+  role keeps and each resource the model still grants on (not `by
+  service`, which applies whatever the scope covers), the binding's coverage
   (one instance and `R(*)`) is compared, lost coverage a
   `compatibility.role` error and gained coverage
   `compatibility.role-widened`. A scope whose resource or instance path

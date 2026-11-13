@@ -400,7 +400,8 @@ impl<'a> RoleChanges<'a, '_> {
         self.push("compatibility.role", true, message);
     }
 
-    /// What a binding at each scope it keeps covers of what it still grants.
+    /// What a binding at each scope it keeps covers of what the model still
+    /// grants.
     /// Coverage follows the resource tree, so a resource moved out from
     /// under a scope (or in beneath one) changes what a stored binding there
     /// gives its holder, though the role's scopes and grants read the same.
@@ -419,19 +420,17 @@ impl<'a> RoleChanges<'a, '_> {
             .iter()
             .filter_map(|symbol| self.new.scope(symbol))
             .collect();
+        // Only what the model grants: a `by service` grant applies where the
+        // service decides, whatever the scope covers (it is exempt from
+        // reachability), and a grant moving to or from the service is the
+        // grant comparison's finding.
         let model: BTreeSet<Granted> = self
             .now
             .effective
             .iter()
             .map(|g| (&g.resource, g.permission.as_str()))
-            .chain(
-                self.now
-                    .by_service
-                    .iter()
-                    .map(|g| (&g.resource, g.permission.as_str())),
-            )
             .collect();
-        // What it still grants, by resource in both models: the old
+        // What the model still grants, by resource in both models: the old
         // resource, the new one, and the values granted on it in each.
         let mut kept: BTreeMap<(&ShapeId, &ShapeId), Kept> = BTreeMap::new();
         for (resource, permission) in self
@@ -439,12 +438,6 @@ impl<'a> RoleChanges<'a, '_> {
             .effective
             .iter()
             .map(|g| (&g.resource, g.permission.as_str()))
-            .chain(
-                self.role
-                    .by_service
-                    .iter()
-                    .map(|g| (&g.resource, g.permission.as_str())),
-            )
         {
             let Some(now) = land(self.old, self.new, resource, permission) else {
                 continue;

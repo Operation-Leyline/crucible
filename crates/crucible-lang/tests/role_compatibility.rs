@@ -407,6 +407,64 @@ fn a_resource_moved_out_from_under_a_scope_narrows_the_roles_bound_there() {
     assert!(at(&found, "compatibility.role", "owner").is_empty());
 }
 
+/// `model` with `History` moved from beneath `Graph` to beneath
+/// `Organization`.
+fn history_under_organization(model: &str) -> String {
+    let moved = edit(
+        model,
+        "resource History in Graph {",
+        "resource History in Organization {",
+    );
+    let moved = edit(
+        &moved,
+        "\"/orgs/{organizationId}/graphs/{graphId}/histories/{historyId}\"",
+        "\"/orgs/{organizationId}/histories/{historyId}\"",
+    );
+    edit(
+        &moved,
+        "        $graphId\n        $historyId\n",
+        "        $historyId\n",
+    )
+}
+
+#[test]
+fn a_grant_the_service_decides_does_not_follow_coverage() {
+    // graphAdmin, bound at graphs, grants History's read `by service`: the
+    // service decides when, whatever a graph binding covers.
+    let found = findings(&history_under_organization(BASE));
+    assert!(
+        at(&found, "compatibility.role", "graphAdmin").is_empty(),
+        "{found:#?}"
+    );
+    assert!(at(&found, "compatibility.role-widened", "graphAdmin").is_empty());
+    assert!(!crucible_policy::role_narrowed(
+        &lower(BASE),
+        &lower(&history_under_organization(BASE)),
+        "graphAdmin"
+    ));
+
+    // The same move under a grant the model decides narrows the role at
+    // the scopes that covered History through Graph.
+    let decided = edit(
+        BASE,
+        "    at [allGraphs, graph]\n    includes [graphWriter]\n",
+        "    at [allGraphs, graph, organization]\n    includes [graphWriter]\n",
+    );
+    let decided = edit(
+        &decided,
+        "    grants History [read] by service\n",
+        "    grants History [read]\n",
+    );
+    let found = findings_from(&decided, &history_under_organization(&decided));
+    assert_eq!(
+        at(&found, "compatibility.role", "graphAdmin"),
+        [
+            "error: `graphAdmin` bound at \"allGraphs\" no longer covers `History`, where it grants \"history:read\"; its holders bound there are refused what they had",
+            "error: `graphAdmin` bound at \"graph\" no longer covers `History`, where it grants \"history:read\"; its holders bound there are refused what they had",
+        ]
+    );
+}
+
 #[test]
 fn renaming_an_identifier_a_scope_instance_carries_orphans_its_bindings() {
     let found = findings(&BASE.replace("graphId", "graphKey"));
