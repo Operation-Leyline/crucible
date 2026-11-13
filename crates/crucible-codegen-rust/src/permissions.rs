@@ -13,8 +13,8 @@ use crucible_codegen_common::permissions::{
 };
 use crucible_ir::ir::permissions::Binding;
 use crucible_ir::ir::{
-    Condition, Member, Mode, Operation, Permission, Requirements, ResourcePermissions, Service,
-    Shape, SimpleKind, Tier, Value,
+    AssignedRoles, Assigns, Condition, Member, Mode, Operation, Permission, Requirements,
+    ResourcePermissions, Service, Shape, SimpleKind, Tier, Value,
 };
 use crucible_ir::{Diagnostics, ShapeId};
 
@@ -594,6 +594,12 @@ pub(crate) fn marker_items(
     if op.anonymous {
         out.push_str("    const ANONYMOUS: bool = true;\n");
     }
+    // The inherent constant `assignment` generates beside the marker.
+    if op.assigns.as_ref().is_some_and(Assigns::obliges) {
+        out.push_str(&format!(
+            "    const ASSIGNS: ::std::option::Option<{P}::Assignment> = ::std::option::Option::Some(Self::ASSIGNMENT);\n"
+        ));
+    }
     let requirements = match &op.requirements {
         // `Internal` exists only in a client projection; server bindings
         // read the full contract. Undeclared, the runtime refuses it.
@@ -735,6 +741,51 @@ pub(crate) fn obligations(service: &Service, op: &Operation) -> String {
         "/// The obligations its `by handler` clauses open: discharge each with\n/// `permissions::discharge`, or close it with `permissions::not_applicable`.\n/// Each is named `<PERMISSION>_ON_<RESOURCE>`; a later clause whose name\n/// an earlier one already spells gets `_2`, `_3`, in declaration order.\n{allow}impl {} {{\n{body}}}\n\n",
         op.name()
     )
+}
+
+/// `impl PutRoleBinding { pub const ASSIGNMENT: Assignment = .. }`: the
+/// obligation an `assigns <member> at ..` or `assigns loaded at ..` clause
+/// opens (docs/roles.md §4.5), for `roles::assign`. Nothing for an
+/// operation without one, or with `assigns none`.
+pub(crate) fn assignment(service: &Service, op: &Operation) -> String {
+    let Some(Assigns::Roles { roles, at, docs }) = &op.assigns else {
+        return String::new();
+    };
+    let (what, member) = match roles {
+        AssignedRoles::Member(path) => {
+            let path = path.join(".");
+            (
+                format!("the roles in `{path}`"),
+                format!("::std::option::Option::Some({})", literal(&path)),
+            )
+        }
+        AssignedRoles::Loaded => (
+            "the stored roles it revokes (`loaded`)".to_owned(),
+            "::std::option::Option::None".to_owned(),
+        ),
+    };
+    let mut text = format!(
+        "The obligation `assigns` opens: {what}, at or within {}. Discharge it with `roles::assign`, passing each role the request grants or revokes (both, for a replacement: `roles::replaced`) and the binding's scope instance, before any write; a success with it open fails.",
+        code_span(service.name_of(&at.resource))
+    );
+    if let Some(docs) = docs.as_deref().map(str::trim).filter(|d| !d.is_empty()) {
+        text.push_str(&format!(
+            "\n\n{}",
+            crucible_codegen_common::docs::escape(docs)
+        ));
+    }
+    let mut body = String::new();
+    doc(&mut body, "    ", Some(&text));
+    body.push_str(&format!(
+        "    pub const ASSIGNMENT: {P}::Assignment = {P}::Assignment {{ operation: {}, member: {member} }};\n",
+        literal(&op.id.to_string()),
+    ));
+    let allow = if op.notes.deprecated.is_some() {
+        "#[allow(deprecated)]\n"
+    } else {
+        ""
+    };
+    format!("{allow}impl {} {{\n{body}}}\n\n", op.name())
 }
 
 /// The body of `CHECKS`: one push per `Check` or `Filter` clause, inside

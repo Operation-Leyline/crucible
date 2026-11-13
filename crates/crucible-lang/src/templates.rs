@@ -255,6 +255,7 @@ fn entry_span(entry: &OpEntry) -> Span {
         OpEntry::Errors(_, span) => *span,
         OpEntry::Example(e) => e.span,
         OpEntry::Requirement(r) => r.span,
+        OpEntry::Assigns(a) => a.span,
     }
 }
 

@@ -56,14 +56,34 @@ readonly operation GetOrganization on Organization {
     }
 }
 
+/// Grants `role` to `principal` at `scope`, replacing the role a binding
+/// there held: the role granted and the role replaced must each be one the
+/// caller may assign.
 idempotent operation PutRoleBinding on Organization {
     http PUT "/v1/organizations/{organizationId}/role-bindings/{principal}"
     requires roleBindingManage
+    assigns role at Organization
     input {
         $organizationId
         principal: Name
         role: Role
         scope: RoleScopeType
+        scopeId?: Name
+    }
+}
+
+/// Revokes the binding `principal` holds at `scope`: the role it held must
+/// be one the caller may assign.
+idempotent operation RevokeRoleBinding on Organization {
+    http POST "/v1/organizations/{organizationId}/role-bindings/{principal}/revoke"
+    requires roleBindingManage
+    /// The role revoked is the stored binding's.
+    assigns loaded at Organization
+    input {
+        $organizationId
+        principal: Name
+        scope: RoleScopeType
+        scopeId?: Name
     }
 }
 
@@ -129,6 +149,20 @@ idempotent operation DeleteGraph on Graph {
         $graphId
     }
 }
+
+/// The histories the caller may read.
+readonly operation ListGraphHistories on GraphHistory collection {
+    http GET "/v1/organizations/{organizationId}/histories"
+    filters read on GraphHistory
+    input {
+        $organizationId
+    }
+    output {
+        historyIds: HistoryIds
+    }
+}
+
+list HistoryIds: HistoryId
 
 readonly operation GetGraphHistory on GraphHistory {
     http GET "/v1/organizations/{organizationId}/histories/{historyId}"

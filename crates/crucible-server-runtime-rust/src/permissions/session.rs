@@ -4,14 +4,15 @@ use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 #[cfg(feature = "idempotency")]
 use serde_json::{Value, json};
 
+#[cfg(feature = "idempotency")]
+use super::Target;
 use super::authorizer_unavailable::AuthorizerUnavailable;
 use super::{
-    AuthorizationRecord, AuthorizationRequest, Authorizer, Check, Decision, Listing, Mode,
-    Obligation, ObligationOutcome, OperationFacts, PermissionInfo, PermissionRefusal, Requirements,
-    ResourceRef, Verdict, Visibility,
+    Assignment, AssignmentRecord, AuthorizationRecord, AuthorizationRequest, Authorizer, Check,
+    Decision, Listing, Mode, Obligation, ObligationOutcome, OperationFacts, Origin, PermissionInfo,
+    PermissionRefusal, Requirements, ResourceRef, Verdict, Visibility,
 };
-#[cfg(feature = "idempotency")]
-use super::{Origin, Target};
+use crate::roles::ScopeRef;
 use crate::{Context, Error, OperationJob, Outcome, Result};
 
 pub(crate) type RefusalFactory = Arc<dyn Fn(&PermissionRefusal) -> Error + Send + Sync>;
@@ -63,6 +64,9 @@ struct Inner {
     /// before it awaits, so a concurrent `discharge` or `not_applicable`
     /// of the same obligation is refused rather than racing it.
     discharging: Vec<Obligation>,
+    /// Whether a `roles::assign` is asking the Authorizer about the
+    /// assignment obligation, so a concurrent one is refused.
+    assigning: bool,
     /// Whether the handler read the listing's visibility
     /// ([`visible`](super::visible)).
     listing_read: bool,
@@ -113,11 +117,18 @@ impl Session {
                     pending: None,
                     undeclared: false,
                     obligations: Vec::new(),
+                    assignment: facts.assigns.map(|assignment| AssignmentRecord {
+                        assignment,
+                        outcome: ObligationOutcome::Open,
+                        roles: Vec::new(),
+                        at: None,
+                    }),
                     shadow,
                 },
                 handled: Vec::new(),
                 settled: false,
                 discharging: Vec::new(),
+                assigning: false,
                 listing_read: false,
                 listing_unanswered: false,
             }),
@@ -423,6 +434,101 @@ impl Session {
         Ok(())
     }
 
+    /// Discharges the `assigns` obligation: asks the Authorizer whether the
+    /// caller may grant or revoke each of `roles` at `at`, records the
+    /// answer, and refuses with the operation's 403 when any is refused.
+    pub async fn assign(
+        &self,
+        context: &Context,
+        assignment: Assignment,
+        roles: Vec<String>,
+        at: ScopeRef<'_>,
+    ) -> Result<()> {
+        {
+            let mut inner = self.lock();
+            let problem = match &inner.record.assignment {
+                Some(record) if record.assignment != assignment => {
+                    Some("is not this operation's".to_owned())
+                }
+                Some(_) if inner.assigning => {
+                    Some("is being discharged by another call".to_owned())
+                }
+                Some(record) if record.outcome == ObligationOutcome::Open => None,
+                Some(record) => Some(format!("is already closed ({:?})", record.outcome)),
+                None => Some("is not an obligation of this operation".to_owned()),
+            };
+            if let Some(problem) = problem {
+                return Err(Error::internal(format!(
+                    "{}: the assignment obligation of {} {problem}",
+                    self.0.facts.id, assignment.operation
+                )));
+            }
+            inner.assigning = true;
+        }
+        // Given back if the future is dropped or fails, so the obligation
+        // stays open rather than stuck.
+        let reservation = Assigning(self);
+        let values: Vec<&str> = roles.iter().map(String::as_str).collect();
+        let answers = if values.is_empty() {
+            Vec::new()
+        } else {
+            let request = AuthorizationRequest::new(context, self.0.facts);
+            self.0
+                .settings
+                .authorizer
+                .may_assign(&request, &values, at)
+                .await
+                .map_err(AuthorizerUnavailable::error)?
+        };
+        if answers.len() != roles.len() {
+            return Err(Error::internal(format!(
+                "{}: the Authorizer answered {} assignments for {} roles",
+                self.0.facts.id,
+                answers.len(),
+                roles.len()
+            )));
+        }
+        let allowed = answers.iter().all(|allowed| *allowed);
+        {
+            let mut inner = self.lock();
+            if let Some(record) = &mut inner.record.assignment {
+                record.outcome = ObligationOutcome::Discharged(if allowed {
+                    Verdict::Allowed
+                } else {
+                    Verdict::Denied
+                });
+                record.roles = roles.into_iter().zip(answers).collect();
+                record.at = Some((at.scope.to_owned(), at.identifiers.to_vec()));
+            }
+        }
+        drop(reservation);
+        self.publish(context);
+        if allowed {
+            return Ok(());
+        }
+        // `idempotency::commit()` refuses while the obligation is open, so
+        // this refusal comes before the point of no return.
+        Err(self.refuse_assignment(context))
+    }
+
+    /// The operation's 403 for an assignment the caller may not make: the
+    /// refusal of its first declared check, under `Origin::Assignment`,
+    /// through the refusal factory. An operation that made none (`requires
+    /// none` or `pending`, or every clause conditional and not applying)
+    /// has no 403 of its own, and is answered with the framework's.
+    fn refuse_assignment(&self, context: &Context) -> Error {
+        let declared = self.lock().record.decisions.iter().find_map(|decision| {
+            matches!(decision.check.origin, Origin::Declared(_)).then(|| Check {
+                origin: Origin::Assignment,
+                ..decision.check.clone()
+            })
+        });
+        match declared {
+            Some(check) => self.refuse(context, &check, Verdict::Denied),
+            None => crate::FrameworkError::Forbidden.into(),
+        }
+    }
+
     /// Marks `obligation` as being discharged, if it is open and no other
     /// discharge holds it.
     fn reserve(&self, obligation: Obligation) -> Result<Reservation<'_>> {
@@ -484,6 +590,14 @@ impl Session {
                 )
             })
             .collect();
+        if let Some(record) = &inner.record.assignment
+            && self::unsatisfied(&record.outcome)
+        {
+            unsatisfied.push(format!(
+                "the role assignment (`assigns`, {:?})",
+                record.outcome
+            ));
+        }
         if !inner.listing_read
             && let Some(shown) = shown(&inner)
             && shown != Visibility::All
@@ -622,6 +736,15 @@ impl Drop for Reservation<'_> {
             .lock()
             .discharging
             .retain(|obligation| *obligation != self.obligation);
+    }
+}
+
+/// A `roles::assign` in progress: lets another one try once dropped.
+struct Assigning<'a>(&'a Session);
+
+impl Drop for Assigning<'_> {
+    fn drop(&mut self) {
+        self.0.lock().assigning = false;
     }
 }
 
@@ -785,6 +908,11 @@ pub(crate) fn settle(job: &mut OperationJob<'_>) {
                 record.outcome = ObligationOutcome::Undischarged;
             }
         }
+        if let Some(record) = &mut record.assignment
+            && record.outcome == ObligationOutcome::Open
+        {
+            record.outcome = ObligationOutcome::Undischarged;
+        }
     });
     tracing::error!(
         target: TARGET,
@@ -811,6 +939,11 @@ pub(crate) fn replayed(context: &Context) {
                 if record.outcome == ObligationOutcome::Open {
                     record.outcome = ObligationOutcome::Replayed;
                 }
+            }
+            if let Some(record) = &mut record.assignment
+                && record.outcome == ObligationOutcome::Open
+            {
+                record.outcome = ObligationOutcome::Replayed;
             }
         });
     }
@@ -1053,6 +1186,7 @@ mod tests {
             readonly: false,
             idempotent: false,
             requirements,
+            assigns: None,
         }
     }
 

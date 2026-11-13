@@ -1,10 +1,11 @@
 # Roles
 
-**Status: R1, R2, R3 and R4 implemented** (§10): the language and the
+**Status: R1, R2, R2c, R3 and R4 implemented** (§10): the language and the
 IR, with the §6 compile errors (the syntax is in
 [idl/reference.md](idl/reference.md#roles)); the generated Rust catalogue,
 `RoleAuthorizer`, `ShadowAuthorizer` and the conformance harness (see
-[framework.md](framework.md#roles)); the outputs (granted-by in every
+[framework.md](framework.md#roles)); `assigns` as an enforced obligation
+and listings answered by `RoleAuthorizer` (R2c, §4.5 and §7.2); the outputs (granted-by in every
 reference, OpenAPI and the client role registries); and the §6
 compatibility rules (see [api-policy.md](api-policy.md#comparing-contracts)).
 *As built* notes below mark where they differ from this design. R5 and
@@ -315,10 +316,7 @@ cannot skip the check.
 holders` is refused as not supported yet, since no consumer needs it and
 its predicate belongs with the generated code (R2). `assigns .. at`,
 `assigns none because ".."` and `roles.unassigned` were added to this
-design after R1 was built and are not part of it (tracked in #479): R1
-neither parses `assigns` nor refuses an operation that carries a
-`@roleTypes` value without it (Leyline's test model's `PutRoleBinding`
-does).
+design after R1 was built, and came with R2c (below).
 
 *As built (R2).* The predicate checks where the assigner holds its role,
 not only which role: `RoleCatalogue::may_assign(assigner, kind, role, at)`
@@ -333,6 +331,64 @@ the instances are compared by identifier prefix, so an `owner` of
 organization A admits nothing in organization B. The helper is pure;
 `RoleAuthorizer::may_assign(principal, role, at, fresh)` reads the
 assigner's bindings under `at`'s root itself.
+
+*As built (R2c).* The clause is `assigns <member> at <target>`, `assigns
+loaded at <target>` or `assigns none because ".."`, one per operation,
+with a `///` of its own. `<member>` is an input member path (through
+structures and unions, never a list element) whose target is the
+`@roleTypes` enum or a list of it; `loaded` and `none because` are the
+clause's words. **The scope binding is a `requires` target**, `R`,
+`R(path)` or `R(id: $x)`, resolved by the same rules (implicit `$name`
+bindings, one unnamed binding for the resource's own identifier): the
+resource instance the binding is written at or within (Leyline's
+`PutRoleBinding` writes `assigns role at Organization`). It does not name
+the binding's scope instance: that is a request value (`scope` plus
+`scopeId`, whose identifiers depend on which scope it names), so the
+handler builds the `ScopeRef` and passes it, as `discharge` takes the
+resource a `by handler` clause is about. The design's
+`RoleBinding(scopeType, scopeId)` would read as a target on a
+`RoleBinding` resource, which the target grammar allows but no consumer
+has. The IR is `Operation::assigns: Option<Assigns>` (`Assigns::Roles {
+roles: AssignedRoles::{Member(path), Loaded}, at: AssignedAt { resource,
+bindings }, docs }`, `Assigns::None { reason, docs }`), `#[serde(default)]`
+and left out when `None`, so a snapshot frozen before it reads; client
+projections drop it. `crucible_ir::validate::roles` checks it:
+`roles.unassigned` (reported at the operation) when the input reaches a
+`@roleTypes` value through any structure, union, list or map, or the
+operation is a resource's `create`, `put`, `update` or `delete` and the
+resource has a property that reaches one; `roles.assigns` for what the
+clause names (a member of no role values, a path the input lacks, a target
+that is no resource or binds wrongly, an empty reason, `assigns` in a
+service without roles), and the front end for a second clause.
+
+At runtime `assigns <member>` and `assigns loaded` generate
+`Op::ASSIGNMENT: Assignment { operation, member }` (in `crucible_wire::
+permissions`) and `Operation::ASSIGNS`, which `OperationMetadata::assigns`
+and `OperationFacts::assigns` carry; `assigns none` generates nothing.
+`Permissions` opens the obligation on every request it covers, whatever the
+operation's requirements, and records it as
+`AuthorizationRecord::assignment` (`AssignmentRecord { assignment,
+outcome, roles, at }`, `outcome` an `ObligationOutcome`). The handler
+discharges it once with `roles::assign(obligation, roles, at)`, role values
+as `impl AsRef<str>`; `roles::replaced(before, after)` is the roles a
+replacement revokes, then the roles it grants, each once, so a role kept
+is not checked. `assign` asks the new provided method
+`Authorizer::may_assign(request, roles, at) -> Result<Vec<bool>>`, whose
+default is the internal error; `RoleAuthorizer` answers it with
+`may_assign_values(principal, roles, at, fresh)` over one fresh read (a
+custom role names no assigners and passes at a well-formed `at`; a value
+the catalogue does not know is refused, so a binding naming a future role
+cannot be stored now), and `ShadowAuthorizer` asks both and enforces the
+primary's. A refusal is the operation's 403: its first declared check,
+re-originated as the new `Origin::Assignment`, through the refusal factory
+(the framework's `ForbiddenException` when the request made no declared
+check). An open or refused assignment is an unsatisfied obligation exactly
+as a `by handler` clause's is: `idempotency::commit()` refuses, a success
+is the internal error (`Undischarged`), and a replay records `Replayed`. A
+replay does not ask the Authorizer again about the assignment, since it
+writes nothing. A request that grants or revokes no role passes none,
+which closes it. The reference, OpenAPI and client outputs do not show
+`assigns` yet.
 
 ### 4.6 Grants the service decides
 
@@ -509,8 +565,8 @@ Compile errors:
   (§4.5).
 
 *As built (R1).* The checks run once, in `crucible_ir::validate::roles`,
-over the IR. Besides the codes above, which keep their meaning (all but
-`roles.unassigned`, which is not built: §4.5's note, #479), R1 refuses
+over the IR. Besides the codes above, which keep their meaning
+(`roles.unassigned` came with R2c, §4.5), R1 refuses
 what the design left implicit: `roles.unknown-role` (`includes` names no
 role of the service), `roles.grant` (a grant names a name the resource does
 not declare, an alias, the same permission twice, nothing, or an `except`
@@ -840,9 +896,32 @@ organization than in another): it is asked once per (root, id) per batch,
 only for well-formed bindings under that root (so another tenant's role,
 or one at a scope the model lacks, cannot fail the batch), each binding is
 decided by its own root's definition, and only grantable permissions of
-the answer count. A `filters` listing is `BindingSource::visible`, by default
-the internal error, since a listing's visibility (who may list an empty
-set) is policy; `capabilities` answers the per-instance question.
+the answer count. A `filters` listing was at first `BindingSource::visible`,
+by default the internal error; R2c replaced it (below).
+
+*As built (R2c).* `RoleAuthorizer` answers `Authorizer::visible` itself,
+as `visible_for(principal, listing, fresh)` (`Listing::new` builds one
+without a request). Over the kept bindings under the listing's root: one
+whose scope covers the collection (`ScopeInfo::covers` on `R(parents, *)`)
+and grants the permission answers `All` at once; one at a scope that
+covers single instances of the listed resource, whose identifiers name an
+instance under the listing's parents, adds that instance's own identifier
+to `Only` when it grants it. Then, unless the answer is already `All`,
+each kept binding whose role grants the permission `by service` is passed
+to `ServiceGrants::visible_by_service(principal, grant)`. The design's
+`(principal, binding, permission, collection)` is the `ByService` value
+`decide_by_service` takes, its `target` the collection (`GraphHistory(o-1,
+*)`): one type for both questions, and fields can be added to it. It has
+no default, so it is part of the bound the generated `roles::authorizer`
+already places on a model with `by service` grants (a doctest on
+`ServiceGrants` shows a source with only `decide_by_service` failing with
+`E0046`). An `All` answer is final; `Only` sets merge; `Hidden` and
+`Denied` from the hook count as reaching nothing. An empty union is
+`refusal(covered)` as for a check, `covered` meaning a kept binding covers
+the collection or one instance in it. `BindingSource::visible` is removed:
+it was never released (R2 is in the same unreleased minor), and a source's
+override would otherwise be silently ignored. The differential test lists
+every `R(*)` it checks too, against an interpreter of the same rules.
 
 The allowing binding reaches the `AuthorizationRecord` through an additive
 provided method, `Authorizer::decide_naming_bindings`, which `Permissions`
@@ -1016,18 +1095,22 @@ a bundle its customers already store as a permission.
 2. **R2, server** (built). The generated enums and catalogue of §7.1,
    golden tests, and `RoleAuthorizer` with its differential tests (§7.2,
    §7.3).
-3. **R2b, adoption tools** (built, with R2). The conformance harness and
+3. **R2c, assignment and listings** (built). `assigns` and
+   `roles.unassigned` (§4.5), lowered to an obligation `roles::assign`
+   discharges; `RoleAuthorizer::visible` and
+   `ServiceGrants::visible_by_service` (§7.2).
+4. **R2b, adoption tools** (built, with R2). The conformance harness and
    `ShadowAuthorizer` (§7.3).
-4. **R3, outputs** (built). Granted-by in `crucible-ir`; `describe.json`,
+5. **R3, outputs** (built). Granted-by in `crucible-ir`; `describe.json`,
    the Markdown and HTML references, OpenAPI, `llms.txt`; client
    registries.
-5. **R4, compatibility** (built). The §6 rules in `crucible-policy`, and
+6. **R4, compatibility** (built). The §6 rules in `crucible-policy`, and
    the migration steps that declare them.
-6. **R5, Leyline.** Declare the catalogue, link `Role` and
+7. **R5, Leyline.** Declare the catalogue, link `Role` and
    `RoleScopeType`, return the generated catalogue from `ListRoles`, run
    `RoleAuthorizer` in shadow beside its own, then switch and delete the
    copies.
-7. **R6, custom roles**, once a consumer needs them.
+8. **R6, custom roles**, once a consumer needs them.
 
 ## Decisions
 

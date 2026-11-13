@@ -6,7 +6,8 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
 
-use crate::ir::{GrantedSet, Role, Service, Shape};
+use crate::ir::permissions::Binding;
+use crate::ir::{AssignedRoles, Assigns, GrantedSet, Operation, Role, Service, Shape};
 use crate::roles::{expand, in_star, include_cycle, reaches, with_included};
 use crate::shape_id::ShapeId;
 
@@ -52,6 +53,11 @@ pub enum RoleSite {
     Shape(ShapeId),
     /// A permission, as `Resource$symbol`.
     Permission(ShapeId),
+    /// An operation, by its id: one that says nothing about the bindings
+    /// it may write (`roles.unassigned`).
+    Operation(ShapeId),
+    /// An operation's `assigns` clause, by the operation's id.
+    Assigns(ShapeId),
 }
 
 /// One problem with a service's roles.
@@ -80,7 +86,10 @@ impl fmt::Display for RoleFinding {
             | RoleSite::Grant { role: r, .. } => {
                 format!("role {r}")
             }
-            RoleSite::Shape(id) | RoleSite::Permission(id) => id.to_string(),
+            RoleSite::Shape(id)
+            | RoleSite::Permission(id)
+            | RoleSite::Operation(id)
+            | RoleSite::Assigns(id) => id.to_string(),
         };
         write!(f, "{site}: {}: {}", self.severity.label(), self.text())
     }
@@ -99,6 +108,7 @@ pub fn roles(service: &Service) -> Vec<RoleFinding> {
         && service.role_scopes.is_empty()
         && service.role_settings.is_default()
     {
+        check.assignments(false);
         return check.findings;
     }
     check.scopes();
@@ -107,6 +117,7 @@ pub fn roles(service: &Service) -> Vec<RoleFinding> {
     check.types(true);
     check.types(false);
     check.ungranted();
+    check.assignments(true);
     check.findings
 }
 
@@ -646,6 +657,273 @@ impl<'a> Checker<'a> {
             );
         }
     }
+}
+
+impl<'a> Checker<'a> {
+    // ---- assigns and roles.unassigned (§4.5) --------------------------------
+
+    /// Every operation that can change who holds a role says what it
+    /// assigns, and what it says is well formed. `catalogue`: the service
+    /// declares roles, so an `assigns` clause has something to assign.
+    fn assignments(&mut self, catalogue: bool) {
+        let service = self.service;
+        let role_types = service.role_settings.role_types.as_ref();
+        // The operations that write a resource holding role values, with
+        // the verb, the resource and the property; the first of each.
+        let mut writes: BTreeMap<&ShapeId, (&str, &ShapeId, String)> = BTreeMap::new();
+        if let Some(role_types) = role_types {
+            for (id, resource) in &service.resources {
+                let Some(property) = resource.properties.iter().find_map(|(name, target)| {
+                    role_path(service, target, role_types, &mut BTreeSet::new()).map(|mut path| {
+                        path.insert(0, name.clone());
+                        path.join(".")
+                    })
+                }) else {
+                    continue;
+                };
+                let lifecycle = &resource.lifecycle;
+                for (verb, op) in [
+                    ("creates", &lifecycle.create),
+                    ("puts", &lifecycle.put),
+                    ("updates", &lifecycle.update),
+                    ("deletes", &lifecycle.delete),
+                ] {
+                    if let Some(op) = op {
+                        writes.entry(op).or_insert((verb, id, property.clone()));
+                    }
+                }
+            }
+        }
+        for op in &service.operations {
+            if let Some(assigns) = &op.assigns {
+                self.assigns(op, assigns, catalogue, role_types);
+                continue;
+            }
+            let carried = match (role_types, &op.input) {
+                (Some(role_types), Some(input)) => {
+                    role_path(service, input, role_types, &mut BTreeSet::new())
+                }
+                _ => None,
+            };
+            let cause = match (carried, writes.get(&op.id)) {
+                (Some(path), _) => {
+                    format!("carries role values in its input (`{}`)", path.join("."))
+                }
+                (None, Some((verb, resource, property))) => format!(
+                    "{verb} `{}`, whose `{property}` holds role values",
+                    resource.name()
+                ),
+                (None, None) => continue,
+            };
+            self.error(
+                "roles.unassigned",
+                RoleSite::Operation(op.id.clone()),
+                format!(
+                    "`{}` {cause}, so it can change who holds a role: say what it assigns, `assigns <member> at <Resource>` for the roles its input grants or `assigns loaded at <Resource>` for stored roles it revokes (the handler checks them with `roles::assign`), or `assigns none because \"..\"` when it writes no binding",
+                    op.name()
+                ),
+            );
+        }
+    }
+
+    fn assigns(
+        &mut self,
+        op: &'a Operation,
+        assigns: &Assigns,
+        catalogue: bool,
+        role_types: Option<&ShapeId>,
+    ) {
+        let service = self.service;
+        let site = || RoleSite::Assigns(op.id.clone());
+        let (roles, at) = match assigns {
+            Assigns::None { reason, .. } => {
+                if reason.trim().is_empty() {
+                    self.error(
+                        "roles.assigns",
+                        site(),
+                        format!(
+                            "`{}` says it assigns nothing with an empty reason; say why it writes no binding",
+                            op.name()
+                        ),
+                    );
+                }
+                return;
+            }
+            Assigns::Roles { roles, at, .. } => (roles, at),
+        };
+        if !catalogue {
+            self.error(
+                "roles.assigns",
+                site(),
+                format!(
+                    "`{}` assigns roles, but the service declares none: declare its roles, or remove the clause",
+                    op.name()
+                ),
+            );
+            return;
+        }
+        if let AssignedRoles::Member(path) = roles {
+            match (role_types, member_target(service, op, path)) {
+                (_, Err(problem)) => self.error(
+                    "roles.assigns",
+                    site(),
+                    format!(
+                        "`{}` assigns `{}`, but {problem}",
+                        op.name(),
+                        path.join(".")
+                    ),
+                ),
+                (None, Ok(_)) => self.error(
+                    "roles.assigns",
+                    site(),
+                    format!(
+                        "`{}` assigns `{}`, but the service links no wire enum of role values: mark it `@roleTypes`",
+                        op.name(),
+                        path.join(".")
+                    ),
+                ),
+                (Some(role_types), Ok(target)) => {
+                    let element = match service.shape(target) {
+                        Some(Shape::List(list)) => &list.member.target,
+                        _ => target,
+                    };
+                    if element != role_types {
+                        self.error(
+                            "roles.assigns",
+                            site(),
+                            format!(
+                                "`{}` assigns `{}`, a `{}`; the roles assigned are a `{}` or a list of them",
+                                op.name(),
+                                path.join("."),
+                                target.name(),
+                                role_types.name()
+                            ),
+                        );
+                    }
+                }
+            }
+        }
+        if !service.resources.contains_key(&at.resource) {
+            self.error(
+                "roles.assigns",
+                site(),
+                format!(
+                    "`{}` assigns at `{}`, which is not a resource of the service; name the resource the binding is made at or within",
+                    op.name(),
+                    at.resource.name()
+                ),
+            );
+            return;
+        }
+        let identifiers = crate::roles::identifiers(service, &at.resource);
+        if identifiers.len() != at.bindings.len() {
+            self.error(
+                "roles.assigns",
+                site(),
+                format!(
+                    "`{}` has {} identifiers ({}) and `{}` binds {}; bind each exactly once",
+                    at.resource.name(),
+                    identifiers.len(),
+                    identifiers.join(", "),
+                    op.name(),
+                    at.bindings.len()
+                ),
+            );
+            return;
+        }
+        let last = identifiers.len().saturating_sub(1);
+        for (position, (identifier, binding)) in identifiers.iter().zip(&at.bindings).enumerate() {
+            match binding {
+                Binding::All if position == last => {}
+                Binding::All => self.error(
+                    "roles.assigns",
+                    site(),
+                    format!(
+                        "`*` binds only `{}`'s own identifier, never a parent; bind `{identifier}` from the input",
+                        at.resource.name()
+                    ),
+                ),
+                Binding::Member(path) => {
+                    if let Err(problem) = member_target(service, op, path) {
+                        self.error(
+                            "roles.assigns",
+                            site(),
+                            format!(
+                                "`{identifier}` of `{}` is bound to `{}`, but {problem}",
+                                at.resource.name(),
+                                path.join(".")
+                            ),
+                        );
+                    }
+                }
+            }
+        }
+    }
+}
+
+/// The member path that first reaches a `role_types` value from `shape`,
+/// through structures, unions, lists and maps; `None` when none does.
+fn role_path(
+    service: &Service,
+    shape: &ShapeId,
+    role_types: &ShapeId,
+    seen: &mut BTreeSet<ShapeId>,
+) -> Option<Vec<String>> {
+    if shape == role_types {
+        return Some(Vec::new());
+    }
+    if !seen.insert(shape.clone()) {
+        return None;
+    }
+    match service.shape(shape)? {
+        Shape::List(list) => role_path(service, &list.member.target, role_types, seen),
+        Shape::Map(map) => role_path(service, &map.value.target, role_types, seen),
+        Shape::Structure(s) | Shape::Union(s) => s.members.iter().find_map(|member| {
+            role_path(service, &member.target, role_types, seen).map(|mut path| {
+                path.insert(0, member.name.clone());
+                path
+            })
+        }),
+        _ => None,
+    }
+}
+
+/// The target of the input member `path` names, through structures and
+/// unions, never through a list or map; or what is wrong with it.
+fn member_target<'s>(
+    service: &'s Service,
+    op: &'s Operation,
+    path: &[String],
+) -> Result<&'s ShapeId, String> {
+    let Some(mut current) = op.input.as_ref() else {
+        return Err(format!("`{}` has no input", op.name()));
+    };
+    for (index, segment) in path.iter().enumerate() {
+        let members = match service.shape(current) {
+            Some(Shape::Structure(s) | Shape::Union(s)) => &s.members,
+            Some(Shape::List(_) | Shape::Map(_)) => {
+                return Err(format!(
+                    "`{}` is a list or map: name a member, never an element",
+                    path[..index].join(".")
+                ));
+            }
+            _ => {
+                return Err(format!(
+                    "`{}` is not a structure or union",
+                    path[..index].join(".")
+                ));
+            }
+        };
+        let Some(member) = members.iter().find(|m| &m.name == segment) else {
+            return Err(if index == 0 {
+                format!("the input has no member `{segment}`")
+            } else {
+                format!("`{}` has no member `{segment}`", path[..index].join("."))
+            });
+        };
+        current = &member.target;
+    }
+    Ok(current)
 }
 
 /// `; those are `a`, `b`` for a "did you mean" over `names`, or nothing.

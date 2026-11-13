@@ -38,6 +38,7 @@ const REFUSED: &[&str] = &[
     "roles-internal",
     "roles-refusals",
     "roles-types",
+    "roles-unassigned",
     "roles-ungranted",
     "roles-unknown-assigner",
     "roles-unknown-holder",

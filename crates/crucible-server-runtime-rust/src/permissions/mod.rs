@@ -47,6 +47,8 @@
 //! ```
 
 #[cfg(feature = "permissions")]
+mod assignment_record;
+#[cfg(feature = "permissions")]
 mod authorization_record;
 #[cfg(feature = "permissions")]
 mod authorization_request;
@@ -80,10 +82,12 @@ mod visibility;
 
 pub use crate::operation_metadata::ErasedChecks;
 pub use crucible_wire::permissions::{
-    Check, Checks, Mode, Obligation, Origin, PermissionInfo, RequirementInfo, Requirements,
-    ResourceInfo, ResourceRef, Target, Tier,
+    Assignment, Check, Checks, Mode, Obligation, Origin, PermissionInfo, RequirementInfo,
+    Requirements, ResourceInfo, ResourceRef, Target, Tier,
 };
 
+#[cfg(feature = "permissions")]
+pub use assignment_record::AssignmentRecord;
 #[cfg(feature = "permissions")]
 pub use authorization_record::AuthorizationRecord;
 #[cfg(feature = "permissions")]
@@ -291,6 +295,17 @@ pub async fn decide(checks: &[Check]) -> Result<Verdicts> {
 pub async fn discharge(obligation: Obligation, resource: ResourceRef) -> Result<()> {
     let (context, session) = Session::current()?;
     session.discharge(&context, obligation, resource).await
+}
+
+/// `roles::assign`: discharges the operation's assignment obligation.
+#[cfg(feature = "permissions")]
+pub(crate) async fn assign(
+    assignment: Assignment,
+    roles: Vec<String>,
+    at: crate::roles::ScopeRef<'_>,
+) -> Result<()> {
+    let (context, session) = Session::current()?;
+    session.assign(&context, assignment, roles, at).await
 }
 
 /// Closes a `by handler` obligation without a check: this request is not

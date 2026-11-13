@@ -1,4 +1,4 @@
-use super::Requirements;
+use super::{Assignment, Requirements};
 
 /// What the model says about the operation being authorized, so an
 /// Authorizer can decide what it may cache and what it reads fresh, without
@@ -16,4 +16,8 @@ pub struct OperationFacts {
     /// older API version, the current version's, since requirements bind the
     /// current input.
     pub requirements: &'static Requirements,
+    /// The `assigns` obligation the operation opens (docs/roles.md §4.5),
+    /// if any: it grants or revokes roles, and its handler checks them with
+    /// `roles::assign`.
+    pub assigns: Option<Assignment>,
 }

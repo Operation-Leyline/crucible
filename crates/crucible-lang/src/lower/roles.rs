@@ -405,7 +405,7 @@ impl<'a> Lowerer<'a> {
             .get(&finding.site)
             .or_else(|| declaration.and_then(|site| self.role_sites.get(&site)))
             .or_else(|| match &finding.site {
-                RoleSite::Permission(id) | RoleSite::Shape(id) => self
+                RoleSite::Permission(id) | RoleSite::Shape(id) | RoleSite::Operation(id) => self
                     .permission_sites
                     .get(id)
                     .or_else(|| self.source_map.get(id)),

@@ -1,5 +1,5 @@
 use crate::operation::{AuthScheme, Input, Operation, Pagination, PaginationMember};
-use crate::permissions::{Check, Requirements};
+use crate::permissions::{Assignment, Check, Requirements};
 
 /// [`Operation::CHECKS`] behind the type-erased input: `false` when the
 /// input is not the operation's.
@@ -41,6 +41,10 @@ pub struct OperationMetadata {
     /// Evaluates the requirements' bindings and conditions against the
     /// decoded input ([`Operation::CHECKS`]).
     pub checks: Option<ErasedChecks>,
+    /// The obligation the operation's `assigns` clause opens
+    /// ([`Operation::ASSIGNS`]), which its handler discharges with
+    /// `roles::assign`.
+    pub assigns: Option<Assignment>,
     /// Whether the model explicitly makes the operation anonymous
     /// ([`Operation::ANONYMOUS`]): it takes no credential, so there is
     /// nothing to authorize.
@@ -83,6 +87,7 @@ impl OperationMetadata {
                 Some(_) => Some(erased_checks::<O>),
                 None => None,
             },
+            assigns: O::ASSIGNS,
             anonymous,
             public: anonymous,
         }

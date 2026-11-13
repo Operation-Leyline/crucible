@@ -12,8 +12,8 @@ use std::collections::{BTreeMap, BTreeSet};
 use crucible_ir::ShapeId;
 use crucible_ir::ir::permissions::Binding;
 use crucible_ir::ir::{
-    Condition, Mode, Permission, PermissionTypes, Requirement, Requirements, ResourcePermissions,
-    Service, Tier,
+    AssignedAt, AssignedRoles, Assigns, Condition, Mode, Permission, PermissionTypes, Requirement,
+    Requirements, ResourcePermissions, Service, Tier,
 };
 use crucible_ir::validate::{
     FindingSeverity, PermissionFinding, attaches_not_found, derived_authorization_name,
@@ -23,8 +23,9 @@ use serde_json::Value as Json;
 
 use super::{DeclRef, Lowerer, Position};
 use crate::ast::{
-    Annotation, BindingValue, BodyKind, ClauseValue, Condition as Cond, ConditionKind, Decl, Ident,
-    Key, MemberKind, OpEntry, Operation, RequirementKind, Resource, Value,
+    Annotation, AssignedRoles as AstAssignedRoles, Assignment, AssignmentKind, BindingValue,
+    BodyKind, ClauseValue, Condition as Cond, ConditionKind, Decl, Ident, Key, MemberKind, OpEntry,
+    Operation, RequirementKind, Resource, Value,
 };
 use crate::compile::FileDiagnostic;
 use crate::compile::Location;
@@ -491,45 +492,7 @@ impl<'a> Lowerer<'a> {
                 _ => unreachable!("filtered"),
             };
         }
-        let input = operation.entries.iter().find_map(|entry| match entry {
-            OpEntry::Body(body) if body.kind == BodyKind::Input => Some(body),
-            _ => None,
-        });
-        // The identifiers the input binds: those of the operation's own
-        // resource, inherited ones included, each by the member `$name` (or
-        // its `as` spelling), else by a member of that name. `$x` names one
-        // of these (check 10); any other member is bound by its path.
-        let own = operation
-            .attachment
-            .as_ref()
-            .map(|a| self.ref_id(&a.resource.name));
-        let chain: Vec<String> = match &own {
-            Some(own) => match self.permission_facts.resources.get(own) {
-                Some(ids) => ids.iter().map(|(n, _)| n.clone()).collect(),
-                None => {
-                    let (inherited, own) = self.identifiers(own.name());
-                    inherited.into_iter().chain(own).collect()
-                }
-            },
-            None => Vec::new(),
-        };
-        let mut bound: BTreeMap<String, String> = BTreeMap::new();
-        for member in input.map(|b| b.members.as_slice()).unwrap_or_default() {
-            match &member.kind {
-                MemberKind::Elided { name, alias, .. } if chain.contains(&name.name) => {
-                    bound.insert(
-                        name.name.clone(),
-                        alias.as_ref().unwrap_or(name).name.clone(),
-                    );
-                }
-                MemberKind::Field { name, .. } if chain.contains(&name.name) => {
-                    bound
-                        .entry(name.name.clone())
-                        .or_insert_with(|| name.name.clone());
-                }
-                _ => {}
-            }
-        }
+        let (own, bound) = self.input_identifiers(operation);
         if own.is_some() {
             self.permission_facts
                 .identifier_members
@@ -758,6 +721,203 @@ impl<'a> Lowerer<'a> {
             return Requirements::Undeclared;
         }
         Requirements::List(lowered)
+    }
+
+    /// The identifiers the input binds: those of the operation's own
+    /// resource, inherited ones included, each by the member `$name` (or
+    /// its `as` spelling), else by a member of that name, as identifier to
+    /// member; and the own resource. `$x` names one of these (check 10); any
+    /// other member is bound by its path.
+    fn input_identifiers(
+        &self,
+        operation: &'a Operation,
+    ) -> (Option<ShapeId>, BTreeMap<String, String>) {
+        let input = operation.entries.iter().find_map(|entry| match entry {
+            OpEntry::Body(body) if body.kind == BodyKind::Input => Some(body),
+            _ => None,
+        });
+        let own = operation
+            .attachment
+            .as_ref()
+            .map(|a| self.ref_id(&a.resource.name));
+        let chain: Vec<String> = match &own {
+            Some(own) => match self.permission_facts.resources.get(own) {
+                Some(ids) => ids.iter().map(|(n, _)| n.clone()).collect(),
+                None => {
+                    let (inherited, own) = self.identifiers(own.name());
+                    inherited.into_iter().chain(own).collect()
+                }
+            },
+            None => Vec::new(),
+        };
+        let mut bound: BTreeMap<String, String> = BTreeMap::new();
+        for member in input.map(|b| b.members.as_slice()).unwrap_or_default() {
+            match &member.kind {
+                MemberKind::Elided { name, alias, .. } if chain.contains(&name.name) => {
+                    bound.insert(
+                        name.name.clone(),
+                        alias.as_ref().unwrap_or(name).name.clone(),
+                    );
+                }
+                MemberKind::Field { name, .. } if chain.contains(&name.name) => {
+                    bound
+                        .entry(name.name.clone())
+                        .or_insert_with(|| name.name.clone());
+                }
+                _ => {}
+            }
+        }
+        (own, bound)
+    }
+
+    /// The operation's `assigns` clause (docs/roles.md §4.5): one at most,
+    /// its `at` target bound as a `requires` target is. What holds of the
+    /// lowered clause (the member carries roles, the target's paths exist,
+    /// `roles.unassigned`) is `crucible_ir::validate::roles`.
+    pub(super) fn assigns(
+        &mut self,
+        file: usize,
+        id: &ShapeId,
+        operation: &'a Operation,
+    ) -> Option<Assigns> {
+        let clauses: Vec<&'a Assignment> = operation
+            .entries
+            .iter()
+            .filter_map(|entry| match entry {
+                OpEntry::Assigns(a) => Some(a),
+                _ => None,
+            })
+            .collect();
+        let first = clauses.first().copied()?;
+        for extra in &clauses[1..] {
+            self.error(
+                file,
+                extra.span,
+                "roles.assigns: an operation has one `assigns` clause; a replacement that grants and revokes is one clause, whose handler checks both",
+            );
+        }
+        self.role_sites.insert(
+            crucible_ir::validate::RoleSite::Assigns(id.clone()),
+            Location {
+                file,
+                span: first.span,
+            },
+        );
+        let docs = self.doc(file, first.doc.as_ref());
+        let (roles, target) = match &first.kind {
+            AssignmentKind::None { reason, .. } => {
+                return Some(Assigns::None {
+                    reason: reason.value.clone(),
+                    docs,
+                });
+            }
+            AssignmentKind::Roles { roles, at } => (roles, at),
+        };
+        let roles = match roles {
+            AstAssignedRoles::Loaded(_) => AssignedRoles::Loaded,
+            AstAssignedRoles::Member(path) => {
+                AssignedRoles::Member(path.parts.iter().map(|p| p.name.clone()).collect())
+            }
+        };
+        let (_, bound) = self.input_identifiers(operation);
+        let resource = self.ref_id(&target.resource.name);
+        let identifiers: Vec<String> = self
+            .permission_facts
+            .resources
+            .get(&resource)
+            .map(|ids| ids.iter().map(|(n, _)| n.clone()).collect())
+            .unwrap_or_else(|| {
+                let (inherited, own) = self.identifiers(resource.name());
+                inherited.into_iter().chain(own).collect()
+            });
+        let member_of = |identifier: &str| -> Vec<String> {
+            vec![
+                bound
+                    .get(identifier)
+                    .map_or(identifier, String::as_str)
+                    .to_owned(),
+            ]
+        };
+        let mut written: BTreeMap<String, Binding> = BTreeMap::new();
+        let mut unnamed = 0;
+        for arg in target.bindings.as_deref().unwrap_or_default() {
+            let binding = match &arg.value {
+                BindingValue::All(_) => Binding::All,
+                BindingValue::Label(label) => {
+                    if !bound.contains_key(&label.name) {
+                        self.error(
+                            file,
+                            label.span,
+                            format!(
+                                "roles.assigns: `${}` names an identifier the input binds, and it binds no such identifier; bind any other member by its path: `{}`",
+                                label.name, label.name
+                            ),
+                        );
+                    }
+                    Binding::Member(member_of(&label.name))
+                }
+                BindingValue::Path(path) => {
+                    Binding::Member(path.parts.iter().map(|p| p.name.clone()).collect())
+                }
+            };
+            let identifier = match &arg.name {
+                Some(name) if identifiers.contains(&name.name) => name.name.clone(),
+                Some(name) => {
+                    self.error(
+                        file,
+                        name.span,
+                        format!(
+                            "roles.assigns: `{}` has no identifier `{}`; its identifiers are {}",
+                            resource.name(),
+                            name.name,
+                            identifiers
+                                .iter()
+                                .map(|i| format!("`{i}`"))
+                                .collect::<Vec<_>>()
+                                .join(", ")
+                        ),
+                    );
+                    continue;
+                }
+                None => {
+                    unnamed += 1;
+                    if unnamed > 1 {
+                        self.error(
+                            file,
+                            arg.span,
+                            "roles.assigns: one binding may go unnamed, and it binds the resource's own identifier; name the others: `organizationId: $organizationId`",
+                        );
+                        continue;
+                    }
+                    match identifiers.last() {
+                        Some(last) => last.clone(),
+                        None => continue,
+                    }
+                }
+            };
+            if written.insert(identifier.clone(), binding).is_some() {
+                self.error(
+                    file,
+                    arg.span,
+                    format!(
+                        "roles.assigns: `{identifier}` is bound twice; bind each identifier once"
+                    ),
+                );
+            }
+        }
+        let bindings = identifiers
+            .iter()
+            .map(|identifier| {
+                written
+                    .remove(identifier)
+                    .unwrap_or_else(|| Binding::Member(member_of(identifier)))
+            })
+            .collect();
+        Some(Assigns::Roles {
+            roles,
+            at: AssignedAt { resource, bindings },
+            docs,
+        })
     }
 
     fn condition(&mut self, file: usize, condition: &Cond) -> Option<Condition> {

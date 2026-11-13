@@ -6,7 +6,10 @@
 use std::path::{Path, PathBuf};
 
 use crucible_ir::ShapeId;
-use crucible_ir::ir::{GrantedSet, Role, ScopeTarget, Service};
+use crucible_ir::ir::permissions::Binding;
+use crucible_ir::ir::{
+    AssignedAt, AssignedRoles, Assigns, GrantedSet, Operation, Role, ScopeTarget, Service,
+};
 use crucible_ir::{Audience, project, snapshot};
 use crucible_lang::ast::{Decl, GrantList, RoleEntryKind, ScopeTarget as AstScopeTarget};
 use crucible_lang::{Compiled, Severity, compile, load_package, load_service, parse};
@@ -669,6 +672,7 @@ internal role keeper = "keeper" {
 @sender("Identity Provider", signature: signature)
 anonymous operation RecordKind {
     http POST "/kinds"
+    assigns none because "it records what the provider sent, and writes no binding"
     input {
         @header("Idp-Signature")
         signature: string
@@ -773,6 +777,209 @@ fn a_catalogue_round_trips_through_a_release_snapshot() {
     let older = snapshot::read(&value.to_string()).unwrap();
     assert!(older.roles.is_empty() && older.role_scopes.is_empty());
     assert!(older.role_settings.is_default());
+}
+
+// ---- assigns (§4.5) ------------------------------------------------------------
+
+fn operation<'s>(service: &'s Service, name: &str) -> &'s Operation {
+    service
+        .operations
+        .iter()
+        .find(|op| op.name() == name)
+        .unwrap_or_else(|| panic!("no operation {name}"))
+}
+
+fn member(path: &[&str]) -> Binding {
+    Binding::Member(path.iter().map(|p| (*p).to_owned()).collect())
+}
+
+#[test]
+fn assigns_lowers_each_form_and_round_trips_through_a_release_snapshot() {
+    let service = service("roles-assigns");
+    let shop = |name: &str| id("example.shop", name);
+    assert_eq!(
+        operation(&service, "PutBinding").assigns,
+        Some(Assigns::Roles {
+            roles: AssignedRoles::Member(vec!["roles".to_owned()]),
+            at: AssignedAt {
+                resource: shop("Store"),
+                bindings: vec![member(&["storeId"])],
+            },
+            docs: Some(
+                "The roles granted; a replacement checks the roles it removes too.".to_owned()
+            ),
+        })
+    );
+    // `loaded`, at the binding resource itself: its identifiers bind by
+    // name, as a `requires` target's do.
+    assert_eq!(
+        operation(&service, "DeleteBinding").assigns,
+        Some(Assigns::Roles {
+            roles: AssignedRoles::Loaded,
+            at: AssignedAt {
+                resource: shop("Binding"),
+                bindings: vec![member(&["storeId"]), member(&["principalId"])],
+            },
+            docs: None,
+        })
+    );
+    // A nested member path, and a target with a named and an unnamed
+    // binding.
+    assert_eq!(
+        operation(&service, "GrantOnShelf").assigns,
+        Some(Assigns::Roles {
+            roles: AssignedRoles::Member(vec!["grant".to_owned(), "roles".to_owned()]),
+            at: AssignedAt {
+                resource: shop("Shelf"),
+                bindings: vec![member(&["storeId"]), member(&["shelfId"])],
+            },
+            docs: None,
+        })
+    );
+    assert_eq!(
+        operation(&service, "CountHolders").assigns,
+        Some(Assigns::None {
+            reason: "it counts the holders of a role and writes no binding".to_owned(),
+            docs: None,
+        })
+    );
+    assert!(
+        operation(&service, "PutBinding")
+            .assigns
+            .as_ref()
+            .unwrap()
+            .obliges()
+    );
+    assert!(
+        !operation(&service, "CountHolders")
+            .assigns
+            .as_ref()
+            .unwrap()
+            .obliges()
+    );
+
+    let text = snapshot::write(&service, "test");
+    let read = snapshot::read(&text).unwrap();
+    for (read, op) in read.operations.iter().zip(&service.operations) {
+        assert_eq!(read.assigns, op.assigns, "{}", op.name());
+    }
+    assert_eq!(snapshot::write(&read, "test"), text);
+    // A snapshot frozen before `assigns` existed has no such field, and
+    // still reads.
+    let mut value: serde_json::Value = serde_json::from_str(&text).unwrap();
+    let mut removed = 0;
+    for op in value["service"]["operations"].as_array_mut().unwrap() {
+        removed += usize::from(op.as_object_mut().unwrap().remove("assigns").is_some());
+    }
+    assert_eq!(removed, 4);
+    let older = snapshot::read(&value.to_string()).unwrap();
+    assert!(older.operations.iter().all(|op| op.assigns.is_none()));
+    // An operation that says nothing writes no field, so a model without
+    // `assigns` writes the snapshot it wrote before.
+    assert!(!snapshot::write(&leyline_without_assigns(), "test").contains("\"assigns\""));
+
+    // Clients never see it: it is the server's obligation.
+    let external = project(&service, Audience::External).unwrap();
+    assert!(external.operations.iter().all(|op| op.assigns.is_none()));
+}
+
+/// Leyline's model with its binding operations left out.
+fn leyline_without_assigns() -> Service {
+    let compiled = compiled_with("roles-leyline", |text| {
+        text.replace("    assigns role at Organization\n", "")
+            .replace("    assigns loaded at Organization\n", "")
+            .replace("        role: Role\n", "")
+    });
+    compiled.service.expect("a service")
+}
+
+#[test]
+fn an_operation_that_can_change_who_holds_a_role_says_what_it_assigns() {
+    let unassigned = |name: &str, cause: &str| {
+        format!(
+            "roles.unassigned: `{name}` {cause}, so it can change who holds a role: say what it assigns, `assigns <member> at <Resource>` for the roles its input grants or `assigns loaded at <Resource>` for stored roles it revokes (the handler checks them with `roles::assign`), or `assigns none because \"..\"` when it writes no binding"
+        )
+    };
+    assert_exactly(
+        &errors("roles-unassigned"),
+        &[
+            &unassigned("Grant", "carries role values in its input (`role`)"),
+            &unassigned(
+                "Relabel",
+                "updates `Binding`, whose `role` holds role values",
+            ),
+            "roles.assigns: `Misnamed` assigns `label`, a `Label`; the roles assigned are a `RoleName` or a list of them",
+            "roles.assigns: `storeId` of `Store` is bound to `nowhere`, but the input has no member `nowhere`",
+        ],
+    );
+    // The refusal is at the operation, so the editor shows it there.
+    let compiled = compiled("roles-unassigned");
+    let grant = compiled
+        .diagnostics
+        .iter()
+        .find(|d| d.diagnostic.message.contains("`Grant` carries"))
+        .unwrap();
+    assert!(grant.file.is_some());
+    // Leyline's binding operations each say what they assign; without the
+    // clause, `PutRoleBinding` is refused.
+    let compiled = compiled_with("roles-leyline", |text| {
+        text.replace("    assigns role at Organization\n", "")
+    });
+    assert_exactly(
+        &errors_of(&compiled),
+        &[&unassigned(
+            "PutRoleBinding",
+            "carries role values in its input (`role`)",
+        )],
+    );
+}
+
+#[test]
+fn an_assigns_clause_is_one_well_formed_clause() {
+    // A second clause, a missing `at`, and `assigns` with no roles to
+    // assign.
+    let compiled = compiled_with("roles-assigns", |text| {
+        text.replace(
+            "    assigns loaded at Binding\n",
+            "    assigns loaded at Binding\n    assigns none because \"twice\"\n",
+        )
+    });
+    assert_exactly(
+        &errors_of(&compiled),
+        &[
+            "roles.assigns: an operation has one `assigns` clause; a replacement that grants and revokes is one clause, whose handler checks both",
+        ],
+    );
+    let compiled = compiled_with("roles-assigns", |text| {
+        text.replace("assigns roles at Store", "assigns roles")
+    });
+    assert!(
+        errors_of(&compiled).iter().any(|e| e.contains("`at`")),
+        "{:?}",
+        errors_of(&compiled)
+    );
+    let compiled = compiled_with("roles-assigns", |text| {
+        text.replace(
+            "assigns none because \"it counts the holders of a role and writes no binding\"",
+            "assigns none because \" \"",
+        )
+    });
+    assert_exactly(
+        &errors_of(&compiled),
+        &[
+            "roles.assigns: `CountHolders` says it assigns nothing with an empty reason; say why it writes no binding",
+        ],
+    );
+    let compiled = compiled_with("roles-assigns", |text| {
+        text.replace("assigns roles at Store", "assigns roles at Nowhere")
+    });
+    assert!(
+        errors_of(&compiled)
+            .iter()
+            .any(|e| e.contains("`PutBinding` assigns at `Nowhere`")),
+        "{:?}",
+        errors_of(&compiled)
+    );
 }
 
 // ---- the other constructs -----------------------------------------------------

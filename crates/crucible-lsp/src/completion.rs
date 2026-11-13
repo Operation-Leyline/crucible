@@ -592,6 +592,21 @@ pub fn complete(context: Context, index: &Index, snippets: bool) -> Vec<Completi
                 "filters ${1:permission} on ${2:Resource}",
             );
             items.snippet(
+                "assigns",
+                "the roles a binding write grants, which the handler checks",
+                "assigns ${1:roles} at ${2:Resource}",
+            );
+            items.snippet(
+                "assigns loaded",
+                "the stored roles a revocation removes, which the handler checks",
+                "assigns loaded at ${1:Resource}",
+            );
+            items.snippet(
+                "assigns none",
+                "carries roles but writes no binding",
+                "assigns none because \"${1:reason}\"",
+            );
+            items.snippet(
                 "example",
                 "example request and response",
                 "example \"${1:title}\" {\n    input { $2 }\n    output { $0 }\n}",
@@ -1225,7 +1240,15 @@ mod tests {
                 .any(|label| label == "output stream")
         );
         assert_eq!(at("template reads { | }"), Context::Template);
-        for word in ["requires", "requires none", "requires pending", "filters"] {
+        for word in [
+            "requires",
+            "requires none",
+            "requires pending",
+            "filters",
+            "assigns",
+            "assigns loaded",
+            "assigns none",
+        ] {
             assert!(operation.iter().any(|l| l == word), "{word}: {operation:?}");
         }
         assert!(

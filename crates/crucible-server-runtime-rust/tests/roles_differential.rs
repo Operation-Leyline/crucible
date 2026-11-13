@@ -6,7 +6,9 @@
 //! `by service` grants and sometimes `custom`), compiles it with
 //! crucible-lang, lays its catalogue out as the generator does
 //! (`support::roles`), and asks both for every check. Any disagreement
-//! fails.
+//! fails. A check on every instance (`R(*)`) is also asked as a `filters`
+//! listing of that collection, whose `Visibility` the interpreter derives
+//! from the same bindings.
 //!
 //! The interpreter shares nothing with the runtime but the IR: coverage is
 //! `crucible_ir::roles::covers` plus a positional comparison of the
@@ -17,12 +19,13 @@
 
 mod support;
 
+use std::collections::BTreeSet;
 use std::sync::Arc;
 
 use crucible_ir::ir::{ScopeTarget, Service, Shape, Tier};
 use crucible_ir::roles::{Target as Covered, covers, parent};
 use crucible_server_runtime_rust::permissions::{
-    Check, PermissionInfo, ResourceRef, Target, Verdict,
+    Check, Listing, PermissionInfo, ResourceRef, Target, Verdict, Visibility,
 };
 use crucible_server_runtime_rust::roles::{
     BindingSource, BothHatches, ByService, CustomRoles, PermissionSet, RoleBinding, RoleCatalogue,
@@ -352,6 +355,21 @@ fn related(binding: &RoleBinding, target: &ResourceRef) -> bool {
     (binding.identifiers.len() + a).is_multiple_of(2)
 }
 
+/// The `by service` listing rule both sides use: a pure function of the
+/// binding and the collection, answering every shape a hook may.
+fn related_listing(binding: &RoleBinding, collection: &ResourceRef) -> Visibility {
+    let a = collection
+        .identifiers()
+        .iter()
+        .filter(|t| t.as_one() == Some("a"))
+        .count();
+    match (binding.identifiers.len() + a) % 3 {
+        0 => Visibility::All,
+        1 => Visibility::Only(BTreeSet::from([format!("s{}", binding.identifiers.len())])),
+        _ => Visibility::Only(BTreeSet::new()),
+    }
+}
+
 /// A custom role's definition: `c0` every permission whose value has an
 /// even length, `c1` an odd one.
 fn defines(role: &str, value: &str) -> Option<bool> {
@@ -393,6 +411,14 @@ impl ServiceGrants for Source {
     ) -> Result<bool, Unavailable> {
         Ok(related(grant.binding, grant.target))
     }
+
+    async fn visible_by_service(
+        &self,
+        _: &Principal,
+        grant: ByService<'_>,
+    ) -> Result<Visibility, Unavailable> {
+        Ok(related_listing(grant.binding, grant.target))
+    }
 }
 
 impl CustomRoles for Source {
@@ -424,6 +450,176 @@ fn instance_identifiers(service: &Service, scope: &ScopeTarget) -> usize {
         ScopeTarget::Service => 0,
         ScopeTarget::Instance(r) => count(r),
         ScopeTarget::Every(r) => parent(service, r).map_or(0, count),
+    }
+}
+
+/// What the interpreter knows of one binding for one permission: its
+/// scope, how many identifiers name its instance, and whether its role
+/// grants the permission outright and `by service`. `None` for a binding
+/// that grants nothing: not under the root, at a scope the model lacks,
+/// malformed, or of a role invalid there for the kind.
+struct Held<'s> {
+    scope: &'s crucible_ir::ir::Scope,
+    k: usize,
+    grants: bool,
+    by_service: bool,
+}
+
+fn held<'s>(
+    service: &'s Service,
+    kind: Option<&str>,
+    binding: &RoleBinding,
+    root: Option<&str>,
+    permission: &PermissionInfo,
+) -> Option<Held<'s>> {
+    let (resource, declared) = service
+        .permissions
+        .iter()
+        .find(|(_, p)| p.name == permission.resource.name)
+        .unwrap();
+    let symbol = declared
+        .permissions
+        .iter()
+        .find(|p| p.value == permission.value)
+        .unwrap();
+    let kind_name = |value: &str| -> Option<String> {
+        let principals = service.role_settings.principals.as_ref()?;
+        match service.shapes.get(principals) {
+            Some(Shape::Enum(e)) => e
+                .values
+                .iter()
+                .find(|v| v.value == value)
+                .map(|v| v.name.clone()),
+            _ => None,
+        }
+    };
+    let grantable = matches!(symbol.tier, Tier::Public | Tier::PermissionOnly);
+    let under = match (binding.identifiers.first(), root) {
+        (None, _) => true,
+        (Some(first), Some(root)) => first == root,
+        (Some(_), None) => false,
+    };
+    if !under {
+        return None;
+    }
+    let scope = service
+        .role_scopes
+        .iter()
+        .find(|s| s.value == binding.scope)?;
+    let k = instance_identifiers(service, &scope.on);
+    if binding.identifiers.len() != k {
+        return None;
+    }
+    let (grants, by_service) = match service.roles.iter().find(|r| r.value == binding.role) {
+        Some(role) => {
+            let at = role.scopes.contains(&scope.symbol);
+            let holds = role.holders.is_empty()
+                || kind
+                    .and_then(kind_name)
+                    .is_some_and(|name| role.holders.contains(&name));
+            if !(at && holds) {
+                return None;
+            }
+            (
+                role.effective
+                    .iter()
+                    .any(|g| &g.resource == resource && g.permission == symbol.symbol),
+                role.by_service
+                    .iter()
+                    .any(|g| &g.resource == resource && g.permission == symbol.symbol),
+            )
+        }
+        None if service.role_settings.custom => (
+            defines(&binding.role, permission.value)? && grantable,
+            false,
+        ),
+        None => return None,
+    };
+    Some(Held {
+        scope,
+        k,
+        grants,
+        by_service,
+    })
+}
+
+/// A `filters` listing of `collection` (`R(parents, *)`), from the IR: a
+/// covering binding that grants the permission shows all; one on a single
+/// instance shows it; `by service` grants answer by `related_listing`; the
+/// union, or the refusal a check would get.
+fn oracle_listing(
+    service: &Service,
+    kind: Option<&str>,
+    bindings: &[RoleBinding],
+    permission: &PermissionInfo,
+    collection: &ResourceRef,
+) -> Visibility {
+    let refuse = |covered: bool| {
+        if covered {
+            Visibility::Denied
+        } else {
+            Visibility::Hidden
+        }
+    };
+    let ids = collection.identifiers();
+    let complete = ids.len() == collection.resource().identifiers.len()
+        && ids.last() == Some(&Target::All)
+        && ids[..ids.len() - 1].iter().all(|t| *t != Target::All);
+    if !complete {
+        return refuse(false);
+    }
+    let resource = service
+        .permissions
+        .iter()
+        .find(|(_, p)| p.name == permission.resource.name)
+        .map(|(id, _)| id)
+        .unwrap();
+    let root = ids[0].as_one();
+    let prefix = |binding: &RoleBinding, k: usize| {
+        ids.len() >= k
+            && ids[..k]
+                .iter()
+                .zip(&binding.identifiers)
+                .all(|(t, b)| t.as_one() == Some(b.as_str()))
+    };
+    let mut covered = false;
+    let mut only = BTreeSet::new();
+    let mut by_service = Vec::new();
+    for binding in bindings {
+        let Some(held) = held(service, kind, binding, root, permission) else {
+            continue;
+        };
+        if held.by_service {
+            by_service.push(binding);
+        }
+        if covers(service, &held.scope.on, Covered::Every(resource)) && prefix(binding, held.k) {
+            covered = true;
+            if held.grants {
+                return Visibility::All;
+            }
+            continue;
+        }
+        if covers(service, &held.scope.on, Covered::Instance(resource))
+            && held.k == ids.len()
+            && prefix(binding, held.k - 1)
+        {
+            covered = true;
+            if held.grants {
+                only.insert(binding.identifiers[held.k - 1].clone());
+            }
+        }
+    }
+    for binding in by_service {
+        match related_listing(binding, collection) {
+            Visibility::All => return Visibility::All,
+            Visibility::Only(ids) => only.extend(ids),
+            _ => {}
+        }
+    }
+    if only.is_empty() {
+        refuse(covered)
+    } else {
+        Visibility::Only(only)
     }
 }
 
@@ -624,6 +820,23 @@ fn run(service: &Service, input: &Input) -> Result<(), TestCaseError> {
             verdict,
             expected,
             "{} on {} for {:?} holding {:?}",
+            check.permission.value,
+            check.resource,
+            kind,
+            bindings
+        );
+        // A collection is also listed.
+        if check.resource.identifiers().last() != Some(&Target::All) {
+            continue;
+        }
+        let listing = Listing::new(check.permission, check.resource.clone());
+        let visible =
+            futures_executor(authorizer.visible_for(&principal, &listing, false)).unwrap();
+        let expected = oracle_listing(service, kind, &bindings, check.permission, &check.resource);
+        prop_assert_eq!(
+            visible,
+            expected,
+            "listing {} of {} for {:?} holding {:?}",
             check.permission.value,
             check.resource,
             kind,

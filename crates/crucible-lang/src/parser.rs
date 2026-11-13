@@ -5,15 +5,15 @@
 //! declaration, so one run reports every problem in a file.
 
 use crate::ast::{
-    Annotation, Arg, Attachment, BindingArg, BindingValue, Block, Body, BodyKind, Call, Clause,
-    ClauseValue, Condition, ConditionKind, Constraint, ConstraintValue, Conversion, Decl, Doc,
-    Dotted, EnumDecl, EnumValue, ErrorDecl, ErrorEntry, Example, ExamplePart, Except, Expr,
-    ExprKind, Field, File, GrantList, Hook, Http, Ident, Item, Key, ListDecl, MapDecl, Member,
-    MemberKind, MetaType, Metadata, Migration, NumLit, OpEntry, Operand, Operation, Operator, Path,
-    PermissionEntry, Quantifier, Ref, RequireHow, Requirement, RequirementKind, Resource,
-    ResourceEntry, ResourceEntryKind, RoleDecl, RoleEntry, RoleEntryKind, RoleGrant, Rule,
-    RuleClause, Scalar, ScopeDecl, ScopeTarget, Step, StepKind, StrLit, Structure, Target,
-    Template, TypeRef, Union, Value,
+    Annotation, Arg, AssignedRoles, Assignment, AssignmentKind, Attachment, BindingArg,
+    BindingValue, Block, Body, BodyKind, Call, Clause, ClauseValue, Condition, ConditionKind,
+    Constraint, ConstraintValue, Conversion, Decl, Doc, Dotted, EnumDecl, EnumValue, ErrorDecl,
+    ErrorEntry, Example, ExamplePart, Except, Expr, ExprKind, Field, File, GrantList, Hook, Http,
+    Ident, Item, Key, ListDecl, MapDecl, Member, MemberKind, MetaType, Metadata, Migration, NumLit,
+    OpEntry, Operand, Operation, Operator, Path, PermissionEntry, Quantifier, Ref, RequireHow,
+    Requirement, RequirementKind, Resource, ResourceEntry, ResourceEntryKind, RoleDecl, RoleEntry,
+    RoleEntryKind, RoleGrant, Rule, RuleClause, Scalar, ScopeDecl, ScopeTarget, Step, StepKind,
+    StrLit, Structure, Target, Template, TypeRef, Union, Value,
 };
 use crate::diagnostic::{Diagnostic, deprecated_public};
 use crate::lexer::{Token, TokenKind, unescape};
@@ -1328,6 +1328,39 @@ impl<'s> Parser<'s> {
         }
     }
 
+    /// `assigns ..`, at its keyword (docs/roles.md §4.5). `none` followed
+    /// by `because` and `loaded` are the clause's own words; any other
+    /// first word is the member path holding the roles.
+    fn assignment(&mut self, doc: Option<Doc>, start: Span) -> Assignment {
+        self.expect_word("assigns");
+        let kind = if self.at_word("none") && self.text(1) == "because" {
+            let none = self.bump().expect("checked").span;
+            self.expect_word("because");
+            AssignmentKind::None {
+                none,
+                reason: self.string("the reason, as a string"),
+            }
+        } else {
+            let roles = if self.at_word("loaded") && self.text(1) == "at" {
+                AssignedRoles::Loaded(self.bump().expect("checked").span)
+            } else {
+                AssignedRoles::Member(self.dotted(
+                    "the input member holding the roles, `loaded`, or `none because \"..\"`",
+                ))
+            };
+            self.expect_word("at");
+            AssignmentKind::Roles {
+                roles,
+                at: self.target(),
+            }
+        };
+        Assignment {
+            doc,
+            kind,
+            span: start.to(self.last_end()),
+        }
+    }
+
     fn target(&mut self) -> Target {
         let resource = self.ident("a resource name");
         let start = resource.span;
@@ -1595,6 +1628,10 @@ impl<'s> Parser<'s> {
             let doc = self.take_doc();
             return Some(OpEntry::Requirement(self.requirement(doc, start)));
         }
+        if self.at_word("assigns") && self.kind(1) == Some(TokenKind::Ident) {
+            let doc = self.take_doc();
+            return Some(OpEntry::Assigns(self.assignment(doc, start)));
+        }
         if self.at(TokenKind::Ident) && self.kind(1) == Some(TokenKind::LParen) {
             let name = self.ident("a name");
             let args = self.call_args();
@@ -1611,7 +1648,7 @@ impl<'s> Parser<'s> {
             BodyKind::Output
         } else {
             self.expected(
-                "`http`, `input`, `output`, `errors`, `example`, `requires`, `filters` or a clause",
+                "`http`, `input`, `output`, `errors`, `example`, `requires`, `filters`, `assigns` or a clause",
             );
             return None;
         };

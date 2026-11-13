@@ -1,4 +1,4 @@
-use super::{Decision, Listing, ObligationRecord, Requirements, Visibility};
+use super::{AssignmentRecord, Decision, Listing, ObligationRecord, Requirements, Visibility};
 
 /// Everything authorization decided for one request, left on the request
 /// context (`context.attribute::<AuthorizationRecord>()`) for audit
@@ -23,6 +23,9 @@ pub struct AuthorizationRecord {
     /// shadows.
     pub undeclared: bool,
     pub obligations: Vec<ObligationRecord>,
+    /// The `assigns` obligation (docs/roles.md §4.5), when the operation
+    /// declares one.
+    pub assignment: Option<AssignmentRecord>,
     /// Whether the interceptor only shadowed: verdicts were recorded and
     /// logged, never enforced.
     pub shadow: bool,

@@ -1,0 +1,17 @@
+schema_version = 1
+
+# `assigns` (docs/roles.md §4.5): every operation that can change who holds
+# a role says what it assigns. A binding resource whose property holds role
+# values (`puts` grants from the input, `deletes` revokes the stored roles),
+# an operation whose input carries roles in a nested structure, and one that
+# carries a role but writes no binding (`assigns none`). It compiles with no
+# diagnostic.
+[model]
+namespace = "example.shop"
+language = 1
+sources = ["."]
+imports = []
+
+[model.naming]
+input = "{Operation}Input"
+output = "{Operation}Output"

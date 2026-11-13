@@ -1534,11 +1534,17 @@ impl BindingSource for Bindings {
 }
 
 // Leyline's `grants GraphHistory [read] by service`: the history of a graph
-// the binding names, while the graph is live. Without this impl,
-// `leyline::roles::authorizer(bindings)` does not compile.
+// the binding names, while the graph is live. Without this impl (both
+// methods), `leyline::roles::authorizer(bindings)` does not compile.
 impl ServiceGrants for Bindings {
     async fn decide_by_service(&self, _: &Caller, grant: ByService<'_>) -> Result<bool, Unavailable> {
         self.graphs.history_is_live(grant.binding, grant.target).await.map_err(Unavailable::new)
+    }
+
+    // The same relationship for a `filters` listing: the histories of the
+    // binding's graph in the listed collection (`grant.target`).
+    async fn visible_by_service(&self, _: &Caller, grant: ByService<'_>) -> Result<Visibility, Unavailable> {
+        self.graphs.live_histories(grant.binding, grant.target).await.map_err(Unavailable::new)
     }
 }
 
@@ -1580,7 +1586,33 @@ which an Authorizer of the service's own may implement too. Without a
 request, `decide_for(principal, checks, fresh)` and `explain_for` answer
 the same, and `capabilities(principal, target, fresh)` answers "what may
 I do here?" for every permission of the target's resource with the same
-walk. A `filters` listing stays the service's (`BindingSource::visible`).
+walk.
+
+**Listings.** `RoleAuthorizer` answers `Authorizer::visible` for a
+`filters` clause itself (`visible_for(principal, listing, fresh)` without
+a request; `Listing::new(permission, collection)` builds one). Over the
+same kept bindings:
+
+- one whose scope instance covers the whole listed collection (its parent
+  or an ancestor, or a `R(*)` scope on the listed resource) and grants the
+  permission shows `Visibility::All`;
+- one on a single instance of the listed resource under the listing's
+  parents, granting it, shows that instance: `Only` with its identifier;
+- for each kept binding whose role grants the permission `by service`,
+  `ServiceGrants::visible_by_service(principal, grant)` answers what the
+  binding's relationship reaches in the collection (`grant.target`,
+  `GraphHistory(o-1, *)`): `All`, or `Only` the instances. It is a
+  required method beside `decide_by_service`, so a model with `by
+  service` grants does not build its authorizer from a source that
+  answers single checks but no listing. It is not asked once a binding
+  shows `All`; `Hidden` and `Denied` from it count as reaching nothing.
+
+The answers are unioned: `All` absorbs, `Only` sets merge. A listing
+nothing shows is refused as a check would be, `refusal(covered)`, where
+`covered` means a kept binding covers the collection or one instance in
+it: by default Hidden (404) for a caller holding nothing there, Denied
+(403) for one whose bindings there grant something else. The handler
+filters to `permissions::visible()` as with any Authorizer.
 
 **Assignment.** `RoleCatalogue::may_assign(assigner, kind, role, at)` (and
 `Role::may_assign`) is pure: a role without `assignedBy` may be assigned
@@ -1590,8 +1622,53 @@ the assigner's kind, and sit at a scope instance that covers `at`, the
 scope instance of the binding being written (`ScopeRef`), so an `owner`
 of one organization assigns nothing in another.
 `RoleAuthorizer::may_assign(principal, role, at, fresh)` reads the
-assigner's bindings under `at`'s root itself, for the binding operation's
-handler.
+assigner's bindings under `at`'s root itself, and
+`may_assign_values(principal, roles, at, fresh)` judges several role
+values from one read (a custom role, which names no assigners, is
+assignable at a well-formed `at`; a value the catalogue does not know
+never).
+
+**Assignment is enforced.** An operation that can change who holds a role
+declares what it assigns ([roles.md](roles.md) §4.5, `roles.unassigned`
+otherwise refuses it): `assigns <member> at R` for the roles its input
+grants, `assigns loaded at R` for the stored roles a revocation reads, or
+`assigns none because ".."`. The first two generate an `ASSIGNMENT`
+constant beside the operation marker (and `Operation::ASSIGNS`), and
+`Permissions` opens it as an obligation on every request, as it opens a
+`by handler` clause's. The handler discharges it with
+`roles::assign(obligation, roles, at)`, passing each role value it grants
+or revokes and the binding's scope instance (`ScopeRef`); for a
+replacement, `roles::replaced(before, after)` gives the roles it removes
+and the roles it adds, each of which must pass:
+
+```rust
+use crucible_server_runtime_rust::{idempotency, roles::{self, ScopeRef}};
+
+// PutRoleBinding: `assigns role at Organization`, over a stored binding.
+let held = store.roles_at(&input.principal, scope, &ids).await?;
+roles::assign(
+    leyline::PutRoleBinding::ASSIGNMENT,
+    roles::replaced(&held, &[input.role.as_str()]),
+    ScopeRef::new(scope, &ids),
+)
+.await?;
+idempotency::commit().await?;
+```
+
+`roles::assign` asks `Authorizer::may_assign(request, roles, at)`, a
+provided method whose default is the internal error; `RoleAuthorizer`
+answers it with `may_assign_values` from a fresh read, and
+`ShadowAuthorizer` asks both and enforces the primary's answer. When any
+role is refused, the request fails with the operation's 403: the refusal
+of its first declared check, through the refusal factory, whose
+`PermissionRefusal::origin()` is `Origin::Assignment` (an operation that
+made no declared check gets the framework's `ForbiddenException`). The
+`AuthorizationRecord`'s `assignment` (`AssignmentRecord`) keeps each role
+asked, whether it passed, and the scope instance. As for a `by handler`
+obligation, `idempotency::commit()` refuses while it is open or refused,
+and a success with it open is the internal error (`Undischarged`), unless
+`assert_obligations(false)` opted out or the interceptor only shadows.
+A request that grants or revokes no role passes none, which closes it.
 
 Per check the work is a scan of the principal's bindings with a string
 comparison or two and a bitset test each; the bindings are an

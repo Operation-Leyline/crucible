@@ -6,10 +6,11 @@
 //! [`FENCE`], so an editor highlights it as Crucible; prose stays outside.
 
 use crucible_lang::ast::{
-    Annotation, Arg, BindingValue, Body, BodyKind, Clause, ClauseValue, Condition, ConditionKind,
-    Constraint, ConstraintValue, Decl, EnumValue, ErrorEntry, GrantList, Ident, Item, Key, Member,
-    MemberKind, MetaType, NumLit, OpEntry, PermissionEntry, Requirement, RequirementKind,
-    ResourceEntry, ResourceEntryKind, RoleEntryKind, ScopeTarget, TypeRef, Value,
+    Annotation, Arg, AssignedRoles, Assignment, AssignmentKind, BindingValue, Body, BodyKind,
+    Clause, ClauseValue, Condition, ConditionKind, Constraint, ConstraintValue, Decl, EnumValue,
+    ErrorEntry, GrantList, Ident, Item, Key, Member, MemberKind, MetaType, NumLit, OpEntry,
+    PermissionEntry, Requirement, RequirementKind, ResourceEntry, ResourceEntryKind, RoleEntryKind,
+    ScopeTarget, Target, TypeRef, Value,
 };
 use crucible_lang::{Parsed, TokenKind};
 
@@ -316,6 +317,12 @@ const KEYWORDS: &[Row] = &[
         OPERATION,
         "What the caller must hold before the operation runs: a permission on the resource instance the bindings identify (`on Inbox`, `on Template(content.template.templateId)`, `on Inbox(*)`), optionally `when` a condition on the input holds. Every clause must hold. `requires none` says no permission is needed, `requires pending because \"..\"` defers to the handler during migration, and `by handler` declares a check the handler discharges.",
         "operation SendMessage on Message collection {\n    requires mailSend on Inbox\n    requires read on Template(content.template.templateId) when has content.template\n}",
+    ),
+    (
+        "assigns",
+        OPERATION,
+        "What an operation that can change who holds a role assigns (docs/roles.md §4.5): `assigns <member> at <Resource>` names the input member holding the roles granted, `assigns loaded at <Resource>` the stored roles a revocation reads, and `assigns none because \"..\"` says it writes no binding. The first two are an obligation: the handler checks each role with `roles::assign`, or the response fails. An operation whose input carries a `@roleTypes` value, or that writes a resource holding one, must say one of them.",
+        "operation PutRoleBinding on Organization {\n    requires roleBindingManage\n    assigns role at Organization\n}",
     ),
     (
         "filters",
@@ -1989,6 +1996,7 @@ fn render_entries(entries: &[OpEntry]) -> Vec<String> {
             OpEntry::Errors(errors, _) => Some(format!("errors [{}]", names(errors, ", "))),
             OpEntry::Example(_) => None,
             OpEntry::Requirement(requirement) => Some(render_requirement(requirement)),
+            OpEntry::Assigns(assignment) => Some(render_assignment(assignment)),
         })
         .collect()
 }
@@ -2011,24 +2019,7 @@ fn render_requirement(requirement: &Requirement) -> String {
         } => {
             let mut out = format!("requires {}", permission.name);
             if let Some(target) = target {
-                out.push_str(&format!(" on {}", target.resource.name));
-                if let Some(bindings) = &target.bindings {
-                    let bindings: Vec<String> = bindings
-                        .iter()
-                        .map(|b| {
-                            let value = match &b.value {
-                                BindingValue::All(_) => "*".to_owned(),
-                                BindingValue::Label(label) => format!("${}", label.name),
-                                BindingValue::Path(path) => names(&path.parts, "."),
-                            };
-                            match &b.name {
-                                Some(name) => format!("{}: {value}", name.name),
-                                None => value,
-                            }
-                        })
-                        .collect();
-                    out.push_str(&format!("({})", bindings.join(", ")));
-                }
+                out.push_str(&format!(" on {}", render_target(target)));
             }
             if let Some(when) = when {
                 out.push_str(&format!(" when {}", render_condition(when)));
@@ -2037,6 +2028,43 @@ fn render_requirement(requirement: &Requirement) -> String {
                 out.push_str(" by handler");
             }
             out
+        }
+    }
+}
+
+fn render_target(target: &Target) -> String {
+    let mut out = target.resource.name.clone();
+    if let Some(bindings) = &target.bindings {
+        let bindings: Vec<String> = bindings
+            .iter()
+            .map(|b| {
+                let value = match &b.value {
+                    BindingValue::All(_) => "*".to_owned(),
+                    BindingValue::Label(label) => format!("${}", label.name),
+                    BindingValue::Path(path) => names(&path.parts, "."),
+                };
+                match &b.name {
+                    Some(name) => format!("{}: {value}", name.name),
+                    None => value,
+                }
+            })
+            .collect();
+        out.push_str(&format!("({})", bindings.join(", ")));
+    }
+    out
+}
+
+fn render_assignment(assignment: &Assignment) -> String {
+    match &assignment.kind {
+        AssignmentKind::None { reason, .. } => {
+            format!("assigns none because {}", quote(&reason.value))
+        }
+        AssignmentKind::Roles { roles, at } => {
+            let roles = match roles {
+                AssignedRoles::Member(path) => names(&path.parts, "."),
+                AssignedRoles::Loaded(_) => "loaded".to_owned(),
+            };
+            format!("assigns {roles} at {}", render_target(at))
         }
     }
 }
