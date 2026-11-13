@@ -21,6 +21,7 @@ Use this index to find the guide for your task. Start with the
 
 - [Authentication](auth.md): configure bearer tokens, JWTs, and API keys.
 - [Typed permissions](permissions.md): model and enforce operation permissions.
+- [Roles](roles.md) (proposed): declare roles and scopes in the model; generate the catalogue and "granted by".
 - [Idempotency record policies](idempotency-receipts.md): replay and receipt behavior.
 - [Response streams](streaming.md): model, produce, and consume typed response sequences.
 - [Serving MCP](mcp.md): expose modeled operations as MCP tools.
