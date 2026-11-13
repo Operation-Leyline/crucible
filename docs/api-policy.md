@@ -442,7 +442,9 @@ exception names.
   could not be: no holder gains anything, but whoever may assign it can
   now grant it there; and one that admits more kinds of principal
   (`holders` naming another, or dropped so every kind may hold it), since
-  bindings a narrowing made inert take effect again. At the service,
+  bindings a narrowing made inert take effect again; for a role without
+  `holders`, a kind the `principals` enum gained is one more that may hold
+  it. At the service,
   `custom` or `direct` turned on is one too: a requirement may be met by
   what the model does not list; and, with `custom` on in both, a permission
   that became grantable (public or `@permissionOnly`), which custom roles

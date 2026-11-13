@@ -547,6 +547,11 @@ roles have no shape of their own. Besides the design's rules:
   enum's wire values. Admitting more kinds (another named, or `holders`
   dropped) is `compatibility.role-widened`: no migration step converts
   stored bindings, so bindings a narrowing made inert take effect again.
+  A role without `holders` in both releases is held by every kind; a value
+  the `principals` enum gained is reported on it for review
+  (`compatibility.role-widened`), and a value it lost is not reported on
+  it: such a role is valid for any kind (the runtime's `valid_for` reads no
+  enum), so nobody is refused.
   Binding at more scopes gives no holder
   anything either, but whoever may assign the role can now grant it there,
   so it is `compatibility.role-widened`.

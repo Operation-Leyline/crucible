@@ -550,6 +550,28 @@ impl<'a> RoleChanges<'a, '_> {
         let symbol = &self.role.symbol;
         let (was_every, is_every) = (self.role.holders.is_empty(), self.now.holders.is_empty());
         if was_every && is_every {
+            // Every kind may hold it in both. A kind the `principals` enum
+            // gained is one more that may: reported for review. A kind it
+            // lost refuses nobody here, since a role without `holders` is
+            // valid for any kind (the runtime's `valid_for`, which reads
+            // no enum); the enum's own change is `compatibility.enum`'s.
+            // Without the enum in either release there is nothing to name.
+            if let (Some(Holders::Only(was)), Some(Holders::Only(is))) =
+                (holders(self.old, self.role), holders(self.new, self.now))
+            {
+                let gained: Vec<&String> = is
+                    .iter()
+                    .filter(|(value, _)| !was.contains_key(*value))
+                    .map(|(_, name)| name)
+                    .collect();
+                if !gained.is_empty() {
+                    let message = format!(
+                        "`{symbol}` names no `holders`, so every kind of principal may hold it, and `principals` now has {}: review whether those kinds should",
+                        names(gained.into_iter())
+                    );
+                    self.push("compatibility.role-widened", false, message);
+                }
+            }
             return;
         }
         let (Some(was), Some(is)) = (holders(self.old, self.role), holders(self.new, self.now))

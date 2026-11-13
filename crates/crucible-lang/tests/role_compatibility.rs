@@ -961,6 +961,31 @@ fn under_custom_a_permission_becoming_grantable_widens_and_the_reverse_narrows()
 }
 
 #[test]
+fn a_kind_of_principal_added_widens_every_role_without_holders() {
+    let more = edit(
+        BASE,
+        "    API_KEY = \"apiKey\"\n}",
+        "    API_KEY = \"apiKey\"\n    SERVICE = \"service\"\n}",
+    );
+    let found = findings_from(BASE, &more);
+    for role in ["graphReader", "graphWriter", "graphAdmin"] {
+        assert_eq!(
+            at(&found, "compatibility.role-widened", role),
+            [format!(
+                "warning: `{role}` names no `holders`, so every kind of principal may hold it, and `principals` now has `SERVICE`: review whether those kinds should"
+            )],
+            "{role}"
+        );
+    }
+    // `owner` names its holders: a new kind is not one of them.
+    assert!(at(&found, "compatibility.role-widened", "owner").is_empty());
+    // A kind removed refuses no holder of a role without `holders`, which
+    // is valid for any kind (the runtime's `valid_for`): no role finding.
+    let found = findings_from(&more, BASE);
+    none_of(&found, RULES);
+}
+
+#[test]
 fn turning_custom_or_direct_on_widens_and_off_narrows() {
     let roles = "    roles [owner, graphReader, graphWriter, graphAdmin]\n";
     for (word, on_message, off_message) in [
