@@ -132,7 +132,8 @@ pub mod __generated {
     pub use crate::explorer::description::description as explorer_description;
     pub use crate::generated_operations_builder::OperationsBuilder;
     pub use crate::permissions::not_found as permission_not_found;
-    /// The role catalogue types generated `roles` modules state.
+    /// The role catalogue types generated server `roles` modules state,
+    /// and the client role registry's (`crucible_wire::roles`).
     pub mod roles {
         pub use crate::__crucible_role_authorizer as authorizer;
         #[cfg(feature = "roles")]
@@ -143,6 +144,7 @@ pub mod __generated {
             Grant, PermissionSet, RoleBinding, RoleCatalogue, RoleInfo, ScopeInfo, ScopeKind,
             ScopeRef,
         };
+        pub use crucible_wire::roles::{RoleDescription, RolePermission};
     }
     pub use crate::{
         Context, Crucible, MissingOperations, ModelledError, Operation, OperationInfo, Operations,
@@ -153,7 +155,7 @@ pub mod __generated {
     pub use crucible_wire::blob::Blob;
     pub use crucible_wire::number::{BigDecimal, BigInteger};
     pub use crucible_wire::{
-        codec, error, field, number, open, operation, permissions, roles, time, validate,
+        codec, error, field, number, open, operation, permissions, time, validate,
     };
 
     pub use chrono;
