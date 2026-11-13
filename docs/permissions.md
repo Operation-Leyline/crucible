@@ -80,16 +80,22 @@ design does that split for permissions.
 
 **Non-goals**
 
-- **Crucible does not decide.** It never stores grants, roles, memberships
-  or tenants, and never answers whether a principal holds a permission. The
-  `Authorizer` does: Pigeon's grant table, Leyline's role bindings.
+- **Crucible does not store or look up.** It never stores grants, roles,
+  memberships or tenants. The `Authorizer` decides each request: Pigeon's
+  grant table, Leyline's role bindings. A service with roles may use the
+  framework's `RoleAuthorizer`, which decides from bindings the service
+  supplies through `BindingSource`, using the catalogue the model declares
+  ([roles.md](roles.md) §7, decision 7); the bindings themselves stay the
+  service's.
 - **No policy language.** There are no conditions on principals, no deny
   rules, and no relationship graph. Both consumers rule these out in their
   own designs (Pigeon `docs/authorization.md:35-37`; Leyline
   `docs/architecture/authorization.md:17-18` and `434-443`).
-- **No roles in the model.** Leyline's role-to-action table stays in its
-  policy code (§3.4).
-  [roles.md](roles.md) proposes reversing this.
+- **Roles are a separate layer.** This document models what an operation
+  requires; [roles.md](roles.md) models what a caller holds: roles, the
+  scopes they bind at and what each grants. *Changed:* this was "No roles
+  in the model", with Leyline's role-to-action table left in its policy
+  code (§3.4); roles.md reversed it.
 - **No implication, wildcard permissions or freshness in the model**
   (§4.8, decisions 1 and 3).
 - **No authentication changes.** `crucible-auth` and `Principal` are
