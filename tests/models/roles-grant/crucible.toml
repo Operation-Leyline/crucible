@@ -1,0 +1,13 @@
+schema_version = 1
+
+# `roles.grant`: what a grant names must be a resource's own primary
+# permissions; `* except` names only what `*` includes.
+[model]
+namespace = "example.shop"
+language = 1
+sources = ["."]
+imports = []
+
+[model.naming]
+input = "{Operation}Input"
+output = "{Operation}Output"

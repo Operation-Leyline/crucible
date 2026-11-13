@@ -1,0 +1,94 @@
+// Leyline's catalogue (docs/roles.md §8), from fleet/src/access/policy.rs.
+
+/// The organization itself: membership, keys, usage, audit and ownership.
+scope organization = "organization" on Organization
+/// Every graph in the organization, including graphs created later.
+scope allGraphs = "allGraphs" on Graph(*)
+/// One graph.
+scope graph = "graph" on Graph
+/// Every graph history in the organization, retired ones too.
+scope allHistories = "allHistories" on GraphHistory(*)
+/// One graph history.
+scope history = "history" on GraphHistory
+
+/// Everything in the organization, and every history in it.
+role owner = "owner" {
+    at [organization]
+    holders [USER]
+    assignedBy [owner]
+    grants Organization [*]
+    grants GraphHistory [read, restore]
+}
+
+/// Who belongs to the organization, its keys, and who holds which role.
+role accessAdmin = "accessAdmin" {
+    at [organization]
+    holders [USER]
+    assignedBy [owner]
+    grants Organization [organizationRead, settingsRead, memberRead, memberManage,
+                         apiKeyRead, apiKeyManage, roleBindingRead, roleBindingManage]
+}
+
+/// The organization's graph groups.
+role graphGroupAdmin = "graphGroupAdmin" {
+    at [organization]
+    grants Organization [organizationRead, graphGroupRead, graphGroupManage]
+}
+
+/// What the organization uses and is billed for.
+role usageViewer = "usageViewer" {
+    at [organization]
+    grants Organization [organizationRead, usageRead]
+}
+
+/// The organization's audit log.
+role auditViewer = "auditViewer" {
+    at [organization]
+    grants Organization [organizationRead, auditRead]
+}
+
+/// The audit log and its retention.
+role auditAdmin = "auditAdmin" {
+    at [organization]
+    holders [USER]
+    assignedBy [owner]
+    includes [auditViewer]
+    grants Organization [auditManage]
+}
+
+/// The organization's backups.
+role backupViewer = "backupViewer" {
+    at [organization]
+    grants Organization [organizationRead, backupRead]
+}
+
+/// Take and manage backups.
+role backupAdmin = "backupAdmin" {
+    at [organization]
+    includes [backupViewer]
+    grants Organization [backupManage]
+}
+
+/// Create graphs; the create handler makes the creator `graphAdmin` on each.
+role graphCreator = "graphCreator" { at [organization]; grants Graph [create] }
+
+/// Read graph data.
+role graphReader = "graphReader" { at [allGraphs, graph]; grants Graph [read] }
+
+/// Read and write graph data.
+role graphWriter = "graphWriter" { at [allGraphs, graph]; includes [graphReader]; grants Graph [write] }
+
+/// Read, write, configure and delete graphs.
+role graphAdmin = "graphAdmin" {
+    at [allGraphs, graph]
+    includes [graphWriter]
+    grants Graph [manage, create]
+    /// The history of a graph this binding covers, while the graph is live.
+    grants GraphHistory [read] by service
+}
+
+/// Read graph histories.
+role historyReader = "historyReader" { at [allHistories, history]; grants GraphHistory [read] }
+
+/// Read and restore graph histories.
+role historyAdmin = "historyAdmin" { at [allHistories, history]; includes [historyReader]; grants GraphHistory [restore] }

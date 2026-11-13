@@ -8,11 +8,12 @@ use crate::ast::{
     Annotation, Arg, Attachment, BindingArg, BindingValue, Block, Body, BodyKind, Call, Clause,
     ClauseValue, Condition, ConditionKind, Constraint, ConstraintValue, Conversion, Decl, Doc,
     Dotted, EnumDecl, EnumValue, ErrorDecl, ErrorEntry, Example, ExamplePart, Except, Expr,
-    ExprKind, Field, File, Hook, Http, Ident, Item, Key, ListDecl, MapDecl, Member, MemberKind,
-    MetaType, Metadata, Migration, NumLit, OpEntry, Operand, Operation, Operator, Path,
+    ExprKind, Field, File, GrantList, Hook, Http, Ident, Item, Key, ListDecl, MapDecl, Member,
+    MemberKind, MetaType, Metadata, Migration, NumLit, OpEntry, Operand, Operation, Operator, Path,
     PermissionEntry, Quantifier, Ref, RequireHow, Requirement, RequirementKind, Resource,
-    ResourceEntry, ResourceEntryKind, Rule, RuleClause, Scalar, Step, StepKind, StrLit, Structure,
-    Target, Template, TypeRef, Union, Value,
+    ResourceEntry, ResourceEntryKind, RoleDecl, RoleEntry, RoleEntryKind, RoleGrant, Rule,
+    RuleClause, Scalar, ScopeDecl, ScopeTarget, Step, StepKind, StrLit, Structure, Target,
+    Template, TypeRef, Union, Value,
 };
 use crate::diagnostic::Diagnostic;
 use crate::lexer::{Token, TokenKind, unescape};
@@ -65,6 +66,8 @@ const DECLARATIONS: &[&str] = &[
     "except",
     "migration",
     "conversion",
+    "scope",
+    "role",
 ];
 
 /// Words that end an `is` operand's word list or a rule kind.
@@ -296,6 +299,7 @@ impl<'s> Parser<'s> {
             "metadata" => named && word_next("on"),
             "except" => named && word_next("for"),
             "conversion" => named && next == Some(TokenKind::Arrow),
+            "scope" | "role" => named && next == Some(TokenKind::Eq),
             "migration" => self.kind(i + 1) == Some(TokenKind::String),
             word if SCALARS.contains(&word) => named,
             _ => false,
@@ -933,6 +937,8 @@ impl<'s> Parser<'s> {
                 })
             }
             "migration" => Decl::Migration(self.migration()),
+            "scope" => Decl::Scope(self.scope_decl()),
+            "role" => Decl::Role(self.role_decl()),
             "conversion" => {
                 self.pos += 1;
                 let from = self.ident("the old type");
@@ -999,12 +1005,145 @@ impl<'s> Parser<'s> {
             }
             _ => ClauseValue::Value(self.value()?),
         };
+        // `roles [..] custom`: words that qualify the list (docs/roles.md
+        // §4.7). No clause is named either, so reading them here takes
+        // nothing from the next clause.
+        let mut flags = Vec::new();
+        while name.name == "roles" && (self.at_word("custom") || self.at_word("direct")) {
+            flags.push(self.ident("`custom` or `direct`"));
+        }
         Some(Clause {
             doc,
             span: name.span.to(self.last_end()),
             name,
             value,
+            flags,
         })
+    }
+
+    // ---- roles and scopes (docs/roles.md §4) --------------------------------
+
+    /// `scope name = "value" on R | R(*) | service`, at `scope`.
+    fn scope_decl(&mut self) -> ScopeDecl {
+        self.pos += 1;
+        let name = self.ident("a scope name");
+        self.expect(TokenKind::Eq);
+        let value = self.string("the scope's value in quotes, such as \"organization\"");
+        self.expect_word("on");
+        let target = if self.at_word("service") {
+            ScopeTarget::Service(self.bump().expect("checked").span)
+        } else {
+            let name = self.ident("a resource, `Resource(*)` or `service`");
+            let every = if self.at(TokenKind::LParen) && self.kind(1) == Some(TokenKind::Star) {
+                self.pos += 2;
+                self.expect(TokenKind::RParen);
+                true
+            } else {
+                false
+            };
+            ScopeTarget::Resource { name, every }
+        };
+        ScopeDecl {
+            name,
+            value,
+            target,
+        }
+    }
+
+    /// `role name = "value" { entries }`, at `role`.
+    fn role_decl(&mut self) -> RoleDecl {
+        self.pos += 1;
+        let name = self.ident("a role name");
+        self.expect(TokenKind::Eq);
+        let value = self.string("the role's value in quotes, such as \"graphReader\"");
+        let entries = self.braced(Self::role_entry);
+        RoleDecl {
+            name,
+            value,
+            entries,
+        }
+    }
+
+    fn role_entry(&mut self) -> Option<RoleEntry> {
+        let start = self.here();
+        if !self.at(TokenKind::Ident) {
+            self.expected("`at`, `includes`, `grants`, `holders` or `assignedBy`");
+            return None;
+        }
+        // Only a grant keeps its documentation; any other entry's `///`
+        // is reported as documenting nothing.
+        let doc = if self.at_word("grants") {
+            self.take_doc()
+        } else {
+            None
+        };
+        let keyword = self.ident("a role entry");
+        let kind = match keyword.name.as_str() {
+            "at" => RoleEntryKind::At(self.ident_list()),
+            "includes" => RoleEntryKind::Includes(self.ident_list()),
+            "holders" => RoleEntryKind::Holders(self.ident_list()),
+            // `assignedBy holders`, Kubernetes' "grant only what you hold"
+            // (docs/roles.md §4.5), is not built: say so rather than
+            // expecting a `[`.
+            "assignedBy" if self.at_word("holders") => {
+                let word = self.bump().expect("checked").span;
+                self.error(
+                    word,
+                    "`assignedBy holders` (an assigner may grant only what it holds) is not supported yet; list the roles that may assign it: `assignedBy [role, ..]`",
+                );
+                return None;
+            }
+            "assignedBy" => RoleEntryKind::AssignedBy(self.ident_list()),
+            "grants" => {
+                let resource = self.ident("the resource whose permissions are granted");
+                let permissions = self.grant_list();
+                let by_service = if self.at_word("by") {
+                    let by = self.bump().expect("checked").span;
+                    self.expect_word("service");
+                    Some(by.to(self.last_end()))
+                } else {
+                    None
+                };
+                RoleEntryKind::Grants(RoleGrant {
+                    doc,
+                    resource,
+                    permissions,
+                    by_service,
+                })
+            }
+            _ => {
+                self.error(
+                    keyword.span,
+                    format!(
+                        "expected `at`, `includes`, `grants`, `holders` or `assignedBy`, found `{}`",
+                        keyword.name
+                    ),
+                );
+                return None;
+            }
+        };
+        Some(RoleEntry {
+            kind,
+            keyword,
+            span: start.to(self.last_end()),
+        })
+    }
+
+    /// `[p, q]`, `[*]` or `[* except [p, q]]`.
+    fn grant_list(&mut self) -> GrantList {
+        if self.at(TokenKind::LBracket) && self.kind(1) == Some(TokenKind::Star) {
+            self.pos += 1;
+            let star = self.bump().expect("checked").span;
+            let except = if self.eat_word("except") {
+                self.ident_list()
+            } else {
+                Vec::new()
+            };
+            self.expect(TokenKind::RBracket);
+            GrantList::All { star, except }
+        } else {
+            GrantList::Named(self.ident_list())
+        }
     }
 
     // ---- resources and operations -------------------------------------------

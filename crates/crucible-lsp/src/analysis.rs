@@ -7,9 +7,9 @@ use std::collections::{BTreeMap, HashMap};
 
 use crucible_lang::ast::{
     Annotation, Arg, BindingValue, Body, BodyKind, Clause, ClauseValue, Condition, ConditionKind,
-    ConstraintValue, Decl, Dotted, ErrorEntry, ExamplePart, Expr, ExprKind, Ident, Item, Key,
-    Member, MemberKind, MetaType, OpEntry, Operand, Path, Ref, Requirement, RequirementKind,
-    StepKind, TypeRef, Value,
+    ConstraintValue, Decl, Dotted, ErrorEntry, ExamplePart, Expr, ExprKind, GrantList, Ident, Item,
+    Key, Member, MemberKind, MetaType, OpEntry, Operand, Path, Ref, Requirement, RequirementKind,
+    RoleEntryKind, ScopeTarget, StepKind, TypeRef, Value,
 };
 use crucible_lang::{Parsed, TokenKind};
 
@@ -47,6 +47,8 @@ pub const TOKEN_MODIFIERS: &[&str] = &[
     "error",
     "union",
     "rule",
+    "role",
+    "scope",
 ];
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -76,6 +78,8 @@ pub const RESOURCE: u32 = 32;
 pub const ERROR: u32 = 64;
 pub const UNION: u32 = 128;
 pub const RULE: u32 = 256;
+pub const ROLE: u32 = 512;
+pub const SCOPE: u32 = 1024;
 
 /// The kind modifier of a declaration, by its keyword; 0 when the token
 /// type already says what it is.
@@ -87,6 +91,8 @@ pub fn kind_modifier(keyword: &str) -> u32 {
         "error" => ERROR,
         "union" => UNION,
         "rule" => RULE,
+        "role" => ROLE,
+        "scope" => SCOPE,
         _ => 0,
     }
 }
@@ -189,6 +195,8 @@ pub fn describe(decl: &Decl) -> Option<(String, Role, &Ident)> {
         Decl::Map(map) => ("map".into(), Role::Type, &map.name),
         Decl::Metadata(metadata) => ("metadata".into(), Role::Decorator, &metadata.name),
         Decl::Rule(rule) => ("rule".into(), Role::Function, &rule.name),
+        Decl::Scope(scope) => ("scope".into(), Role::Class, &scope.name),
+        Decl::Role(role) => ("role".into(), Role::Class, &role.name),
         Decl::Template(_) | Decl::Except(_) | Decl::Migration(_) | Decl::Conversion(_) => {
             return None;
         }
@@ -559,6 +567,42 @@ impl Walker<'_> {
             Decl::Conversion(conversion) => {
                 self.reference(&conversion.from, Some(Role::Type));
                 self.reference(&conversion.to, Some(Role::Type));
+            }
+            Decl::Scope(scope) => {
+                if let ScopeTarget::Resource { name, .. } = &scope.target {
+                    self.reference_kind(name, Some(Role::Class), RESOURCE);
+                }
+            }
+            // Scopes and roles are declarations; holders and granted
+            // permissions are values of an enum and of a resource.
+            Decl::Role(role) => {
+                for entry in &role.entries {
+                    match &entry.kind {
+                        RoleEntryKind::At(names) => {
+                            for name in names {
+                                self.reference_kind(name, Some(Role::Class), SCOPE);
+                            }
+                        }
+                        RoleEntryKind::Includes(names) | RoleEntryKind::AssignedBy(names) => {
+                            for name in names {
+                                self.reference_kind(name, Some(Role::Class), ROLE);
+                            }
+                        }
+                        RoleEntryKind::Holders(names) => {
+                            for name in names {
+                                self.set(name, Role::EnumMember, 0);
+                            }
+                        }
+                        RoleEntryKind::Grants(grant) => {
+                            self.reference_kind(&grant.resource, Some(Role::Class), RESOURCE);
+                            let (GrantList::Named(names) | GrantList::All { except: names, .. }) =
+                                &grant.permissions;
+                            for name in names {
+                                self.set(name, Role::EnumMember, 0);
+                            }
+                        }
+                    }
+                }
             }
         }
     }
@@ -1197,6 +1241,90 @@ operation SendMessage on Inbox {
     }
 
     #[test]
+    fn roles_and_scopes_are_declarations_their_entries_references() {
+        let source = r#"
+service Leyline {
+    principals Kind
+    scopes [graph, everything]
+    roles [reader, admin] custom
+}
+enum Kind { USER = "user" }
+resource Graph { id graphId: string }
+scope graph = "graph" on Graph
+scope everything = "everything" on service
+role reader = "reader" { at [graph]; grants Graph [read] }
+role admin = "admin" {
+    at [everything]
+    includes [reader]
+    grants Graph [* except [read]] by service
+    holders [USER]
+    assignedBy [admin]
+}
+"#;
+        let parsed = crucible_lang::parse(source);
+        assert!(parsed.diagnostics.is_empty(), "{:?}", parsed.diagnostics);
+        let index = Index::new(std::slice::from_ref(&parsed));
+        let highlights = highlights(&parsed, &index);
+        let role = |word: &str, nth: usize| {
+            let start = source
+                .match_indices(word)
+                .filter(|(index, _)| {
+                    let before = source[..*index].chars().last();
+                    let after = source[index + word.len()..].chars().next();
+                    !before.is_some_and(char::is_alphanumeric)
+                        && !after.is_some_and(char::is_alphanumeric)
+                })
+                .nth(nth)
+                .unwrap_or_else(|| panic!("no {word} #{nth}"))
+                .0 as u32;
+            let highlight = highlights.iter().find(|h| h.start == start).unwrap();
+            (highlight.role, highlight.modifiers)
+        };
+        // Declarations, and every reference to them, carry their kind.
+        assert_eq!(role("graph", 1), (Role::Class, DECLARATION | SCOPE));
+        assert_eq!(role("graph", 0), (Role::Class, SCOPE));
+        // (Each value's string is a match too: the third.)
+        assert_eq!(role("graph", 3), (Role::Class, SCOPE));
+        assert_eq!(role("reader", 1), (Role::Class, DECLARATION | ROLE));
+        assert_eq!(role("reader", 0), (Role::Class, ROLE));
+        assert_eq!(role("reader", 3), (Role::Class, ROLE));
+        assert_eq!(role("admin", 3), (Role::Class, ROLE));
+        assert_eq!(role("Graph", 2), (Role::Class, RESOURCE));
+        assert_eq!(role("Graph", 3), (Role::Class, RESOURCE));
+        assert_eq!(role("Kind", 0), (Role::Enum, 0));
+        // Granted permissions and holders are values; the rest keywords.
+        assert_eq!(role("read", 0), (Role::EnumMember, 0));
+        assert_eq!(role("read", 1), (Role::EnumMember, 0));
+        assert_eq!(role("USER", 1), (Role::EnumMember, 0));
+        for keyword in [
+            "scope",
+            "role",
+            "on",
+            "service",
+            "at",
+            "includes",
+            "grants",
+            "except",
+            "by",
+            "holders",
+            "assignedBy",
+            "custom",
+            "principals",
+            "roles",
+            "scopes",
+        ] {
+            assert_eq!(role(keyword, 0).0, Role::Keyword, "{keyword}");
+        }
+        // Navigation: every place a role or scope is named.
+        let found = occurrences(&parsed, source, &index, "reader");
+        assert_eq!(found.len(), 3);
+        assert_eq!(found.iter().filter(|(_, _, declares)| *declares).count(), 1);
+        assert_eq!(occurrences(&parsed, source, &index, "everything").len(), 3);
+        let outline: Vec<String> = outline(&parsed).into_iter().map(|s| s.name).collect();
+        assert!(outline.contains(&"admin".to_owned()) && outline.contains(&"graph".to_owned()));
+    }
+
+    #[test]
     fn declarations_and_references_carry_their_kind() {
         let source = r#"
 service Shop {
@@ -1239,11 +1367,13 @@ operation GetCity reads City {
         assert_eq!(at("Shape", 1), (Role::Struct, UNION));
         assert_eq!(at("GetCity", 0), (Role::Function, 0));
         assert_eq!(at("GetCity", 1), (Role::Function, DECLARATION));
-        assert_eq!(TOKEN_MODIFIERS.len(), 9);
-        assert_eq!(
-            1 << TOKEN_MODIFIERS.iter().position(|m| *m == "rule").unwrap(),
-            RULE
-        );
+        assert_eq!(TOKEN_MODIFIERS.len(), 11);
+        for (name, bit) in [("rule", RULE), ("role", ROLE), ("scope", SCOPE)] {
+            assert_eq!(
+                1 << TOKEN_MODIFIERS.iter().position(|m| *m == name).unwrap(),
+                bit
+            );
+        }
     }
 
     #[test]

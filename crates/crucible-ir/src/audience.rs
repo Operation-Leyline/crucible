@@ -288,6 +288,7 @@ fn external(service: &Service, lenient: bool) -> Result<Service, Diagnostics> {
         .permissions
         .retain(|id, _| !service.resources.contains_key(id) || resources.contains(id));
     project_permissions(&mut result);
+    project_roles(&mut result);
     // A binding whose path ran through a removed internal member goes with it.
     let roots: BTreeMap<ShapeId, (Option<ShapeId>, Option<ShapeId>)> = result
         .operations
@@ -774,5 +775,79 @@ fn project_permissions(result: &mut Service) {
     });
     if !consistent {
         result.permission_types = None;
+    }
+}
+
+/// Roles and scopes as clients see them (docs/roles.md §4.8): internal ones
+/// go, and a public role keeps only what this view has. A grant of an
+/// internal permission leaves its declared and effective grants, the role
+/// stays. The compiler refuses what would mislead once removed (a public
+/// role at an internal scope, assigned by an internal role, held by an
+/// internal kind: `roles.internal`), so what remains is complete.
+fn project_roles(result: &mut Service) {
+    use crate::ir::GrantedSet;
+    result.roles.retain(|r| !r.internal);
+    result.role_scopes.retain(|s| !s.internal);
+    let roles: BTreeSet<String> = result.roles.iter().map(|r| r.symbol.clone()).collect();
+    let scopes: BTreeSet<String> = result
+        .role_scopes
+        .iter()
+        .map(|s| s.symbol.clone())
+        .collect();
+    let permissions = result.permissions.clone();
+    let visible = |resource: &ShapeId, symbol: &str| {
+        permissions
+            .get(resource)
+            .is_some_and(|r| r.permission(symbol).is_some())
+    };
+    let principals: Option<BTreeSet<String>> =
+        result
+            .role_settings
+            .principals
+            .as_ref()
+            .and_then(|id| match result.shapes.get(id) {
+                Some(Shape::Enum(e)) => Some(e.values.iter().map(|v| v.name.clone()).collect()),
+                Some(Shape::IntEnum(e)) => Some(e.values.iter().map(|v| v.name.clone()).collect()),
+                _ => None,
+            });
+    if principals.is_none() {
+        result.role_settings.principals = None;
+    }
+    for role in &mut result.roles {
+        role.scopes.retain(|s| scopes.contains(s));
+        role.includes.retain(|r| roles.contains(r));
+        role.assigned_by.retain(|r| roles.contains(r));
+        role.holders
+            .retain(|h| principals.as_ref().is_some_and(|p| p.contains(h)));
+        role.grants.retain_mut(|grant| {
+            if !permissions.contains_key(&grant.resource) {
+                return false;
+            }
+            match &mut grant.permissions {
+                GrantedSet::Named(names) => {
+                    names.retain(|n| visible(&grant.resource, n));
+                    !names.is_empty()
+                }
+                GrantedSet::All { except } => {
+                    except.retain(|n| visible(&grant.resource, n));
+                    true
+                }
+            }
+        });
+        role.effective
+            .retain(|g| visible(&g.resource, &g.permission));
+        role.by_service
+            .retain(|g| visible(&g.resource, &g.permission));
+    }
+    for linked in [
+        &mut result.role_settings.role_types,
+        &mut result.role_settings.scope_types,
+    ] {
+        if linked
+            .as_ref()
+            .is_some_and(|id| !result.shapes.contains_key(id))
+        {
+            *linked = None;
+        }
     }
 }

@@ -161,6 +161,77 @@ pub enum Decl {
     Except(Except),
     Migration(Migration),
     Conversion(Conversion),
+    Scope(ScopeDecl),
+    Role(RoleDecl),
+}
+
+/// `scope name = "value" on R | R(*) | service` (docs/roles.md §4.1).
+#[derive(Debug, Clone, PartialEq)]
+pub struct ScopeDecl {
+    pub name: Ident,
+    pub value: StrLit,
+    pub target: ScopeTarget,
+}
+
+/// What a scope binds at.
+#[derive(Debug, Clone, PartialEq)]
+pub enum ScopeTarget {
+    /// `on service`: the whole service, no resource.
+    Service(Span),
+    /// `on R`, or `on R(*)` when `every` is set: one instance, or every
+    /// instance under one parent.
+    Resource { name: Ident, every: bool },
+}
+
+/// `role name = "value" { .. }` (docs/roles.md §4.2).
+#[derive(Debug, Clone, PartialEq)]
+pub struct RoleDecl {
+    pub name: Ident,
+    pub value: StrLit,
+    /// Source order.
+    pub entries: Vec<RoleEntry>,
+}
+
+/// One entry of a role's body.
+#[derive(Debug, Clone, PartialEq)]
+pub struct RoleEntry {
+    pub kind: RoleEntryKind,
+    /// The entry's keyword.
+    pub keyword: Ident,
+    pub span: Span,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum RoleEntryKind {
+    /// `at [scope, ..]`
+    At(Vec<Ident>),
+    /// `includes [role, ..]`
+    Includes(Vec<Ident>),
+    /// `[/// doc] grants R [..] [by service]`
+    Grants(RoleGrant),
+    /// `holders [VALUE, ..]`: values of the service's `principals` enum.
+    Holders(Vec<Ident>),
+    /// `assignedBy [role, ..]`
+    AssignedBy(Vec<Ident>),
+}
+
+/// `grants R [p, q]`, `grants R [*]` or `grants R [* except [p]]`, each
+/// optionally `by service`.
+#[derive(Debug, Clone, PartialEq)]
+pub struct RoleGrant {
+    pub doc: Option<Doc>,
+    pub resource: Ident,
+    pub permissions: GrantList,
+    /// The span of `by service`, when written.
+    pub by_service: Option<Span>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum GrantList {
+    /// Permission symbols.
+    Named(Vec<Ident>),
+    /// `*`, at its span, less the symbols after `except`.
+    All { star: Span, except: Vec<Ident> },
 }
 
 /// A named block of keyword clauses: `service` and `protocol`.
@@ -175,6 +246,8 @@ pub struct Clause {
     pub doc: Option<Doc>,
     pub name: Ident,
     pub value: ClauseValue,
+    /// Words after the value: `custom` and `direct` in `roles [..] custom`.
+    pub flags: Vec<Ident>,
     pub span: Span,
 }
 

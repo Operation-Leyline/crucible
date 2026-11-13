@@ -1,0 +1,13 @@
+schema_version = 1
+
+# `roles.types` (docs/roles.md §4.9): the `@roleTypes` and `@scopeTypes`
+# enums disagree with the catalogue, in both directions.
+[model]
+namespace = "example.shop"
+language = 1
+sources = ["."]
+imports = []
+
+[model.naming]
+input = "{Operation}Input"
+output = "{Operation}Output"

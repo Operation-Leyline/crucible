@@ -18,6 +18,7 @@ mod operation_intent;
 mod pattern;
 mod protocol;
 mod recursion;
+pub mod roles;
 mod shape_id;
 pub mod snapshot;
 mod timestamp_default;

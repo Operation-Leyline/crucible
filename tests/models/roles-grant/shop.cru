@@ -1,0 +1,109 @@
+service Shop {
+    version "1"
+    protocol json
+    auth bearer
+    notFound Missing
+    resources [Store]
+    scopes [store]
+    roles [keeper, sloppy]
+}
+
+error Missing {
+    status 404
+    message: string
+}
+
+string StoreId { length 1..40 }
+string ShelfId { length 1..40 }
+string LedgerId { length 1..40 }
+
+resource Store {
+    id storeId: StoreId
+    permission read = "store:read"
+}
+
+resource Shelf in Store {
+    id shelfId: ShelfId
+    permission read = "shelf:read"
+    permission stock = "shelf:stock"
+}
+
+resource Ledger in Store {
+    id ledgerId: LedgerId
+    permission read = "ledger:read"
+}
+
+readonly operation GetStore on Store {
+    http GET "/stores/{storeId}"
+    requires read
+    input {
+        $storeId
+    }
+}
+
+readonly operation GetShelf on Shelf {
+    http GET "/stores/{storeId}/shelves/{shelfId}"
+    requires read
+    input {
+        $storeId
+        $shelfId
+    }
+}
+
+operation StockShelf on Shelf {
+    http POST "/stores/{storeId}/shelves/{shelfId}/stock"
+    requires stock
+    input {
+        $storeId
+        $shelfId
+    }
+}
+
+readonly operation GetLedger on Ledger {
+    http GET "/stores/{storeId}/ledgers/{ledgerId}"
+    requires read
+    input {
+        $storeId
+        $ledgerId
+    }
+}
+
+scope store = "store" on Store
+/// Everything in a store.
+role keeper = "keeper" {
+    at [store]
+    grants Store [read]
+    grants Shelf [read, stock]
+    grants Ledger [read]
+}
+
+/// Every way to name a permission wrong.
+role sloppy = "sloppy" {
+    at [store]
+    grants Shelf [read, dust, read]
+    grants Store [* except [count]]
+    grants Ledger []
+    grants Missing [read]
+    grants Till [open, unlock]
+    grants Till [* except [audit]]
+}
+
+string TillId { length 1..40 }
+
+resource Till in Store {
+    id tillId: TillId
+    permission open = "till:open"
+    /// Checked by the service's policy.
+    @permissionOnly permission audit = "till:audit"
+    /// Renamed to `till:open`.
+    @deprecated @aliasOf(open) permission unlock = "till:unlock"
+}
+
+operation OpenTill on Till {
+    http POST "/stores/{storeId}/tills/{tillId}/open"
+    requires open
+    input {
+        $storeId
+        $tillId
+    }
+}

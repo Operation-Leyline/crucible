@@ -36,6 +36,7 @@ use crate::span::Span;
 
 mod permissions;
 mod resources;
+mod roles;
 
 /// `namespaces[i]` is the namespace of `parsed[i]`: the package's own, or a
 /// bundled import's.
@@ -104,6 +105,7 @@ pub(crate) fn lower(
             .and_then(std::path::Path::parent)
             .map(std::path::Path::to_path_buf),
         rule_names: BTreeSet::new(),
+        role_sites: BTreeMap::new(),
     };
     lowerer.collect(parsed, namespaces);
     lowerer.check_resources();
@@ -435,6 +437,8 @@ fn decl_keyword(decl: &Decl) -> &'static str {
         Decl::Except(_) => "except",
         Decl::Migration(_) => "migration",
         Decl::Conversion(_) => "conversion",
+        Decl::Scope(_) => "scope",
+        Decl::Role(_) => "role",
     }
 }
 
@@ -452,6 +456,8 @@ fn decl_name(decl: &Decl) -> Option<&Ident> {
         Decl::Map(m) => &m.name,
         Decl::Metadata(m) => &m.name,
         Decl::Rule(r) => &r.name,
+        Decl::Scope(s) => &s.name,
+        Decl::Role(r) => &r.name,
         Decl::Template(_) | Decl::Except(_) | Decl::Migration(_) | Decl::Conversion(_) => {
             return None;
         }
@@ -557,6 +563,9 @@ struct Lowerer<'a> {
     /// The package's and its imports' policy rules, which a doc link may
     /// name without linking anywhere.
     rule_names: BTreeSet<String>,
+    /// Where the service's roles, scopes, their entries and names, and the
+    /// enums they link were declared, for the shared role check's findings.
+    role_sites: BTreeMap<crucible_ir::validate::RoleSite, Location>,
 }
 
 impl<'a> Lowerer<'a> {
@@ -2064,6 +2073,17 @@ impl<'a> Lowerer<'a> {
                         _ => {}
                     }
                 }
+                // Read with the service's roles (`lower::roles`).
+                "roleTypes" | "scopeTypes" => {
+                    if position != Position::Shape("enum") {
+                        let what = if name == "roleTypes" { "role" } else { "scope" };
+                        self.error(
+                            file,
+                            annotation.span,
+                            format!("`@{name}` applies to an enum: the wire enum of the service's {what} values"),
+                        );
+                    }
+                }
                 // Its arguments are read with the service's permissions.
                 "permissionTypes" => {
                     if position != Position::Shape("enum") {
@@ -2220,6 +2240,8 @@ impl<'a> Lowerer<'a> {
             "permissionOnly",
             "notGrantable",
             "aliasOf",
+            "roleTypes",
+            "scopeTypes",
         ];
         const MODIFIERS: &[&str] = &[
             "internal",
@@ -5418,12 +5440,25 @@ impl<'a> Lowerer<'a> {
         let mut operation_names: Vec<&Ident> = Vec::new();
         let mut resource_names: Vec<&Ident> = Vec::new();
         let mut error_names: Vec<&Ident> = Vec::new();
+        let mut role_clauses = roles::RoleClauses {
+            file,
+            ..Default::default()
+        };
         let mut clauses = BTreeSet::new();
         for clause in &block.clauses {
             let name = clause.name.name.as_str();
             if matches!(
                 name,
-                "version" | "title" | "protocol" | "auth" | "paginated" | "notFound" | "errorDocs"
+                "version"
+                    | "title"
+                    | "protocol"
+                    | "auth"
+                    | "paginated"
+                    | "notFound"
+                    | "errorDocs"
+                    | "roles"
+                    | "scopes"
+                    | "principals"
             ) && !clauses.insert(name)
             {
                 self.error(
@@ -5445,6 +5480,33 @@ impl<'a> Lowerer<'a> {
                 ("protocol", ClauseValue::Value(Value::Ident(p))) => protocol = Some(p),
                 ("auth", ClauseValue::Value(Value::Ident(a))) => auth_scheme = Some(a),
                 ("notFound", ClauseValue::Value(Value::Ident(e))) => not_found = Some(e),
+                ("principals", ClauseValue::Value(Value::Ident(e))) => {
+                    role_clauses.principals = Some(e);
+                }
+                ("roles" | "scopes", ClauseValue::Value(Value::List(values, _))) => {
+                    let roles = clause.name.name == "roles";
+                    if roles {
+                        role_clauses.flags.extend(&clause.flags);
+                    }
+                    let list = if roles {
+                        &mut role_clauses.roles
+                    } else {
+                        &mut role_clauses.scopes
+                    };
+                    for value in values {
+                        match value {
+                            Value::Ident(name) if list.iter().any(|n| n.name == name.name) => {
+                                self.error(
+                                    file,
+                                    name.span,
+                                    format!("`{}` is listed twice", name.name),
+                                );
+                            }
+                            Value::Ident(name) => list.push(name),
+                            other => self.error(file, other.span(), "expected a name"),
+                        }
+                    }
+                }
                 ("paginated", ClauseValue::Args(args)) => {
                     pagination = self.pagination_args(file, args);
                 }
@@ -5587,6 +5649,7 @@ impl<'a> Lowerer<'a> {
             })
             .collect();
         let permission_types = self.collect_permissions(&reached);
+        let (roles, role_scopes, role_settings) = self.lower_roles(&role_clauses);
         let mut operations: Vec<DeclRef<'a>> = Vec::new();
         for name in &operation_names {
             match self.decl(&name.name) {
@@ -5698,6 +5761,9 @@ impl<'a> Lowerer<'a> {
             internal_traits: BTreeSet::new(),
             permissions: std::mem::take(&mut self.permissions),
             permission_types,
+            roles,
+            role_scopes,
+            role_settings,
             not_found: self.not_found.clone(),
             exceptions: Vec::new(),
             doc_links: BTreeMap::new(),
@@ -5714,6 +5780,9 @@ impl<'a> Lowerer<'a> {
                 "the service's version names the release clients send in the `Crucible-Version` header: use visible ASCII without spaces",
             );
         }
+        // What each role grants, inclusion and `*` expanded: settled once,
+        // in `crucible_ir`, before anything checks or reads it.
+        crucible_ir::roles::settle(&mut service);
         // Rules of the IR itself, checked in `crucible_ir::validate`.
         let mut issues = crucible_ir::Diagnostics::default();
         crucible_ir::validate::service(&service, &mut issues);
@@ -5721,6 +5790,7 @@ impl<'a> Lowerer<'a> {
             self.error_at(&issue.shape, &issue.message);
         }
         self.check_permissions(&service);
+        self.check_roles(&service);
         // Unreached operations attach `NotFoundException` against the
         // service's permissions too.
         self.permissions = service.permissions.clone();

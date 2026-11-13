@@ -31,6 +31,18 @@ const REFUSED: &[&str] = &[
     "patterns-unsupported",
     "recursive-output",
     "resource-entry-refusals",
+    "roles-declarations",
+    "roles-duplicate-value",
+    "roles-grant",
+    "roles-include-cycle",
+    "roles-internal",
+    "roles-refusals",
+    "roles-types",
+    "roles-ungranted",
+    "roles-unknown-assigner",
+    "roles-unknown-holder",
+    "roles-unknown-scope",
+    "roles-unreachable-grant",
     "sender-signed-refusals",
 ];
 

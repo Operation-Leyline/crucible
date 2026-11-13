@@ -17,6 +17,17 @@ version's section when it is prepared.
 
 ### Added
 
+- Roles R1 ([docs/roles.md](docs/roles.md)): `.cru` declares `scope name =
+  "value" on R | R(*) | service` and `role name = "value" { at [..];
+  includes [..]; grants R [..] [by service]; holders [..]; assignedBy [..] }`,
+  and a service lists them with `roles [..] [custom] [direct]`, `scopes [..]`
+  and `principals Enum`; `@roleTypes` and `@scopeTypes` link hand-written
+  wire enums. The IR gains `Service::roles`, `Service::role_scopes` and
+  `Service::role_settings` (each role with its effective grants, inclusion
+  and `*` expanded), and `crucible_ir::roles` answers coverage. A model
+  without roles lowers to the same IR as before. Generators, the
+  `RoleAuthorizer` and compatibility rules follow in later releases.
+
 - Rust and TypeScript SDK guides (`README.md`, and `guide` in
   `crucible.sdks/1`) gain a `types` section after the first call: the
   language's type for each simple API type the service uses, from the

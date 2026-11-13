@@ -1,0 +1,13 @@
+schema_version = 1
+
+# Every refusal of docs/roles.md §6 at once: one compile reports each of
+# them, so a model's author sees every problem in one run.
+[model]
+namespace = "example.shop"
+language = 1
+sources = ["."]
+imports = []
+
+[model.naming]
+input = "{Operation}Input"
+output = "{Operation}Output"

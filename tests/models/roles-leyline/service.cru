@@ -1,0 +1,78 @@
+/// Graphs, organized by organization.
+service Leyline {
+    version "2026-09-04"
+    protocol json
+    auth bearer
+    notFound ResourceNotFound
+    resources [Organization]
+    operations [ListRoles]
+    principals PrincipalType
+    scopes [organization, allGraphs, graph, allHistories, history]
+    roles [
+        owner, accessAdmin, graphGroupAdmin, usageViewer, auditViewer, auditAdmin,
+        backupViewer, backupAdmin, graphCreator, graphReader, graphWriter, graphAdmin,
+        historyReader, historyAdmin
+    ]
+}
+
+/// The resource is missing, or the caller may not know it exists.
+error ResourceNotFound {
+    status 404
+    message: string
+}
+
+/// Who a credential belongs to.
+enum PrincipalType {
+    USER = "user"
+    API_KEY = "apiKey"
+}
+
+/// The roles a binding names.
+@roleTypes
+enum Role {
+    OWNER = "owner"
+    ACCESS_ADMIN = "accessAdmin"
+    GRAPH_GROUP_ADMIN = "graphGroupAdmin"
+    USAGE_VIEWER = "usageViewer"
+    AUDIT_VIEWER = "auditViewer"
+    AUDIT_ADMIN = "auditAdmin"
+    BACKUP_VIEWER = "backupViewer"
+    BACKUP_ADMIN = "backupAdmin"
+    GRAPH_CREATOR = "graphCreator"
+    GRAPH_READER = "graphReader"
+    GRAPH_WRITER = "graphWriter"
+    GRAPH_ADMIN = "graphAdmin"
+    HISTORY_READER = "historyReader"
+    HISTORY_ADMIN = "historyAdmin"
+}
+
+/// Where a binding is made.
+@scopeTypes
+enum RoleScopeType {
+    ORGANIZATION = "organization"
+    ALL_GRAPHS = "allGraphs"
+    GRAPH = "graph"
+    ALL_HISTORIES = "allHistories"
+    HISTORY = "history"
+}
+
+/// One role a console offers.
+structure RoleSummary {
+    role: Role
+    scopes: RoleScopeTypes
+    holders: PrincipalTypes
+}
+
+list RoleScopeTypes: RoleScopeType
+list PrincipalTypes: PrincipalType
+list RoleSummaries: RoleSummary
+
+/// Every role a binding may name.
+/// Answers from the model's own catalogue, the same for every caller.
+readonly operation ListRoles {
+    http GET "/v1/roles"
+    requires none
+    output {
+        roles: RoleSummaries
+    }
+}

@@ -1,0 +1,12 @@
+schema_version = 1
+
+# `roles.duplicate-value`: two roles, and two scopes, with one wire value.
+[model]
+namespace = "example.shop"
+language = 1
+sources = ["."]
+imports = []
+
+[model.naming]
+input = "{Operation}Input"
+output = "{Operation}Output"

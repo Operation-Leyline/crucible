@@ -1,0 +1,149 @@
+string OrganizationId { length 3..40 }
+string GraphId { length 3..40 }
+string HistoryId { length 3..40 }
+string Name { length 1..64 }
+
+/// The tenant: every graph, member and history belongs to one.
+resource Organization {
+    id organizationId: OrganizationId
+    readonly property name: Name
+
+    internal permission organizationRead = "organization:read"
+    internal permission settingsRead = "settings:read"
+    internal permission settingsManage = "settings:manage"
+    internal permission memberRead = "member:read"
+    internal permission memberManage = "member:manage"
+    internal permission apiKeyRead = "apiKey:read"
+    internal permission apiKeyManage = "apiKey:manage"
+    internal permission roleBindingRead = "roleBinding:read"
+    internal permission roleBindingManage = "roleBinding:manage"
+    internal permission graphGroupRead = "graphGroup:read"
+    internal permission graphGroupManage = "graphGroup:manage"
+    internal permission usageRead = "usage:read"
+    internal permission auditRead = "audit:read"
+    internal permission auditManage = "audit:manage"
+    internal permission backupRead = "backup:read"
+    internal permission backupManage = "backup:manage"
+}
+
+/// One graph.
+resource Graph in Organization {
+    id graphId: GraphId
+    immutable property name: Name
+
+    internal permission read = "graph:read"
+    internal permission write = "graph:write"
+    internal permission manage = "graph:manage"
+    internal permission create = "graph:create"
+}
+
+/// The retained past of a graph, kept after the graph is deleted.
+resource GraphHistory in Organization {
+    id historyId: HistoryId
+
+    internal permission read = "history:read"
+    internal permission restore = "history:restore"
+}
+
+readonly operation GetOrganization on Organization {
+    http GET "/v1/organizations/{organizationId}"
+    requires organizationRead
+    input {
+        $organizationId
+    }
+    output {
+        $name
+    }
+}
+
+idempotent operation PutRoleBinding on Organization {
+    http PUT "/v1/organizations/{organizationId}/role-bindings/{principal}"
+    requires roleBindingManage
+    input {
+        $organizationId
+        principal: Name
+        role: Role
+        scope: RoleScopeType
+    }
+}
+
+readonly operation GetUsage on Organization {
+    http GET "/v1/organizations/{organizationId}/usage"
+    requires usageRead
+    input {
+        $organizationId
+    }
+}
+
+readonly operation ListAuditEvents on Organization {
+    http GET "/v1/organizations/{organizationId}/audit-events"
+    requires auditRead
+    input {
+        $organizationId
+    }
+}
+
+operation CreateBackup on Organization {
+    http POST "/v1/organizations/{organizationId}/backups"
+    requires backupManage
+    input {
+        $organizationId
+    }
+}
+
+operation CreateGraph on Graph collection {
+    http POST "/v1/organizations/{organizationId}/graphs"
+    requires create on Graph(*)
+    input {
+        $organizationId
+        $name
+    }
+}
+
+readonly operation GetGraph on Graph {
+    http GET "/v1/organizations/{organizationId}/graphs/{graphId}"
+    requires read
+    input {
+        $organizationId
+        $graphId
+    }
+    output {
+        $name
+    }
+}
+
+operation WriteGraph on Graph {
+    http POST "/v1/organizations/{organizationId}/graphs/{graphId}/writes"
+    requires write
+    input {
+        $organizationId
+        $graphId
+    }
+}
+
+idempotent operation DeleteGraph on Graph {
+    http DELETE "/v1/organizations/{organizationId}/graphs/{graphId}"
+    requires manage
+    input {
+        $organizationId
+        $graphId
+    }
+}
+
+readonly operation GetGraphHistory on GraphHistory {
+    http GET "/v1/organizations/{organizationId}/histories/{historyId}"
+    requires read
+    input {
+        $organizationId
+        $historyId
+    }
+}
+
+operation RestoreGraphHistory on GraphHistory {
+    http POST "/v1/organizations/{organizationId}/histories/{historyId}/restore"
+    requires restore
+    input {
+        $organizationId
+        $historyId
+    }
+}
