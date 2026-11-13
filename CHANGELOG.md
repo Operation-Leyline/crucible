@@ -34,12 +34,14 @@ version's section when it is prepared.
   or whose instance is named another way (reparented, or an identifier
   renamed), and a role that grants less, binds at fewer scopes, admits
   fewer holders, covers less from a scope it keeps, or may be assigned by
-  fewer roles, and a service that turns `custom` or `direct` off;
+  fewer roles, and a service that turns `custom` or `direct` off or,
+  under `custom`, makes a permission no longer grantable;
   `compatibility.role-widened` (a warning) reports a role that grants
   more, by an edit, because its `*` covers a new permission, or because a
   scope it keeps now covers more, or because more roles may assign it or
   it may be bound at more scopes or held by more kinds of principal, and a
-  service that turns `custom` or `direct` on. A
+  service that turns `custom` or `direct` on or, under `custom`, makes a
+  permission grantable. A
   public role or scope removed, made `internal`, or whose symbol now sends
   another value is a `compatibility.sdk` finding. Migrations declare the breaks with `remove role`, `remove scope`
   and `narrow role`. A baseline frozen before roles existed reports

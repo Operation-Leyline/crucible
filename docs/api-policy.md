@@ -420,11 +420,14 @@ exception names.
   permission or scope that is gone altogether is
   reported once, by `compatibility.permissions` or `compatibility.scope`,
   not again for each role. A grant the service decided that the model now
-  decides is one at each scope the role keeps that does not cover its
-  resource, where the service could allow it and the model cannot. At the
+  decides is one at each scope the role keeps that does not cover both
+  its resource and its collection (`R(*)`), where the service could allow
+  it and the model cannot. At the
   service, `custom` or `direct` turned off is one too: holders of custom
   roles, or of permissions granted outside roles, are refused what they
-  had; an exception at the service declares it.
+  had; an exception at the service declares it. So is, with `custom` on
+  in both releases, a permission that is no longer grantable (now
+  `internal` or `@notGrantable`): custom roles that include it lose it.
 - `compatibility.role` (warning): a grant the model decided now left to
   the service (`by service`). Holders keep it where the service's hook
   allows, which only a review of the hook can tell.
@@ -441,7 +444,9 @@ exception names.
   (`holders` naming another, or dropped so every kind may hold it), since
   bindings a narrowing made inert take effect again. At the service,
   `custom` or `direct` turned on is one too: a requirement may be met by
-  what the model does not list.
+  what the model does not list; and, with `custom` on in both, a permission
+  that became grantable (public or `@permissionOnly`), which custom roles
+  may now include.
 
 A baseline frozen before roles existed has no roles to compare, so adding a
 catalogue reports nothing.

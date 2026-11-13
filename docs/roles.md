@@ -552,15 +552,21 @@ roles have no shape of their own. Besides the design's rules:
   see, so it is a review, not a refusal. `by service` removed, the model now
   granting it outright, is `compatibility.role-widened`, as is a new `by
   service` grant.
-  Where the role keeps a scope that does not cover the resource, `by
-  service` removed is also a `compatibility.role` error at that scope: the
-  service's hook could allow it there, the model cannot.
+  Where the role keeps a scope that does not cover both the resource and
+  its collection (`R(*)`, which `requires .. on R(*)` checks and a scope on
+  one instance never covers), `by service` removed is also a
+  `compatibility.role` error at that scope: the service's hook could allow
+  it there, the model cannot. The coverage comparison uses the same test.
 - *`custom` and `direct`*, compared at the service: turned on is
   `compatibility.role-widened` (a role or grant the model does not list may
   meet a requirement, and ones stored before take effect); turned off is a
   `compatibility.role` error (their holders are refused what they had),
   declared by an exception at the service, since no migration step names
-  the catalogue as a whole.
+  the catalogue as a whole. With `custom` on in both releases, a permission
+  both declare whose tier became grantable (`crucible_ir::roles::grantable`,
+  the rule granted-by uses: public or `@permissionOnly`) is
+  `compatibility.role-widened`, and one no longer grantable a
+  `compatibility.role` error, declared the same way.
 - *Coverage.* Coverage follows the resource tree, so a resource moved out
   from under a scope's resource narrows every role bound there that grants
   on it, though its scopes and grants read the same: for each scope a

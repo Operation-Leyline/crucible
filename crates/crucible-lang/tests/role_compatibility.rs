@@ -872,7 +872,7 @@ fn a_grant_the_model_takes_from_the_service_narrows_scopes_that_do_not_cover_it(
     assert_eq!(
         at(&found, "compatibility.role", "graphAdmin"),
         [
-            "error: `graphAdmin` bound at \"allGraphs\", \"graph\" no longer grants \"history:read\" on `History`: the model decides it now, where the service did (`by service`), and those scopes do not cover `History`; its holders bound there are refused what the service could allow"
+            "error: `graphAdmin` bound at \"allGraphs\", \"graph\" no longer grants \"history:read\" on `History`: the model decides it now, where the service did (`by service`), and those scopes do not cover both `History` and its collection; its holders bound there are refused what the service could allow"
         ]
     );
     assert_eq!(
@@ -887,6 +887,77 @@ fn a_grant_the_model_takes_from_the_service_narrows_scopes_that_do_not_cover_it(
         &lower(&decided),
         "graphAdmin"
     ));
+}
+
+#[test]
+fn an_instance_scope_never_covers_the_collection_the_service_could_allow() {
+    // graphReader, bound at one graph, may create graphs where the service
+    // decides; the model's grant needs `Graph(*)`, which a binding at one
+    // graph never covers.
+    let base = edit(
+        BASE,
+        "    permission delete = \"graph:delete\"\n",
+        "    permission delete = \"graph:delete\"\n    permission create = \"graph:create\"\n",
+    );
+    let base = edit(
+        &base,
+        "role graphReader = \"graphReader\" { at [allGraphs, graph]; grants Graph [read] }",
+        "role graphReader = \"graphReader\" { at [graph]; grants Graph [read]; grants Graph [create] by service }",
+    );
+    let decided = edit(
+        &base,
+        "grants Graph [read]; grants Graph [create] by service }",
+        "grants Graph [read, create] }",
+    );
+    let found = findings_from(&base, &decided);
+    assert_eq!(
+        at(&found, "compatibility.role", "graphReader"),
+        [
+            "error: `graphReader` bound at \"graph\" no longer grants \"graph:create\" on `Graph`: the model decides it now, where the service did (`by service`), and those scopes do not cover both `Graph` and its collection; its holders bound there are refused what the service could allow"
+        ]
+    );
+    assert!(crucible_policy::role_narrowed(
+        &lower(&base),
+        &lower(&decided),
+        "graphReader"
+    ));
+}
+
+#[test]
+fn under_custom_a_permission_becoming_grantable_widens_and_the_reverse_narrows() {
+    let custom = edit(
+        BASE,
+        "    roles [owner, graphReader, graphWriter, graphAdmin]\n",
+        "    roles [owner, graphReader, graphWriter, graphAdmin] custom\n",
+    );
+    let kept = edit(
+        &custom,
+        "    permission delete = \"graph:delete\"\n",
+        "    @notGrantable\n    permission delete = \"graph:delete\"\n",
+    );
+    let found = findings_from(&custom, &kept);
+    assert_eq!(
+        at(&found, "compatibility.role", "Atlas"),
+        [
+            "error: `Atlas` lets customers define roles (`custom`), and \"graph:delete\" on `Graph` is no longer grantable: holders of custom roles that include it are refused it"
+        ]
+    );
+    let found = findings_from(&kept, &custom);
+    assert_eq!(
+        at(&found, "compatibility.role-widened", "Atlas"),
+        [
+            "warning: `Atlas` lets customers define roles (`custom`), and \"graph:delete\" on `Graph` is now grantable: a custom role may include it"
+        ]
+    );
+    assert!(at(&found, "compatibility.role", "Atlas").is_empty());
+    // Without `custom`, no customer role can acquire it: nothing.
+    let not_grantable = edit(
+        BASE,
+        "    permission delete = \"graph:delete\"\n",
+        "    @notGrantable\n    permission delete = \"graph:delete\"\n",
+    );
+    let found = findings_from(&not_grantable, BASE);
+    assert!(at(&found, "compatibility.role-widened", "Atlas").is_empty());
 }
 
 #[test]

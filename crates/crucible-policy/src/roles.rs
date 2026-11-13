@@ -18,7 +18,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use crucible_ir::ShapeId;
 use crucible_ir::ir::{GrantedSet, Role, ScopeTarget, Service, Shape};
-use crucible_ir::roles::{Target, covers, parent, with_included};
+use crucible_ir::roles::{Target, covers, grantable, parent, with_included};
 
 use crate::Severity;
 use crate::checker::Checker;
@@ -281,6 +281,58 @@ fn settings(old: &Service, new: &Service, out: &mut Vec<Change>) {
                 breaking: true,
                 message: format!(
                     "`{name}` no longer {what}: holders of {whom} are refused what they had"
+                ),
+            }),
+            _ => {}
+        }
+    }
+    if old.role_settings.custom && new.role_settings.custom {
+        grantable_changes(old, new, out);
+    }
+}
+
+/// With `custom` on in both releases, the permissions a custom role may
+/// include, by stored pair (authorization name, value), among those both
+/// releases declare: one newly grantable lets customer-defined roles
+/// acquire it (a widening); one no longer grantable takes it from custom
+/// roles that hold it (an error, declared by an exception at the service).
+/// The rule is [`grantable`], the one granted-by uses.
+fn grantable_changes(old: &Service, new: &Service, out: &mut Vec<Change>) {
+    let name = old.id.name();
+    let tiers = |service: &Service| -> BTreeMap<(String, String), (bool, String)> {
+        service
+            .permissions
+            .iter()
+            .flat_map(|(id, resource)| {
+                resource.permissions.iter().map(move |p| {
+                    (
+                        (resource.name.clone(), p.value.clone()),
+                        (grantable(p), id.name().to_owned()),
+                    )
+                })
+            })
+            .collect()
+    };
+    let (was, is) = (tiers(old), tiers(new));
+    for ((authorization, value), (before, resource)) in &was {
+        let Some((after, now)) = is.get(&(authorization.clone(), value.clone())) else {
+            continue;
+        };
+        match (before, after) {
+            (false, true) => out.push(Change {
+                site: old.id.clone(),
+                rule: "compatibility.role-widened",
+                breaking: false,
+                message: format!(
+                    "`{name}` lets customers define roles (`custom`), and {value:?} on `{now}` is now grantable: a custom role may include it"
+                ),
+            }),
+            (true, false) => out.push(Change {
+                site: old.id.clone(),
+                rule: "compatibility.role",
+                breaking: true,
+                message: format!(
+                    "`{name}` lets customers define roles (`custom`), and {value:?} on `{resource}` is no longer grantable: holders of custom roles that include it are refused it"
                 ),
             }),
             _ => {}
@@ -620,12 +672,6 @@ impl<'a> RoleChanges<'a, '_> {
                 continue;
             }
             for ((was_on, is_on), (was_values, is_values)) in &kept {
-                let reach = |service: &Service, on: &ScopeTarget, resource: &ShapeId| {
-                    (
-                        covers(service, on, Target::Instance(resource)),
-                        covers(service, on, Target::Every(resource)),
-                    )
-                };
                 let before = reach(self.old, &scope.on, was_on);
                 let after = reach(self.new, &now.on, is_on);
                 let symbol = &self.role.symbol;
@@ -739,10 +785,9 @@ impl<'a> RoleChanges<'a, '_> {
             .iter()
             .filter_map(|symbol| self.new.scope(symbol))
             .filter(|scope| was.contains(&scope.value.as_str()))
-            .filter(|scope| {
-                !covers(self.new, &scope.on, Target::Instance(resource))
-                    && !covers(self.new, &scope.on, Target::Every(resource))
-            })
+            // The service could allow it for an instance or the whole
+            // collection (`R(*)`) at any scope; losing either is a loss.
+            .filter(|scope| reach(self.new, &scope.on, resource) != (true, true))
             .map(|scope| scope.value.as_str())
             .collect()
     }
@@ -797,7 +842,7 @@ impl<'a> RoleChanges<'a, '_> {
                     let lost = self.uncovering_scopes(now.0);
                     if !lost.is_empty() {
                         let message = format!(
-                            "`{symbol}` bound at {} no longer grants {what}: the model decides it now, where the service did (`by service`), and those scopes do not cover `{}`; its holders bound there are refused what the service could allow",
+                            "`{symbol}` bound at {} no longer grants {what}: the model decides it now, where the service did (`by service`), and those scopes do not cover both `{}` and its collection; its holders bound there are refused what the service could allow",
                             quoted(&lost),
                             now.0.name()
                         );
@@ -904,6 +949,15 @@ fn land<'n>(
         .find(|(_, r)| r.name == before.name)?;
     let holder = after.by_value(value)?;
     Some((id, after.primary(holder).symbol.as_str()))
+}
+
+/// What a binding at a scope `on` covers of `resource`: one instance, and
+/// the whole collection (`R(*)`, which `requires .. on R(*)` checks).
+fn reach(service: &Service, on: &ScopeTarget, resource: &ShapeId) -> (bool, bool) {
+    (
+        covers(service, on, Target::Instance(resource)),
+        covers(service, on, Target::Every(resource)),
+    )
 }
 
 /// The stored value of `permission` on `resource`.
