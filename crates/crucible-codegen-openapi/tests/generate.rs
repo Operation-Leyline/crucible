@@ -318,7 +318,7 @@ fn permissions_match_reviewed_golden_per_audience() {
                 use crucible_ir::ir::Requirements;
                 let kind = match &op.requirements {
                     Requirements::Undeclared => None,
-                    Requirements::None => Some("none"),
+                    Requirements::None { .. } => Some("none"),
                     Requirements::Pending { .. } => Some("pending"),
                     Requirements::Internal => Some("internal"),
                     Requirements::List(_) | Requirements::Partial(_) => Some("list"),

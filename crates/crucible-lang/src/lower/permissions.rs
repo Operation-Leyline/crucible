@@ -478,16 +478,16 @@ impl<'a> Lowerer<'a> {
                 }
             }
             return match &first.kind {
-                RequirementKind::None(_) => {
-                    self.doc(file, first.doc.as_ref());
-                    Requirements::None
-                }
-                RequirementKind::Pending(reason) => {
-                    self.doc(file, first.doc.as_ref());
-                    Requirements::Pending {
-                        reason: reason.value.clone(),
-                    }
-                }
+                // The `///` is the reader-facing reason: why no permission is
+                // needed, or what the handler checks per item instead.
+                RequirementKind::None(_) => Requirements::None {
+                    docs: self.doc(file, first.doc.as_ref()),
+                    filtered: false,
+                },
+                RequirementKind::Pending(reason) => Requirements::Pending {
+                    reason: reason.value.clone(),
+                    docs: self.doc(file, first.doc.as_ref()),
+                },
                 _ => unreachable!("filtered"),
             };
         }

@@ -12,6 +12,7 @@ Every page below is Markdown. Requests are JSON over HTTP; each operation's page
 ## Operations
 
 - [ArchiveGraph](src/operations/API_ArchiveGraph.md): `POST /orgs/{organizationId}/graphs/{graphId}/archive`. A mixed list\: clients see the public clause and that more are internal\, never the internal clause or the internal member its when reads\.
+- [BatchGetGraphs](src/operations/API_BatchGetGraphs.md): `POST /orgs/{organizationId}/graphs/batch-get`. Reads several graphs at once\.
 - [CreateGraph](src/operations/API_CreateGraph.md): `POST /orgs/{organizationId}/graphs`.
 - [ExecuteQuery](src/operations/API_ExecuteQuery.md): `POST /orgs/{organizationId}/graphs/{graphId}/query`.
 - [GetGraph](src/operations/API_GetGraph.md): `GET /orgs/{organizationId}/graphs/{graph}`.
@@ -19,6 +20,7 @@ Every page below is Markdown. Requests are JSON over HTTP; each operation's page
 - [GetUser](src/operations/API_GetUser.md): `GET /user`. Answers about the caller\'s own credential\.
 - [Health](src/operations/API_Health.md): `GET /health`. No authentication\: nothing to authorize\.
 - [ListGraphs](src/operations/API_ListGraphs.md): `GET /orgs/{organizationId}/graphs`. Returns only the graphs the caller may read\.
+- [ListOrganizations](src/operations/API_ListOrganizations.md): `GET /orgs`. The organizations the caller belongs to\.
 - [RestoreBackup](src/operations/API_RestoreBackup.md): `POST /orgs/{organizationId}/graphs/{graphId}/histories/{historyId}/restore`.
 - [RewriteGraph](src/operations/API_RewriteGraph.md): `POST /orgs/{organizationId}/graphs/{graphId}/rewrite`. Hostile documentation\: a backtick in a when literal\, and handler clause documentation that must keep its case\, its paragraphs and its code spans\.
 
@@ -32,6 +34,8 @@ Every page below is Markdown. Requests are JSON over HTTP; each operation's page
 - [ValidationExceptionReason](src/shapes/ValidationExceptionReason.md): enum. A machine\-readable reason\; clients never need to parse message text\.
 - [ArchiveGraphInput](src/shapes/ArchiveGraphInput.md): structure.
 - [ArchiveGraphOutput](src/shapes/ArchiveGraphOutput.md): structure.
+- [BatchGetGraphsInput](src/shapes/BatchGetGraphsInput.md): structure.
+- [BatchGetGraphsOutput](src/shapes/BatchGetGraphsOutput.md): structure.
 - [CreateGraphInput](src/shapes/CreateGraphInput.md): structure.
 - [CreateGraphOutput](src/shapes/CreateGraphOutput.md): structure.
 - [ExecuteQueryInput](src/shapes/ExecuteQueryInput.md): structure.
@@ -47,6 +51,7 @@ Every page below is Markdown. Requests are JSON over HTTP; each operation's page
 - [HistoryRef](src/shapes/HistoryRef.md): structure.
 - [ListGraphsInput](src/shapes/ListGraphsInput.md): structure.
 - [ListGraphsOutput](src/shapes/ListGraphsOutput.md): structure.
+- [ListOrganizationsOutput](src/shapes/ListOrganizationsOutput.md): structure.
 - [Names](src/shapes/Names.md): list.
 - [OrganizationId](src/shapes/OrganizationId.md): string.
 - [QueryTarget](src/shapes/QueryTarget.md): union. Where a query reads\: the current state\, or a saved history\.

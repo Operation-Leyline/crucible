@@ -2,8 +2,11 @@
 # (docs/permissions.md): every tier, an alias, each clause form, a binding
 # through a union arm, an operation whose requirements are all internal, one
 # whose list mixes public and internal clauses (ArchiveGraph, its internal
-# clause reading an internal member), and hostile documentation
-# (RewriteGraph, Graph's `write`) every doc dialect must survive.
+# clause reading an internal member), `requires none` with and without its
+# reason (BatchGetGraphs, GetUser), a listing narrowed only by an internal
+# `filters` (ListOrganizations), a documented `requires pending`
+# (RestoreBackup), and hostile documentation (RewriteGraph, Graph's `write`)
+# every doc dialect must survive.
 [model]
 namespace = "example.leyline"
 imports = ["crucible.errors"]

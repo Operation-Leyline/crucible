@@ -734,10 +734,14 @@ fn project_permissions(result: &mut Service) {
                 };
             } else if clauses.is_empty() {
                 // Only internal filters: no caller is refused for lacking a
-                // permission, so to the client it requires none (what it
-                // answers is narrowed, as any listing's may be). Not
-                // `Undeclared`, which the shared check refuses.
-                op.requirements = Requirements::None;
+                // permission, so to the client it requires none, but what it
+                // answers is narrowed, which the client is told without the
+                // permission being named. Not `Undeclared`, which the shared
+                // check refuses.
+                op.requirements = Requirements::None {
+                    docs: None,
+                    filtered: true,
+                };
             }
         }
     }

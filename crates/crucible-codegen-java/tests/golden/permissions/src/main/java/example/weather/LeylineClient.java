@@ -73,6 +73,62 @@ public final class LeylineClient {
         var builder = example.weather.model.ArchiveGraphInput.builder(); configure.accept(builder); return archiveGraphAsync(builder.build());
     }
     /**
+     * <p>Reads several graphs at once.</p>
+     * <p>Asynchronous form: the future completes exceptionally with the errors of the blocking form.</p>
+     * <p>Requires no permission.</p>
+     * <p>Each graph requires <code>graph:read</code>. The response reports inaccessible or missing graphs as item-level failures.</p>
+     *
+     * @param input the request
+     * @return a future of the response
+     */
+    public java.util.concurrent.CompletableFuture<example.weather.model.BatchGetGraphsOutput> batchGetGraphsAsync(example.weather.model.BatchGetGraphsInput input) {
+        return runtime.call("BatchGetGraphs", input, example.weather.model.BatchGetGraphsOutput.class);
+    }
+    /**
+     * <p>Reads several graphs at once.</p>
+     * <p>Blocking form: returns when the response has been decoded.</p>
+     * <p>Requires no permission.</p>
+     * <p>Each graph requires <code>graph:read</code>. The response reports inaccessible or missing graphs as item-level failures.</p>
+     *
+     * @param input the request
+     * @return the response
+     * @throws example.weather.model.ValidationException if the service returns <code>crucible.errors#ValidationException</code>
+     * @throws example.weather.model.InternalServerException if the service returns <code>crucible.errors#InternalServerException</code>
+     * @throws example.weather.LeylineException for any other error response
+     * @throws example.weather.NetworkError if the transport fails
+     */
+    public example.weather.model.BatchGetGraphsOutput batchGetGraphs(example.weather.model.BatchGetGraphsInput input) {
+        return ClientRuntime.await(batchGetGraphsAsync(input));
+    }
+    /**
+     * <p>Reads several graphs at once.</p>
+     * <p>Builds the request with a lambda: {@code client.call(b -> b.member(value))}.</p>
+     * <p>Requires no permission.</p>
+     * <p>Each graph requires <code>graph:read</code>. The response reports inaccessible or missing graphs as item-level failures.</p>
+     *
+     * @param configure fills the request builder
+     * @return the response
+     * @throws example.weather.model.ValidationException if the service returns <code>crucible.errors#ValidationException</code>
+     * @throws example.weather.model.InternalServerException if the service returns <code>crucible.errors#InternalServerException</code>
+     * @throws example.weather.LeylineException for any other error response
+     * @throws example.weather.NetworkError if the transport fails
+     */
+    public example.weather.model.BatchGetGraphsOutput batchGetGraphs(java.util.function.Consumer<example.weather.model.BatchGetGraphsInput.Builder> configure) {
+        var builder = example.weather.model.BatchGetGraphsInput.builder(); configure.accept(builder); return batchGetGraphs(builder.build());
+    }
+    /**
+     * <p>Reads several graphs at once.</p>
+     * <p>Asynchronous form: the future completes exceptionally with the errors of the blocking form.</p>
+     * <p>Requires no permission.</p>
+     * <p>Each graph requires <code>graph:read</code>. The response reports inaccessible or missing graphs as item-level failures.</p>
+     *
+     * @param configure fills the request builder
+     * @return a future of the response
+     */
+    public java.util.concurrent.CompletableFuture<example.weather.model.BatchGetGraphsOutput> batchGetGraphsAsync(java.util.function.Consumer<example.weather.model.BatchGetGraphsInput.Builder> configure) {
+        var builder = example.weather.model.BatchGetGraphsInput.builder(); configure.accept(builder); return batchGetGraphsAsync(builder.build());
+    }
+    /**
      * <p>Calls the <code>CreateGraph</code> operation.</p>
      * <p>Asynchronous form: the future completes exceptionally with the errors of the blocking form.</p>
      * <p>Requires <code>graph:write</code> on every graph in the organization.</p>
@@ -403,6 +459,34 @@ public final class LeylineClient {
      */
     public java.util.concurrent.CompletableFuture<example.weather.model.ListGraphsOutput> listGraphsAsync(java.util.function.Consumer<example.weather.model.ListGraphsInput.Builder> configure) {
         var builder = example.weather.model.ListGraphsInput.builder(); configure.accept(builder); return listGraphsAsync(builder.build());
+    }
+    /**
+     * <p>The organizations the caller belongs to.</p>
+     * <p>Asynchronous form: the future completes exceptionally with the errors of the blocking form.</p>
+     * <p>This operation is read-only; the client may retry it.</p>
+     * <p>Requires no permission.</p>
+     * <p>Returns only what the caller may see.</p>
+     *
+     * @return a future of the response
+     */
+    public java.util.concurrent.CompletableFuture<example.weather.model.ListOrganizationsOutput> listOrganizationsAsync() {
+        return runtime.call("ListOrganizations", null, example.weather.model.ListOrganizationsOutput.class);
+    }
+    /**
+     * <p>The organizations the caller belongs to.</p>
+     * <p>Blocking form: returns when the response has been decoded.</p>
+     * <p>This operation is read-only; the client may retry it.</p>
+     * <p>Requires no permission.</p>
+     * <p>Returns only what the caller may see.</p>
+     *
+     * @return the response
+     * @throws example.weather.model.ValidationException if the service returns <code>crucible.errors#ValidationException</code>
+     * @throws example.weather.model.InternalServerException if the service returns <code>crucible.errors#InternalServerException</code>
+     * @throws example.weather.LeylineException for any other error response
+     * @throws example.weather.NetworkError if the transport fails
+     */
+    public example.weather.model.ListOrganizationsOutput listOrganizations() {
+        return ClientRuntime.await(listOrganizationsAsync());
     }
     /**
      * <p>Calls the <code>RestoreBackup</code> operation.</p>
