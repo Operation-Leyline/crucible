@@ -104,6 +104,31 @@ fn public_compiles_as_anonymous_with_a_warning_at_each_use() {
     );
 }
 
+/// The warning, and so the editor's quick fix that rewrites its span, is on
+/// the modifier only: never on an annotation or a metadata key named
+/// `public`.
+#[test]
+fn only_the_modifier_is_warned_about() {
+    let source = "metadata public on operation\n@public readonly operation Ping {}\n@public(public) public operation Pong {}\n";
+    let parsed = crucible_lang::parse(source);
+    let spans: Vec<&str> = parsed
+        .diagnostics
+        .iter()
+        .filter(|d| d.message.starts_with(DEPRECATED_PUBLIC))
+        .map(|d| d.span.text(source))
+        .collect();
+    assert_eq!(spans, ["public"], "{:?}", parsed.diagnostics);
+    let warned = parsed
+        .diagnostics
+        .iter()
+        .find(|d| d.message.starts_with(DEPRECATED_PUBLIC))
+        .unwrap();
+    assert_eq!(
+        warned.span.start as usize,
+        source.find(") public operation").unwrap() + 2
+    );
+}
+
 /// A metadata key that conflicts with the modifier conflicts with both
 /// spellings, and `conflicts public` is warned about.
 #[test]

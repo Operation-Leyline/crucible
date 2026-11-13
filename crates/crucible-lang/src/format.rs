@@ -7,6 +7,7 @@
 //! `public` on an operation, which is written `anonymous`. A file that does
 //! not lex still gets its start and end trimmed.
 
+use crate::ast::Decl;
 use crate::lexer::{Token, TokenKind, lex};
 
 /// How to indent one level: four spaces unless an editor asks otherwise.
@@ -108,7 +109,7 @@ fn reindent(source: &str, tokens: &[Token], options: &FormatOptions, newline: &s
         .filter(|token| token.kind == TokenKind::DocComment)
         .map(|token| token.span.end as usize)
         .collect();
-    let deprecated = deprecated_modifiers(source, &significant);
+    let deprecated = deprecated_modifiers(source);
     for line in source.split('\n') {
         let line_end = line_start + line.len();
         let first = next;
@@ -161,30 +162,21 @@ fn reindent(source: &str, tokens: &[Token], options: &FormatOptions, newline: &s
 }
 
 /// Where `public` is written as an operation's modifier, the deprecated
-/// spelling of `anonymous`: a run of modifier words that ends at `operation`.
-/// A member, enum value or URI label named `public` is never followed by
-/// such a run, so only the modifier is respelled.
-fn deprecated_modifiers(source: &str, significant: &[&Token]) -> Vec<usize> {
-    const MODIFIERS: &[&str] = &["readonly", "idempotent", "anonymous", "public", "internal"];
-    let word = |token: &Token| (token.kind == TokenKind::Ident).then(|| token.span.text(source));
-    let mut out = Vec::new();
-    for (index, token) in significant.iter().enumerate() {
-        if word(token) != Some("public") {
-            continue;
-        }
-        let rest = &significant[index + 1..];
-        let keyword = rest
-            .iter()
-            .position(|token| !word(token).is_some_and(|next| MODIFIERS.contains(&next)));
-        // `operation` and then its name.
-        let declares = keyword.is_some_and(|at| {
-            word(rest[at]) == Some("operation")
-                && rest.get(at + 1).is_some_and(|t| word(t).is_some())
-        });
-        if declares {
-            out.push(token.span.start as usize);
-        }
-    }
+/// spelling of `anonymous`, read from the parsed declarations rather than
+/// guessed from the tokens: an annotation (`@public`), a metadata key, a
+/// member, enum value or URI label named `public`, and a rule condition all
+/// keep their spelling. The offsets are ascending.
+fn deprecated_modifiers(source: &str) -> Vec<usize> {
+    let mut out: Vec<usize> = crate::parse(source)
+        .file
+        .items
+        .iter()
+        .filter(|item| matches!(item.decl, Decl::Operation(_)))
+        .flat_map(|item| &item.modifiers)
+        .filter(|modifier| modifier.name == "public" && modifier.span.text(source) == "public")
+        .map(|modifier| modifier.span.start as usize)
+        .collect();
+    out.sort_unstable();
     out
 }
 
@@ -388,6 +380,18 @@ mod tests {
         // A line formatted on its own is respelled as in the whole file.
         let lines = format_lines("  public operation Ping {}\n", &FormatOptions::default());
         assert_eq!(lines[0], "anonymous operation Ping {}\n");
+    }
+
+    #[test]
+    fn only_the_modifier_named_public_is_respelled() {
+        // An annotation, a metadata key and its use, a structure and a
+        // member named `public` keep their spelling; the modifier beside
+        // them does not.
+        let source = "metadata public on operation\n@public readonly operation Ping {}\n@public public readonly operation Pong {}\n@public(public)\npublic operation Hook {}\nstructure public {\npublic: string\n}\n";
+        assert_eq!(
+            fmt(source),
+            "metadata public on operation\n@public readonly operation Ping {}\n@public anonymous readonly operation Pong {}\n@public(public)\nanonymous operation Hook {}\nstructure public {\n    public: string\n}\n"
+        );
     }
 
     #[test]
