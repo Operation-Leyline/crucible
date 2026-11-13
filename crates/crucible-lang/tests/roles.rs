@@ -488,11 +488,13 @@ fn granted_by_covers_every_clause_kind_and_projects_by_tier() {
             "0 owner@workspace viewer@workspace|allNotes|note editor@allNotes|note archivist@allNotes +custom"
         ]
     );
-    // A filter is about every note in the workspace: one note's scope does
-    // not cover it.
+    // A filter lists each note the caller may see: a binding on one note
+    // counts, unlike `requires create on Note(*)` below, which needs them all.
     assert_eq!(
         granted(&server, "ListNotes"),
-        ["0 owner@workspace viewer@workspace|allNotes editor@allNotes archivist@allNotes +custom"]
+        [
+            "0 owner@workspace viewer@workspace|allNotes|note editor@allNotes|note archivist@allNotes +custom"
+        ]
     );
     assert_eq!(
         granted(&server, "CreateNote"),

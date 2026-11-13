@@ -176,7 +176,7 @@
         ],
         "x-crucible-shape": "example.notes#ListNotes",
         "x-crucible-traits": {},
-        "description": "Returns only the notes the caller holds `note:read` on in the workspace.\n\nGranted by `owner` at `workspace`; `viewer` at `workspace` or `allNotes`; `editor` or `archivist` at `allNotes`; or a custom role that grants `note:read`.",
+        "description": "Returns only the notes the caller holds `note:read` on in the workspace.\n\nReturns each note the caller holds `note:read` on through `owner` at `workspace`; `viewer` at `workspace`, `allNotes` or `note`; `editor` at `allNotes` or `note`; `archivist` at `allNotes`; or a custom role that grants `note:read`.",
         "x-crucible-requires": {
           "kind": "list",
           "clauses": [
@@ -207,13 +207,15 @@
                     "role": "viewer",
                     "scopes": [
                       "workspace",
-                      "allNotes"
+                      "allNotes",
+                      "note"
                     ]
                   },
                   {
                     "role": "editor",
                     "scopes": [
-                      "allNotes"
+                      "allNotes",
+                      "note"
                     ]
                   },
                   {

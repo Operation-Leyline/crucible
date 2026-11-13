@@ -366,9 +366,16 @@ clause in source order, holding its clause index, mode, whether it has a
 `when`, `roles` (`RoleGrant { role, scopes }` in catalogue order, each
 role's scopes in the service's `scopes [..]` order and only those that
 cover the clause's target), `by_service` (each such role with all its
-scopes and the grant's `///`) and `custom`. A clause's target is
+scopes and the grant's `///`) and `custom`. A check's target is
 `R(*)` (`Target::Every`) at the first identifier bound to `*`, else one
-`R`; a `by handler` clause is about one instance. A role that grants the
+`R`; a `by handler` clause is about one instance. A `filters` clause is
+about any one instance too: its `*` names the collection it lists, and the
+listing returns each instance the caller may see (permissions.md §4.5), so
+a binding on one note counts as much as one on all notes, while `requires
+create on Graph(*)` needs a scope that covers the whole collection. Its
+sentence says what the caller sees: "Returns each note the caller holds
+`note:read` on through `owner` at `workspace`; `viewer` at `workspace`,
+`allNotes` or `note`; …". A role that grants the
 permission but binds at no covering scope is left out. The client
 projection renumbers the entries of the clauses it keeps, keeps those it
 removes with `clause: None` (their mode and condition flag, never the

@@ -137,19 +137,11 @@ fn grantors(
 /// clause as its requirement sentence names it, or, for one this audience
 /// does not see named, that it is internal.
 fn subject(service: &Service, op: &Operation, grants: &ClauseGrants, internal: bool) -> String {
+    // A filter's sentence names its own subject ([`filtered`]).
     if let Some(clause) = named_clause(service, op, grants, internal)
-        && let Some((resource, permission)) = clause_target(service, clause)
+        && let Some(text) = clause_text(service, clause)
     {
-        if clause.mode == Mode::Filter {
-            return format!(
-                "{} on each {} it returns",
-                code_span(&permission.value),
-                noun(&resource.name)
-            );
-        }
-        if let Some(text) = clause_text(service, clause) {
-            return text;
-        }
+        return text;
     }
     let mut text = "a permission internal to the service".to_owned();
     if grants.mode == Mode::Handler {
@@ -161,13 +153,38 @@ fn subject(service: &Service, op: &Operation, grants: &ClauseGrants, internal: b
     text
 }
 
+/// A `filters` clause's sentence, which says what the caller sees, as the
+/// requirement sentence's "Returns only the notes the caller holds
+/// `note:read` on" does: "Returns each note the caller holds `note:read`
+/// on through `owner` at `workspace`; `viewer` at `allNotes` or `note`".
+/// Each instance is its own check, so a binding on one note counts.
+fn filtered(
+    service: &Service,
+    op: &Operation,
+    grants: &ClauseGrants,
+    internal: bool,
+    roles: &str,
+) -> String {
+    match named_clause(service, op, grants, internal)
+        .and_then(|clause| clause_target(service, clause))
+    {
+        Some((resource, permission)) => format!(
+            "Returns each {} the caller holds {} on through {roles}.",
+            noun(&resource.name),
+            code_span(&permission.value)
+        ),
+        None => format!("Returns only what the caller may see through {roles}."),
+    }
+}
+
 /// Which roles grant what an operation requires (docs/roles.md §5), as
 /// Markdown sentences to follow its requirement sentences: "Granted by
 /// `graphReader` or `graphAdmin` at `allGraphs` or `graph`.", or, for an
 /// operation with several clauses, one sentence per clause: "`note:write`
 /// on the note: granted by ...". An operation whose requirements are
 /// all internal still gets them, naming roles and scopes and never the
-/// permission. Empty for a service without roles, and for an operation
+/// permission. A `filters` clause says what the caller sees instead
+/// ([`filtered`]). Empty for a service without roles, and for an operation
 /// that requires nothing.
 pub fn granted_by_sentences(service: &Service, op: &Operation, internal: bool) -> Vec<String> {
     let single = op.granted_by.len() == 1;
@@ -175,7 +192,9 @@ pub fn granted_by_sentences(service: &Service, op: &Operation, internal: bool) -
         .iter()
         .filter_map(|grants| {
             let roles = grantors(service, op, grants, internal)?;
-            Some(if single {
+            Some(if grants.mode == Mode::Filter {
+                filtered(service, op, grants, internal, &roles)
+            } else if single {
                 format!("Granted by {roles}.")
             } else {
                 let mut subject = subject(service, op, grants, internal);

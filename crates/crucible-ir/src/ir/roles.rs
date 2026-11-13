@@ -208,7 +208,9 @@ pub struct ClauseGrants {
     /// The roles whose effective grants include the clause's permission,
     /// in catalogue order, each with the scopes whose instances cover the
     /// clause's target, in catalogue order. A role none of whose scopes
-    /// covers the target is left out.
+    /// covers the target is left out. A `filters` clause's target is any
+    /// one instance of its resource, which the listing returns when the
+    /// caller may see it; a check's is the instance, or `R(*)` past a `*`.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub roles: Vec<RoleGrant>,
     /// The roles that grant it `by service` (§4.6), in catalogue order,

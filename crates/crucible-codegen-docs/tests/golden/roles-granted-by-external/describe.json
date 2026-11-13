@@ -1014,13 +1014,13 @@
       "examples": [],
       "grantedByDocumentation": [
         {
-          "html": "<p>Granted by <code>owner</code> at <code>workspace</code>; <code>viewer</code> at <code>workspace</code> or <code>allNotes</code>; <code>editor</code> or <code>archivist</code> at <code>allNotes</code>; or a custom role that grants <code>note:read</code>.</p>\n",
-          "markdown": "Granted by `owner` at `workspace`; `viewer` at `workspace` or `allNotes`; `editor` or `archivist` at `allNotes`; or a custom role that grants `note:read`.",
-          "text": "Granted by owner at workspace; viewer at workspace or allNotes; editor or archivist at allNotes; or a custom role that grants note:read."
+          "html": "<p>Returns each note the caller holds <code>note:read</code> on through <code>owner</code> at <code>workspace</code>; <code>viewer</code> at <code>workspace</code>, <code>allNotes</code> or <code>note</code>; <code>editor</code> at <code>allNotes</code> or <code>note</code>; <code>archivist</code> at <code>allNotes</code>; or a custom role that grants <code>note:read</code>.</p>\n",
+          "markdown": "Returns each note the caller holds `note:read` on through `owner` at `workspace`; `viewer` at `workspace`, `allNotes` or `note`; `editor` at `allNotes` or `note`; `archivist` at `allNotes`; or a custom role that grants `note:read`.",
+          "text": "Returns each note the caller holds note:read on through owner at workspace; viewer at workspace, allNotes or note; editor at allNotes or note; archivist at allNotes; or a custom role that grants note:read."
         }
       ],
       "grantedBySentences": [
-        "Granted by `owner` at `workspace`; `viewer` at `workspace` or `allNotes`; `editor` or `archivist` at `allNotes`; or a custom role that grants `note:read`."
+        "Returns each note the caller holds `note:read` on through `owner` at `workspace`; `viewer` at `workspace`, `allNotes` or `note`; `editor` at `allNotes` or `note`; `archivist` at `allNotes`; or a custom role that grants `note:read`."
       ],
       "history": {
         "added": null,
@@ -1130,13 +1130,15 @@
                   "role": "viewer",
                   "scopes": [
                     "workspace",
-                    "allNotes"
+                    "allNotes",
+                    "note"
                   ]
                 },
                 {
                   "role": "editor",
                   "scopes": [
-                    "allNotes"
+                    "allNotes",
+                    "note"
                   ]
                 },
                 {

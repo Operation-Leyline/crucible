@@ -16,7 +16,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use crate::ir::permissions::Binding;
 use crate::ir::{
-    ClauseGrants, Grant, GrantedPermission, GrantedSet, Operation, Requirement,
+    ClauseGrants, Grant, GrantedPermission, GrantedSet, Mode, Operation, Requirement,
     ResourcePermissions, Role, RoleGrant, ScopeTarget, Service, ServiceGrant, Tier,
 };
 use crate::shape_id::ShapeId;
@@ -298,7 +298,16 @@ pub fn granted_by(service: &Service, op: &Operation) -> Vec<ClauseGrants> {
 }
 
 fn clause_grants(service: &Service, clause: &Requirement, index: usize) -> ClauseGrants {
-    let target = clause_target(service, clause);
+    // A `filters` clause's `*` names the collection it lists, not a
+    // permission over all of it: the listing answers with each instance the
+    // caller may see (docs/permissions.md §4.5, `Visibility::Only`), so a
+    // binding that covers any one instance contributes, one note's as much
+    // as all notes'. A `requires .. on R(*)` check does need the whole
+    // collection (`create on Graph(*)`).
+    let target = match clause.mode {
+        Mode::Filter => Target::Instance(&clause.resource),
+        Mode::Check | Mode::Handler => clause_target(service, clause),
+    };
     let names = |g_resource: &ShapeId, g_permission: &str| {
         g_resource == &clause.resource && g_permission == clause.permission
     };

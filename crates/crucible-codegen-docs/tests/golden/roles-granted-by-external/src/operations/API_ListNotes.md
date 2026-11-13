@@ -15,7 +15,7 @@ Protocol: <code>crucibleJson</code>.
 |---|---|---|---|---|---|
 | filter | <code>note:read</code> | <code>note</code> | <code>workspaceId</code> = <code>workspaceId</code>, <code>noteId</code> = <code>*</code> |  |  |
 
-<p>Granted by <code>owner</code> at <code>workspace</code>; <code>viewer</code> at <code>workspace</code> or <code>allNotes</code>; <code>editor</code> or <code>archivist</code> at <code>allNotes</code>; or a custom role that grants <code>note:read</code>.</p>
+<p>Returns each note the caller holds <code>note:read</code> on through <code>owner</code> at <code>workspace</code>; <code>viewer</code> at <code>workspace</code>, <code>allNotes</code> or <code>note</code>; <code>editor</code> at <code>allNotes</code> or <code>note</code>; <code>archivist</code> at <code>allNotes</code>; or a custom role that grants <code>note:read</code>.</p>
 
 ## Request syntax
 

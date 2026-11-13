@@ -116,7 +116,7 @@ fn granted_by_names_roles_and_never_an_internal_permission() {
     assert_eq!(
         sentences(&client, "ListNotes", false),
         [
-            "Granted by `owner` at `workspace`; `viewer` at `workspace` or `allNotes`; `editor` or `archivist` at `allNotes`; or a custom role that grants `note:read`."
+            "Returns each note the caller holds `note:read` on through `owner` at `workspace`; `viewer` at `workspace`, `allNotes` or `note`; `editor` at `allNotes` or `note`; `archivist` at `allNotes`; or a custom role that grants `note:read`."
         ]
     );
 }
@@ -158,5 +158,58 @@ fn a_model_without_roles_says_nothing() {
             .operations
             .iter()
             .all(|op| granted_by_sentences(&weather, op, true).is_empty())
+    );
+}
+
+/// A `filters` clause lists each instance the caller may see, so a binding
+/// on one note grants as much as one on all notes; its sentence says what
+/// the caller sees. An internal filter still names its roles.
+#[test]
+fn a_filter_is_granted_by_any_binding_that_covers_an_instance() {
+    let server = load("roles-granted-by");
+    let scopes_of = |operation: &str, role: &str| -> Vec<String> {
+        server
+            .operations
+            .iter()
+            .find(|op| op.id.name() == operation)
+            .unwrap()
+            .granted_by[0]
+            .roles
+            .iter()
+            .find(|g| g.role == role)
+            .unwrap()
+            .scopes
+            .clone()
+    };
+    assert_eq!(
+        scopes_of("ListNotes", "viewer"),
+        ["workspace", "allNotes", "note"]
+    );
+    assert_eq!(scopes_of("ListNotes", "editor"), ["allNotes", "note"]);
+    // `requires create on Note(*)` needs the whole collection: one note's
+    // binding does not grant it.
+    assert_eq!(scopes_of("CreateNote", "editor"), ["allNotes"]);
+
+    let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../tests/models/roles-granted-by");
+    let mut package = crucible_lang::load_package(&dir).unwrap();
+    for file in &mut package.files {
+        file.text = file
+            .text
+            .replace("filters read on Note", "filters purge on Note");
+    }
+    let compiled = crucible_lang::compile(&package, None);
+    let rendered = compiled.render();
+    let server = compiled.service.unwrap_or_else(|| panic!("{rendered}"));
+    let client = project(&server, Audience::External).unwrap();
+    assert_eq!(
+        sentences(&client, "ListNotes", false),
+        ["Returns only what the caller may see through `owner` at `workspace`."]
+    );
+    assert_eq!(
+        sentences(&server, "ListNotes", true),
+        [
+            "Returns each note the caller holds `note:purge` on through `owner` at `workspace`; `auditor` at `backOffice`."
+        ]
     );
 }
