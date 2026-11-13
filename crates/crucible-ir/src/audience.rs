@@ -56,7 +56,8 @@ pub fn client_view(service: &Service) -> Service {
                 .chain(&service.errors)
                 .chain(&service.export_roots)
                 .chain(entries)
-                .cloned(),
+                .cloned()
+                .chain(catalogue_roots(service)),
         )
     };
     let before = reach(&mut service.operations.iter());
@@ -109,6 +110,26 @@ pub fn client_view(service: &Service) -> Service {
     // A doc link to a removed operation is its text.
     result.retain_doc_links();
     result
+}
+
+/// The enums a public role catalogue names, which no operation need use:
+/// the `principals` enum its holders are values of, and the `@roleTypes`
+/// and `@scopeTypes` wire enums. They are part of the contract as the
+/// catalogue is, so every view that keeps shapes by reachability ([`project`]
+/// and [`client_view`]) roots them here; otherwise a holder restriction
+/// would lose its enum and read as none (docs/roles.md §4.4).
+fn catalogue_roots(service: &Service) -> Vec<ShapeId> {
+    let public_roles = !service.internal && service.roles.iter().any(|r| !r.internal);
+    let public_scopes = !service.internal && service.role_scopes.iter().any(|s| !s.internal);
+    let settings = &service.role_settings;
+    [
+        (public_roles, &settings.principals),
+        (public_roles, &settings.role_types),
+        (public_scopes, &settings.scope_types),
+    ]
+    .into_iter()
+    .filter_map(|(public, id)| id.clone().filter(|_| public))
+    .collect()
 }
 
 /// Every shape in `shapes` that `roots` reach through member targets, the
@@ -207,6 +228,7 @@ fn external(service: &Service, lenient: bool) -> Result<Service, Diagnostics> {
         .chain(&result.errors)
         .chain(&result.export_roots)
         .cloned()
+        .chain(catalogue_roots(service))
         .collect();
     // A resource names its entries' types without reaching them: the
     // audience's shapes are what its operations and explicit exports reach.

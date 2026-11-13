@@ -496,8 +496,9 @@ pub trait BindingSource: Send + Sync {
     /// read; `fresh` asks for no cached answer (the operation mutates).
     async fn bindings(&self, principal: &Principal, root: &ResourceRef, fresh: bool)
         -> Result<Vec<Binding>, Unavailable>;      // Binding = (ScopeRef, RoleValue)
-    /// A `by service` grant (§4.6). Required once the model has one.
-    async fn decide_by_service(&self, principal: &Principal, role: Role,
+    /// A `by service` grant (§4.6): whether `binding`'s relationship reaches
+    /// `target`. Required once the model has one.
+    async fn decide_by_service(&self, principal: &Principal, binding: &Binding,
         permission: Permission, target: &ResourceRef) -> Result<bool, Unavailable> {
         Ok(false)
     }
@@ -510,12 +511,23 @@ pub trait BindingSource: Send + Sync {
 }
 ```
 
-For each batch of checks it reads the principal's bindings once, then per
-check: keeps the bindings whose scope instance covers the target, drops
-roles `parse` does not know or `valid_for` refuses for that scope and the
-principal's kind, and allows when any remaining role's effective set holds
-the permission. A `by service` hit calls the hook; nothing else does. The
-answer records the binding that allowed it, so audit can say "allowed by
+For each batch of checks it reads the principal's bindings once and drops
+roles `parse` does not know or `valid_for` refuses for their scope and the
+principal's kind. Then, per check:
+
+1. **Model-decided grants.** It keeps the bindings whose scope instance
+   covers the target, and allows when any of their roles' effective sets
+   holds the permission.
+2. **Service-decided grants.** Otherwise, it considers every binding whose
+   role grants the permission `by service`, **whatever its coverage**, and
+   asks `decide_by_service` with that binding. Coverage cannot select
+   these: a `by service` grant exists precisely because the resource tree
+   does not relate the binding to the target (a `graph` binding never
+   covers a `GraphHistory`), so the hook decides whether the binding's
+   relationship reaches it.
+
+Nothing else calls the hook. `refusal(covered)` counts only step 1's
+coverage. The answer records the binding that allowed it, so audit can say "allowed by
 `graphReader` at `allGraphs`" and a capability query ("what may I do
 here?", Leyline's `BatchGetCapability`) is the same walk without a target
 permission. `Unavailable` anywhere refuses with the retryable error: there
