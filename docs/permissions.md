@@ -89,6 +89,7 @@ design does that split for permissions.
   `docs/architecture/authorization.md:17-18` and `434-443`).
 - **No roles in the model.** Leyline's role-to-action table stays in its
   policy code (§3.4).
+  [roles.md](roles.md) proposes reversing this.
 - **No implication, wildcard permissions or freshness in the model**
   (§4.8, decisions 1 and 3).
 - **No authentication changes.** `crucible-auth` and `Principal` are
