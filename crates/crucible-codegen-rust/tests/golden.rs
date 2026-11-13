@@ -29,10 +29,10 @@ fn only_adapter_visible_streams_are_diagnosed() {
             file.text = file
                 .text
                 .replace(
-                    "readonly public operation Watch",
+                    "readonly anonymous operation Watch",
                     "readonly internal operation Watch",
                 )
-                .replace("public operation Publish", "internal operation Publish");
+                .replace("anonymous operation Publish", "internal operation Publish");
         }
     });
     let options = Options {

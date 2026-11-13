@@ -1317,7 +1317,7 @@ impl Undo<'_> {
         for operation in &mut self.out.operations {
             if let Some(older) = self.frozen_operations.get(&operation.id) {
                 operation.auth = older.auth.clone();
-                operation.public = older.public;
+                operation.anonymous = older.anonymous;
                 released.extend(older.auth.iter().cloned());
             }
         }

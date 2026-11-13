@@ -117,9 +117,11 @@ but are never required.
 ```ebnf
 file        = { item } ;
 item        = [ doc ] { annotation } { modifier } declaration ;
-modifier    = "readonly" | "idempotent" | "public" | "strict" | "internal" | "sensitive"
-            | "sparse" ;
-                                                           (* each position checks its own *)
+modifier    = "readonly" | "idempotent" | "anonymous" | "strict" | "internal"
+            | "sensitive" | "sparse" ;
+                                                           (* each position checks its own;
+                                                              "public" is the deprecated
+                                                              spelling of "anonymous" *)
 
 declaration = service | resource | operation | structure | union | enum
             | error | scalar | list | map | metadata | rule | template
@@ -152,6 +154,7 @@ permission_entry = [ doc ] { annotation } [ "internal" ] "permission" ident "=" 
                     @deprecated, @since *)
 
 operation   = "operation" ident [ role ident [ "collection" ] ] "{" { op_entry } "}" ;
+                 (* modifiers: readonly, idempotent, anonymous, internal *)
 role        = ident ;          (* creates | puts | reads | updates | deletes | lists | on;
                                   lowering reports any other word; collection follows on *)
 op_entry    = http | clause_call | body | errors | example | requirement ;
@@ -286,7 +289,7 @@ language's own checks include:
   value's symbol;
 - enum value names, and integer enum values, are unique;
 - `@sender("Name", signature: member)` is on an operation, which is
-  `public` and holds no resource lifecycle role, and `member` is an input
+  `anonymous` and holds no resource lifecycle role, and `member` is an input
   member bound with `@header` (decision 81; checked in
   `crucible_ir::validate`);
 - a metadata declaration is checked once (targets, conflicts, retention,
@@ -341,7 +344,7 @@ language's own checks include:
   a public value of the enum names no `internal` resource;
   `requires p on R` names a permission `R` declares; only an `internal`
   operation may name an `internal` `R`, in `requires` or `filters`
-  (`permissions.internal-resource`); a public operation
+  (`permissions.internal-resource`); an `anonymous` operation
   declares no requirement, `requires none` and `requires pending` stand
   alone, and a pending reason is nonempty; every identifier of the target
   is bound once, by a member of the identifier's own type (a different
@@ -543,6 +546,31 @@ and the client guides for [Rust](../clients/rust.md#models-and-errors),
 [C++](../clients/cpp.md#error-documentation), [C](../clients/c.md#error-documentation)
 and [R](../clients/r.md#error-documentation).
 
+## Anonymous operations
+
+`auth bearer` on the service applies to every operation. `anonymous` before
+`operation` opts one out: it takes no credential, anyone may call it, and
+there is no caller to authorize, so it declares no requirement.
+
+```
+anonymous readonly operation Health {
+    http GET "/health"
+    output { ok: boolean }
+}
+```
+
+`anonymous` says nothing about who sees the operation; `internal` does. An
+`anonymous internal operation` is open to any caller and still left out of
+the external contract, as every internal operation is. A rule reads the
+modifier as `where anonymous`.
+
+`public` is the deprecated spelling of `anonymous`: it read as the opposite
+of `internal`. Until the next minor release it is accepted on an operation,
+in a rule condition and in a metadata key's `conflicts`, with the same
+meaning and a `deprecated.public` warning at each use. The formatter writes
+the modifier as `anonymous`, and the language server offers the replacement
+at each warning.
+
 ## Sender-signed operations
 
 A webhook receiver is called by a third party, not by the service's
@@ -551,7 +579,7 @@ the request. `@sender` says so (decision 81):
 
 ```
 @sender("Stripe", signature: signature)
-public operation RecordStripeEvent {
+anonymous operation RecordStripeEvent {
     http POST "/v1/payment-events/stripe"
     input {
         @header("Stripe-Signature")
@@ -564,7 +592,7 @@ public operation RecordStripeEvent {
 
 The first argument names the sender as the documentation should;
 `signature` names the input member, bound with `@header`, that carries
-the signature. The operation must be `public`: the sender holds no
+the signature. The operation must be `anonymous`: the sender holds no
 credential of this service. The IR carries `Operation::sender`. The API
 reference says who calls the operation and which header to verify, and
 asks no `Authorization` or `Crucible-Version` header of it; client SDKs,
@@ -661,7 +689,7 @@ has the ones that apply to it, and a rule that uses another is an error.
 | `documented` | every kind | has non-blank `///` documentation |
 | `internal` | shapes, operations, members, resources | the modifier is present |
 | `sensitive` | shapes, operations, members | the modifier is present |
-| `readonly`, `idempotent`, `public`, `paginated` | operation | the modifier or clause is present |
+| `readonly`, `idempotent`, `anonymous`, `paginated` | operation | the modifier or clause is present (`public`, deprecated, reads as `anonymous`) |
 | `enum`, `referenced` | shapes | an enum; something reaches it (an operation, a resource entry, metadata, `include`) |
 | `optional`, `required`, `template` | members | the member is optional, required, or came from a role template |
 | `addresses R` | operation | bound to resource `R` or one below it |

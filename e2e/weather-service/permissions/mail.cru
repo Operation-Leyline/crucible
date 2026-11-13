@@ -195,7 +195,7 @@ readonly operation GetMe {
 }
 
 /// No authentication: nothing to authorize.
-public readonly operation Health {
+anonymous readonly operation Health {
     http GET "/health"
     output { value: document }
 }

@@ -528,7 +528,7 @@ sequenceDiagram
 
 ### Recipe 1: Bearer Token Authentication (`OperationAwareMiddleware`)
 
-When authenticating requests, you typically want to know which operation is being called so you can skip authentication for public operations:
+When authenticating requests, you typically want to know which operation is being called so you can skip authentication for anonymous operations:
 
 ```rust
 use crucible_server_runtime_rust::{
@@ -545,8 +545,8 @@ pub struct BearerAuth;
 
 impl OperationAwareMiddleware for BearerAuth {
     fn before<'a>(&'a self, job: &'a mut OperationJob<'_>) -> Hook<'a, Result<()>> {
-        // Skip auth if operation is marked with @public
-        if job.metadata().public {
+        // Skip auth for an operation the model marks `anonymous`
+        if job.metadata().anonymous {
             return Hook::Ready(Ok(()));
         }
 
@@ -812,7 +812,7 @@ Option<String>`, given to `new`:
   Every request it is returned for would share one binding, so that is a
   choice the service makes with `allow_anonymous()`; without it `build`
   refuses an operation in scope that admits anonymous callers
-  (a `public` operation, or bindings without authentication
+  (an `anonymous` operation, or bindings without authentication
   metadata), naming it, and a nameless request is the service's internal
   error.
 - **On an operation that requires authentication, an authenticated caller
@@ -1145,7 +1145,7 @@ module gains `permissions`, beside `model` and `errors`:
 
 Per operation the marker carries `REQUIREMENTS` (the model's clauses in
 order), `CHECKS` (the binding function, only for an operation with a check
-or filter clause), and `PUBLIC` for one the model makes public; each
+or filter clause), and `ANONYMOUS` for one the model makes anonymous; each
 `requires p on R by handler` clause is a constant on the marker, named
 `<PERMISSION>_ON_<RESOURCE>` (a later clause that spells an earlier one's
 name gets `_2`, `_3`, in declaration order). For
@@ -1231,7 +1231,7 @@ outside every `Permissions` (none installed, the `permissions` feature
 off, or scoped away with `only`, `except`, `when` or `when_trait`, which
 decide on the description of the version a request names). Operations
 that declare nothing to enforce (`requires pending`, `requires none`,
-public or undeclared) may be left out. An undeclared one left out runs
+anonymous or undeclared) may be left out. An undeclared one left out runs
 without authorization, as every operation did before its model declared
 permissions; covered, it is refused as a wiring error unless
 `allow_undeclared()`, so cover them all to catch one the model forgot.
@@ -1264,10 +1264,11 @@ For each operation it covers, `Permissions`:
   reports them once the service is built (for a test or a startup check).
   `allow_undeclared()` lets
   them through, each pass logged. An operation the model explicitly makes
-  public (`Operation::PUBLIC`, from `@auth([])` or a `.cru` public
-  operation) has nothing to authorize and passes. An empty list of
-  authentication schemes is not public: a service may authenticate outside
-  the model.
+  anonymous (`Operation::ANONYMOUS`, from `@auth([])` or a `.cru`
+  `anonymous` operation) has nothing to authorize and passes. An empty list
+  of authentication schemes is not anonymous: a service may authenticate
+  outside the model. (`Operation::PUBLIC` and `OperationMetadata::public`
+  are the deprecated names, kept until the next minor release.)
 - **Passes `requires none`, and `requires pending`** with its reason
   recorded, since the handler still does its own checking.
 - **Checks the rest.** `CHECKS` produces one check per clause that applies

@@ -671,8 +671,8 @@ fn examples_are_the_releases_or_hold_at_it() {
 }
 
 /// Decision 73: an operation the release had authenticates as the release
-/// declared it, though the current model made it public; one added since
-/// as the current model declares it, bearer or public.
+/// declared it, though the current model made it anonymous; one added since
+/// as the current model declares it, bearer or anonymous.
 #[test]
 fn operations_keep_their_releases_authentication() {
     let (service, _) = load("tests/models/version-projection-auth");
@@ -685,7 +685,7 @@ fn operations_keep_their_releases_authentication() {
                 .iter()
                 .map(|id| id.name().to_owned())
                 .collect::<Vec<_>>(),
-            op.public,
+            op.anonymous,
         )
     };
     let bearer = (vec!["httpBearerAuth".to_owned()], false);
@@ -694,7 +694,7 @@ fn operations_keep_their_releases_authentication() {
     assert_eq!(auth("Ping"), bearer);
     assert_eq!(auth("Health"), (Vec::new(), true));
     let current = operation(&service, "GetTicket");
-    assert!(current.public && current.auth.is_empty());
+    assert!(current.anonymous && current.auth.is_empty());
     let schemes: Vec<&str> = v1.auth_schemes.keys().map(ShapeId::name).collect();
     assert_eq!(schemes, ["httpBearerAuth"]);
 }

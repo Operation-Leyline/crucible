@@ -21,7 +21,7 @@ use crate::{
 /// - **Undeclared** (no requirement metadata, which the compiler allows
 ///   only before a service declares any permission): refused with the
 ///   service's internal error and logged as a wiring error, unless the
-///   model marks the operation public (`Operation::PUBLIC`) or
+///   model marks the operation anonymous (`Operation::ANONYMOUS`) or
 ///   [`allow_undeclared`](Self::allow_undeclared) opts out.
 /// - **`requires none`** passes; **`requires pending`** passes with its
 ///   reason recorded, since the handler still does the checking.
@@ -196,7 +196,7 @@ impl Permissions {
         operation: &OperationInfo,
         metadata: &OperationMetadata,
     ) -> Result<()> {
-        if !public(metadata) && !self.allow_undeclared {
+        if !anonymous(metadata) && !self.allow_undeclared {
             if !self.settings.shadow {
                 tracing::error!(
                     target: TARGET,
@@ -214,7 +214,7 @@ impl Permissions {
                 outcome = "would_refuse_undeclared",
                 "the operation has no requirement metadata"
             );
-        } else if self.allow_undeclared && !public(metadata) {
+        } else if self.allow_undeclared && !anonymous(metadata) {
             tracing::info!(
                 target: TARGET,
                 operation = operation.id,
@@ -387,12 +387,12 @@ fn open_obligations(
     session.edit(|record| record.obligations = obligations);
 }
 
-/// Whether the model marks the operation public: it has no authentication,
+/// Whether the model marks the operation anonymous: it takes no credential,
 /// so it carries no requirements and there is no principal to authorize.
 /// Never inferred from an empty list of schemes, which also describes a
 /// service authenticated outside the model.
-fn public(metadata: &OperationMetadata) -> bool {
-    metadata.public
+fn anonymous(metadata: &OperationMetadata) -> bool {
+    metadata.anonymous
 }
 
 /// A declared check's clause position.
@@ -650,7 +650,7 @@ impl Interceptor for Permissions {
                 continue;
             };
             match metadata.requirements {
-                Requirements::Undeclared if !public(metadata) => undeclared.push(operation.name),
+                Requirements::Undeclared if !anonymous(metadata) => undeclared.push(operation.name),
                 Requirements::Pending { reason } if reason.trim().is_empty() => {
                     problems.push(format!("{}: a pending reason is empty", operation.name));
                 }

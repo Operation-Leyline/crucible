@@ -259,7 +259,7 @@ pub mod streams {
     impl ::crucible_server_runtime_rust::__generated::Operation for Publish {
         const AUTH_BEARER: bool = false;
         const AUTH_SCHEMES: ::std::option::Option<&'static [::crucible_server_runtime_rust::__generated::operation::AuthScheme]> = Some(&[]);
-        const PUBLIC: bool = true;
+        const ANONYMOUS: bool = true;
         const API_VERSION: ::std::option::Option<&'static str> = ::std::option::Option::Some("1");
         const INFO: &'static ::crucible_server_runtime_rust::__generated::OperationInfo = &PUBLISH_OPERATION;
         type Input = model::PublishInput;
@@ -295,7 +295,7 @@ pub mod streams {
     impl ::crucible_server_runtime_rust::__generated::Operation for Read {
         const AUTH_BEARER: bool = false;
         const AUTH_SCHEMES: ::std::option::Option<&'static [::crucible_server_runtime_rust::__generated::operation::AuthScheme]> = Some(&[]);
-        const PUBLIC: bool = true;
+        const ANONYMOUS: bool = true;
         const API_VERSION: ::std::option::Option<&'static str> = ::std::option::Option::Some("1");
         const HAS_INPUT: bool = false;
         const INFO: &'static ::crucible_server_runtime_rust::__generated::OperationInfo = &READ_OPERATION;
@@ -331,7 +331,7 @@ pub mod streams {
     impl ::crucible_server_runtime_rust::__generated::Operation for Watch {
         const AUTH_BEARER: bool = false;
         const AUTH_SCHEMES: ::std::option::Option<&'static [::crucible_server_runtime_rust::__generated::operation::AuthScheme]> = Some(&[]);
-        const PUBLIC: bool = true;
+        const ANONYMOUS: bool = true;
         const API_VERSION: ::std::option::Option<&'static str> = ::std::option::Option::Some("1");
         const HAS_INPUT: bool = false;
         const INFO: &'static ::crucible_server_runtime_rust::__generated::OperationInfo = &WATCH_OPERATION;

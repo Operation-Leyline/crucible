@@ -232,8 +232,8 @@ Timestamp and integer precision depend on the native representation: consult the
 language guide before using nanosecond timestamps or the entire signed 64-bit range.
 Absent, null, unknown enum, and unknown union handling also vary by target.
 
-Operations inherit service authentication unless they are `public`.
-A public operation does not invoke the configured bearer-token provider.
+Operations inherit service authentication unless they are `anonymous`.
+An anonymous operation does not invoke the configured bearer-token provider.
 Regenerate clients when upgrading the generator and runtime together; older
 generated metadata does not carry these operation-level authentication decisions.
 

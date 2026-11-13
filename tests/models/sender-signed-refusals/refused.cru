@@ -2,7 +2,7 @@ service Refused {
     version "1"
     protocol json
     auth bearer
-    operations [NotPublic, BodySignature, NoSuchMember, Unnamed, WrongArguments]
+    operations [NotAnonymous, BodySignature, NoSuchMember, Unnamed, WrongArguments]
     resources [Hook]
 }
 
@@ -11,7 +11,7 @@ resource Hook {
 }
 
 @sender("Stripe", signature: signature)
-public operation CreateHook creates Hook {
+anonymous operation CreateHook creates Hook {
     http POST "/hooks"
     input {
         @header("Stripe-Signature")
@@ -23,8 +23,8 @@ public operation CreateHook creates Hook {
 }
 
 @sender("Stripe", signature: signature)
-operation NotPublic {
-    http POST "/not-public"
+operation NotAnonymous {
+    http POST "/not-anonymous"
     input {
         @header("Stripe-Signature")
         signature: string
@@ -32,7 +32,7 @@ operation NotPublic {
 }
 
 @sender("Stripe", signature: signature)
-public operation BodySignature {
+anonymous operation BodySignature {
     http POST "/body-signature"
     input {
         signature: string
@@ -40,7 +40,7 @@ public operation BodySignature {
 }
 
 @sender("Stripe", signature: missing)
-public operation NoSuchMember {
+anonymous operation NoSuchMember {
     http POST "/no-such-member"
     input {
         @header("Stripe-Signature")
@@ -49,7 +49,7 @@ public operation NoSuchMember {
 }
 
 @sender(" ", signature: signature)
-public operation Unnamed {
+anonymous operation Unnamed {
     http POST "/unnamed"
     input {
         @header("Stripe-Signature")
@@ -58,7 +58,7 @@ public operation Unnamed {
 }
 
 @sender(signature: "Stripe-Signature")
-public operation WrongArguments {
+anonymous operation WrongArguments {
     http POST "/wrong-arguments"
     input {
         @header("Stripe-Signature")

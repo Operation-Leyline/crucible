@@ -63,7 +63,7 @@ const KEYWORDS: &[Row] = &[
     (
         "operation",
         DECLARATION,
-        "Declares an operation: its `http` binding, its anonymous `input` and `output` bodies and its `errors`. A role after the name (`reads City`) attaches it to a resource; `readonly`, `idempotent` and `public` go before `operation`.",
+        "Declares an operation: its `http` binding, its anonymous `input` and `output` bodies and its `errors`. A role after the name (`reads City`) attaches it to a resource; `readonly`, `idempotent`, `anonymous` and `internal` go before `operation`.",
         "readonly operation GetCity reads City {\n    http GET \"/cities/{cityId}\"\n    input { $cityId }\n    output { city: CityData }\n    errors [CityNotFound]\n}",
     ),
     (
@@ -159,9 +159,15 @@ const KEYWORDS: &[Row] = &[
         "idempotent operation PutCity puts City {\n    http PUT \"/cities/{cityId}\"\n    input { $cityId }\n}",
     ),
     (
+        "anonymous",
+        ANYWHERE,
+        "Marks an operation that takes no credential: it opts out of the service's `auth`, so anyone may call it and there is no caller to authorize. It says nothing about who sees the operation; `internal` does that.",
+        "anonymous readonly operation Ping {\n    http GET \"/ping\"\n}",
+    ),
+    (
         "public",
         ANYWHERE,
-        "Marks an operation that needs no authentication.",
+        "Deprecated: write `anonymous`. Marks an operation that takes no credential; accepted with a warning until the next minor release.",
         "public readonly operation Ping {\n    http GET \"/ping\"\n}",
     ),
     (
@@ -392,7 +398,7 @@ const KEYWORDS: &[Row] = &[
     (
         "auth",
         SERVICE,
-        "The service's authentication scheme. `bearer` is the one supported today; `public` on an operation opts out.",
+        "The service's authentication scheme. `bearer` is the one supported today; `anonymous` on an operation opts out.",
         "service Weather {\n    auth bearer\n}",
     ),
     (
@@ -646,9 +652,9 @@ const KEYWORDS: &[Row] = &[
     (
         "@sender",
         ANYWHERE,
-        "Declares a sender-signed operation (a webhook receiver): a third party calls it and proves itself with a signature it computes, carried in the named input member's request header. The operation is `public`; the reference says who calls it, and clients, the service CLI and MCP leave it out.",
+        "Declares a sender-signed operation (a webhook receiver): a third party calls it and proves itself with a signature it computes, carried in the named input member's request header. The operation is `anonymous`; the reference says who calls it, and clients, the service CLI and MCP leave it out.",
         "@sender(\"Stripe\", signature: signature)
-public operation RecordStripeEvent {
+anonymous operation RecordStripeEvent {
     http POST \"/stripe-events\"
     input {
         @header(\"Stripe-Signature\") signature: string
@@ -2240,10 +2246,15 @@ mod tests {
     fn every_keyword_row_parses_and_is_what_its_word_hovers_to() {
         for (word, contexts, about, example) in KEYWORDS {
             let parsed = crucible_lang::parse(example);
+            // The deprecated `public`'s own example is warned about.
+            let problems: Vec<_> = parsed
+                .diagnostics
+                .iter()
+                .filter(|d| !crate::actions::deprecated_public(&d.message))
+                .collect();
             assert!(
-                parsed.diagnostics.is_empty(),
-                "`{word}`'s example does not parse: {:?}\n{example}",
-                parsed.diagnostics
+                problems.is_empty(),
+                "`{word}`'s example does not parse: {problems:?}\n{example}"
             );
             let bare = word.trim_start_matches('@');
             let index = Index::new(std::slice::from_ref(&parsed));

@@ -88,7 +88,7 @@ language can expose fewer concepts and derive the rest.
 | `@idempotent` | 58 | 12 | 2 |
 | `@paginated` | 30 | 15 | 2 |
 | `@error` / `@retryable` | 7 / 2 | 7 / 2 | 4 / 1 |
-| `@auth([])` (public operation) | 5 | 0 | 0 |
+| `@auth([])` (anonymous operation) | 5 | 0 | 0 |
 
 Errors: every model declares a small fixed set of service errors
 (`ValidationException`, `AccessDeniedException`, `ThrottlingException`,

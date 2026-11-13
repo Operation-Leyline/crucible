@@ -14,7 +14,7 @@ use crate::ast::{
     ResourceEntry, ResourceEntryKind, Rule, RuleClause, Scalar, Step, StepKind, StrLit, Structure,
     Target, Template, TypeRef, Union, Value,
 };
-use crate::diagnostic::Diagnostic;
+use crate::diagnostic::{Diagnostic, deprecated_public};
 use crate::lexer::{Token, TokenKind, unescape};
 use crate::span::Span;
 
@@ -22,6 +22,9 @@ use crate::span::Span;
 const MODIFIERS: &[&str] = &[
     "readonly",
     "idempotent",
+    "anonymous",
+    // Deprecated spelling of `anonymous`, accepted with a warning for one
+    // minor release.
     "public",
     "strict",
     "internal",
@@ -822,6 +825,14 @@ impl<'s> Parser<'s> {
             return None;
         }
         let keyword = self.text(0);
+        // Warned here, once per word, whether or not a service reaches the
+        // operation; lowering reads `public` as `anonymous`.
+        if keyword == "operation" {
+            for modifier in modifiers.iter().filter(|m| m.name == "public") {
+                self.diagnostics
+                    .push(deprecated_public(modifier.span, "on an operation"));
+            }
+        }
         // A declaration keyword with no name after it (`error: string` at the
         // top level) is one problem; skip it rather than parse a hollow shell.
         let named = match keyword {

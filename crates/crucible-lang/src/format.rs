@@ -3,8 +3,11 @@
 //! in a row, drops blank lines at the start and end of the file and ends it
 //! with exactly one newline. Tokens within a line are left as written, so
 //! formatting never changes meaning, and running it twice gives the same
-//! text. A file that does not lex still gets its start and end trimmed.
+//! text; the one exception is a deprecated spelling with the same meaning,
+//! `public` on an operation, which is written `anonymous`. A file that does
+//! not lex still gets its start and end trimmed.
 
+use crate::ast::Decl;
 use crate::lexer::{Token, TokenKind, lex};
 
 /// How to indent one level: four spaces unless an editor asks otherwise.
@@ -106,6 +109,7 @@ fn reindent(source: &str, tokens: &[Token], options: &FormatOptions, newline: &s
         .filter(|token| token.kind == TokenKind::DocComment)
         .map(|token| token.span.end as usize)
         .collect();
+    let deprecated = deprecated_modifiers(source);
     for line in source.split('\n') {
         let line_end = line_start + line.len();
         let first = next;
@@ -122,12 +126,14 @@ fn reindent(source: &str, tokens: &[Token], options: &FormatOptions, newline: &s
             line.trim_end_matches('\r').trim_end()
         };
         let content = text.trim_start();
+        let content_start = line_start + (text.len() - content.len());
+        let content = respell(content, content_start, &deprecated);
+        let content = content.as_str();
         if content.is_empty() {
             out.push(String::new());
         } else {
             let closes_first = on_line.first().is_some_and(|token| {
-                closes(token.kind)
-                    && token.span.start as usize == line_start + (text.len() - content.len())
+                closes(token.kind) && token.span.start as usize == content_start
             });
             let level = (depth - i32::from(closes_first)).max(0) as usize;
             let continued = !closes_first
@@ -152,6 +158,43 @@ fn reindent(source: &str, tokens: &[Token], options: &FormatOptions, newline: &s
         }
         line_start = line_end + 1;
     }
+    out
+}
+
+/// Where `public` is written as an operation's modifier, the deprecated
+/// spelling of `anonymous`, read from the parsed declarations rather than
+/// guessed from the tokens: an annotation (`@public`), a metadata key, a
+/// member, enum value or URI label named `public`, and a rule condition all
+/// keep their spelling. The offsets are ascending.
+fn deprecated_modifiers(source: &str) -> Vec<usize> {
+    let mut out: Vec<usize> = crate::parse(source)
+        .file
+        .items
+        .iter()
+        .filter(|item| matches!(item.decl, Decl::Operation(_)))
+        .flat_map(|item| &item.modifiers)
+        .filter(|modifier| modifier.name == "public" && modifier.span.text(source) == "public")
+        .map(|modifier| modifier.span.start as usize)
+        .collect();
+    out.sort_unstable();
+    out
+}
+
+/// `content`, which starts at byte `start` of the source, with each
+/// deprecated `public` in it written `anonymous`.
+fn respell(content: &str, start: usize, deprecated: &[usize]) -> String {
+    let mut out = String::with_capacity(content.len());
+    let mut copied = 0;
+    for at in deprecated
+        .iter()
+        .filter(|at| (start..start + content.len()).contains(*at))
+    {
+        let at = at - start;
+        out.push_str(&content[copied..at]);
+        out.push_str("anonymous");
+        copied = at + "public".len();
+    }
+    out.push_str(&content[copied..]);
     out
 }
 
@@ -322,6 +365,32 @@ mod tests {
         assert_eq!(
             fmt(source),
             "/// First line  \n/// second\nstructure S {\n}\n"
+        );
+    }
+
+    #[test]
+    fn a_public_operation_is_written_anonymous() {
+        let source = "/// A public probe.\npublic readonly operation Ping {\nhttp GET \"/public\"\n}\n@sender(\"Stripe\", signature: signature)\ninternal public operation Hook {}\nstructure S {\npublic: string\n}\nenum E {\npublic\n}\nrule R {\nevery operation where public\nmust documented\n}\n";
+        let formatted = fmt(source);
+        assert_eq!(
+            formatted,
+            "/// A public probe.\nanonymous readonly operation Ping {\n    http GET \"/public\"\n}\n@sender(\"Stripe\", signature: signature)\ninternal anonymous operation Hook {}\nstructure S {\n    public: string\n}\nenum E {\n    public\n}\nrule R {\n    every operation where public\n    must documented\n}\n"
+        );
+        assert_eq!(fmt(&formatted), formatted);
+        // A line formatted on its own is respelled as in the whole file.
+        let lines = format_lines("  public operation Ping {}\n", &FormatOptions::default());
+        assert_eq!(lines[0], "anonymous operation Ping {}\n");
+    }
+
+    #[test]
+    fn only_the_modifier_named_public_is_respelled() {
+        // An annotation, a metadata key and its use, a structure and a
+        // member named `public` keep their spelling; the modifier beside
+        // them does not.
+        let source = "metadata public on operation\n@public readonly operation Ping {}\n@public public readonly operation Pong {}\n@public(public)\npublic operation Hook {}\nstructure public {\npublic: string\n}\n";
+        assert_eq!(
+            fmt(source),
+            "metadata public on operation\n@public readonly operation Ping {}\n@public anonymous readonly operation Pong {}\n@public(public)\nanonymous operation Hook {}\nstructure public {\n    public: string\n}\n"
         );
     }
 
