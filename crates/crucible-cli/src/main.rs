@@ -1867,11 +1867,11 @@ fn permissions_summary(service: &Service) -> String {
             .sum::<usize>(),
         service.permissions.len(),
         count(|r| matches!(r, Requirements::List(_))),
-        count(|r| matches!(r, Requirements::None)),
+        count(|r| matches!(r, Requirements::None { .. })),
         count(|r| matches!(r, Requirements::Pending { .. })),
     );
     for op in &service.operations {
-        if let Requirements::Pending { reason } = &op.requirements {
+        if let Requirements::Pending { reason, .. } = &op.requirements {
             out.push_str(&format!("  pending {}: {reason}\n", op.id));
         }
     }

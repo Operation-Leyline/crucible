@@ -44,6 +44,26 @@ final class LeylineClient
         return $this->runtime->call('ArchiveGraph', $input, $cancellation);
     }
     /**
+     * Reads several graphs at once.
+     *
+     * Not idempotent: not retried after a network failure or server error, since repeating it could repeat its effect. Throttling responses are still retried.
+     *
+     * Requires no permission.
+     *
+     * Each graph requires `graph:read`. The response reports inaccessible or missing graphs as item-level failures.
+     *
+     * @param \Example\Weather\BatchGetGraphsInput $input the request to send
+     * @param ?Runtime\CancellationToken $cancellation cancels the call when cancelled
+     * @return \Example\Weather\BatchGetGraphsOutput the service's response
+     * @throws \Example\Weather\InternalServerException
+     * @throws \Example\Weather\ValidationException
+     * @throws \Example\Weather\LeylineException for any other error response
+     */
+    public function batchGetGraphs(\Example\Weather\BatchGetGraphsInput $input, ?Runtime\CancellationToken $cancellation = null): \Example\Weather\BatchGetGraphsOutput
+    {
+        return $this->runtime->call('BatchGetGraphs', $input, $cancellation);
+    }
+    /**
      * Not idempotent: not retried after a network failure or server error, since repeating it could repeat its effect. Throttling responses are still retried.
      *
      * Requires `graph:write` on every graph in the organization.
@@ -161,6 +181,25 @@ final class LeylineClient
     public function listGraphs(\Example\Weather\ListGraphsInput $input, ?Runtime\CancellationToken $cancellation = null): \Example\Weather\ListGraphsOutput
     {
         return $this->runtime->call('ListGraphs', $input, $cancellation);
+    }
+    /**
+     * The organizations the caller belongs to.
+     *
+     * Read-only: retried automatically after transient failures.
+     *
+     * Requires no permission.
+     *
+     * Returns only what the caller may see.
+     *
+     * @param ?Runtime\CancellationToken $cancellation cancels the call when cancelled
+     * @return \Example\Weather\ListOrganizationsOutput the service's response
+     * @throws \Example\Weather\InternalServerException
+     * @throws \Example\Weather\ValidationException
+     * @throws \Example\Weather\LeylineException for any other error response
+     */
+    public function listOrganizations(?Runtime\CancellationToken $cancellation = null): \Example\Weather\ListOrganizationsOutput
+    {
+        return $this->runtime->call('ListOrganizations', new Runtime\Unit(), $cancellation);
     }
     /**
      * Not idempotent: not retried after a network failure or server error, since repeating it could repeat its effect. Throttling responses are still retried.

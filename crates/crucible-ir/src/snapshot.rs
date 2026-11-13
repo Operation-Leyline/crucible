@@ -117,12 +117,15 @@ fn typed_contract(service: &mut Service) {
         for example in &mut op.examples {
             example.docs = None;
         }
-        if let crate::ir::Requirements::List(clauses) | crate::ir::Requirements::Partial(clauses) =
-            &mut op.requirements
-        {
-            for clause in clauses {
-                clause.docs = None;
+        match &mut op.requirements {
+            crate::ir::Requirements::List(clauses) | crate::ir::Requirements::Partial(clauses) => {
+                for clause in clauses {
+                    clause.docs = None;
+                }
             }
+            crate::ir::Requirements::None { docs, .. }
+            | crate::ir::Requirements::Pending { docs, .. } => *docs = None,
+            crate::ir::Requirements::Undeclared | crate::ir::Requirements::Internal => {}
         }
     }
     for resource in service.permissions.values_mut() {

@@ -27,6 +27,18 @@ version's section when it is prepared.
   and `*` expanded), and `crucible_ir::roles` answers coverage. A model
   without roles lowers to the same IR as before. Generators, the
   `RoleAuthorizer` and compatibility rules follow in later releases.
+- `.cru`: the `///` on `requires none` is the reader-facing reason, and every
+  output that says "Requires no permission." now follows the sentence with it:
+  `describe.json` (`requirements.documentation` and `renderedDocumentation`,
+  and an entry of `requirementSentences` / `requirementDocumentation`), the
+  Markdown and static HTML references, the explorer, OpenAPI
+  (`x-crucible-requires.documentation` and the description) and every SDK's
+  method doc comments. The `///` on `requires pending` reaches the
+  server-audience reference and description only. Without a `///` the output
+  is unchanged. The IR keeps both (`Requirements::None { docs, filtered }`,
+  `Requirements::Pending { reason, docs }`); release snapshots frozen before
+  them still read, and an undocumented `requires none` is still written as
+  `"None"`.
 
 - Rust and TypeScript SDK guides (`README.md`, and `guide` in
   `crucible.sdks/1`) gain a `types` section after the first call: the
@@ -132,6 +144,12 @@ version's section when it is prepared.
 
 ### Changed
 
+- An operation whose only clauses are `filters` on internal permissions no
+  longer reads as unrestricted to clients: its client-audience `requirements`
+  and `x-crucible-requires` are `{"kind": "none", "filtered": true}`, and the
+  references, the explorer, OpenAPI and SDK doc comments follow "Requires no
+  permission." with "Returns only what the caller may see.", naming no
+  internal permission.
 - Generated SDK guides name at most six operations that fill an idempotency
   token; past that they name three and count the rest. `AGENTS.md` still
   lists every one.

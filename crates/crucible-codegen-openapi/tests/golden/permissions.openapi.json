@@ -262,6 +262,179 @@
         ]
       }
     },
+    "/orgs/{organizationId}/graphs/batch-get": {
+      "post": {
+        "operationId": "BatchGetGraphs",
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "names": {
+                      "$ref": "#/components/schemas/example.leyline.Names"
+                    }
+                  },
+                  "required": [
+                    "names"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "ValidationException",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "$ref": "#/components/schemas/crucible.api.String"
+                    },
+                    "reason": {
+                      "$ref": "#/components/schemas/crucible.errors.ValidationExceptionReason"
+                    },
+                    "fieldList": {
+                      "anyOf": [
+                        {
+                          "$ref": "#/components/schemas/crucible.errors.ValidationExceptionFieldList"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "__type": {
+                      "type": "string",
+                      "const": "ValidationException"
+                    }
+                  },
+                  "required": [
+                    "message",
+                    "reason",
+                    "__type"
+                  ]
+                }
+              }
+            },
+            "headers": {
+              "X-Crucible-Error": {
+                "schema": {
+                  "type": "string",
+                  "const": "ValidationException"
+                }
+              }
+            },
+            "x-crucible-errors": [
+              "crucible.errors#ValidationException"
+            ]
+          },
+          "500": {
+            "description": "InternalServerException",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "$ref": "#/components/schemas/crucible.api.String"
+                    },
+                    "__type": {
+                      "type": "string",
+                      "const": "InternalServerException"
+                    }
+                  },
+                  "required": [
+                    "message",
+                    "__type"
+                  ]
+                }
+              }
+            },
+            "headers": {
+              "Retry-After": {
+                "schema": {
+                  "$ref": "#/components/schemas/crucible.api.Integer"
+                },
+                "style": "simple",
+                "explode": false
+              },
+              "X-Crucible-Error": {
+                "schema": {
+                  "type": "string",
+                  "const": "InternalServerException"
+                }
+              }
+            },
+            "x-crucible-errors": [
+              "crucible.errors#InternalServerException"
+            ],
+            "x-crucible-retryable": {
+              "throttling": false
+            }
+          }
+        },
+        "security": [
+          {
+            "crucible.api.httpBearerAuth": []
+          }
+        ],
+        "x-crucible-shape": "example.leyline#BatchGetGraphs",
+        "x-crucible-traits": {},
+        "description": "Reads several graphs at once.\n\nRequires no permission. Each graph requires `graph:read`. The response reports inaccessible or missing graphs as item-level failures.",
+        "x-crucible-requires": {
+          "kind": "none",
+          "documentation": "Each graph requires `graph:read`. The response reports inaccessible\nor missing graphs as item-level failures."
+        },
+        "tags": [
+          "Graph"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "names": {
+                    "$ref": "#/components/schemas/example.leyline.Names"
+                  }
+                },
+                "required": [
+                  "names"
+                ]
+              }
+            }
+          },
+          "required": true
+        },
+        "parameters": [
+          {
+            "name": "organizationId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^org_[a-z0-9]+$"
+            },
+            "style": "simple",
+            "explode": false
+          },
+          {
+            "name": "Crucible-Version",
+            "in": "header",
+            "required": true,
+            "description": "The release this request is written for: 2026-10-01, the release this document describes.",
+            "schema": {
+              "type": "string",
+              "const": "2026-10-01"
+            }
+          }
+        ]
+      }
+    },
     "/orgs/{organizationId}/graphs": {
       "post": {
         "operationId": "CreateGraph",
@@ -1681,6 +1854,164 @@
         ]
       }
     },
+    "/orgs": {
+      "get": {
+        "operationId": "ListOrganizations",
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "names": {
+                      "$ref": "#/components/schemas/example.leyline.Names"
+                    }
+                  },
+                  "required": [
+                    "names"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "ValidationException",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "$ref": "#/components/schemas/crucible.api.String"
+                    },
+                    "reason": {
+                      "$ref": "#/components/schemas/crucible.errors.ValidationExceptionReason"
+                    },
+                    "fieldList": {
+                      "anyOf": [
+                        {
+                          "$ref": "#/components/schemas/crucible.errors.ValidationExceptionFieldList"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "__type": {
+                      "type": "string",
+                      "const": "ValidationException"
+                    }
+                  },
+                  "required": [
+                    "message",
+                    "reason",
+                    "__type"
+                  ]
+                }
+              }
+            },
+            "headers": {
+              "X-Crucible-Error": {
+                "schema": {
+                  "type": "string",
+                  "const": "ValidationException"
+                }
+              }
+            },
+            "x-crucible-errors": [
+              "crucible.errors#ValidationException"
+            ]
+          },
+          "500": {
+            "description": "InternalServerException",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "$ref": "#/components/schemas/crucible.api.String"
+                    },
+                    "__type": {
+                      "type": "string",
+                      "const": "InternalServerException"
+                    }
+                  },
+                  "required": [
+                    "message",
+                    "__type"
+                  ]
+                }
+              }
+            },
+            "headers": {
+              "Retry-After": {
+                "schema": {
+                  "$ref": "#/components/schemas/crucible.api.Integer"
+                },
+                "style": "simple",
+                "explode": false
+              },
+              "X-Crucible-Error": {
+                "schema": {
+                  "type": "string",
+                  "const": "InternalServerException"
+                }
+              }
+            },
+            "x-crucible-errors": [
+              "crucible.errors#InternalServerException"
+            ],
+            "x-crucible-retryable": {
+              "throttling": false
+            }
+          }
+        },
+        "security": [
+          {
+            "crucible.api.httpBearerAuth": []
+          }
+        ],
+        "x-crucible-shape": "example.leyline#ListOrganizations",
+        "x-crucible-traits": {},
+        "description": "The organizations the caller belongs to.\n\nReturns only the orgs the caller holds `organization:read` on.",
+        "x-crucible-requires": {
+          "kind": "list",
+          "clauses": [
+            {
+              "mode": "filter",
+              "permission": "organization:read",
+              "resourceType": "org",
+              "tier": "internal",
+              "bindings": [
+                {
+                  "identifier": "organizationId",
+                  "value": "*"
+                }
+              ]
+            }
+          ]
+        },
+        "tags": [
+          "Organization"
+        ],
+        "x-crucible-readonly": true,
+        "parameters": [
+          {
+            "name": "Crucible-Version",
+            "in": "header",
+            "required": true,
+            "description": "The release this request is written for: 2026-10-01, the release this document describes.",
+            "schema": {
+              "type": "string",
+              "const": "2026-10-01"
+            }
+          }
+        ]
+      }
+    },
     "/orgs/{organizationId}/graphs/{graphId}/histories/{historyId}/restore": {
       "post": {
         "operationId": "RestoreBackup",
@@ -1805,7 +2136,8 @@
         "x-crucible-traits": {},
         "x-crucible-requires": {
           "kind": "pending",
-          "reason": "guard::allow in the handler until the history module moves."
+          "reason": "guard::allow in the handler until the history module moves.",
+          "documentation": "Restores are checked against the backup ledger."
         },
         "tags": [
           "History"
@@ -2269,6 +2601,33 @@
           "archived"
         ]
       },
+      "example.leyline.BatchGetGraphsInput": {
+        "type": "object",
+        "properties": {
+          "organizationId": {
+            "type": "string",
+            "pattern": "^org_[a-z0-9]+$"
+          },
+          "names": {
+            "$ref": "#/components/schemas/example.leyline.Names"
+          }
+        },
+        "required": [
+          "organizationId",
+          "names"
+        ]
+      },
+      "example.leyline.BatchGetGraphsOutput": {
+        "type": "object",
+        "properties": {
+          "names": {
+            "$ref": "#/components/schemas/example.leyline.Names"
+          }
+        },
+        "required": [
+          "names"
+        ]
+      },
       "example.leyline.CreateGraphInput": {
         "type": "object",
         "properties": {
@@ -2445,6 +2804,17 @@
         ]
       },
       "example.leyline.ListGraphsOutput": {
+        "type": "object",
+        "properties": {
+          "names": {
+            "$ref": "#/components/schemas/example.leyline.Names"
+          }
+        },
+        "required": [
+          "names"
+        ]
+      },
+      "example.leyline.ListOrganizationsOutput": {
         "type": "object",
         "properties": {
           "names": {
