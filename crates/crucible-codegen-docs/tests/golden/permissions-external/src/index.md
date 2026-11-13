@@ -41,12 +41,14 @@ An error response names its code in the <code>X-Crucible-Error</code> header and
 <p>A tenant.</p>
 
 - [GetOrganization](operations/API_GetOrganization.md)
+- [ListOrganizations](operations/API_ListOrganizations.md)
 
 ### Graph
 
 <p>A graph database.</p>
 
 - [ArchiveGraph](operations/API_ArchiveGraph.md)
+- [BatchGetGraphs](operations/API_BatchGetGraphs.md)
 - [CreateGraph](operations/API_CreateGraph.md)
 - [ExecuteQuery](operations/API_ExecuteQuery.md)
 - [GetGraph](operations/API_GetGraph.md)

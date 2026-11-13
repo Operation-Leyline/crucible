@@ -167,8 +167,9 @@ requirement = [ doc ] "requires" ( "none"
                                  | ident [ "on" req_target ] [ "when" condition ] [ "by" "handler" ] )
             | [ doc ] "filters" ident "on" ident ;
                  (* `none` and `pending` are never a permission's symbol. The
-                    `///` of `requires none` or `pending` documents the model
-                    only: the IR keeps a pending reason, not this text *)
+                    `///` of `requires none` is the reader-facing reason every
+                    output prints after "Requires no permission."; that of
+                    `requires pending` reaches the server audience only *)
 req_target  = ident [ "(" binding { "," binding } ")" ] ;
 binding     = [ ident ":" ] ( "*" | "$" ident | dotted ) ;
                  (* an unnamed binding binds the resource's own identifier *)

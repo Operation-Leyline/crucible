@@ -119,7 +119,12 @@ pub struct PermissionTypes {
 }
 
 /// What an operation says about authorization.
-#[derive(Debug, Clone, Default, PartialEq, serde::Serialize, serde::Deserialize)]
+///
+/// Serialized by hand (`requirements_serde`): `requires none` with neither
+/// documentation nor a filter is still the bare `"None"` it always was, so
+/// the snapshot of a model that adds neither is unchanged, and a snapshot
+/// frozen before `None` carried fields still reads.
+#[derive(Debug, Clone, Default, PartialEq)]
 pub enum Requirements {
     /// Nothing: a compile error on an authenticated operation once the
     /// service declares any permission. What a public operation, and every
@@ -128,9 +133,24 @@ pub enum Requirements {
     #[default]
     Undeclared,
     /// `requires none`: authenticated, and no permission is needed.
-    None,
+    None {
+        /// The clause's `///`: why no permission is needed, or what the
+        /// handler checks per item instead (docs/permissions.md §4.7).
+        docs: Option<String>,
+        /// Only in a client-audience projection: every clause was a
+        /// `filters` on an internal permission, which the projection
+        /// removed. Nothing refuses the caller, but what the operation
+        /// answers is narrowed, and a reader is told so without the
+        /// permission being named. A front end never sets it.
+        filtered: bool,
+    },
     /// `requires pending because "..."`: the handler still checks.
-    Pending { reason: String },
+    Pending {
+        reason: String,
+        /// The clause's `///`, for the server audience: the client
+        /// projection turns `Pending` into `Undeclared`.
+        docs: Option<String>,
+    },
     /// Every clause, in source order, which is the refusal order. Never
     /// empty: the checks refuse an empty list.
     List(Vec<Requirement>),
@@ -148,6 +168,12 @@ pub enum Requirements {
 }
 
 impl Requirements {
+    /// `requires none` with neither documentation nor a filter.
+    pub const NONE: Self = Self::None {
+        docs: Option::None,
+        filtered: false,
+    };
+
     pub fn is_undeclared(&self) -> bool {
         matches!(self, Self::Undeclared)
     }
@@ -157,6 +183,201 @@ impl Requirements {
         match self {
             Self::List(list) | Self::Partial(list) => list,
             _ => &[],
+        }
+    }
+}
+
+/// The serde form of [`Requirements`], a release snapshot's: externally
+/// tagged, as derived, except that `requires none` with neither field set
+/// is written as the bare `"None"`, and both spellings read.
+mod requirements_serde {
+    use serde::de::value::{MapAccessDeserializer, StrDeserializer};
+    use serde::de::{Error, MapAccess, Visitor};
+    use serde::{Deserialize, Deserializer, Serialize, Serializer};
+
+    use super::{Requirement, Requirements};
+
+    fn is_false(value: &bool) -> bool {
+        !value
+    }
+
+    #[derive(Serialize)]
+    #[serde(rename = "Requirements")]
+    enum Write<'a> {
+        Undeclared,
+        None {
+            #[serde(skip_serializing_if = "Option::is_none")]
+            docs: &'a Option<String>,
+            #[serde(skip_serializing_if = "is_false")]
+            filtered: bool,
+        },
+        Pending {
+            reason: &'a str,
+            #[serde(skip_serializing_if = "Option::is_none")]
+            docs: &'a Option<String>,
+        },
+        List(&'a [Requirement]),
+        Internal,
+        Partial(&'a [Requirement]),
+    }
+
+    #[derive(Deserialize)]
+    #[serde(rename = "Requirements")]
+    enum Read {
+        Undeclared,
+        None {
+            #[serde(default)]
+            docs: Option<String>,
+            #[serde(default)]
+            filtered: bool,
+        },
+        Pending {
+            reason: String,
+            #[serde(default)]
+            docs: Option<String>,
+        },
+        List(Vec<Requirement>),
+        Internal,
+        Partial(Vec<Requirement>),
+    }
+
+    impl Serialize for Requirements {
+        fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+            match self {
+                Self::None {
+                    docs: Option::None,
+                    filtered: false,
+                } => serializer.serialize_unit_variant("Requirements", 1, "None"),
+                Self::None { docs, filtered } => Write::None {
+                    docs,
+                    filtered: *filtered,
+                }
+                .serialize(serializer),
+                Self::Undeclared => Write::Undeclared.serialize(serializer),
+                Self::Pending { reason, docs } => {
+                    Write::Pending { reason, docs }.serialize(serializer)
+                }
+                Self::List(clauses) => Write::List(clauses).serialize(serializer),
+                Self::Internal => Write::Internal.serialize(serializer),
+                Self::Partial(clauses) => Write::Partial(clauses).serialize(serializer),
+            }
+        }
+    }
+
+    impl<'de> Deserialize<'de> for Requirements {
+        fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+            struct Either;
+            impl<'de> Visitor<'de> for Either {
+                type Value = Read;
+                fn expecting(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+                    f.write_str("an operation's requirements")
+                }
+                // A unit variant, `"None"` among them: how every snapshot
+                // from before `None` carried fields spells it.
+                fn visit_str<E: Error>(self, variant: &str) -> Result<Read, E> {
+                    match variant {
+                        "None" => Ok(Read::None {
+                            docs: Option::None,
+                            filtered: false,
+                        }),
+                        _ => Read::deserialize(StrDeserializer::<E>::new(variant)),
+                    }
+                }
+                fn visit_map<A: MapAccess<'de>>(self, map: A) -> Result<Read, A::Error> {
+                    Read::deserialize(MapAccessDeserializer::new(map))
+                }
+            }
+            Ok(match deserializer.deserialize_any(Either)? {
+                Read::Undeclared => Self::Undeclared,
+                Read::None { docs, filtered } => Self::None { docs, filtered },
+                Read::Pending { reason, docs } => Self::Pending { reason, docs },
+                Read::List(clauses) => Self::List(clauses),
+                Read::Internal => Self::Internal,
+                Read::Partial(clauses) => Self::Partial(clauses),
+            })
+        }
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::super::{Mode, Requirement, Requirements};
+        use crate::ShapeId;
+
+        fn round_trip(requirements: &Requirements) -> String {
+            let text = serde_json::to_string(requirements).unwrap();
+            let back: Requirements = serde_json::from_str(&text).unwrap();
+            assert_eq!(&back, requirements, "{text}");
+            text
+        }
+
+        #[test]
+        fn an_undocumented_none_is_written_as_it_always_was() {
+            assert_eq!(round_trip(&Requirements::NONE), r#""None""#);
+        }
+
+        #[test]
+        fn a_snapshot_from_before_none_carried_fields_reads() {
+            let none: Requirements = serde_json::from_str(r#""None""#).unwrap();
+            assert_eq!(none, Requirements::NONE);
+            let pending: Requirements =
+                serde_json::from_str(r#"{"Pending":{"reason":"later"}}"#).unwrap();
+            assert_eq!(
+                pending,
+                Requirements::Pending {
+                    reason: "later".into(),
+                    docs: Option::None,
+                }
+            );
+        }
+
+        #[test]
+        fn every_variant_round_trips() {
+            assert_eq!(
+                round_trip(&Requirements::None {
+                    docs: Some("Each graph is checked.".into()),
+                    filtered: false,
+                }),
+                r#"{"None":{"docs":"Each graph is checked."}}"#
+            );
+            assert_eq!(
+                round_trip(&Requirements::None {
+                    docs: Option::None,
+                    filtered: true,
+                }),
+                r#"{"None":{"filtered":true}}"#
+            );
+            assert_eq!(
+                round_trip(&Requirements::Pending {
+                    reason: "later".into(),
+                    docs: Some("Why.".into()),
+                }),
+                r#"{"Pending":{"reason":"later","docs":"Why."}}"#
+            );
+            assert_eq!(
+                round_trip(&Requirements::Pending {
+                    reason: "later".into(),
+                    docs: Option::None,
+                }),
+                r#"{"Pending":{"reason":"later"}}"#
+            );
+            assert_eq!(round_trip(&Requirements::Undeclared), r#""Undeclared""#);
+            assert_eq!(round_trip(&Requirements::Internal), r#""Internal""#);
+            let clause = Requirement {
+                mode: Mode::Check,
+                resource: ShapeId::new("example", "Inbox"),
+                permission: "read".into(),
+                bindings: Vec::new(),
+                when: Option::None,
+                docs: Option::None,
+            };
+            round_trip(&Requirements::List(vec![clause.clone()]));
+            round_trip(&Requirements::Partial(vec![clause]));
+        }
+
+        #[test]
+        fn an_unknown_variant_is_refused() {
+            assert!(serde_json::from_str::<Requirements>(r#""Some""#).is_err());
+            assert!(serde_json::from_str::<Requirements>(r#"{"Some":1}"#).is_err());
         }
     }
 }

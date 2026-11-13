@@ -32,6 +32,23 @@ module Weather
     def archive_graph(input, cancellation: nil)
       @runtime.call('ArchiveGraph', input, cancellation: cancellation)
     end
+    # Reads several graphs at once.
+    #
+    # Not idempotent: not retried after a network failure or server error, since repeating it could repeat its effect. Throttling responses are still retried.
+    #
+    # Requires no permission.
+    #
+    # Each graph requires `graph:read`. The response reports inaccessible or missing graphs as item-level failures.
+    #
+    # @param input [BatchGetGraphsInput] the request to send
+    # @param cancellation [Runtime::CancellationToken, nil] cancels the call when cancelled
+    # @return [BatchGetGraphsOutput] the service's response
+    # @raise [InternalServerException]
+    # @raise [ValidationException]
+    # @raise [Runtime::LeylineException] for any other error response
+    def batch_get_graphs(input, cancellation: nil)
+      @runtime.call('BatchGetGraphs', input, cancellation: cancellation)
+    end
     # Not idempotent: not retried after a network failure or server error, since repeating it could repeat its effect. Throttling responses are still retried.
     #
     # Requires `graph:write` on every graph in the organization.
@@ -129,6 +146,22 @@ module Weather
     # @raise [Runtime::LeylineException] for any other error response
     def list_graphs(input, cancellation: nil)
       @runtime.call('ListGraphs', input, cancellation: cancellation)
+    end
+    # The organizations the caller belongs to.
+    #
+    # Read-only: retried automatically after transient failures.
+    #
+    # Requires no permission.
+    #
+    # Returns only what the caller may see.
+    #
+    # @param cancellation [Runtime::CancellationToken, nil] cancels the call when cancelled
+    # @return [ListOrganizationsOutput] the service's response
+    # @raise [InternalServerException]
+    # @raise [ValidationException]
+    # @raise [Runtime::LeylineException] for any other error response
+    def list_organizations(cancellation: nil)
+      @runtime.call('ListOrganizations', Runtime::Unit.new, cancellation: cancellation)
     end
     # Not idempotent: not retried after a network failure or server error, since repeating it could repeat its effect. Throttling responses are still retried.
     #

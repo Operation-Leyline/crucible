@@ -502,9 +502,21 @@
     const r = op.requirements;
     if (!r || !r.kind) return null;
     const body = [];
-    if (r.kind === "none") body.push(h("p", {}, "Requires no permission."));
-    else if (r.kind === "pending") body.push(h("p", {}, "Requirements not declared yet; the service checks them itself: ", r.reason));
-    else if (r.kind === "internal") body.push(h("p", {}, "Requires permissions internal to the service."));
+    // The `///` on `requires none` or `requires pending`: the reader-facing
+    // reason, model Markdown rendered and sanitised at build time.
+    const reason = () => {
+      if (r.renderedDocumentation) body.push(rich(r.renderedDocumentation.html, m));
+      else if (r.documentation) body.push(h("p", {}, r.documentation));
+    };
+    if (r.kind === "none") {
+      body.push(h("p", {}, "Requires no permission."));
+      // Internal filters narrow the answer; which ones is not said.
+      if (r.filtered) body.push(h("p", {}, "Returns only what the caller may see."));
+      reason();
+    } else if (r.kind === "pending") {
+      body.push(h("p", {}, "Requirements not declared yet; the service checks them itself: ", r.reason));
+      reason();
+    } else if (r.kind === "internal") body.push(h("p", {}, "Requires permissions internal to the service."));
     else {
       // Markdown holding model text, rendered and sanitised at build time.
       for (const s of list(op.requirementDocumentation)) body.push(rich(s.html, m));

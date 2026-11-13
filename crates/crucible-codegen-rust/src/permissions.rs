@@ -576,8 +576,8 @@ pub(crate) fn marker_items(
             );
             return out;
         }
-        Requirements::None => format!("{P}::Requirements::None"),
-        Requirements::Pending { reason } => format!(
+        Requirements::None { .. } => format!("{P}::Requirements::None"),
+        Requirements::Pending { reason, .. } => format!(
             "{P}::Requirements::Pending {{ reason: {} }}",
             literal(reason)
         ),

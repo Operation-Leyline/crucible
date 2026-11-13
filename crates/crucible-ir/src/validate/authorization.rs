@@ -573,8 +573,8 @@ impl<'a> Checker<'a> {
                 );
                 return;
             }
-            Requirements::None | Requirements::Internal => return,
-            Requirements::Pending { reason } => {
+            Requirements::None { .. } | Requirements::Internal => return,
+            Requirements::Pending { reason, .. } => {
                 if reason.trim().is_empty() {
                     self.error(
                         "permissions.reason",
