@@ -151,6 +151,15 @@ version's section when it is prepared.
   the exact difference. The documentation snippet for a timestamp finer than a
   microsecond uses `Timestamp`, not a truncated `datetime`.
 
+### Fixed
+
+- `crucible-build`: with Cargo 1.100 or newer, a build that wrote
+  `generate_into` exports or a `model_output` export no longer reruns the
+  build script on the next build. Cargo 1.100's build directory keeps the
+  build-script start stamp under `run/` beside `OUT_DIR`, so crucible-build
+  did not find it and left the exports dated after the run. It now looks in
+  both layouts.
+
 ### Migration
 
 - C# client: timestamp members are `Timestamp`, not `DateTimeOffset`. No shim

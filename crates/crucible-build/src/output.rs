@@ -86,31 +86,18 @@ impl Output<'_> {
             })
             .collect();
         artifact.export(&output)?;
-        // Cargo records the build-script start beside OUT_DIR. A generated
-        // watched file newer than that stamp immediately invalidates its own
-        // build. Cap changed exports at this invocation, retaining meaningful
-        // updates for downstream native builds and unchanged-file timestamps.
-        let invocation = std::env::var_os("OUT_DIR")
-            .map(std::path::PathBuf::from)
-            .and_then(|path| path.parent().map(|parent| parent.join("invoked.timestamp")))
-            .and_then(|path| {
-                std::fs::metadata(path)
-                    .and_then(|meta| meta.modified())
-                    .ok()
-            });
+        // Every export is watched so a deleted one is restored, so an export
+        // this run rewrote is dated at the run's start (see
+        // `cargo_invocation`). Exports left unchanged keep their dates, and
+        // so does a file edited during the build, which then reruns the next.
+        let started = crate::cargo_invocation::started();
         for (path, previous) in generated {
-            if let Some(invocation) = invocation {
+            if let Some(started) = started {
                 let modified = std::fs::metadata(&path)
                     .and_then(|meta| meta.modified())
-                    .map_err(|error| error.to_string())?;
-                if previous != Some(modified) && modified > invocation {
-                    std::fs::File::options()
-                        .write(true)
-                        .open(&path)
-                        .and_then(|file| file.set_modified(invocation))
-                        .map_err(|error| {
-                            format!("cannot preserve native export timestamp: {error}")
-                        })?;
+                    .ok();
+                if modified != previous {
+                    crate::cargo_invocation::settle(&path, started)?;
                 }
             }
             println!("cargo::rerun-if-changed={}", path.display());
