@@ -55,6 +55,16 @@ pub enum Context {
     /// After `$` in a member list: what it binds depends on the operation or
     /// view around it, which [`bindings`] reads from the syntax tree.
     Binding,
+    /// The entries of a `role` body (docs/roles.md §4.2).
+    RoleEntries,
+    /// A list of roles: the service's `roles`, `includes`, `assignedBy`.
+    RoleNames,
+    /// A list of scopes: the service's `scopes`, a role's `at`.
+    ScopeNames,
+    /// After a scope's `on`: a resource, or `service`.
+    ScopeTarget,
+    /// The service's `principals`: an enum.
+    Enums,
     Nothing,
 }
 
@@ -157,10 +167,19 @@ pub fn context(parsed: &Parsed, text: &str, offset: usize) -> Context {
                 };
             }
             TokenKind::LBracket => {
+                // `grants Graph [..]` names the resource's permissions,
+                // which completion does not read.
+                let grants = index
+                    .checked_sub(2)
+                    .is_some_and(|i| word(before[i]) == "grants");
                 return match callee.map(word) {
+                    _ if grants => Context::Nothing,
                     Some("errors") => Context::Errors,
                     Some("resources") => Context::Resources,
                     Some("operations") => Context::Operations,
+                    Some("roles" | "includes" | "assignedBy") => Context::RoleNames,
+                    Some("scopes" | "at") => Context::ScopeNames,
+                    Some("holders" | "except") => Context::Nothing,
                     _ => Context::Types,
                 };
             }
@@ -188,7 +207,13 @@ pub fn context(parsed: &Parsed, text: &str, offset: usize) -> Context {
             (TokenKind::Ident, "format") => return Context::TimestampFormats,
             (TokenKind::Ident, "retention") => return Context::Retention,
             (TokenKind::Ident, "include") => return Context::Structures,
-            (TokenKind::Ident, "in" | "for") => return Context::Resources,
+            (TokenKind::Ident, "in" | "for" | "grants") => return Context::Resources,
+            (TokenKind::Ident, "principals") => return Context::Enums,
+            (TokenKind::Ident, "on")
+                if statement_head(&before, before.len() - 1, text) == Some("scope") =>
+            {
+                return Context::ScopeTarget;
+            }
             (TokenKind::Ident, role) if ROLES.contains(&role) => {
                 // `operation Op reads Item`: the resource after a role.
                 let is_role = before.len() >= 3 && word(before[before.len() - 3]) == "operation";
@@ -273,6 +298,7 @@ fn block_context(before: &[&Token], index: usize, text: &str) -> Context {
         Some("error") => Context::ErrorEntries,
         Some("resource") => Context::ResourceEntries,
         Some("rule") => Context::RuleClauses,
+        Some("role") => Context::RoleEntries,
         Some("migration") => Context::MigrationSteps,
         Some("example") => Context::Example,
         Some(kind) if BUILTIN_TYPES.contains(&kind) || kind == "list" || kind == "map" => {
@@ -485,6 +511,16 @@ pub fn complete(context: Context, index: &Index, snippets: bool) -> Vec<Completi
                 "version migration",
                 "migration \"${1:version}\" from \"${2:previous}\" {\n    $0\n}",
             );
+            items.snippet(
+                "scope",
+                "where a role binding is made",
+                "scope ${1:name} = \"${2:value}\" on ${3:Resource}",
+            );
+            items.snippet(
+                "role",
+                "a named set of permissions",
+                "role ${1:name} = \"${2:value}\" {\n    at [${3:scope}]\n    grants ${4:Resource} [${5:permission}]\n}",
+            );
             for kind in BUILTIN_TYPES {
                 items.snippet(kind, "named scalar", &format!("{kind} ${{1:Name}}"));
             }
@@ -510,6 +546,13 @@ pub fn complete(context: Context, index: &Index, snippets: bool) -> Vec<Completi
                 "notFound ${1:ResourceNotFoundException}",
             );
             items.snippet("paginated", "default pagination members", "paginated(inputToken: ${1:nextToken}, outputToken: ${2:nextToken}, pageSize: ${3:maxResults})");
+            items.snippet("roles", "the role catalogue, in order", "roles [$1]");
+            items.snippet("scopes", "where roles bind, in order", "scopes [$1]");
+            items.snippet(
+                "principals",
+                "the enum of principal kinds roles name in `holders`",
+                "principals ${1:PrincipalType}",
+            );
         }
         Context::Operation | Context::Template => {
             items.snippet(
@@ -704,6 +747,8 @@ pub fn complete(context: Context, index: &Index, snippets: bool) -> Vec<Completi
                 "permissionTypes",
                 "the wire enum of grantable resource types",
             );
+            items.keyword("roleTypes", "the wire enum of role values");
+            items.keyword("scopeTypes", "the wire enum of scope values");
             items.declarations(index, |d| d.keyword == "metadata");
         }
         Context::Roles => {
@@ -732,6 +777,37 @@ pub fn complete(context: Context, index: &Index, snippets: bool) -> Vec<Completi
             items.value("source", "checked at build time only");
             items.value("runtime", "reaches generated code");
         }
+        Context::RoleEntries => {
+            items.snippet("at", "the scopes it binds at", "at [$1]");
+            items.snippet("includes", "roles whose grants it adds", "includes [$1]");
+            items.snippet(
+                "grants",
+                "permissions of a resource",
+                "grants ${1:Resource} [${2:permission}]",
+            );
+            items.snippet(
+                "grants by service",
+                "a grant the service decides",
+                "grants ${1:Resource} [${2:permission}] by service",
+            );
+            items.snippet(
+                "holders",
+                "the principal kinds that may hold it",
+                "holders [$1]",
+            );
+            items.snippet(
+                "assignedBy",
+                "roles that alone may assign it",
+                "assignedBy [$1]",
+            );
+        }
+        Context::RoleNames => items.declarations(index, |d| d.keyword == "role"),
+        Context::ScopeNames => items.declarations(index, |d| d.keyword == "scope"),
+        Context::ScopeTarget => {
+            items.declarations(index, |d| d.keyword == "resource");
+            items.keyword("service", "the whole service");
+        }
+        Context::Enums => items.declarations(index, |d| d.keyword == "enum"),
         Context::Binding | Context::Nothing => {}
     }
     items.out
@@ -1073,6 +1149,64 @@ mod tests {
         let offset = source.find('|').expect("a caret");
         let text = source.replace('|', "");
         context(&crucible_lang::parse(&text), &text, offset)
+    }
+
+    #[test]
+    fn roles_and_scopes_complete_where_they_are_written() {
+        assert_eq!(at("role a = \"a\" {\n    |\n}"), Context::RoleEntries);
+        assert_eq!(at("role a = \"a\" {\n    at [|]\n}"), Context::ScopeNames);
+        assert_eq!(
+            at("role a = \"a\" {\n    includes [|]\n}"),
+            Context::RoleNames
+        );
+        assert_eq!(
+            at("role a = \"a\" {\n    assignedBy [|]\n}"),
+            Context::RoleNames
+        );
+        assert_eq!(at("role a = \"a\" {\n    grants |\n}"), Context::Resources);
+        assert_eq!(
+            at("role a = \"a\" {\n    grants Graph [|]\n}"),
+            Context::Nothing
+        );
+        assert_eq!(at("role a = \"a\" {\n    holders [|]\n}"), Context::Nothing);
+        assert_eq!(at("scope a = \"a\" on |"), Context::ScopeTarget);
+        assert_eq!(at("service S {\n    roles [|]\n}"), Context::RoleNames);
+        assert_eq!(at("service S {\n    scopes [|]\n}"), Context::ScopeNames);
+        assert_eq!(at("service S {\n    principals |\n}"), Context::Enums);
+
+        let source = "enum Kind { USER = \"user\" }\nresource Graph { id graphId: string }\nscope graph = \"graph\" on Graph\nrole reader = \"reader\" { at [graph] }\n";
+        let parsed = crucible_lang::parse(source);
+        let index = Index::new(std::slice::from_ref(&parsed));
+        let labels = |context: Context| -> Vec<String> {
+            complete(context, &index, true)
+                .into_iter()
+                .map(|item| item.label)
+                .collect()
+        };
+        assert_eq!(labels(Context::RoleNames), ["reader"]);
+        assert_eq!(labels(Context::ScopeNames), ["graph"]);
+        assert_eq!(labels(Context::Enums), ["Kind"]);
+        assert_eq!(labels(Context::ScopeTarget), ["Graph", "service"]);
+        let entries = labels(Context::RoleEntries);
+        for word in [
+            "at",
+            "includes",
+            "grants",
+            "grants by service",
+            "holders",
+            "assignedBy",
+        ] {
+            assert!(entries.iter().any(|l| l == word), "{word}: {entries:?}");
+        }
+        let top = labels(Context::TopLevel);
+        assert!(top.iter().any(|l| l == "scope") && top.iter().any(|l| l == "role"));
+        let service = labels(Context::Service);
+        for word in ["roles", "scopes", "principals"] {
+            assert!(service.iter().any(|l| l == word), "{word}: {service:?}");
+        }
+        let annotations = labels(Context::Annotation);
+        assert!(annotations.iter().any(|l| l == "roleTypes"));
+        assert!(annotations.iter().any(|l| l == "scopeTypes"));
     }
 
     #[test]

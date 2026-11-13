@@ -56,7 +56,8 @@ pub fn client_view(service: &Service) -> Service {
                 .chain(&service.errors)
                 .chain(&service.export_roots)
                 .chain(entries)
-                .cloned(),
+                .cloned()
+                .chain(catalogue_roots(service, Audience::Internal)),
         )
     };
     let before = reach(&mut service.operations.iter());
@@ -109,6 +110,35 @@ pub fn client_view(service: &Service) -> Service {
     // A doc link to a removed operation is its text.
     result.retain_doc_links();
     result
+}
+
+/// The enums a role catalogue names, which no operation need use: the
+/// `principals` enum its holders are values of, and the `@roleTypes` and
+/// `@scopeTypes` wire enums. They are part of the contract as the
+/// catalogue is, so every view that keeps shapes by reachability roots
+/// them here; otherwise a holder restriction would lose its enum and read
+/// as none (docs/roles.md §4.4).
+///
+/// `audience` is the catalogue the view keeps of `service`: `External`
+/// for [`project`], which keeps only public roles and scopes of a public
+/// service; `Internal` for [`client_view`], whose input is already an
+/// audience's projection and keeps every role and scope it has.
+fn catalogue_roots(service: &Service, audience: Audience) -> Vec<ShapeId> {
+    let kept = |internal: bool| match audience {
+        Audience::External => !internal && !service.internal,
+        Audience::Internal => true,
+    };
+    let roles = service.roles.iter().any(|r| kept(r.internal));
+    let scopes = service.role_scopes.iter().any(|s| kept(s.internal));
+    let settings = &service.role_settings;
+    [
+        (roles, &settings.principals),
+        (roles, &settings.role_types),
+        (scopes, &settings.scope_types),
+    ]
+    .into_iter()
+    .filter_map(|(kept, id)| id.clone().filter(|_| kept))
+    .collect()
 }
 
 /// Every shape in `shapes` that `roots` reach through member targets, the
@@ -207,6 +237,7 @@ fn external(service: &Service, lenient: bool) -> Result<Service, Diagnostics> {
         .chain(&result.errors)
         .chain(&result.export_roots)
         .cloned()
+        .chain(catalogue_roots(service, Audience::External))
         .collect();
     // A resource names its entries' types without reaching them: the
     // audience's shapes are what its operations and explicit exports reach.
@@ -288,6 +319,7 @@ fn external(service: &Service, lenient: bool) -> Result<Service, Diagnostics> {
         .permissions
         .retain(|id, _| !service.resources.contains_key(id) || resources.contains(id));
     project_permissions(&mut result);
+    project_roles(&mut result);
     // A binding whose path ran through a removed internal member goes with it.
     let roots: BTreeMap<ShapeId, (Option<ShapeId>, Option<ShapeId>)> = result
         .operations
@@ -778,5 +810,87 @@ fn project_permissions(result: &mut Service) {
     });
     if !consistent {
         result.permission_types = None;
+    }
+}
+
+/// Roles and scopes as clients see them (docs/roles.md §4.8): internal ones
+/// go, and a public role keeps only what this view has. A grant of an
+/// internal permission leaves its declared and effective grants, the role
+/// stays. The compiler refuses what would mislead once removed (a public
+/// role at an internal scope, assigned by an internal role, held by an
+/// internal kind: `roles.internal`), so what remains is complete. An
+/// internal service has no external contract, so its whole catalogue goes,
+/// whatever its roles' own flags say, as its operations and resources do.
+fn project_roles(result: &mut Service) {
+    use crate::ir::{GrantedSet, RoleSettings};
+    if result.internal {
+        result.roles.clear();
+        result.role_scopes.clear();
+        result.role_settings = RoleSettings::default();
+        return;
+    }
+    result.roles.retain(|r| !r.internal);
+    result.role_scopes.retain(|s| !s.internal);
+    let roles: BTreeSet<String> = result.roles.iter().map(|r| r.symbol.clone()).collect();
+    let scopes: BTreeSet<String> = result
+        .role_scopes
+        .iter()
+        .map(|s| s.symbol.clone())
+        .collect();
+    let permissions = result.permissions.clone();
+    let visible = |resource: &ShapeId, symbol: &str| {
+        permissions
+            .get(resource)
+            .is_some_and(|r| r.permission(symbol).is_some())
+    };
+    let principals: Option<BTreeSet<String>> =
+        result
+            .role_settings
+            .principals
+            .as_ref()
+            .and_then(|id| match result.shapes.get(id) {
+                Some(Shape::Enum(e)) => Some(e.values.iter().map(|v| v.name.clone()).collect()),
+                Some(Shape::IntEnum(e)) => Some(e.values.iter().map(|v| v.name.clone()).collect()),
+                _ => None,
+            });
+    if principals.is_none() {
+        result.role_settings.principals = None;
+    }
+    for role in &mut result.roles {
+        role.scopes.retain(|s| scopes.contains(s));
+        role.includes.retain(|r| roles.contains(r));
+        role.assigned_by.retain(|r| roles.contains(r));
+        role.holders
+            .retain(|h| principals.as_ref().is_some_and(|p| p.contains(h)));
+        role.grants.retain_mut(|grant| {
+            if !permissions.contains_key(&grant.resource) {
+                return false;
+            }
+            match &mut grant.permissions {
+                GrantedSet::Named(names) => {
+                    names.retain(|n| visible(&grant.resource, n));
+                    !names.is_empty()
+                }
+                GrantedSet::All { except } => {
+                    except.retain(|n| visible(&grant.resource, n));
+                    true
+                }
+            }
+        });
+        role.effective
+            .retain(|g| visible(&g.resource, &g.permission));
+        role.by_service
+            .retain(|g| visible(&g.resource, &g.permission));
+    }
+    for linked in [
+        &mut result.role_settings.role_types,
+        &mut result.role_settings.scope_types,
+    ] {
+        if linked
+            .as_ref()
+            .is_some_and(|id| !result.shapes.contains_key(id))
+        {
+            *linked = None;
+        }
     }
 }

@@ -1,0 +1,112 @@
+/// Notes, kept in workspaces.
+service Notes {
+    version "1"
+    protocol json
+    auth bearer
+    notFound Missing
+    resources [Workspace]
+    scopes [everywhere, workspace]
+    roles [viewer, editor, admin] custom
+}
+
+error Missing {
+    status 404
+    message: string
+}
+
+string WorkspaceId { length 1..40 }
+string NoteId { length 1..40 }
+
+resource Workspace {
+    id workspaceId: WorkspaceId
+    permission read = "workspace:read"
+    permission write = "workspace:write"
+    /// Everything in the workspace.
+    @notGrantable permission admin = "workspace:admin"
+    /// Hand out roles to others; the service's policy checks it.
+    @permissionOnly permission delegate = "workspace:delegate"
+}
+
+resource Note in Workspace {
+    id noteId: NoteId
+    permission read = "note:read"
+    permission write = "note:write"
+    permission share = "note:share"
+}
+
+/// The whole service: every workspace, those created later included.
+scope everywhere = "everywhere" on service
+/// One workspace and its notes.
+scope workspace = "workspace" on Workspace
+
+/// Read what a binding covers.
+role viewer = "viewer" {
+    at [everywhere, workspace]
+    grants Workspace [read]
+    grants Note [read]
+}
+
+/// Edit notes, but not share them.
+role editor = "editor" {
+    at [workspace]
+    includes [viewer]
+    grants Note [* except [share]]
+}
+
+/// Everything, everywhere.
+role admin = "admin" {
+    at [everywhere]
+    grants Workspace [*]
+    grants Note [*]
+}
+
+readonly operation GetWorkspace on Workspace {
+    http GET "/workspaces/{workspaceId}"
+    requires read
+    input {
+        $workspaceId
+    }
+}
+
+operation RenameWorkspace on Workspace {
+    http POST "/workspaces/{workspaceId}/rename"
+    requires write
+    input {
+        $workspaceId
+    }
+}
+
+operation CloseWorkspace on Workspace {
+    http POST "/workspaces/{workspaceId}/close"
+    requires admin
+    input {
+        $workspaceId
+    }
+}
+
+readonly operation GetNote on Note {
+    http GET "/workspaces/{workspaceId}/notes/{noteId}"
+    requires read
+    input {
+        $workspaceId
+        $noteId
+    }
+}
+
+operation EditNote on Note {
+    http POST "/workspaces/{workspaceId}/notes/{noteId}/edit"
+    requires write
+    input {
+        $workspaceId
+        $noteId
+    }
+}
+
+operation ShareNote on Note {
+    http POST "/workspaces/{workspaceId}/notes/{noteId}/share"
+    requires share
+    input {
+        $workspaceId
+        $noteId
+    }
+}

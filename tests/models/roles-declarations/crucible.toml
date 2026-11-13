@@ -1,0 +1,16 @@
+schema_version = 1
+
+# What the compiler refuses of a role or scope declaration besides the
+# §6 checks: a role at no scope, an include of no role, a value that is
+# not one, a scope on something that is not the service's resource,
+# `principals` naming no enum, entries and list names written twice,
+# an annotation that does not apply, and a declaration no service lists.
+[model]
+namespace = "example.shop"
+language = 1
+sources = ["."]
+imports = []
+
+[model.naming]
+input = "{Operation}Input"
+output = "{Operation}Output"

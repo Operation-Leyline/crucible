@@ -1,0 +1,13 @@
+schema_version = 1
+
+# `roles.unknown-scope`: a role binds at a name that is not one of the
+# service's scopes, declared nowhere or declared and not listed.
+[model]
+namespace = "example.shop"
+language = 1
+sources = ["."]
+imports = []
+
+[model.naming]
+input = "{Operation}Input"
+output = "{Operation}Output"

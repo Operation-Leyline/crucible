@@ -125,7 +125,7 @@ modifier    = "readonly" | "idempotent" | "anonymous" | "strict" | "internal"
 
 declaration = service | resource | operation | structure | union | enum
             | error | scalar | list | map | metadata | rule | template
-            | except | migration | protocol | conversion ;
+            | except | migration | protocol | conversion | scope | role ;
 
 annotation  = "@" ident [ "(" [ arg { "," arg } [ "," ] ] ")" ] ;
 arg         = [ ( ident ":" ) | ( string "=" ) ] value ;
@@ -135,9 +135,11 @@ field       = ( ident | string ) ":" value ;
 
 service     = "service" ident "{" { clause } "}" ;
                  (* clauses: version, title, protocol, auth, paginated(..),
-                    operations, resources, errors, notFound Error, errorDocs "URL" *)
+                    operations, resources, errors, notFound Error, errorDocs "URL",
+                    roles [..] [custom] [direct], scopes [..], principals Enum *)
 protocol    = "protocol" ident "{" { clause } "}" ;
-clause      = ident ( "(" args ")" | "{" { clause } "}" | value ) ;
+clause      = ident ( "(" args ")" | "{" { clause } "}" | value ) { flag } ;
+flag        = "custom" | "direct" ;                       (* after `roles [..]` only *)
 
 resource    = "resource" ident [ "in" ident ] "{" { resource_entry } "}" ;
                  (* modifier: internal. Annotations on a resource:
@@ -261,6 +263,18 @@ hook        = "by" [ "async" ] "hook" ;
 dotted      = ident { "." ident } ;
 
 conversion  = "conversion" ident "->" ident hook ;
+
+scope       = "scope" ident "=" string "on" ( ident [ "(" "*" ")" ] | "service" ) ;
+                 (* modifier: internal; annotations: @deprecated, @since *)
+role        = "role" ident "=" string "{" { role_entry } "}" ;
+                 (* modifier: internal; annotations: @deprecated, @since *)
+role_entry  = "at" "[" names "]"                          (* scopes; one entry, required *)
+            | "includes" "[" names "]"                    (* other roles *)
+            | [ doc ] "grants" ident "[" grant "]" [ "by" "service" ]
+            | "holders" "[" names "]"                     (* values of the principals enum *)
+            | "assignedBy" "[" names "]" ;                (* roles *)
+grant       = names | "*" [ "except" "[" names "]" ] ;
+names       = ident { "," ident } ;
 ```
 
 ## Checks
@@ -480,6 +494,91 @@ The IR carries them as `Service::permissions`, `Service::permission_types`,
 permission or alias, changing a value or an authorization name, and moving
 a permission to `internal` are breaking changes to the release guard;
 adding a requirement is reported as an authorization change.
+
+## Roles
+
+A role is a named set of permissions, bound at a scope; the model declares
+both once, and the catalogue reaches generated code, the reference and the
+compatibility checks from that one declaration ([roles.md](../roles.md)).
+Roles are a layer over permissions: `requires` is unchanged. Crucible stores
+no binding; the service does.
+
+```
+service Leyline {
+    principals PrincipalType
+    scopes [organization, allGraphs, graph]
+    roles [owner, graphReader, graphAdmin]
+}
+
+/// The organization itself.
+scope organization = "organization" on Organization
+/// Every graph in the organization, including graphs created later.
+scope allGraphs = "allGraphs" on Graph(*)
+scope graph = "graph" on Graph
+
+role owner = "owner" {
+    at [organization]
+    holders [USER]
+    assignedBy [owner]
+    grants Organization [*]
+}
+role graphReader = "graphReader" { at [allGraphs, graph]; grants Graph [read] }
+role graphAdmin = "graphAdmin" {
+    at [allGraphs, graph]
+    includes [graphReader]
+    grants Graph [* except [read]]
+    /// The history of a graph this binding covers, while the graph is live.
+    grants GraphHistory [read] by service
+}
+```
+
+- **Scopes.** `on R` is one instance of `R`, `on R(*)` every instance of
+  `R` under one parent (those created later too), `on service` the whole
+  service. The string is the scope's value in stored bindings, written as
+  a permission value is.
+- **Coverage.** A binding at a scope instance covers that resource and
+  everything beneath it along `in`. `R(*)` is covered by its parent and by
+  a `(*)` scope on `R`, never by a scope on one `R`.
+- **Grants.** `grants R [p, q]` names permissions of `R` by symbol;
+  `[*]` is every permission of `R` that is not `@permissionOnly` (nor an
+  alias), expanded when the model compiles; `[* except [..]]` leaves some
+  out. `includes [r]` adds what `r` grants; inclusion is acyclic. A grant
+  must be on a resource one of the role's scopes covers, included grants
+  too, or it is `roles.unreachable-grant`.
+- **`by service`** marks a grant the service decides through a relationship
+  the resources do not have; it is exempt from reachability, and its `///`
+  says when it applies.
+- **`holders`** names values of the service's `principals` enum: who may
+  hold the role (absent: anyone). **`assignedBy`** names the roles whose
+  holders alone may grant or revoke it (absent: whoever the binding
+  operation admits).
+- **The service lists them.** `roles [..]` and `scopes [..]` are the
+  catalogue and its order; a declaration no service lists is a warning.
+  `custom` says customers may define more roles at runtime; `direct` says
+  the service also grants permissions outside roles. Either turns off
+  `roles.ungranted`: a permission an operation requires that no role
+  grants.
+- **Tiers.** An `internal` role or scope is server-only. A public role may
+  grant internal permissions: clients see the role without those grants.
+  A public role names no internal scope, assigner or holder, and a public
+  scope is on no internal resource (`roles.internal`).
+- **`@roleTypes`** and **`@scopeTypes`** on a hand-written string enum
+  check it against the role (scope) values both ways, as `@permissionTypes`
+  checks resource types.
+
+The other refusals: `roles.include-cycle`, `roles.unknown-scope`,
+`roles.unknown-role`, `roles.unknown-holder`, `roles.unknown-assigner`,
+`roles.duplicate-value` (two roles, or two scopes, with one value),
+`roles.value`, `roles.grant` (a name the resource does not declare, an
+alias, an `except` naming what `*` leaves out), `roles.at` (a role with no
+scope), `roles.scope` (a scope on a resource the service does not reach),
+`roles.principals` and `roles.types`. One compile reports all of them.
+
+The IR carries the catalogue as `Service::roles`, `Service::role_scopes`
+and `Service::role_settings`; each role holds what it declares and its
+effective grants (`Role::effective`, `Role::by_service`), settled once by
+`crucible_ir::roles::settle`, which also answers coverage
+(`crucible_ir::roles::covers`).
 
 ## Error documentation
 

@@ -1,6 +1,10 @@
 # Roles
 
-**Status: proposed.** Nothing here is built. It reverses one non-goal of
+**Status: R1 implemented** (§10): the language and the IR, with the §6
+compile errors; its syntax is in [idl/reference.md](idl/reference.md#roles),
+and *As built* notes below mark where it differs from this design. R2 and
+later (generated code, `RoleAuthorizer`, outputs, compatibility) are
+proposed. It reverses one non-goal of
 [permissions.md](permissions.md) ("No roles in the model", §2) and narrows
 another ("Crucible does not decide"); §2 says how far. Leyline is the worked
 example (§8), because its role table has every awkward case we know of:
@@ -199,6 +203,21 @@ per-operation "granted by" analysis (§5), so no generator re-derives them.
 New fields carry `#[serde(default)]`: the IR is the release snapshot
 format.
 
+*As built (R1).* The tables are `Service::roles` and `Service::role_scopes`
+(`crucible_ir::ir::roles`), with `Service::role_settings` for `custom`,
+`direct`, `principals`, `@roleTypes` and `@scopeTypes`. The scopes are not
+`Service::scopes`: release snapshots reserve that name for the OAuth scopes
+Crucible removed, which `snapshot::read` refuses when non-empty. A role
+keeps what it declares (`scopes`, `includes`, `grants` as written, `holders`
+by enum value name, `assigned_by`) and two settled lists: `effective`, what
+the model grants, and `by_service`, what the service decides, disjoint (a
+permission granted outright through any path is not also the service's).
+Both are sorted by resource id, then the resource's declaration order.
+`crucible_ir::roles` settles them (`settle`) and answers coverage
+(`covers`, `reaches`); coverage is a function of the IR, not a stored table.
+Each role has one `at`, `includes`, `holders` and `assignedBy` entry; a
+second is an error rather than a second list.
+
 ### 4.4 Holders
 
 Some roles are for some kinds of principal only (Leyline: an API key never
@@ -288,6 +307,15 @@ read, or a write of the resource's other fields) writes
 compile error, `roles.unassigned`, so a new binding grant or revocation
 cannot skip the check.
 
+*As built (R1).* `assignedBy` takes a list of roles only; `assignedBy
+holders` is refused as not supported yet, since no consumer needs it and
+its predicate belongs with the generated code (R2). `assigns .. at`,
+`assigns none because ".."` and `roles.unassigned` were added to this
+design after R1 was built and are not part of it (tracked in #479): R1
+neither parses `assigns` nor refuses an operation that carries a
+`@roleTypes` value without it (Leyline's test model's `PutRoleBinding`
+does).
+
 ### 4.6 Grants the service decides
 
 Some grants follow a relationship the resource tree does not have.
@@ -331,6 +359,11 @@ custom role may contain is grantable; `@notGrantable` and internal ones are
 not. The reference lists the predefined roles and says custom roles exist.
 Leyline declares no custom roles.
 
+*As built (R1).* `roles [..] direct` says the service also grants
+permissions outside roles (§6's "grants permissions directly"), which the
+model had no way to say. Like `custom`, it turns off `roles.ungranted`, and
+it changes nothing else.
+
 ### 4.8 Tiers
 
 A role or scope may be `internal`, with the projection rules every other
@@ -342,6 +375,14 @@ internal can still say "granted by `graphReader` or `graphAdmin` on the
 graph" without naming the permission. This is the combination Leyline
 originally wanted (roles public, actions internal), and the public
 reference stops being empty either way.
+
+*As built (R1).* `crucible_ir::project` drops internal roles and scopes,
+and a public role's grants of permissions the client view lacks (internal
+ones, or any on an internal resource) from `grants`, `effective` and
+`by_service`; `includes` naming an internal role is dropped too, its grants
+already being in `effective`. Granted-by is R3: it has to be computed on
+the server view, before projection, since the client view no longer holds
+those grants.
 
 ### 4.9 Linking hand-written wire enums
 
@@ -399,6 +440,27 @@ Compile errors:
   that creates, puts, updates or deletes a resource with a role-typed
   property, declares neither `assigns` nor `assigns none because "…"`
   (§4.5).
+
+*As built (R1).* The checks run once, in `crucible_ir::validate::roles`,
+over the IR. Besides the codes above, which keep their meaning (all but
+`roles.unassigned`, which is not built: §4.5's note, #479), R1 refuses
+what the design left implicit: `roles.unknown-role` (`includes` names no
+role of the service), `roles.grant` (a grant names a name the resource does
+not declare, an alias, the same permission twice, nothing, or an `except`
+naming what `*` leaves out), `roles.value` (a role or scope value outside
+the permission value grammar), `roles.at` (a role with no scope),
+`roles.scope` (a scope on a resource the service does not reach),
+`roles.principals` (`principals` names no enum), and `roles.internal` (a
+public scope on an internal resource, or a public role at an internal
+scope, assigned by an internal role or held by an internal principal kind:
+the client view would drop the name and read as less restricted). A
+`@roleTypes` (`@scopeTypes`) enum is checked in both views: a public value
+names no internal role, and a public role's value is public.
+`roles.unreachable-grant` is reported at the grant for a role's own grant,
+and once per resource at the role for one it includes. `roles.ungranted` is
+reported at the permission's declaration, naming an operation that
+requires it; a `by service` grant counts as granting it. A role or scope no
+service lists is a warning.
 
 Compatibility, in `crucible-policy`, against the baseline:
 
@@ -629,7 +691,7 @@ a bundle its customers already store as a permission.
 
 ## 10. Implementation plan
 
-1. **R1, language and IR.** `scope`, `role`, the service's `roles`,
+1. **R1, language and IR** (built). `scope`, `role`, the service's `roles`,
    `scopes` and `principals`, `includes`, `grants .. by service`,
    `holders`, `assignedBy`, `custom`, `@roleTypes`, `@scopeTypes`;
    coverage and effective grants in `crucible-ir`; the §6 compile errors.

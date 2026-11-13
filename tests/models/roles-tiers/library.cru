@@ -1,0 +1,94 @@
+/// Books on shelves.
+service Library {
+    version "1"
+    protocol json
+    auth bearer
+    notFound Missing
+    resources [Shelf]
+    scopes [shelf, aisle, backOffice]
+    roles [reader, librarian, clerk, auditor] direct
+}
+
+error Missing {
+    status 404
+    message: string
+}
+
+string ShelfId { length 1..40 }
+
+resource Shelf {
+    id shelfId: ShelfId
+    permission read = "shelf:read"
+    permission stock = "shelf:stock"
+    /// Count what is on the shelf; staff only.
+    internal permission audit = "shelf:audit"
+    /// Granted to staff by the service's own records, never by a role.
+    permission weed = "shelf:weed"
+}
+
+/// One shelf.
+scope shelf = "shelf" on Shelf
+/// Every shelf.
+@since("2")
+scope aisle = "aisle" on Shelf(*)
+/// Staff areas: everything, for the service's own jobs.
+internal scope backOffice = "backOffice" on service
+
+/// Read a shelf. Clients see the role without its internal grant.
+role reader = "reader" {
+    at [shelf, aisle]
+    grants Shelf [read, audit]
+}
+
+/// Keep shelves stocked.
+@since("2")
+role librarian = "librarian" {
+    at [shelf, aisle]
+    includes [reader]
+    grants Shelf [stock]
+}
+
+/// Replaced by `librarian`.
+@deprecated(since: "2", message: "Use `librarian`.")
+role clerk = "clerk" {
+    at [aisle]
+    grants Shelf [stock]
+}
+
+/// The service's own audits.
+internal role auditor = "auditor" {
+    at [backOffice]
+    grants Shelf [audit]
+}
+
+readonly operation GetShelf on Shelf {
+    http GET "/shelves/{shelfId}"
+    requires read
+    input {
+        $shelfId
+    }
+}
+
+operation StockShelf on Shelf {
+    http POST "/shelves/{shelfId}/stock"
+    requires stock
+    input {
+        $shelfId
+    }
+}
+
+operation AuditShelf on Shelf {
+    http POST "/shelves/{shelfId}/audit"
+    requires audit
+    input {
+        $shelfId
+    }
+}
+
+operation WeedShelf on Shelf {
+    http POST "/shelves/{shelfId}/weed"
+    requires weed
+    input {
+        $shelfId
+    }
+}

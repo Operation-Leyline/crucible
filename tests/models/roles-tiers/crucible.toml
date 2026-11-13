@@ -1,0 +1,17 @@
+schema_version = 1
+
+# Roles and scopes in tiers (docs/roles.md §4.8): an `internal` scope and
+# role, a public role granting an internal permission (clients keep the
+# role, not the grant), `@deprecated` and `@since` on a role and a scope,
+# and `roles [..] direct`, which turns `roles.ungranted` off for a
+# permission the service grants outside roles. It compiles with no
+# diagnostic.
+[model]
+namespace = "example.library"
+language = 1
+sources = ["."]
+imports = []
+
+[model.naming]
+input = "{Operation}Input"
+output = "{Operation}Output"

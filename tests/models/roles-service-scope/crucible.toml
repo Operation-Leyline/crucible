@@ -1,0 +1,15 @@
+schema_version = 1
+
+# Roles with no resource scope (Auth0's shape) beside a resource scope:
+# `scope .. on service`, `grants R [*]` and `[* except [..]]` (which leave
+# out `@permissionOnly` and keep `@notGrantable`), and `roles [..] custom`,
+# which turns `roles.ungranted` off. It compiles with no diagnostic.
+[model]
+namespace = "example.notes"
+language = 1
+sources = ["."]
+imports = []
+
+[model.naming]
+input = "{Operation}Input"
+output = "{Operation}Output"

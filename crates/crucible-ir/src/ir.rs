@@ -23,6 +23,10 @@ pub use permissions::{
     Condition, Mode, Permission, PermissionTypes, Requirement, Requirements, ResourcePermissions,
     Tier,
 };
+pub mod roles;
+pub use roles::{
+    Grant, GrantedPermission, GrantedSet, Role, RoleSettings, Scope, ScopeTarget, ServiceGrant,
+};
 
 pub type Traits = BTreeMap<ShapeId, Value>;
 
@@ -86,6 +90,20 @@ pub struct Service {
     /// The `@permissionTypes` enum, if the service has one.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub permission_types: Option<PermissionTypes>,
+    /// The roles the service declares (docs/roles.md §4.2), in its `roles
+    /// [..]` order, which is the catalogue order. Empty for a service
+    /// without roles.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub roles: Vec<Role>,
+    /// The scopes its roles bind at (§4.1), in its `scopes [..]` order.
+    /// Not `scopes`: release snapshots reserve that name for the OAuth
+    /// scopes Crucible removed, which `snapshot::read` refuses.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub role_scopes: Vec<Scope>,
+    /// `custom`, `direct`, `principals` and the `@roleTypes` and
+    /// `@scopeTypes` enums.
+    #[serde(default, skip_serializing_if = "RoleSettings::is_default")]
+    pub role_settings: RoleSettings,
     /// The error the service answers a hidden or missing resource with,
     /// when it designates its own (`.cru` `notFound ResourceNotFoundException`
     /// in the service block): what check 17 attaches to every operation with
@@ -432,6 +450,14 @@ impl Service {
             .collect();
         all.sort_by(|(ra, a), (rb, b)| (&ra.name, &a.value).cmp(&(&rb.name, &b.value)));
         all
+    }
+    /// The role whose symbol is `symbol`.
+    pub fn role(&self, symbol: &str) -> Option<&Role> {
+        self.roles.iter().find(|r| r.symbol == symbol)
+    }
+    /// The scope whose symbol is `symbol`.
+    pub fn scope(&self, symbol: &str) -> Option<&Scope> {
+        self.role_scopes.iter().find(|s| s.symbol == symbol)
     }
     /// Emitters must check their own capabilities even for externally lowered IR.
     pub fn require_capabilities(

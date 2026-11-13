@@ -1,0 +1,17 @@
+schema_version = 1
+
+# Leyline's role catalogue, written out as docs/roles.md §8 has it: five
+# scopes over Organization, Graph and GraphHistory, fourteen roles with
+# inclusion, `*`, a `by service` grant, holders and owner-only assignment,
+# and the hand-written `Role` and `RoleScopeType` wire enums linked with
+# `@roleTypes` and `@scopeTypes`. Its permissions are internal, as
+# Leyline's are, and its roles public. It compiles with no diagnostic.
+[model]
+namespace = "example.leyline"
+language = 1
+sources = ["."]
+imports = []
+
+[model.naming]
+input = "{Operation}Input"
+output = "{Operation}Output"

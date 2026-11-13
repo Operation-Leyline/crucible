@@ -1,0 +1,14 @@
+schema_version = 1
+
+# `roles.unreachable-grant` (docs/roles.md §4.2): a grant no scope of the role
+# covers, written directly and reached through `includes`; a `by service`
+# grant is exempt.
+[model]
+namespace = "example.shop"
+language = 1
+sources = ["."]
+imports = []
+
+[model.naming]
+input = "{Operation}Input"
+output = "{Operation}Output"

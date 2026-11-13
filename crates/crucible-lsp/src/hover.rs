@@ -7,9 +7,9 @@
 
 use crucible_lang::ast::{
     Annotation, Arg, BindingValue, Body, BodyKind, Clause, ClauseValue, Condition, ConditionKind,
-    Constraint, ConstraintValue, Decl, EnumValue, ErrorEntry, Ident, Item, Key, Member, MemberKind,
-    MetaType, NumLit, OpEntry, PermissionEntry, Requirement, RequirementKind, ResourceEntry,
-    ResourceEntryKind, TypeRef, Value,
+    Constraint, ConstraintValue, Decl, EnumValue, ErrorEntry, GrantList, Ident, Item, Key, Member,
+    MemberKind, MetaType, NumLit, OpEntry, PermissionEntry, Requirement, RequirementKind,
+    ResourceEntry, ResourceEntryKind, RoleEntryKind, ScopeTarget, TypeRef, Value,
 };
 use crucible_lang::{Parsed, TokenKind};
 
@@ -37,6 +37,7 @@ const EXAMPLE: &[&str] = &["example"];
 /// Where a member may elide a resource entry: views and operation bodies.
 const MEMBERS: &[&str] = &["structure", "operation"];
 const TYPE: &[&str] = &["type"];
+const ROLE: &[&str] = &["role"];
 
 /// What each keyword, built-in type and built-in annotation means: the word
 /// (`@name` for an annotation), where it means that, an explanation and a
@@ -716,6 +717,78 @@ anonymous operation RecordStripeEvent {
         "@permissionTypes(exclude: [Webhook])\nenum ResourceType {\n    inbox = \"inbox\"\n}",
     ),
     (
+        "@roleTypes",
+        ANYWHERE,
+        "Checks the hand-written wire enum of role values against the service's roles, both ways: every value is a role's value, and every role has one.",
+        "@roleTypes\nenum Role {\n    OWNER = \"owner\"\n}",
+    ),
+    (
+        "@scopeTypes",
+        ANYWHERE,
+        "Checks the hand-written wire enum of scope values against the service's scopes, both ways: every value is a scope's value, and every scope has one.",
+        "@scopeTypes\nenum RoleScopeType {\n    ORGANIZATION = \"organization\"\n}",
+    ),
+    (
+        "scope",
+        DECLARATION,
+        "Declares a place a role binding is made at: one instance of a resource (`on Graph`), every instance of it under one parent (`on Graph(*)`), or the whole service (`on service`). The string is its value in stored bindings. A binding covers its resource and everything beneath it along `in`.",
+        "scope allGraphs = \"allGraphs\" on Graph(*)",
+    ),
+    (
+        "role",
+        DECLARATION,
+        "Declares a role: a named set of permissions, bound at the scopes `at` lists. The string is its value in stored bindings. `includes` adds other roles' grants, `grants R [..]` names permissions of a resource (`[*]` is every one that is not `@permissionOnly`), `holders` limits who may hold it and `assignedBy` who may grant it.",
+        "role graphWriter = \"graphWriter\" {\n    at [allGraphs, graph]\n    grants Graph [read, write]\n}",
+    ),
+    (
+        "at",
+        ROLE,
+        "The scopes a binding of the role may be made at. Each permission it grants must be on a resource one of them covers, unless the grant is `by service`.",
+        "role graphReader = \"graphReader\" {\n    at [allGraphs, graph]\n}",
+    ),
+    (
+        "includes",
+        ROLE,
+        "Other roles whose grants this one has too. Inclusion is acyclic.",
+        "role graphAdmin = \"graphAdmin\" {\n    includes [graphWriter]\n}",
+    ),
+    (
+        "grants",
+        ROLE,
+        "Permissions of one resource the role grants on every instance its binding covers: by symbol, `[*]` for every one that is not `@permissionOnly`, or `[* except [..]]`. `by service` marks a grant the service decides through a relationship the resources do not have; its `///` says when.",
+        "role graphAdmin = \"graphAdmin\" {\n    grants Graph [manage, create]\n    /// While the graph is live.\n    grants GraphHistory [read] by service\n}",
+    ),
+    (
+        "holders",
+        ROLE,
+        "The kinds of principal that may hold the role: values of the service's `principals` enum. Absent, every kind may.",
+        "role owner = \"owner\" {\n    holders [USER]\n}",
+    ),
+    (
+        "assignedBy",
+        ROLE,
+        "The roles whose holders alone may grant or revoke this one, at a scope covering the binding's. Absent, whoever the binding operation admits.",
+        "role owner = \"owner\" {\n    assignedBy [owner]\n}",
+    ),
+    (
+        "roles",
+        SERVICE,
+        "The service's roles, in catalogue order: the order a role picker shows. `custom` says customers may define more at runtime; `direct` that the service also grants permissions outside roles. Either turns off `roles.ungranted`.",
+        "service Leyline {\n    roles [owner, graphReader, graphWriter]\n}",
+    ),
+    (
+        "scopes",
+        SERVICE,
+        "The scopes the service's roles bind at, in catalogue order.",
+        "service Leyline {\n    scopes [organization, allGraphs, graph]\n}",
+    ),
+    (
+        "principals",
+        SERVICE,
+        "The enum of principal kinds whose values a role's `holders` names.",
+        "service Leyline {\n    principals PrincipalType\n}",
+    ),
+    (
         "@mutability",
         ANYWHERE,
         "Declares when a member that binds no resource property, such as a create-time parameter, can be written and read: `full`, `create`, `createAndRead`, `read` or `write`. Infrastructure generators read it.",
@@ -947,6 +1020,8 @@ fn context(parsed: &Parsed, start: u32) -> Option<&'static str> {
         Decl::Except(_) => "except",
         Decl::Migration(_) => "migration",
         Decl::Conversion(_) => "conversion",
+        Decl::Scope(_) => "scope",
+        Decl::Role(_) => "role",
     })
 }
 
@@ -1806,6 +1881,45 @@ fn render_item(item: &Item) -> String {
                 ""
             }
         ),
+        Decl::Scope(scope) => format!(
+            "scope {} = {} on {}",
+            scope.name.name,
+            quote(&scope.value.value),
+            match &scope.target {
+                ScopeTarget::Service(_) => "service".to_owned(),
+                ScopeTarget::Resource { name, every: true } => format!("{}(*)", name.name),
+                ScopeTarget::Resource { name, .. } => name.name.clone(),
+            }
+        ),
+        Decl::Role(role) => braces(
+            &format!("role {} = {}", role.name.name, quote(&role.value.value)),
+            role.entries
+                .iter()
+                .map(|entry| match &entry.kind {
+                    RoleEntryKind::At(list)
+                    | RoleEntryKind::Includes(list)
+                    | RoleEntryKind::Holders(list)
+                    | RoleEntryKind::AssignedBy(list) => {
+                        format!("{} [{}]", entry.keyword.name, names(list, ", "))
+                    }
+                    RoleEntryKind::Grants(grant) => format!(
+                        "grants {} [{}]{}",
+                        grant.resource.name,
+                        match &grant.permissions {
+                            GrantList::Named(list) => names(list, ", "),
+                            GrantList::All { except, .. } if except.is_empty() => "*".to_owned(),
+                            GrantList::All { except, .. } =>
+                                format!("* except [{}]", names(except, ", ")),
+                        },
+                        if grant.by_service.is_some() {
+                            " by service"
+                        } else {
+                            ""
+                        }
+                    ),
+                })
+                .collect(),
+        ),
     });
     out
 }
@@ -1956,7 +2070,14 @@ fn render_clause(clause: &Clause) -> String {
         ClauseValue::Block(inner) => {
             braces(&clause.name.name, inner.iter().map(render_clause).collect())
         }
-        ClauseValue::Value(value) => format!("{} {}", clause.name.name, render_value(value)),
+        ClauseValue::Value(value) => {
+            let mut out = format!("{} {}", clause.name.name, render_value(value));
+            for flag in &clause.flags {
+                out.push(' ');
+                out.push_str(&flag.name);
+            }
+            out
+        }
     }
 }
 
