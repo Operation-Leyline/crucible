@@ -580,8 +580,10 @@ roles have no shape of their own. Besides the design's rules:
   roles, so a release plan comparing those views sees one made internal as
   removed, as it does a permission.
 - *Declaring a break.* A migration step declares each: `remove role r` and
-  `remove scope s` (the release's value names nothing now; everything at it
-  is declared), and `narrow role r` (its value still names a role, which
+  `remove scope s` (the release's value names nothing now; its stored
+  bindings are declared, and its SDK constant when the symbol went too: a
+  symbol kept under another value sends that value, a `compatibility.sdk`
+  break the step does not declare), and `narrow role r` (its value still names a role, which
   narrowed; it declares `compatibility.role` there). A step that matches no
   change is an error, as for the other steps. They lower to nothing in the
   IR: roles are not versioned, so the server converts nothing for them, and

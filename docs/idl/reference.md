@@ -597,8 +597,11 @@ migration "2026-11-01" from "2026-09-04" {
 ```
 
 `remove role r` and `remove scope s` name a role or scope of the release
-whose value no role (scope) of the model has now, and declare everything
-at it. `narrow role r` names one whose value still names a role that grants
+whose value no role (scope) of the model has now, and declare that its
+stored bindings no longer match, with its SDK constant when the symbol is
+gone too. A symbol kept under a new value is a constant that now sends
+another value: the step does not declare that, an exception does.
+`narrow role r` names one whose value still names a role that grants
 less, binds at fewer scopes, admits fewer holders or leaves a grant to the
 service, and declares that. A role that includes a narrowed one narrows
 too and needs its own step. Roles are not versioned, so these steps convert

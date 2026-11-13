@@ -346,6 +346,17 @@ const MOVED: &[&str] = &["compatibility.member", "compatibility.required"];
 /// A move whose member's requiredness or default changed with it: the
 /// added member's `compatibility.required` stays undeclared.
 const MOVED_ONLY: &[&str] = &["compatibility.member"];
+/// A removed role or scope whose symbol went with it: its stored bindings
+/// and its constant.
+const REMOVED: &[&str] = &[
+    "compatibility.role",
+    "compatibility.scope",
+    "compatibility.sdk",
+];
+/// A removed role or scope whose symbol is kept under another value: its
+/// stored bindings only. The constant now sends the new value, an SDK
+/// break of its own.
+const REMOVED_VALUE: &[&str] = &["compatibility.role", "compatibility.scope"];
 /// A narrowed role: what its holders lose. A widening is a warning the
 /// step does not need to declare, and the role's SDK constant is untouched.
 const NARROW: &[&str] = &["compatibility.role"];
@@ -1303,10 +1314,18 @@ impl<'a> Context<'a> {
                         ),
                     ));
                 }
-                // Whatever else changed at it goes with it.
+                // The value's bindings go, and the constant with the
+                // symbol when it went too. A symbol kept under another
+                // value is a constant that now asks for something else,
+                // which the step does not declare.
+                let rules = if self.new.role(&name.name).is_some() {
+                    REMOVED_VALUE
+                } else {
+                    REMOVED
+                };
                 Ok(vec![Cover::exact(
                     crucible_policy::role_id(self.old, &name.name),
-                    ANY,
+                    rules,
                 )])
             }
             StepKind::RemoveScope(name) => {
@@ -1325,9 +1344,14 @@ impl<'a> Context<'a> {
                         ),
                     ));
                 }
+                let rules = if self.new.scope(&name.name).is_some() {
+                    REMOVED_VALUE
+                } else {
+                    REMOVED
+                };
                 Ok(vec![Cover::exact(
                     crucible_policy::role_id(self.old, &name.name),
-                    ANY,
+                    rules,
                 )])
             }
             StepKind::NarrowRole(name) => {

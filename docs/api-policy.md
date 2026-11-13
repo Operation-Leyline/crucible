@@ -315,7 +315,8 @@ a `move` whose old route was not the baseline's, an `add` of a value that
 already existed, or a `remove operation` of an operation that still exists
 is an error at that step. `remove role`, `remove scope` and `narrow role`
 declare the role findings ([below](#comparing-contracts)): a role or scope
-whose value names nothing now, and a role whose holders lose something (a
+whose value names nothing now (with its SDK constant only when the symbol
+went too, since a symbol kept under another value sends that value), and a role whose holders lose something (a
 `narrow role` whose role lost nothing is an error too). A role that
 includes a narrowed one narrows with it and needs its own step. A widening
 is a warning and needs none. A change of `internal`, or a scope moved to

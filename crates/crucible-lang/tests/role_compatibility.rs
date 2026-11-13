@@ -1133,6 +1133,57 @@ fn a_migration_declares_an_intended_narrowing() {
     assert!(!guard.has_errors(), "{:?}", undeclared(&guard));
 }
 
+/// The undeclared errors, as `rule shape`; warnings left out.
+fn undeclared_errors(guard: &Guard) -> Vec<String> {
+    guard
+        .undeclared
+        .iter()
+        .filter(|finding| finding.severity == Severity::Error)
+        .map(|finding| format!("{} {}", finding.rule, finding.shape))
+        .collect()
+}
+
+#[test]
+fn removing_a_value_does_not_declare_its_symbol_reused_for_another() {
+    // `graph`'s value goes, and the symbol now names a scope on every
+    // graph: a client's `graph` constant now asks for all of them.
+    let current = edit(
+        BASE,
+        "scope graph = \"graph\" on Graph\n",
+        "scope graph = \"everyGraph\" on Graph(*)\n",
+    );
+    let guard = run(
+        "remove-scope-reused",
+        BASE,
+        &current,
+        "migration \"v2\" from \"v1\" {\n    remove scope graph\n}\n",
+    );
+    assert_eq!(problems(&guard), Vec::<String>::new());
+    assert_eq!(
+        undeclared_errors(&guard),
+        ["compatibility.sdk example.atlas#graph"]
+    );
+    assert!(guard.has_errors());
+
+    // A role symbol kept for a new value: the same.
+    let current = edit(
+        BASE,
+        "role graphReader = \"graphReader\"",
+        "role graphReader = \"superReader\"",
+    );
+    let guard = run(
+        "remove-role-reused",
+        BASE,
+        &current,
+        "migration \"v2\" from \"v1\" {\n    remove role graphReader\n}\n",
+    );
+    assert_eq!(problems(&guard), Vec::<String>::new());
+    assert_eq!(
+        undeclared_errors(&guard),
+        ["compatibility.sdk example.atlas#graphReader"]
+    );
+}
+
 #[test]
 fn a_migration_declares_a_removed_role_or_scope() {
     let current = edit(BASE, ", graphAdmin]", "]");
