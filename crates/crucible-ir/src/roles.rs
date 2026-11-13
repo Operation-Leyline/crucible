@@ -68,6 +68,88 @@ pub fn covers(service: &Service, scope: &ScopeTarget, target: Target<'_>) -> boo
     }
 }
 
+/// The identifiers that name one instance of `resource`, root to leaf:
+/// `["organizationId", "graphId"]`. A resource that declares permissions
+/// says so itself; for one that does not, a resource beneath it that does
+/// names its prefix, and failing that each level of the `in` chain adds the
+/// identifiers its parent lacks, in name order.
+pub fn identifiers(service: &Service, resource: &ShapeId) -> Vec<String> {
+    if let Some(permissions) = service.permissions.get(resource) {
+        return permissions.identifiers.clone();
+    }
+    let count = service
+        .resources
+        .get(resource)
+        .map_or(0, |r| r.identifiers.len());
+    if let Some(beneath) = service
+        .permissions
+        .iter()
+        .find(|(id, p)| {
+            *id != resource && within(service, id, resource) && p.identifiers.len() >= count
+        })
+        .map(|(_, p)| p)
+    {
+        return beneath.identifiers[..count].to_vec();
+    }
+    let mut chain = vec![resource];
+    while let Some(up) = parent(service, chain[chain.len() - 1]) {
+        if chain.contains(&up) || chain.len() > service.resources.len() {
+            break;
+        }
+        chain.push(up);
+    }
+    let mut out: Vec<String> = Vec::new();
+    for id in chain.into_iter().rev() {
+        if let Some(r) = service.resources.get(id) {
+            for name in r.identifiers.keys() {
+                if !out.contains(name) {
+                    out.push(name.clone());
+                }
+            }
+        }
+    }
+    out
+}
+
+/// The identifiers a binding at an instance of `scope` carries, root to
+/// leaf: those of its resource (`on R`), of the resource's parent (`on
+/// R(*)`, none for a root resource), or none (`on service`).
+pub fn scope_identifiers(service: &Service, scope: &ScopeTarget) -> Vec<String> {
+    match scope {
+        ScopeTarget::Service => Vec::new(),
+        ScopeTarget::Instance(resource) => identifiers(service, resource),
+        ScopeTarget::Every(resource) => parent(service, resource)
+            .map(|p| identifiers(service, p))
+            .unwrap_or_default(),
+    }
+}
+
+/// The resources that declare permissions whose instances a binding at an
+/// instance of `scope` covers (`instances`), and those every instance of
+/// which under one parent it covers (`every`): [`covers`] tabulated over
+/// what a check can name, sorted by shape id. Generated code states it so
+/// the runtime decides coverage by a table read and an identifier-prefix
+/// comparison.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct Coverage<'s> {
+    pub instances: Vec<&'s ShapeId>,
+    pub every: Vec<&'s ShapeId>,
+}
+
+/// [`Coverage`] for `scope`.
+pub fn coverage<'s>(service: &'s Service, scope: &ScopeTarget) -> Coverage<'s> {
+    let mut out = Coverage::default();
+    for resource in service.permissions.keys() {
+        if covers(service, scope, Target::Instance(resource)) {
+            out.instances.push(resource);
+        }
+        if covers(service, scope, Target::Every(resource)) {
+            out.every.push(resource);
+        }
+    }
+    out
+}
+
 /// Whether one of `role`'s scopes (those the service declares) covers some
 /// instance of `resource`: what a grant on `resource` needs (§4.2,
 /// reachability). Covering one instance is enough: a scope that covers
@@ -437,6 +519,71 @@ mod tests {
         ));
         assert!(!covers(&service, &on, Target::Every(&id("History"))));
         assert!(!covers(&service, &on, Target::Instance(&id("History"))));
+    }
+
+    #[test]
+    fn coverage_tabulates_covers_over_resources_with_permissions() {
+        let service = leyline();
+        let table = |symbol: &str| {
+            let c = coverage(&service, &scope_on(&service, symbol));
+            let names = |ids: &[&ShapeId]| -> Vec<String> {
+                ids.iter().map(|id| id.name().to_owned()).collect()
+            };
+            (names(&c.instances), names(&c.every))
+        };
+        // Only Graph and History declare permissions here.
+        assert_eq!(
+            table("organization"),
+            (
+                vec!["Graph".into(), "History".into()],
+                vec!["Graph".into(), "History".into()]
+            )
+        );
+        assert_eq!(
+            table("allGraphs"),
+            (vec!["Graph".into()], vec!["Graph".into()])
+        );
+        assert_eq!(table("graph"), (vec!["Graph".into()], vec![]));
+        assert_eq!(
+            table("everything"),
+            (
+                vec!["Graph".into(), "History".into()],
+                vec!["Graph".into(), "History".into()]
+            )
+        );
+    }
+
+    #[test]
+    fn a_scope_instance_carries_its_resource_s_identifiers() {
+        let mut service = leyline();
+        let ids = |names: &[&str]| -> BTreeMap<String, ShapeId> {
+            names.iter().map(|n| ((*n).to_owned(), id("Id"))).collect()
+        };
+        for (r, names) in [
+            ("Organization", &["organizationId"][..]),
+            ("Graph", &["organizationId", "graphId"]),
+            ("Snapshot", &["organizationId", "graphId", "snapshotId"]),
+            ("History", &["organizationId", "historyId"]),
+        ] {
+            service.resources.get_mut(&id(r)).unwrap().identifiers = ids(names);
+        }
+        service
+            .permissions
+            .get_mut(&id("Graph"))
+            .unwrap()
+            .identifiers = vec!["organizationId".into(), "graphId".into()];
+        let on = |symbol: &str| scope_identifiers(&service, &scope_on(&service, symbol));
+        assert!(on("everything").is_empty());
+        // From Graph, which declares permissions beneath it.
+        assert_eq!(on("organization"), ["organizationId"]);
+        assert_eq!(on("graph"), ["organizationId", "graphId"]);
+        // Every graph in an organization: the organization's.
+        assert_eq!(on("allGraphs"), ["organizationId"]);
+        // Nothing beneath Snapshot declares permissions: by the chain.
+        assert_eq!(
+            identifiers(&service, &id("Snapshot")),
+            ["organizationId", "graphId", "snapshotId"]
+        );
     }
 
     #[test]

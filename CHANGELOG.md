@@ -27,6 +27,35 @@ version's section when it is prepared.
   and `*` expanded), and `crucible_ir::roles` answers coverage. A model
   without roles lowers to the same IR as before. Generators, the
   `RoleAuthorizer` and compatibility rules follow in later releases.
+- Roles R2 ([docs/roles.md](docs/roles.md) §7, [framework
+  guide](docs/framework.md#roles)): Rust server bindings of a model with
+  roles gain a `roles` module: `roles::CATALOGUE`, a `'static`
+  `RoleCatalogue` (each role's scopes, holders, assigners, description and
+  grants as `PermissionSet` bitsets; each scope's kind, identifiers and
+  coverage), and closed `Role` and `Scope` enums (`ALL`, `as_str`, `parse`,
+  `info`, and for roles `allows`, `scopes`, `holders`, `valid_for`,
+  `assigned_by`, `may_assign`, `description`); with `roles [..] custom`,
+  `PredefinedRole` is the closed enum and `Role` is `Predefined(..) |
+  Custom(String)`. A model without roles generates the same bindings as
+  before. The runtime's `roles` module states the catalogue types
+  (`RoleCatalogue`, `RoleInfo`, `ScopeInfo`, `ScopeKind`, `PermissionSet`,
+  `Grant`, `RoleBinding`) without a feature. The new `roles` feature (which
+  enables `permissions`) adds `RoleAuthorizer<B: BindingSource>`, the
+  framework's `Authorizer` for a model with roles (`decide_for`,
+  `explain_for`, `capabilities`); `BindingSource` (`bindings`, and
+  `principal`, `kind`, `decide_by_service`, `custom_role`, `refusal` and
+  `visible` with defaults; a `by service` grant is refused unless the source
+  answers it), `Root`, `ByService`, `Refusal`, `Unavailable` and
+  `Capabilities`; `ShadowAuthorizer` with `ShadowCounts`, which enforces one
+  Authorizer and logs and counts where another disagrees; and
+  `roles::conformance` (`Conformance`, `Subject`, `Report`, `Disagreement`),
+  which compares any Authorizer with `RoleAuthorizer` over every case of a
+  catalogue. Additive in `permissions`: the provided method
+  `Authorizer::decide_naming_bindings`, which `Permissions` now calls (its
+  default asks `decide`, so existing Authorizers are unchanged), and
+  `Decision::allowed_by`, the binding that allowed a check.
+  `crucible_ir::roles` gains `identifiers`, `scope_identifiers`, `coverage`
+  and `Coverage`.
 
 - Rust and TypeScript SDK guides (`README.md`, and `guide` in
   `crucible.sdks/1`) gain a `types` section after the first call: the

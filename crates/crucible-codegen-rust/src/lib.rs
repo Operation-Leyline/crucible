@@ -31,6 +31,7 @@ mod names;
 mod open;
 mod operations;
 mod permissions;
+mod roles;
 mod runtime_dependency;
 mod scaffold;
 mod server_api;
@@ -213,14 +214,18 @@ pub(crate) fn body(
     explorer_service: &Service,
     diagnostics: &mut Diagnostics,
 ) -> String {
-    body_with(
+    let mut body = body_with(
         service,
         options,
         explorer_service,
         &BTreeSet::new(),
         false,
         diagnostics,
-    )
+    );
+    // The current model's catalogue only: every release is authorized by
+    // the current role table, as by the current requirements.
+    body.push_str(&roles::module(service, diagnostics));
+    body
 }
 
 /// [`body`], for an older release with `lenient` the shapes that never

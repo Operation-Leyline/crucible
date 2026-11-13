@@ -45,6 +45,7 @@ weather-service/    service package
   - [Pagination tokens](#pagination-tokens)
   - [Idempotency tokens](#idempotency-tokens)
   - [Typed permissions](#typed-permissions)
+  - [Roles](#roles)
 - [Protocols](#protocols)
   - [Model-driven authentication](#model-driven-authentication)
 - [Errors](#errors)
@@ -1462,6 +1463,138 @@ served whatever asking again says, an Authorizer error included. Identifiers in 
 cut short: they come from the request. For moving a service's own checks
 onto the model with the log showing that both agree. Handler checks still
 refuse, since the handler asked for them.
+
+### Roles
+
+A model that declares roles and scopes ([roles.md](roles.md)) states its
+role catalogue in the server bindings, and `RoleAuthorizer` decides from
+it, so a service writes neither the role table nor the walk from a
+caller's bindings to a verdict. The catalogue types are always present;
+the authorizer and its adoption tools are behind the `roles` feature,
+which enables `permissions`:
+
+```toml
+crucible-server-runtime-rust = { git = "https://github.com/Operation-Leyline/crucible", tag = "v0.9.0", features = ["roles"] }
+```
+
+**What the bindings generate.** Beside `permissions`, the server module
+gains `roles` (only for a model with roles, so other bindings are
+unchanged):
+
+- `roles::CATALOGUE`, a `'static` `RoleCatalogue`: per role its value,
+  symbol, description, tier, the scopes it binds at, the `principals`
+  values that may hold it, the roles that assign it, and what it grants,
+  outright (`grants`) and `by service` (`by_service`), as `PermissionSet`
+  bitsets whose bit `i` is `Permission::ALL[i]`; per scope its kind
+  (`Service`, `Instance`, `Every`), resource, the identifiers an instance
+  carries, and the resources whose instances (`instances`) or wildcards
+  (`every`) a binding there covers, which is `crucible_ir::roles::covers`
+  tabulated at build time;
+- `Role` and `Scope`, closed enums in catalogue order with `ALL`,
+  `index`, `info`, `as_str` and `parse` (`None` for a value the model does
+  not declare, so an old binding grants nothing). `Role::allows(permission)`
+  answers `Grant::{Yes, ByService, No}`; `scopes`, `holders`,
+  `valid_for(scope, holder)`, `assigned_by`, `may_assign(assigners)` and
+  `description` read the table. With `roles [..] custom`, the closed enum
+  is `PredefinedRole` and `Role` is `Predefined(PredefinedRole) |
+  Custom(String)`.
+
+A `ListRoles` handler returns the catalogue (skipping `internal` roles for
+a public answer), and a service that keeps its own `Authorizer` reads the
+same tables.
+
+**`RoleAuthorizer`.** The service implements `BindingSource`, for what
+only it knows, and installs `RoleAuthorizer` as its Authorizer:
+
+```rust
+use crucible_server_runtime_rust::permissions::Permissions;
+use crucible_server_runtime_rust::roles::{BindingSource, ByService, RoleAuthorizer, RoleBinding, Root, Unavailable};
+
+impl BindingSource for Bindings {
+    type Principal = Caller;              // as authentication left it on the context
+
+    fn kind<'p>(&self, caller: &'p Caller) -> Option<&'p str> {
+        Some(caller.kind.as_str())        // a `principals` value: "user", "apiKey"
+    }
+
+    async fn bindings(&self, caller: &Caller, root: Root<'_>, fresh: bool)
+        -> Result<Arc<[RoleBinding]>, Unavailable> {
+        self.store.bindings(&caller.id, root, fresh).await.map_err(Unavailable::new)
+    }
+
+    // `grants GraphHistory [read] by service`: the history of a graph the
+    // binding names, while the graph is live.
+    async fn decide_by_service(&self, _: &Caller, grant: ByService<'_>) -> Result<bool, Unavailable> {
+        self.graphs.history_is_live(grant.binding, grant.target).await.map_err(Unavailable::new)
+    }
+}
+
+builder.interceptor(Permissions::new(RoleAuthorizer::new(&leyline::roles::CATALOGUE, bindings)))
+```
+
+For each batch of checks it asks `bindings` once per root (the tenant: the
+target's first identifier; `fresh` when the operation is not read-only),
+and per check:
+
+1. keeps the bindings under the root whose scope the catalogue knows and
+   whose role it knows and finds valid there for the principal's `kind`
+   (a custom role's permissions come from `custom_role`, asked once per id
+   per batch, and only grantable ones count); a role or scope the model
+   no longer has, or a role bound where it may not be (`owner` held by an
+   API key, an organization role at a graph scope), grants nothing;
+2. allows when a kept binding whose scope instance covers the target
+   grants the permission outright. Coverage is a table read (does the
+   scope cover the target's resource, one instance or `R(*)`) and an
+   identifier-prefix comparison (are the binding's identifiers the
+   target's first ones);
+3. otherwise asks `decide_by_service` for each kept binding whose role
+   grants the permission `by service`, whether or not it covers the
+   target, since the relationship it follows is the service's (a graph
+   binding reaching that graph's history, which is not beneath the
+   graph), and allows on the first yes. The default answers no, so a `by
+   service` grant is never a silent allow;
+4. otherwise refuses with `refusal(covered)`: by default Hidden when no
+   kept binding covers the target, Denied when one does.
+
+An `Unavailable` from any hook fails the batch, which `Permissions`
+answers with the internal error: no path allows on error. A request with
+no principal is a wiring error, answered the same way. The binding that
+allowed a check is named in the `AuthorizationRecord`
+(`Decision::allowed_by`), through `Authorizer::decide_naming_bindings`,
+which an Authorizer of the service's own may implement too. Without a
+request, `decide_for(principal, checks, fresh)` and `explain_for` answer
+the same, and `capabilities(principal, target, fresh)` answers "what may
+I do here?" for every permission of the target's resource with the same
+walk. A `filters` listing stays the service's (`BindingSource::visible`).
+
+Per check the work is a scan of the principal's bindings with a string
+comparison or two and a bitset test each; the bindings are an
+`Arc<[RoleBinding]>`, so a source that caches them hands them out without
+copying, and `BindingSource` is not boxed per call. `benches/roles` in
+`e2e/weather-service` measures a decision against Leyline's catalogue
+with a three-binding in-memory store: one allocation per decision (the
+verdict vector the `Authorizer` API returns), and on a shared development
+machine 120 to 250 ns per decision (one check allowed, denied or hidden,
+two checks, or a `by service` grant through the hook).
+
+**Moving onto it.** Two tools let a service that already has its own
+Authorizer prove `RoleAuthorizer` decides alike before switching:
+
+- `ShadowAuthorizer::new(primary, candidate)` enforces the primary's
+  answers, asks the candidate concurrently, and logs each check they answer
+  differently (`warn`, target `crucible_server_runtime_rust::roles::shadow`,
+  with the operation, permission, escaped resource and both verdicts);
+  `counts()` keeps the totals (`compared`, `disagreements`,
+  `candidate_failures`) for a metrics exporter. A candidate error is
+  counted, never returned.
+- `roles::conformance::Conformance::new(&CATALOGUE).run(&subject)`
+  enumerates every role (and one the model does not declare) × scope ×
+  `principals` kind × permission × target shape (each instance and
+  wildcard whose identifiers are `a` or `b`), seeds the service's
+  Authorizer (`Subject::seed`) with that one binding, and reports each
+  check it answers unlike `RoleAuthorizer`. `allowed_only()` ignores how a
+  refusal reads; `by_service(answer)` fixes the reference's hook, and a
+  disagreement a `by service` grant decides is flagged as such.
 
 ## Protocols
 

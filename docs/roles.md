@@ -1,9 +1,11 @@
 # Roles
 
-**Status: R1 implemented** (§10): the language and the IR, with the §6
-compile errors; its syntax is in [idl/reference.md](idl/reference.md#roles),
-and *As built* notes below mark where it differs from this design. R2 and
-later (generated code, `RoleAuthorizer`, outputs, compatibility) are
+**Status: R1 and R2 implemented** (§10): the language and the IR, with the
+§6 compile errors (its syntax is in
+[idl/reference.md](idl/reference.md#roles)); the generated Rust catalogue,
+`RoleAuthorizer`, `ShadowAuthorizer` and the conformance harness (see
+[framework.md](framework.md#roles)). *As built* notes below mark where they
+differ from this design. R3 and later (outputs, compatibility) are
 proposed. It reverses one non-goal of
 [permissions.md](permissions.md) ("No roles in the model", §2) and narrows
 another ("Crucible does not decide"); §2 says how far. Leyline is the worked
@@ -431,6 +433,28 @@ pub static CATALOGUE: RoleCatalogue = RoleCatalogue {
 and the hand-built `RoleSummary`, and a `ListRoles` handler returns the
 catalogue.
 
+*As built (R2).* The catalogue types live in the runtime's `roles` module
+(no feature), and the generated `roles` module states `CATALOGUE` with them.
+Roles and scopes refer to each other by index (`scopes: &[1, 2]`,
+`assigned_by: &[0]`), the generated enums' order; the bit order of every
+`PermissionSet` is `Permission::ALL`, recorded as `CATALOGUE.permissions`.
+`holders` are wire values of the `principals` enum (`"user"`), not the
+enum value names the IR keeps (`USER`), since that is what a service has
+at runtime. A scope states its coverage as two lists of `ResourceInfo`,
+the resources one instance of which (`instances`) and every instance of
+which under a parent (`every`) a binding there covers: `covers` from
+`crucible_ir::roles` tabulated over the resources that declare permissions
+(`crucible_ir::roles::coverage`), with the identifiers an instance carries
+(`scope_identifiers`); generation fails if those identifiers do not begin
+a covered resource's, since the runtime compares by prefix. `may_assign`
+is generated too (§4.5). The accessors are implemented once, on
+`RoleCatalogue`, and the generated methods forward to it. With `custom`,
+`PredefinedRole` is the closed enum. The catalogue also carries
+`principals`, `custom` and `grantable` (what a custom role may hold:
+neither internal nor `@notGrantable`). Only the current model's catalogue
+is generated; older API versions are authorized by it, as by the current
+requirements.
+
 ### 7.2 `RoleAuthorizer`
 
 The framework's `RoleAuthorizer<B>` implements `Authorizer` for any model
@@ -470,6 +494,42 @@ is no path that allows on error.
 The service keeps storage, caching, freshness, tenancy and its 403/404
 policy. A service may also keep its own `Authorizer` and use only §7.1.
 
+*As built (R2).* Behind the runtime's `roles` feature. `BindingSource` has
+an associated `Principal` (read from the request context by
+`principal`, by default its typed attribute) and `kind` (a `principals`
+value, for `holders`; `None` makes a role limited to some kinds grant
+nothing). Its methods are native `async fn`s, not boxed per call.
+`bindings` takes a `Root` (the target's first identifier, or `Service` for
+a target that names none) and answers `Arc<[RoleBinding]>`, so a cached
+answer is not copied; bindings the root does not hold are ignored, so
+returning more is harmless. A `RoleBinding` is the stored strings (role,
+scope, identifiers), parsed against the catalogue per check, so an
+unknown role or scope, or a count of identifiers that is not the scope's,
+grants nothing.
+
+`by service` grants are not filtered by coverage (corrected after review
+of this design): a graph binding never covers a `GraphHistory`, which is
+beside `Graph`, so filtering first would never ask the hook. After no
+covering binding grants the permission outright, `decide_by_service` is
+asked for every binding under the root whose role is valid at its scope
+and grants the permission `by service`, with a `ByService` naming the
+role, the binding (scope instance included), the permission and the
+target; the service decides whether the binding's relationship reaches
+the target. Its default answers no. `covered`, for `refusal`, counts only
+ordinary coverage by a binding whose role is valid where it is bound (a
+binding that grants nothing reveals nothing). `custom_role` is asked once
+per unknown role id per batch, and only grantable permissions of its
+answer count. A `filters` listing is `BindingSource::visible`, by default
+the internal error, since a listing's visibility (who may list an empty
+set) is policy; `capabilities` answers the per-instance question.
+
+The allowing binding reaches the `AuthorizationRecord` through an additive
+provided method, `Authorizer::decide_naming_bindings`, which `Permissions`
+calls (its default asks `decide` and names nothing), and the new
+`Decision::allowed_by`. `decide_for`, `explain_for` and `capabilities`
+answer without a request. A request with no principal is a wiring error
+(the internal error), never an allow.
+
 Per request the work is one binding read (the service may cache it), an
 identifier-prefix comparison per binding for coverage, and a bitset test
 per role. Nothing is built per request that the catalogue could hold.
@@ -494,6 +554,21 @@ validated four ways before a service enforces with it:
    (`graph_roles_are_hierarchical`,
    `roles_invalid_where_they_are_bound_grant_nothing` and the rest) run
    against its generated catalogue.
+
+*As built (R2).* The differential test (`crucible-server-runtime-rust`'s
+`tests/roles_differential.rs`) writes a random `.cru` model per case
+(resource trees, every permission tier and scope kind, inclusion, `*` and
+`except`, holders, assigners, `by service` grants, `custom`), compiles it,
+and compares `RoleAuthorizer` with an interpreter that reads only the IR
+(`covers`, a role's `effective` and `by_service` lists, positional
+identifiers); the catalogue it builds from the IR is checked equal to the
+generated Leyline one. The conformance harness is
+`crucible_server_runtime_rust::roles::conformance`: a `Subject` seeds the
+service's Authorizer with one binding (none, or each role, plus one the
+model lacks, at each scope with identifiers `a`), and every permission is
+checked on each instance and wildcard of its resource whose identifiers are
+`a` or `b`. Leyline's policy tests run against the catalogue generated from
+`tests/models/roles-leyline` (`tests/roles_leyline.rs`).
 
 **Clients.** A role registry beside the permission registry, in every
 language from one rule in `crucible-codegen-common`: `ROLES: { value,
@@ -586,9 +661,10 @@ a bundle its customers already store as a permission.
    coverage and effective grants in `crucible-ir`; the §6 compile errors.
    A package under `tests/models/` for each construct and each refusal,
    Leyline's catalogue among them.
-2. **R2, server.** The generated enums and catalogue of §7.1, golden
-   tests, and `RoleAuthorizer` with its differential tests (§7.2, §7.3).
-3. **R2b, adoption tools.** The conformance harness and
+2. **R2, server** (built). The generated enums and catalogue of §7.1,
+   golden tests, and `RoleAuthorizer` with its differential tests (§7.2,
+   §7.3).
+3. **R2b, adoption tools** (built, with R2). The conformance harness and
    `ShadowAuthorizer` (§7.3).
 4. **R3, outputs.** Granted-by in `crucible-ir`; `describe.json`, the
    Markdown and HTML references, OpenAPI, `llms.txt`; client registries.

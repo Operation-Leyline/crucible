@@ -224,6 +224,10 @@ non-exhaustive `Verdict` and `Visibility` complete that configuration.
 constructs them and services read them. Handlers use `require`, `decide`,
 `discharge`, `not_applicable`, `visible` and `not_found`.
 
+`Authorizer::decide_naming_bindings` is that later provided method's
+first kind: it defaults to `decide`, `Permissions` calls it, and what it
+names is `Decision::allowed_by`.
+
 Building a service enforces the wiring: every served operation that
 declares requirements must be covered by a `Permissions` at every API
 version that serves it, and `Permissions`
@@ -231,6 +235,29 @@ must be registered before `page_tokens::PageTokens` and
 `idempotency::Idempotency`. A service that breaks either rule gets a
 `BuildError::Prepare` naming it. See
 [typed permissions](framework.md#typed-permissions).
+
+## Roles
+
+The `roles` module is part of the documented surface. Its catalogue
+types are always present, since generated bindings state them:
+`RoleCatalogue` (with `find_role`, `find_scope`, `bit`, `allows`,
+`valid_for`, `may_assign`, `bits_of`, `permission_set`, `permissions_in`),
+`RoleInfo`, `ScopeInfo` (`covers`), `ScopeKind`, `PermissionSet`, `Grant`
+and the non-exhaustive `RoleBinding` (`new`). Generated bindings own the
+`'static` catalogue and the `Role` and `Scope` enums over it; services read
+them. A field added to `RoleCatalogue`, `RoleInfo` or `ScopeInfo` is a
+generated-code change (regenerate with the runtime), not a break.
+
+Behind the `roles` feature (which enables `permissions`),
+`BindingSource` is the interface a service implements: `bindings`, with
+`principal`, `kind`, `decide_by_service`, `custom_role`, `refusal` and
+`visible` provided (a later provided method keeps a default).
+`RoleAuthorizer::{new, catalogue, source, decide_for, explain_for,
+capabilities}`, `ShadowAuthorizer::{new, counts}`, `ShadowCounts`,
+`Refusal`, `Unavailable` and `roles::conformance::{Conformance, Subject,
+UNKNOWN_ROLE}` complete it; `Root`, `ByService`, `Capabilities`, `Report`
+and `Disagreement` are non-exhaustive: the runtime constructs them and
+services read them.
 
 ## Reading generated metadata
 

@@ -82,6 +82,7 @@ pub mod permissions;
 mod prepare;
 pub mod protocol;
 mod resolution;
+pub mod roles;
 mod scoped;
 pub mod service;
 pub mod versioning;
@@ -131,6 +132,12 @@ pub mod __generated {
     pub use crate::explorer::description::description as explorer_description;
     pub use crate::generated_operations_builder::OperationsBuilder;
     pub use crate::permissions::not_found as permission_not_found;
+    /// The role catalogue types generated `roles` modules state.
+    pub mod roles {
+        pub use crate::roles::{
+            Grant, PermissionSet, RoleCatalogue, RoleInfo, ScopeInfo, ScopeKind,
+        };
+    }
     pub use crate::{
         Context, Crucible, MissingOperations, ModelledError, Operation, OperationInfo, Operations,
         Result, ServiceInfo, WithContext, mcp, operations, versioning,

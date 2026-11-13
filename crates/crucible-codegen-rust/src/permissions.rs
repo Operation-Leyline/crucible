@@ -92,6 +92,37 @@ fn info_path(service: &Service, resource: &ShapeId, symbol: &str) -> Option<Stri
     Some(format!("permissions::{}", names.permission_static(primary)))
 }
 
+/// Every primary in `Permission::ALL` order (by resource shape id, then
+/// declaration order) with the path of its `PermissionInfo` static from a
+/// sibling of the `permissions` module: the bit order of the role
+/// catalogue's permission sets.
+pub(crate) fn primaries_in_order(service: &Service) -> Vec<(&ShapeId, &Permission, String)> {
+    names(service)
+        .into_iter()
+        .flat_map(|(id, names)| {
+            names
+                .primaries()
+                .map(|p| {
+                    (
+                        id,
+                        p,
+                        format!("super::permissions::{}", names.permission_static(p)),
+                    )
+                })
+                .collect::<Vec<_>>()
+        })
+        .collect()
+}
+
+/// The path of `resource`'s `ResourceInfo` static from a sibling of the
+/// `permissions` module.
+pub(crate) fn resource_info_path(service: &Service, resource: &ShapeId) -> String {
+    format!(
+        "super::permissions::{}",
+        constant(service.name_of(resource))
+    )
+}
+
 /// `pub mod permissions { .. }`, or nothing for a model without
 /// permissions.
 pub(crate) fn module(service: &Service, diagnostics: &mut Diagnostics) -> String {

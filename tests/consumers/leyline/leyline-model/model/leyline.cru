@@ -1,11 +1,54 @@
 /// A graph service in the shape of a real Crucible consumer: bearer
-/// authentication, modelled refusals and validation errors.
+/// authentication, modelled refusals and validation errors, and roles that
+/// grant typed permissions on graphs.
 service Leyline {
     version "1"
     protocol json
     auth bearer
-    operations [Health, GetGraph, CreateGraph]
+    resources [Graph]
+    operations [Health]
     errors [AccessDeniedException, ValidationException, InternalServerException, UnknownOperationException]
+    principals PrincipalKind
+    scopes [allGraphs, graph]
+    roles [graphReader, graphWriter, graphAdmin]
+}
+
+/// Who a credential belongs to.
+enum PrincipalKind {
+    USER = "user"
+    API_KEY = "apiKey"
+}
+
+/// One graph.
+resource Graph {
+    id graphId: string
+    permission read = "graph:read"
+    permission write = "graph:write"
+    permission create = "graph:create"
+    permission manage = "graph:manage"
+}
+
+/// Every graph, those created later included.
+scope allGraphs = "allGraphs" on Graph(*)
+/// One graph.
+scope graph = "graph" on Graph
+
+/// Read graphs.
+role graphReader = "graphReader" { at [allGraphs, graph]; grants Graph [read] }
+
+/// Read, create and write graphs.
+role graphWriter = "graphWriter" {
+    at [allGraphs, graph]
+    includes [graphReader]
+    grants Graph [write, create]
+}
+
+/// Everything on graphs; people only.
+role graphAdmin = "graphAdmin" {
+    at [allGraphs, graph]
+    holders [USER]
+    includes [graphWriter]
+    grants Graph [manage]
 }
 
 /// Liveness probe; public.
@@ -17,10 +60,11 @@ readonly public operation Health {
 }
 
 /// Read a graph.
-readonly operation GetGraph {
+readonly operation GetGraph on Graph {
     http GET "/graphs/{graphId}" -> 200
+    requires read
     input {
-        graphId: string
+        $graphId
     }
     output {
         graphId: string
@@ -30,8 +74,9 @@ readonly operation GetGraph {
 }
 
 /// Create a graph.
-operation CreateGraph {
+operation CreateGraph on Graph collection {
     http POST "/graphs" -> 201
+    requires create on Graph(*)
     input {
         name: string { length 1..64 }
     }
