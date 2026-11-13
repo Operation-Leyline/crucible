@@ -438,7 +438,7 @@ fn the_client_view_keeps_a_catalogue_enum_a_sender_signed_operation_also_uses() 
             return text;
         }
         format!(
-            "{text}\n/// A principal the identity provider created.\n@sender(\"Identity Provider\", signature: signature)\npublic operation RecordPrincipal {{\n    http POST \"/principal-events\"\n    input {{\n        @header(\"Idp-Signature\")\n        signature: string\n        kind: PrincipalType\n    }}\n}}\n"
+            "{text}\n/// A principal the identity provider created.\n@sender(\"Identity Provider\", signature: signature)\nanonymous operation RecordPrincipal {{\n    http POST \"/principal-events\"\n    input {{\n        @header(\"Idp-Signature\")\n        signature: string\n        kind: PrincipalType\n    }}\n}}\n"
         )
     });
     assert!(compiled.diagnostics.is_empty(), "{}", compiled.render());
@@ -514,7 +514,7 @@ internal role keeper = "keeper" {
 }
 
 @sender("Identity Provider", signature: signature)
-public operation RecordKind {
+anonymous operation RecordKind {
     http POST "/kinds"
     input {
         @header("Idp-Signature")
