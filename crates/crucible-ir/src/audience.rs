@@ -199,6 +199,21 @@ fn external(service: &Service, lenient: bool) -> Result<Service, Diagnostics> {
             .retain(|id| operations.contains(id));
         resource.bindings.retain(|id, _| operations.contains(id));
     }
+    // A public role catalogue names enums no operation may use: the
+    // `principals` enum its holders are values of, and the linked wire
+    // enums. They are part of this audience's contract as the catalogue
+    // is, so they are roots too; otherwise a holder restriction would lose
+    // its enum and read as none (docs/roles.md §4.4).
+    let public_roles = !service.internal && service.roles.iter().any(|r| !r.internal);
+    let public_scopes = !service.internal && service.role_scopes.iter().any(|s| !s.internal);
+    let settings = &service.role_settings;
+    let catalogue = [
+        (public_roles, &settings.principals),
+        (public_roles, &settings.role_types),
+        (public_scopes, &settings.scope_types),
+    ]
+    .into_iter()
+    .filter_map(|(public, id)| id.as_ref().filter(|_| public));
     let mut reached = BTreeSet::new();
     let mut pending: Vec<_> = result
         .operations
@@ -206,6 +221,7 @@ fn external(service: &Service, lenient: bool) -> Result<Service, Diagnostics> {
         .flat_map(|op| op.input.iter().chain(&op.output).chain(&op.errors))
         .chain(&result.errors)
         .chain(&result.export_roots)
+        .chain(catalogue)
         .cloned()
         .collect();
     // A resource names its entries' types without reaching them: the

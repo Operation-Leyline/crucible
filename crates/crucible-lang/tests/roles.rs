@@ -404,6 +404,49 @@ fn clients_see_public_roles_without_their_internal_grants() {
     assert_eq!(role(&server, "graphAdmin").effective.len(), 4);
 }
 
+/// Leyline with `PrincipalType` named only by `principals` and `holders`:
+/// no operation's input or output uses it.
+fn principals_only_in_the_catalogue(text: &str) -> String {
+    text.replace("    holders: PrincipalTypes\n", "")
+        .replace("list PrincipalTypes: PrincipalType\n", "")
+}
+
+#[test]
+fn clients_keep_holders_whose_enum_only_the_catalogue_names() {
+    let compiled = compiled_with("roles-leyline", principals_only_in_the_catalogue);
+    assert!(compiled.diagnostics.is_empty(), "{}", compiled.render());
+    let full = compiled.service.unwrap();
+    let client = project(&full, Audience::External).unwrap();
+    let principals = id("example.leyline", "PrincipalType");
+    assert_eq!(client.role_settings.principals, Some(principals.clone()));
+    assert!(client.shape(&principals).is_some());
+    // Not `[]`, which would read as "anyone may hold it".
+    assert_eq!(role(&client, "owner").holders, ["USER"]);
+    assert_eq!(role(&client, "auditAdmin").holders, ["USER"]);
+}
+
+/// An internal principals enum cannot restrict a public role: refused, so
+/// the projection never has to drop a holder.
+#[test]
+fn a_public_role_is_not_held_by_an_internal_principal_enum() {
+    let compiled = compiled_with("roles-leyline", |text| {
+        principals_only_in_the_catalogue(text)
+            .replace("enum PrincipalType {", "internal enum PrincipalType {")
+    });
+    let refused: Vec<String> = errors_of(&compiled)
+        .into_iter()
+        .filter(|e| e.starts_with("roles.internal"))
+        .collect();
+    assert_exactly(
+        &refused,
+        &[
+            "roles.internal: `owner` is held by `USER`, which is internal, and is part of the external contract: a client would read the role as held by every kind; make the role `internal`, or the value public",
+            "roles.internal: `accessAdmin` is held by `USER`, which is internal, and is part of the external contract: a client would read the role as held by every kind; make the role `internal`, or the value public",
+            "roles.internal: `auditAdmin` is held by `USER`, which is internal, and is part of the external contract: a client would read the role as held by every kind; make the role `internal`, or the value public",
+        ],
+    );
+}
+
 #[test]
 fn a_catalogue_round_trips_through_a_release_snapshot() {
     let service = leyline();
