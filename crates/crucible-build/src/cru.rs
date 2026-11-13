@@ -99,28 +99,13 @@ pub(crate) fn export(path: &Path, service: Option<&ShapeId>, out: &Path) -> Resu
     }
     std::fs::write(out, text)
         .map_err(|error| format!("cannot export the model to {}: {error}", out.display()))?;
-    // The build script watches this file, so a file newer than the stamp Cargo
-    // keeps beside OUT_DIR would rerun the script that wrote it. Cap it at
-    // that stamp: never newer than this run, yet newer than any consumer's
-    // last run, so a downstream watcher still sees every model change.
-    let invocation = std::env::var_os("OUT_DIR")
-        .map(std::path::PathBuf::from)
-        .and_then(|dir| dir.parent().map(|parent| parent.join("invoked.timestamp")))
-        .and_then(|stamp| std::fs::metadata(stamp).and_then(|m| m.modified()).ok());
-    let Some(invocation) = invocation else {
-        return Ok(());
-    };
-    let modified = std::fs::metadata(out)
-        .and_then(|meta| meta.modified())
-        .map_err(|error| format!("cannot date the export {}: {error}", out.display()))?;
-    if modified <= invocation {
-        return Ok(());
+    // The build script watches this file, so it is dated at the run's start:
+    // never newer than this run, yet newer than any consumer's last run, so
+    // a downstream watcher still sees every model change.
+    match crate::cargo_invocation::started() {
+        Some(started) => crate::cargo_invocation::settle(out, started),
+        None => Ok(()),
     }
-    std::fs::File::options()
-        .write(true)
-        .open(out)
-        .and_then(|file| file.set_modified(invocation))
-        .map_err(|error| format!("cannot date the export {}: {error}", out.display()))
 }
 
 /// The compatibility guard (decision 47d) and the older releases the

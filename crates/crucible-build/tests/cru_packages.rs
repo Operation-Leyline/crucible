@@ -183,6 +183,31 @@ metadata note on operation: string
     assert_eq!(after, later);
 }
 
+/// Cargo 1.100's build directory keeps the stamp in the run's own
+/// directory beside OUT_DIR, not directly beside it.
+#[test]
+fn a_cru_package_export_is_dated_at_the_stamp_of_cargo_1_100s_layout() {
+    let root = package(WEATHER);
+    let stamp = std::time::SystemTime::now() - std::time::Duration::from_secs(3600);
+    fs::create_dir_all(root.path().join("run")).unwrap();
+    fs::File::create(root.path().join("run/invoked.timestamp"))
+        .unwrap()
+        .set_modified(stamp)
+        .unwrap();
+    let output = run(
+        root.path(),
+        "cru_package_export_probe",
+        "CRUCIBLE_CRU_EXPORT_PROBE",
+    );
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stdout)
+    );
+    let exported = root.path().join("out/export/model.json");
+    assert_eq!(fs::metadata(&exported).unwrap().modified().unwrap(), stamp);
+}
+
 fn set_stamp(root: &Path, time: std::time::SystemTime) {
     let file = fs::File::create(root.join("invoked.timestamp")).unwrap();
     file.set_modified(time).unwrap();
