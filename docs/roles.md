@@ -224,8 +224,20 @@ the operation that writes bindings, plus one fact per role:
 `assignedBy [owner]` says only a holder of `owner`, at a scope covering
 the binding's scope, may grant or revoke this role. Absent means whoever
 the binding operation's own `requires` admits. Generated code exposes
-`Role::assigned_by()` and `may_assign(assigner_roles, role)`; the binding
-operation's handler calls it. Kubernetes' escalation rule ("you may grant
+`Role::assigned_by()` and
+
+```rust
+may_assign(assigner: &[Binding], role: Role, at: &ScopeRef) -> bool
+```
+
+which holds when one of the assigner's bindings carries an assigning role,
+is valid for its scope, and its scope instance covers `at`, the scope
+instance of the binding being written. A role is not enough on its own:
+an `owner` binding on organization A must not admit a binding in
+organization B. The binding operation's handler calls it with the
+assigner's bindings (the same `BindingSource::bindings` read) and the
+proposed binding's scope; `RoleAuthorizer` offers it as
+`may_assign(principal, role, at)`, which does that read. Kubernetes' escalation rule ("you may grant
 only what you hold") is the same shape with a different function, so a
 service that wants it writes `assignedBy holders` (decision 6).
 
