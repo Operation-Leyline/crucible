@@ -20,7 +20,7 @@ use crucible_server_runtime_rust::roles::{
     self, BindingSource, ByService, RoleBinding, Root, ScopeRef, ServiceGrants, Unavailable,
 };
 use crucible_server_runtime_rust::{
-    Context, Crucible, Error, Interceptor, JsonProtocol, Operations, Result,
+    Context, Crucible, Error, Interceptor, JsonProtocol, Operations,
 };
 use serde_json::{Value, json};
 
@@ -98,7 +98,7 @@ impl BindingSource for Store {
         principal: &String,
         _: Root<'_>,
         _: bool,
-    ) -> std::result::Result<Arc<[RoleBinding]>, Unavailable> {
+    ) -> Result<Arc<[RoleBinding]>, Unavailable> {
         Ok(self
             .0
             .lock()
@@ -116,7 +116,7 @@ impl ServiceGrants for Store {
         &self,
         _: &String,
         grant: ByService<'_>,
-    ) -> std::result::Result<bool, Unavailable> {
+    ) -> Result<bool, Unavailable> {
         let graph = grant.binding.identifiers.get(1);
         let history = grant
             .target
@@ -129,7 +129,7 @@ impl ServiceGrants for Store {
         &self,
         _: &String,
         grant: ByService<'_>,
-    ) -> std::result::Result<Visibility, Unavailable> {
+    ) -> Result<Visibility, Unavailable> {
         Ok(match grant.binding.identifiers.get(1) {
             Some(graph) => Visibility::Only([format!("history-of-{graph}")].into()),
             None => Visibility::All,
