@@ -230,17 +230,106 @@ fn a_listing_filters_and_handler_obligations_bind_nothing() {
 #[test]
 fn none_and_pending_lower_to_their_own_variants() {
     let (service, _) = pigeon();
-    assert_eq!(requirements(&service, "GetMe"), &Requirements::None);
+    assert_eq!(requirements(&service, "GetMe"), &Requirements::NONE);
     assert_eq!(
         requirements(&service, "ListMyWorkspaces"),
-        &Requirements::None
+        &Requirements::NONE
     );
     assert_eq!(
         requirements(&service, "GetUsage"),
         &Requirements::Pending {
-            reason: "guard::allow in get_usage.rs until the workspace folder moves".into()
+            reason: "guard::allow in get_usage.rs until the workspace folder moves".into(),
+            docs: None,
         }
     );
+}
+
+/// The `///` on `requires none` and `requires pending` is the reader-facing
+/// reason (docs/permissions.md §4.7): lowering keeps it.
+#[test]
+fn none_and_pending_keep_their_documentation() {
+    let source = BASE.replace(
+        "    requires none\n}",
+        "    /// Each store is checked by the handler.\n    requires none\n}",
+    ) + r#"
+operation Audit {
+    http POST "/audit"
+    /// Until the audit module moves.
+    requires pending because "guard::allow in audit.rs"
+}
+"#;
+    let source = source.replace("operations [Ping]", "operations [Ping, Audit]");
+    let compiled = compile(&small(&source), None);
+    let service = compiled.service.expect("service");
+    let requirements = |name: &str| {
+        service
+            .operations
+            .iter()
+            .find(|op| op.id.name() == name)
+            .unwrap()
+            .requirements
+            .clone()
+    };
+    assert_eq!(
+        requirements("Ping"),
+        Requirements::None {
+            docs: Some("Each store is checked by the handler.".into()),
+            filtered: false,
+        }
+    );
+    assert_eq!(
+        requirements("Audit"),
+        Requirements::Pending {
+            reason: "guard::allow in audit.rs".into(),
+            docs: Some("Until the audit module moves.".into()),
+        }
+    );
+    // The client audience keeps `requires none`'s reason and drops the
+    // pending one with the rest of the pending declaration.
+    let external = crucible_ir::project(&service, crucible_ir::Audience::External).unwrap();
+    let projected = |name: &str| {
+        external
+            .operations
+            .iter()
+            .find(|op| op.id.name() == name)
+            .unwrap()
+            .requirements
+            .clone()
+    };
+    assert_eq!(projected("Ping"), requirements("Ping"));
+    assert_eq!(projected("Audit"), Requirements::Undeclared);
+
+    // A release snapshot keeps the documentation and reads it back; the
+    // package contract, which carries no documentation, drops it.
+    let text = crucible_ir::snapshot::write(&service, "test");
+    assert!(
+        text.contains(r#""docs": "Each store is checked by the handler.""#),
+        "{text}"
+    );
+    let read = crucible_ir::snapshot::read(&text).unwrap();
+    for (read, op) in read.operations.iter().zip(&service.operations) {
+        assert_eq!(read.requirements, op.requirements);
+    }
+    let contract = crucible_ir::snapshot::write_contract(&service, "test");
+    assert!(!contract.contains("Each store is checked"), "{contract}");
+    assert!(!contract.contains("audit module"), "{contract}");
+    let read = crucible_ir::snapshot::read(&contract).unwrap();
+    let ping = read.operations.iter().find(|op| op.id.name() == "Ping");
+    assert_eq!(ping.unwrap().requirements, Requirements::NONE);
+}
+
+/// A release frozen before `requires none` carried documentation spelled it
+/// `"None"`: an undocumented one still writes that, and the old text reads.
+#[test]
+fn an_undocumented_none_keeps_its_snapshot_form() {
+    let compiled = compile(&small(BASE), None);
+    let service = compiled.service.expect("service");
+    let text = crucible_ir::snapshot::write(&service, "test");
+    assert!(text.contains(r#""requirements": "None""#), "{text}");
+    let read = crucible_ir::snapshot::read(&text).unwrap();
+    let ping = read.operations.iter().find(|op| op.id.name() == "Ping");
+    assert_eq!(ping.unwrap().requirements, Requirements::NONE);
+    assert_eq!(text, crucible_ir::snapshot::write(&read, "test"));
 }
 
 #[test]
@@ -451,9 +540,14 @@ fn the_client_audience_leaves_out_internal_filters_without_a_partial_list() {
         panic!("a list, not a partial one")
     };
     assert_eq!(clauses.len(), 1);
+    // Nothing refuses the caller, but the answer is narrowed: the client
+    // is told so, without the internal permission being named.
     assert_eq!(
         requirements("filters read on Order", "ListOrders"),
-        Requirements::None
+        Requirements::None {
+            docs: None,
+            filtered: true,
+        }
     );
     // A refusing clause left out still counts: GetOrder requires only the
     // internal `read`.
@@ -849,7 +943,7 @@ fn check(extra: &str) -> Vec<String> {
         .lines()
         .filter_map(|line| {
             let rest = line
-                .trim_start_matches("public ")
+                .trim_start_matches("anonymous ")
                 .trim_start_matches("readonly ");
             let name = rest.strip_prefix("operation ")?.strip_suffix(" {")?;
             (!name.contains(' ')).then_some(name)
@@ -901,11 +995,11 @@ fn once_a_permission_exists_every_authenticated_operation_says_something() {
         &found,
         "error: permissions.undeclared: `Other` says nothing about authorization",
     );
-    // A public operation is exempt, and may not declare anything.
-    assert!(check("public readonly operation Open {\n    http GET \"/open\"\n}").is_empty());
+    // An anonymous operation is exempt, and may not declare anything.
+    assert!(check("anonymous readonly operation Open {\n    http GET \"/open\"\n}").is_empty());
     expect(
-        &check("public readonly operation Open {\n    http GET \"/open\"\n    requires none\n}"),
-        "error: permissions.public: `Open` is public",
+        &check("anonymous readonly operation Open {\n    http GET \"/open\"\n    requires none\n}"),
+        "error: permissions.anonymous: `Open` is anonymous",
     );
 }
 
@@ -1697,22 +1791,22 @@ fn authorization_name_and_permission_annotations_need_permissions() {
 }
 
 #[test]
-fn a_public_operation_is_marked_public_in_the_ir() {
+fn an_anonymous_operation_is_marked_anonymous_in_the_ir() {
     let compiled = compile(
         &small(&BASE.replace(
             "readonly operation Ping {\n    http GET \"/ping\"\n    requires none\n}",
-            "public readonly operation Ping {\n    http GET \"/ping\"\n}",
+            "anonymous readonly operation Ping {\n    http GET \"/ping\"\n}",
         )),
         None,
     );
     let service = compiled.service.expect("compiles");
-    let public: Vec<(&str, bool)> = service
+    let anonymous: Vec<(&str, bool)> = service
         .operations
         .iter()
-        .map(|op| (op.id.name(), op.public))
+        .map(|op| (op.id.name(), op.anonymous))
         .collect();
-    assert!(public.contains(&("Ping", true)), "{public:?}");
-    assert!(public.contains(&("GetOrder", false)), "{public:?}");
+    assert!(anonymous.contains(&("Ping", true)), "{anonymous:?}");
+    assert!(anonymous.contains(&("GetOrder", false)), "{anonymous:?}");
 }
 
 /// The guard of `current` against `base` frozen as release "1".
@@ -2420,12 +2514,12 @@ fn a_condition_that_does_not_lower_leaves_its_clause_out() {
             .all(|m| !m.starts_with("permissions.undeclared")),
         "{messages:#?}"
     );
-    // A public operation is still told it declares requirements.
+    // An anonymous operation is still told it declares requirements.
     expect(
         &check(
-            "public readonly operation Open {\n    http GET \"/open\"\n    requires read on Store(*) when nothing == [1]\n}",
+            "anonymous readonly operation Open {\n    http GET \"/open\"\n    requires read on Store(*) when nothing == [1]\n}",
         ),
-        "error: permissions.public: `Open` is public",
+        "error: permissions.anonymous: `Open` is anonymous",
     );
 }
 

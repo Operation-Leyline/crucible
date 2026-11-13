@@ -4,7 +4,8 @@
     {
       "level": 0,
       "operations": [
-        "example.leyline#GetOrganization"
+        "example.leyline#GetOrganization",
+        "example.leyline#ListOrganizations"
       ],
       "resource": "example.leyline#Organization"
     },
@@ -12,6 +13,7 @@
       "level": 1,
       "operations": [
         "example.leyline#ArchiveGraph",
+        "example.leyline#BatchGetGraphs",
         "example.leyline#CreateGraph",
         "example.leyline#ExecuteQuery",
         "example.leyline#GetGraph",
@@ -255,6 +257,237 @@
       "status": 200,
       "summary": "A mixed list: clients see the public clause and that more are internal, never the internal clause or the internal member its when reads.",
       "uri": "/orgs/{organizationId}/graphs/{graphId}/archive"
+    },
+    "example.leyline#BatchGetGraphs": {
+      "auth": [
+        "crucible.api#httpBearerAuth"
+      ],
+      "documentation": {
+        "html": "<p>Reads several graphs at once.</p>\n",
+        "markdown": "Reads several graphs at once.",
+        "text": "Reads several graphs at once."
+      },
+      "errors": [
+        "crucible.errors#ValidationException",
+        "crucible.errors#InternalServerException"
+      ],
+      "examples": [],
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
+      "id": "example.leyline#BatchGetGraphs",
+      "idempotencyToken": null,
+      "idempotent": false,
+      "input": "example.leyline#BatchGetGraphsInput",
+      "inputSchema": {
+        "$defs": {
+          "crucible.api.String": {
+            "type": "string"
+          },
+          "example.leyline.BatchGetGraphsInput": {
+            "properties": {
+              "names": {
+                "$ref": "#/$defs/example.leyline.Names"
+              },
+              "organizationId": {
+                "pattern": "^org_[a-z0-9]+$",
+                "type": "string"
+              }
+            },
+            "required": [
+              "organizationId",
+              "names"
+            ],
+            "type": "object"
+          },
+          "example.leyline.Names": {
+            "items": {
+              "$ref": "#/$defs/crucible.api.String"
+            },
+            "type": "array",
+            "uniqueItems": false
+          },
+          "example.leyline.OrganizationId": {
+            "pattern": "^org_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "properties": {
+          "names": {
+            "$ref": "#/$defs/example.leyline.Names"
+          },
+          "organizationId": {
+            "pattern": "^org_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "organizationId",
+          "names"
+        ],
+        "type": "object"
+      },
+      "internal": false,
+      "method": "POST",
+      "name": "BatchGetGraphs",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "output": "example.leyline#BatchGetGraphsOutput",
+      "outputSchema": {
+        "$defs": {
+          "crucible.api.String": {
+            "type": "string"
+          },
+          "example.leyline.BatchGetGraphsOutput": {
+            "properties": {
+              "names": {
+                "$ref": "#/$defs/example.leyline.Names"
+              }
+            },
+            "required": [
+              "names"
+            ],
+            "type": "object"
+          },
+          "example.leyline.Names": {
+            "items": {
+              "$ref": "#/$defs/crucible.api.String"
+            },
+            "type": "array",
+            "uniqueItems": false
+          }
+        },
+        "properties": {
+          "names": {
+            "$ref": "#/$defs/example.leyline.Names"
+          }
+        },
+        "required": [
+          "names"
+        ],
+        "type": "object"
+      },
+      "pagination": null,
+      "protocol": "crucibleJson",
+      "protocolHeaders": {
+        "Content-Type": "application/json"
+      },
+      "readonly": false,
+      "request": {
+        "body": [
+          "names"
+        ],
+        "headerEncodings": {},
+        "headers": [],
+        "labels": [
+          "organizationId"
+        ],
+        "payload": null,
+        "query": [],
+        "timestampFormats": {}
+      },
+      "requirementDocumentation": [
+        {
+          "html": "<p>Requires no permission.</p>\n",
+          "markdown": "Requires no permission.",
+          "text": "Requires no permission."
+        },
+        {
+          "html": "<p>Each graph requires <code>graph:read</code>. The response reports inaccessible or missing graphs as item-level failures.</p>\n",
+          "markdown": "Each graph requires `graph:read`. The response reports inaccessible or missing graphs as item-level failures.",
+          "text": "Each graph requires graph:read. The response reports inaccessible or missing graphs as item-level failures."
+        }
+      ],
+      "requirementSentences": [
+        "Requires no permission.",
+        "Each graph requires `graph:read`. The response reports inaccessible or missing graphs as item-level failures."
+      ],
+      "requirements": {
+        "documentation": "Each graph requires `graph:read`. The response reports inaccessible\nor missing graphs as item-level failures.",
+        "kind": "none",
+        "renderedDocumentation": {
+          "html": "<p>Each graph requires <code>graph:read</code>. The response reports inaccessible\nor missing graphs as item-level failures.</p>\n",
+          "markdown": "Each graph requires `graph:read`. The response reports inaccessible\nor missing graphs as item-level failures.",
+          "text": "Each graph requires graph:read. The response reports inaccessible\nor missing graphs as item-level failures."
+        }
+      },
+      "resources": [
+        "example.leyline#Graph"
+      ],
+      "response": {
+        "body": [
+          "names"
+        ],
+        "headerEncodings": {},
+        "headers": [],
+        "labels": [],
+        "payload": null,
+        "query": [],
+        "timestampFormats": {}
+      },
+      "responseProtocolHeaders": {
+        "Content-Type": "application/json"
+      },
+      "sample": {
+        "fallbacks": [],
+        "generated": true,
+        "input": {
+          "body": {
+            "names": [
+              "names"
+            ]
+          },
+          "headers": {
+            "Content-Type": "application/json"
+          },
+          "labels": {
+            "organizationId": "org_organizationid"
+          },
+          "method": "POST",
+          "payload": null,
+          "query": [],
+          "uri": "/orgs/org_organizationid/graphs/batch-get"
+        },
+        "minimalInput": {
+          "body": {
+            "names": [
+              "names"
+            ]
+          },
+          "headers": {
+            "Content-Type": "application/json"
+          },
+          "labels": {
+            "organizationId": "org_organizationid"
+          },
+          "method": "POST",
+          "payload": null,
+          "query": [],
+          "uri": "/orgs/org_organizationid/graphs/batch-get"
+        },
+        "output": {
+          "body": {
+            "names": [
+              "names"
+            ]
+          },
+          "headers": {
+            "Content-Type": "application/json"
+          },
+          "labels": {},
+          "payload": null,
+          "query": []
+        }
+      },
+      "status": 200,
+      "summary": "Reads several graphs at once.",
+      "uri": "/orgs/{organizationId}/graphs/batch-get"
     },
     "example.leyline#CreateGraph": {
       "auth": [
@@ -1691,6 +1924,167 @@
       "summary": "Returns only the graphs the caller may read.",
       "uri": "/orgs/{organizationId}/graphs"
     },
+    "example.leyline#ListOrganizations": {
+      "auth": [
+        "crucible.api#httpBearerAuth"
+      ],
+      "documentation": {
+        "html": "<p>The organizations the caller belongs to.</p>\n",
+        "markdown": "The organizations the caller belongs to.",
+        "text": "The organizations the caller belongs to."
+      },
+      "errors": [
+        "crucible.errors#ValidationException",
+        "crucible.errors#InternalServerException"
+      ],
+      "examples": [],
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
+      "id": "example.leyline#ListOrganizations",
+      "idempotencyToken": null,
+      "idempotent": false,
+      "input": null,
+      "inputSchema": {
+        "$defs": {},
+        "maxProperties": 0,
+        "type": "object"
+      },
+      "internal": false,
+      "method": "GET",
+      "name": "ListOrganizations",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "output": "example.leyline#ListOrganizationsOutput",
+      "outputSchema": {
+        "$defs": {
+          "crucible.api.String": {
+            "type": "string"
+          },
+          "example.leyline.ListOrganizationsOutput": {
+            "properties": {
+              "names": {
+                "$ref": "#/$defs/example.leyline.Names"
+              }
+            },
+            "required": [
+              "names"
+            ],
+            "type": "object"
+          },
+          "example.leyline.Names": {
+            "items": {
+              "$ref": "#/$defs/crucible.api.String"
+            },
+            "type": "array",
+            "uniqueItems": false
+          }
+        },
+        "properties": {
+          "names": {
+            "$ref": "#/$defs/example.leyline.Names"
+          }
+        },
+        "required": [
+          "names"
+        ],
+        "type": "object"
+      },
+      "pagination": null,
+      "protocol": "crucibleJson",
+      "protocolHeaders": {},
+      "readonly": true,
+      "request": {
+        "body": [],
+        "headerEncodings": {},
+        "headers": [],
+        "labels": [],
+        "payload": null,
+        "query": [],
+        "timestampFormats": {}
+      },
+      "requirementDocumentation": [
+        {
+          "html": "<p>Requires no permission.</p>\n",
+          "markdown": "Requires no permission.",
+          "text": "Requires no permission."
+        },
+        {
+          "html": "<p>Returns only what the caller may see.</p>\n",
+          "markdown": "Returns only what the caller may see.",
+          "text": "Returns only what the caller may see."
+        }
+      ],
+      "requirementSentences": [
+        "Requires no permission.",
+        "Returns only what the caller may see."
+      ],
+      "requirements": {
+        "filtered": true,
+        "kind": "none"
+      },
+      "resources": [
+        "example.leyline#Organization"
+      ],
+      "response": {
+        "body": [
+          "names"
+        ],
+        "headerEncodings": {},
+        "headers": [],
+        "labels": [],
+        "payload": null,
+        "query": [],
+        "timestampFormats": {}
+      },
+      "responseProtocolHeaders": {
+        "Content-Type": "application/json"
+      },
+      "sample": {
+        "fallbacks": [],
+        "generated": true,
+        "input": {
+          "body": null,
+          "headers": {},
+          "labels": {},
+          "method": "GET",
+          "payload": null,
+          "query": [],
+          "uri": "/orgs"
+        },
+        "minimalInput": {
+          "body": null,
+          "headers": {},
+          "labels": {},
+          "method": "GET",
+          "payload": null,
+          "query": [],
+          "uri": "/orgs"
+        },
+        "output": {
+          "body": {
+            "names": [
+              "names"
+            ]
+          },
+          "headers": {
+            "Content-Type": "application/json"
+          },
+          "labels": {},
+          "payload": null,
+          "query": []
+        }
+      },
+      "status": 200,
+      "summary": "The organizations the caller belongs to.",
+      "uri": "/orgs"
+    },
     "example.leyline#RestoreBackup": {
       "auth": [
         "crucible.api#httpBearerAuth"
@@ -2195,6 +2589,7 @@
       },
       "operations": [
         "example.leyline#ArchiveGraph",
+        "example.leyline#BatchGetGraphs",
         "example.leyline#CreateGraph",
         "example.leyline#ExecuteQuery",
         "example.leyline#GetGraph",
@@ -2269,7 +2664,8 @@
         "unstable": false
       },
       "operations": [
-        "example.leyline#GetOrganization"
+        "example.leyline#GetOrganization",
+        "example.leyline#ListOrganizations"
       ],
       "properties": {},
       "resources": [
@@ -3511,6 +3907,171 @@
       "sensitive": false,
       "summary": ""
     },
+    "example.leyline#BatchGetGraphsInput": {
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "error": null,
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
+      "id": "example.leyline#BatchGetGraphsInput",
+      "internal": false,
+      "kind": "structure",
+      "members": [
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": "^org_[a-z0-9]+$",
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "organizationId",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": false,
+          "required": true,
+          "sensitive": false,
+          "target": "example.leyline#OrganizationId",
+          "targetName": "OrganizationId",
+          "targetType": "string",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "organizationId"
+        },
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "names",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": false,
+          "required": true,
+          "sensitive": false,
+          "target": "example.leyline#Names",
+          "targetName": "Names",
+          "targetType": "list",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "names"
+        }
+      ],
+      "name": "BatchGetGraphsInput",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false,
+      "summary": ""
+    },
+    "example.leyline#BatchGetGraphsOutput": {
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "error": null,
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
+      "id": "example.leyline#BatchGetGraphsOutput",
+      "internal": false,
+      "kind": "structure",
+      "members": [
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "names",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": false,
+          "required": true,
+          "sensitive": false,
+          "target": "example.leyline#Names",
+          "targetName": "Names",
+          "targetType": "list",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "names"
+        }
+      ],
+      "name": "BatchGetGraphsOutput",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false,
+      "summary": ""
+    },
     "example.leyline#CreateGraphInput": {
       "documentation": {
         "html": "",
@@ -4581,6 +5142,70 @@
         }
       ],
       "name": "ListGraphsOutput",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false,
+      "summary": ""
+    },
+    "example.leyline#ListOrganizationsOutput": {
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "error": null,
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
+      "id": "example.leyline#ListOrganizationsOutput",
+      "internal": false,
+      "kind": "structure",
+      "members": [
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "names",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": false,
+          "required": true,
+          "sensitive": false,
+          "target": "example.leyline#Names",
+          "targetName": "Names",
+          "targetType": "list",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "names"
+        }
+      ],
+      "name": "ListOrganizationsOutput",
       "notes": {
         "deprecated": null,
         "externalDocs": {},

@@ -345,7 +345,7 @@ pub struct Call<'a> {
     pub output: Option<&'a Structure>,
     pub error: Option<ErrorCase<'a>>,
     pub pages: Option<Pages<'a>>,
-    /// The call sends a bearer token: the operation is not public and
+    /// The call sends a bearer token: the operation is not anonymous and
     /// names a bearer scheme.
     pub bearer: bool,
 }
@@ -437,7 +437,7 @@ pub fn call<'a>(service: &'a Service, operation: &'a Operation) -> Call<'a> {
             .filter(|path| !path.contains('.'))
             .and_then(|name| output?.members.iter().find(|m| m.name == name)),
     });
-    let bearer = !operation.public && operation.auth.iter().any(|s| service.is_bearer(s));
+    let bearer = !operation.anonymous && operation.auth.iter().any(|s| service.is_bearer(s));
     Call {
         operation,
         input,
@@ -562,14 +562,14 @@ struct Added {
 
 fn added(service: &Service, middleware: &[crate::surface::Middleware]) -> Vec<Added> {
     let mut headers = Vec::new();
-    // Only operations that name a bearer scheme send the token: a public
+    // Only operations that name a bearer scheme send the token: an anonymous
     // one never asks for it.
-    let bearer = |op: &Operation| !op.public && op.auth.iter().any(|s| service.is_bearer(s));
+    let bearer = |op: &Operation| !op.anonymous && op.auth.iter().any(|s| service.is_bearer(s));
     if service.operations.iter().any(bearer) {
         headers.push(Added {
             header: "Authorization: Bearer <token>".to_owned(),
             note: (!service.operations.iter().all(bearer))
-                .then(|| "except on public operations".to_owned()),
+                .then(|| "except on anonymous operations".to_owned()),
             sent_on: None,
         });
     }

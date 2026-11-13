@@ -114,7 +114,7 @@ impl Operation for CurrentOperation {
     const INFO: &'static OperationInfo = &CURRENT;
     const AUTH_SCHEMES: Option<&'static [AuthScheme]> = Some(&[]);
     const REQUIREMENTS: Requirements = Requirements::None;
-    const PUBLIC: bool = true;
+    const ANONYMOUS: bool = true;
     const OUTPUT_FROM_JSON: Option<OutputFromJson<CurrentOutput>> = Some(serde_json::from_value);
     type Input = CurrentInput;
     type Output = CurrentOutput;
@@ -160,7 +160,7 @@ async fn identity_decodes_current_types_without_either_intermediate_json_seriali
     assert_eq!(identity.info.status, 201);
     assert!(identity.metadata.bearer_auth);
     assert_eq!(*identity.metadata.requirements, Requirements::None);
-    assert!(identity.metadata.public);
+    assert!(identity.metadata.anonymous);
     assert!(identity.metadata.replays_output);
     assert!(identity.output_from_json.is_some());
     assert_eq!(identity.body_limit, Some(128));

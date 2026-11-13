@@ -14,6 +14,10 @@ class LeylineClient(SyncClient):
         "A mixed list: clients see the public clause and that more are internal,\nnever the internal clause or the internal member its when reads.\n\nRequires graph:write on the graph; and further permissions internal to the service.\n\nInput: ArchiveGraphInput.\n\nReturns: ArchiveGraphOutput.\n\nModeled errors: NotFoundException, ValidationException, InternalServerException. Transport, timeout and decoding failures can also occur."
         return self._call("ArchiveGraph", input, **options)
 
+    def batch_get_graphs(self, input: m.BatchGetGraphsInput, **options: Any) -> m.BatchGetGraphsOutput:
+        "Reads several graphs at once.\n\nRequires no permission. Each graph requires graph:read. The response reports inaccessible or missing graphs as item-level failures.\n\nInput: BatchGetGraphsInput.\n\nReturns: BatchGetGraphsOutput.\n\nModeled errors: ValidationException, InternalServerException. Transport, timeout and decoding failures can also occur."
+        return self._call("BatchGetGraphs", input, **options)
+
     def create_graph(self, input: m.CreateGraphInput, **options: Any) -> m.CreateGraphOutput:
         "Call CreateGraph.\n\nRequires graph:write on every graph in the organization.\n\nInput: CreateGraphInput.\n\nReturns: CreateGraphOutput.\n\nModeled errors: NotFoundException, ValidationException, InternalServerException. Transport, timeout and decoding failures can also occur."
         return self._call("CreateGraph", input, **options)
@@ -42,6 +46,10 @@ class LeylineClient(SyncClient):
         "Returns only the graphs the caller may read.\n\nReturns only the graphs the caller holds graph:read on in the organization.\n\nInput: ListGraphsInput.\n\nReturns: ListGraphsOutput.\n\nModeled errors: NotFoundException, ValidationException, InternalServerException. Transport, timeout and decoding failures can also occur.\n\nThis operation is safe to retry under the configured retry policy."
         return self._call("ListGraphs", input, **options)
 
+    def list_organizations(self, **options: Any) -> m.ListOrganizationsOutput:
+        "The organizations the caller belongs to.\n\nRequires no permission. Returns only what the caller may see.\n\nInput: no modeled input.\n\nReturns: ListOrganizationsOutput.\n\nModeled errors: ValidationException, InternalServerException. Transport, timeout and decoding failures can also occur.\n\nThis operation is safe to retry under the configured retry policy."
+        return self._call("ListOrganizations", None, **options)
+
     def restore_backup(self, input: m.RestoreBackupInput, **options: Any) -> m.RestoreBackupOutput:
         "Call RestoreBackup.\n\nInput: RestoreBackupInput.\n\nReturns: RestoreBackupOutput.\n\nModeled errors: ValidationException, InternalServerException. Transport, timeout and decoding failures can also occur."
         return self._call("RestoreBackup", input, **options)
@@ -59,6 +67,10 @@ class AsyncLeylineClient(AsyncClientBase):
     async def archive_graph(self, input: m.ArchiveGraphInput, **options: Any) -> m.ArchiveGraphOutput:
         "A mixed list: clients see the public clause and that more are internal,\nnever the internal clause or the internal member its when reads.\n\nRequires graph:write on the graph; and further permissions internal to the service.\n\nInput: ArchiveGraphInput.\n\nReturns: ArchiveGraphOutput.\n\nModeled errors: NotFoundException, ValidationException, InternalServerException. Transport, timeout and decoding failures can also occur."
         return await self._call("ArchiveGraph", input, **options)
+
+    async def batch_get_graphs(self, input: m.BatchGetGraphsInput, **options: Any) -> m.BatchGetGraphsOutput:
+        "Reads several graphs at once.\n\nRequires no permission. Each graph requires graph:read. The response reports inaccessible or missing graphs as item-level failures.\n\nInput: BatchGetGraphsInput.\n\nReturns: BatchGetGraphsOutput.\n\nModeled errors: ValidationException, InternalServerException. Transport, timeout and decoding failures can also occur."
+        return await self._call("BatchGetGraphs", input, **options)
 
     async def create_graph(self, input: m.CreateGraphInput, **options: Any) -> m.CreateGraphOutput:
         "Call CreateGraph.\n\nRequires graph:write on every graph in the organization.\n\nInput: CreateGraphInput.\n\nReturns: CreateGraphOutput.\n\nModeled errors: NotFoundException, ValidationException, InternalServerException. Transport, timeout and decoding failures can also occur."
@@ -87,6 +99,10 @@ class AsyncLeylineClient(AsyncClientBase):
     async def list_graphs(self, input: m.ListGraphsInput, **options: Any) -> m.ListGraphsOutput:
         "Returns only the graphs the caller may read.\n\nReturns only the graphs the caller holds graph:read on in the organization.\n\nInput: ListGraphsInput.\n\nReturns: ListGraphsOutput.\n\nModeled errors: NotFoundException, ValidationException, InternalServerException. Transport, timeout and decoding failures can also occur.\n\nThis operation is safe to retry under the configured retry policy."
         return await self._call("ListGraphs", input, **options)
+
+    async def list_organizations(self, **options: Any) -> m.ListOrganizationsOutput:
+        "The organizations the caller belongs to.\n\nRequires no permission. Returns only what the caller may see.\n\nInput: no modeled input.\n\nReturns: ListOrganizationsOutput.\n\nModeled errors: ValidationException, InternalServerException. Transport, timeout and decoding failures can also occur.\n\nThis operation is safe to retry under the configured retry policy."
+        return await self._call("ListOrganizations", None, **options)
 
     async def restore_backup(self, input: m.RestoreBackupInput, **options: Any) -> m.RestoreBackupOutput:
         "Call RestoreBackup.\n\nInput: RestoreBackupInput.\n\nReturns: RestoreBackupOutput.\n\nModeled errors: ValidationException, InternalServerException. Transport, timeout and decoding failures can also occur."

@@ -244,14 +244,56 @@ the operation that writes bindings, plus one fact per role:
 `assignedBy [owner]` says only a holder of `owner`, at a scope covering
 the binding's scope, may grant or revoke this role. Absent means whoever
 the binding operation's own `requires` admits. Generated code exposes
-`Role::assigned_by()` and `may_assign(assigner_roles, role)`; the binding
-operation's handler calls it. Kubernetes' escalation rule ("you may grant
+`Role::assigned_by()` and
+
+```rust
+may_assign(assigner: &[Binding], role: Role, at: &ScopeRef) -> bool
+```
+
+which holds when one of the assigner's bindings carries an assigning role,
+is valid for its scope, and its scope instance covers `at`, the scope
+instance of the binding being written. A role is not enough on its own:
+an `owner` binding on organization A must not admit a binding in
+organization B. The binding operation's handler calls it with the
+assigner's bindings (the same `BindingSource::bindings` read) and the
+proposed binding's scope; `RoleAuthorizer` offers it as
+`may_assign(principal, role, at)`, which does that read. Kubernetes' escalation rule ("you may grant
 only what you hold") is the same shape with a different function, so a
 service that wants it writes `assignedBy holders` (decision 6).
 
+**Assignment is an obligation, not a convention.** A handler that forgets
+`may_assign` would let an `accessAdmin` (who holds `roleBindingManage`)
+write an `owner` binding. So an operation whose input carries a role value
+(a member typed by the `@roleTypes` enum, or a list of it) must declare
+what it assigns, and the declaration lowers to an obligation the runtime
+verifies like a `by handler` clause (permissions.md §4.6):
+
+```
+operation PutRoleBinding puts RoleBinding {
+    requires roleBindingManage on Organization
+    assigns roles at RoleBinding(scopeType, scopeId)
+    ..
+}
+```
+
+`assigns <member> at <scope binding>` names the role member and where the
+binding is written. The handler discharges it with
+`roles::assign(obligation, role, at)`, which calls `may_assign` and
+refuses with the operation's 403 when it fails; a response with an
+undischarged assignment obligation is the internal error an undischarged
+`by handler` clause is. An operation that carries roles without
+assigning them (a read of bindings) writes `assigns none because "…"`.
+Carrying a `@roleTypes` value without either is a compile error,
+`roles.unassigned`, so a new binding-write operation cannot skip the
+check.
+
 *As built (R1).* `assignedBy` takes a list of roles only; `assignedBy
 holders` is refused as not supported yet, since no consumer needs it and
-its predicate belongs with the generated code (R2).
+its predicate belongs with the generated code (R2). `assigns .. at`,
+`assigns none because ".."` and `roles.unassigned` were added to this
+design after R1 was built and are not part of it: R1 neither parses
+`assigns` nor refuses an operation that carries a `@roleTypes` value
+without it (Leyline's test model's `PutRoleBinding` does).
 
 ### 4.6 Grants the service decides
 
@@ -273,8 +315,9 @@ role graphAdmin = "graphAdmin" {
 A `by service` grant is exempt from reachability. Generated
 `Role::allows` answers `Grant::ByService` for it rather than `Yes`, and a
 role-aware `Authorizer` (§7) passes it to a service hook, so the service
-cannot forget it: the hook is a required trait method once any grant is
-`by service`. The reference shows the grant with its `///`, marked as
+cannot forget it: once any grant is `by service`, the generated
+`roles::authorizer` constructor requires the `ServiceGrants` trait, whose
+hook has no default (§7.2). The reference shows the grant with its `///`, marked as
 decided by the service. This is the general hatch for relation-shaped
 rules (a Zanzibar relation, a team's access to a repository): the model
 names who and what, the service answers when.
@@ -372,9 +415,12 @@ Compile errors:
   operation requires that no role grants. Off when the service grants
   permissions directly or declares `custom`.
 - `roles.types`: `@roleTypes` and `@scopeTypes` mismatches (§4.9).
+- `roles.unassigned`: an operation whose input carries a role value
+  declares neither `assigns` nor `assigns none because "…"` (§4.5).
 
 *As built (R1).* The checks run once, in `crucible_ir::validate::roles`,
-over the IR. Besides the codes above, which keep their meaning, R1 refuses
+over the IR. Besides the codes above, which keep their meaning (all but
+`roles.unassigned`, which is not built: §4.5's note), R1 refuses
 what the design left implicit: `roles.unknown-role` (`includes` names no
 role of the service), `roles.grant` (a grant names a name the resource does
 not declare, an alias, the same permission twice, nothing, or an `except`
@@ -505,20 +551,30 @@ pub trait BindingSource: Send + Sync {
     /// read; `fresh` asks for no cached answer (the operation mutates).
     async fn bindings(&self, principal: &Principal, root: &ResourceRef, fresh: bool)
         -> Result<Vec<Binding>, Unavailable>;      // Binding = (ScopeRef, RoleValue)
-    /// A `by service` grant (§4.6): whether `binding`'s relationship reaches
-    /// `target`. Required once the model has one.
-    async fn decide_by_service(&self, principal: &Principal, binding: &Binding,
-        permission: Permission, target: &ResourceRef) -> Result<bool, Unavailable> {
-        Ok(false)
-    }
-    /// A custom role's permissions (§4.7). Required with `custom`.
-    async fn custom_role(&self, id: &str) -> Result<Option<PermissionSet>, Unavailable> {
-        Ok(None)
-    }
     /// Whether a refusal hides the target (404) or denies (403).
     fn refusal(&self, covered: bool) -> Refusal { if covered { Refusal::Denied } else { Refusal::Hidden } }
 }
+
+/// A `by service` grant (§4.6): whether `binding`'s relationship reaches
+/// `target`. No default: a model with such a grant cannot build its
+/// authorizer without it.
+pub trait ServiceGrants: BindingSource {
+    async fn decide_by_service(&self, principal: &Principal, binding: &Binding,
+        permission: Permission, target: &ResourceRef) -> Result<bool, Unavailable>;
+}
+
+/// A custom role's permissions (§4.7). No default.
+pub trait CustomRoles: BindingSource {
+    async fn custom_role(&self, id: &str) -> Result<Option<PermissionSet>, Unavailable>;
+}
 ```
+
+**The hooks a model needs are compile-time obligations.** The service
+builds its authorizer through the generated `roles::authorizer(source)`,
+whose bound is `BindingSource`, plus `ServiceGrants` when any role has a
+`by service` grant, plus `CustomRoles` with `custom`. Forgetting a hook
+is a type error at that call, never a silent refusal at runtime. The
+framework's own constructor is `#[doc(hidden)]` under `__generated`.
 
 For each batch of checks it reads the principal's bindings once and drops
 roles `parse` does not know or `valid_for` refuses for their scope and the
@@ -534,6 +590,25 @@ principal's kind. Then, per check:
    does not relate the binding to the target (a `graph` binding never
    covers a `GraphHistory`), so the hook decides whether the binding's
    relationship reaches it.
+
+**Listings** (`filters`, `Authorizer::visible`) follow the same two
+steps. A binding whose scope covers the whole listed collection (its
+parent or an ancestor, or a `(*)` scope on the listed resource) gives
+`Visibility::All`; bindings on single instances give `Only` with their
+identifiers. A `by service` grant cannot be resolved from bindings, since
+the binding names a different resource, so `ServiceGrants` has a second
+required method:
+
+```rust
+async fn visible_by_service(&self, principal: &Principal, binding: &Binding,
+    permission: Permission, collection: &ResourceRef) -> Result<Visibility, Unavailable>;
+```
+
+which returns the instances that binding's relationship reaches in the
+collection (`graphAdmin` on a graph: that graph's history). The answers
+are unioned (`All` absorbs; `Only` sets merge); with no binding that
+reaches the collection the parent's own check decides `Hidden` or
+`Denied`, as `refusal` does.
 
 Nothing else calls the hook. `refusal(covered)` counts only step 1's
 coverage. The answer records the binding that allowed it, so audit can say "allowed by

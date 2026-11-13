@@ -64,7 +64,7 @@ readonly operation GetUser {
 }
 
 /// No authentication: nothing to authorize.
-public readonly operation Health {
+anonymous readonly operation Health {
     http GET "/health"
     output { status: string }
 }
@@ -94,6 +94,26 @@ readonly operation GetGraph on Graph {
         $graphId as graph
     }
     output { name: string }
+}
+
+/// Reads several graphs at once.
+operation BatchGetGraphs on Graph collection {
+    http POST "/orgs/{organizationId}/graphs/batch-get"
+    /// Each graph requires `graph:read`. The response reports inaccessible
+    /// or missing graphs as item-level failures.
+    requires none
+    input {
+        $organizationId
+        names: Names
+    }
+    output { names: Names }
+}
+
+/// The organizations the caller belongs to.
+readonly operation ListOrganizations on Organization collection {
+    http GET "/orgs"
+    filters read on Organization
+    output { names: Names }
 }
 
 /// Returns only the graphs the caller may read.
@@ -170,6 +190,7 @@ operation ArchiveGraph on Graph {
 
 operation RestoreBackup on History {
     http POST "/orgs/{organizationId}/graphs/{graphId}/histories/{historyId}/restore"
+    /// Restores are checked against the backup ledger.
     requires pending because "guard::allow in the handler until the history module moves."
     input {
         $organizationId

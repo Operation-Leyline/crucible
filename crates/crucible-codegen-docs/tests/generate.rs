@@ -984,8 +984,46 @@ fn permissions_match_reviewed_goldens() {
             "{}",
             file.path
         );
+        // A pending clause's `///` is the server's, like its reason.
+        assert!(!file.contents.contains("backup ledger"), "{}", file.path);
     }
+    // `requires none` keeps its reason, and a listing narrowed only by an
+    // internal filter says so, in the description and the Markdown page.
+    let describe = external.iter().find(|f| f.path == "describe.json").unwrap();
+    let description: Value = serde_json::from_str(&describe.contents).unwrap();
+    let operation = |name: &str| &description["operations"][format!("example.leyline#{name}")];
+    assert_eq!(
+        operation("BatchGetGraphs")["requirementSentences"],
+        serde_json::json!([
+            "Requires no permission.",
+            "Each graph requires `graph:read`. The response reports inaccessible or missing graphs as item-level failures."
+        ])
+    );
+    assert_eq!(
+        operation("GetUser")["requirementSentences"],
+        serde_json::json!(["Requires no permission."])
+    );
+    assert_eq!(
+        operation("ListOrganizations")["requirements"],
+        serde_json::json!({"kind": "none", "filtered": true})
+    );
+    assert_eq!(
+        operation("ListOrganizations")["requirementSentences"],
+        serde_json::json!([
+            "Requires no permission.",
+            "Returns only what the caller may see."
+        ])
+    );
     let internal = generated(Audience::Internal);
+    let restore = internal
+        .iter()
+        .find(|f| f.path.ends_with("RestoreBackup.md"))
+        .unwrap();
+    assert!(
+        restore.contents.contains("backup ledger"),
+        "{}",
+        restore.contents
+    );
     let page = internal
         .iter()
         .find(|f| f.path == "src/permissions.md")
@@ -1891,7 +1929,7 @@ fn model_text_cannot_inject_markup_into_llms_txt() {
     service.docs = Some(format!("{hostile}. Second sentence."));
     for op in &mut service.operations {
         op.docs = Some(hostile.into());
-        op.public = true;
+        op.anonymous = true;
         op.auth.clear();
         op.sender = Some(crucible_ir::ir::Sender {
             name: hostile.into(),

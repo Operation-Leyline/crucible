@@ -225,7 +225,7 @@ impl Evaluator<'_, '_> {
             (Entity::Operation(op), "internal") => op.internal,
             (Entity::Operation(op), "readonly") => op.readonly,
             (Entity::Operation(op), "idempotent") => op.idempotent,
-            (Entity::Operation(op), "public") => op.public,
+            (Entity::Operation(op), "anonymous" | "public") => op.anonymous,
             (Entity::Operation(op), "paginated") => op.paginated.is_some(),
             (Entity::Shape { shape: None, .. }, "internal" | "sensitive") => return Err(Unknown),
             (

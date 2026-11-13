@@ -25,7 +25,7 @@ version's section when it is prepared.
   wire enums. The IR gains `Service::roles`, `Service::role_scopes` and
   `Service::role_settings` (each role with its effective grants, inclusion
   and `*` expanded), and `crucible_ir::roles` answers coverage. A model
-  without roles lowers to the same IR as before. Generators, the
+  without roles lowers to the same IR as before. Generators and the
   `RoleAuthorizer` follow in later releases.
 - Roles R4 ([docs/roles.md](docs/roles.md) §6): compatibility rules for
   roles and scopes, compared by value against the baseline.
@@ -41,6 +41,18 @@ version's section when it is prepared.
   finding. Migrations declare the breaks with `remove role`, `remove scope`
   and `narrow role`. A baseline frozen before roles existed reports
   nothing. The rule IDs join `crucible_policy::RULE_IDS`.
+- `.cru`: the `///` on `requires none` is the reader-facing reason, and every
+  output that says "Requires no permission." now follows the sentence with it:
+  `describe.json` (`requirements.documentation` and `renderedDocumentation`,
+  and an entry of `requirementSentences` / `requirementDocumentation`), the
+  Markdown and static HTML references, the explorer, OpenAPI
+  (`x-crucible-requires.documentation` and the description) and every SDK's
+  method doc comments. The `///` on `requires pending` reaches the
+  server-audience reference and description only. Without a `///` the output
+  is unchanged. The IR keeps both (`Requirements::None { docs, filtered }`,
+  `Requirements::Pending { reason, docs }`); release snapshots frozen before
+  them still read, and an undocumented `requires none` is still written as
+  `"None"`.
 
 - Rust and TypeScript SDK guides (`README.md`, and `guide` in
   `crucible.sdks/1`) gain a `types` section after the first call: the
@@ -134,9 +146,24 @@ version's section when it is prepared.
   operation that is not `internal` cannot name one in `requires` or `filters`
   (`permissions.internal-resource`); a public `@permissionTypes` value cannot
   name one (`permissions.types`).
+- `.cru`: `anonymous` marks an operation that takes no credential, and a rule
+  reads it as `where anonymous`. It replaces `public`, which read as the
+  opposite of `internal` (`public internal operation`). The formatter writes
+  the modifier as `anonymous`; the language server completes `anonymous` and
+  offers it as a quick fix wherever `public` is warned about. See
+  [decision 84](docs/idl/decisions.md#anonymous-operations).
+- Rust server runtime: `Operation::ANONYMOUS` and
+  `OperationMetadata::anonymous`, the new names of `Operation::PUBLIC` and
+  `OperationMetadata::public`. Generated server markers set `ANONYMOUS`.
 
 ### Changed
 
+- An operation whose only clauses are `filters` on internal permissions no
+  longer reads as unrestricted to clients: its client-audience `requirements`
+  and `x-crucible-requires` are `{"kind": "none", "filtered": true}`, and the
+  references, the explorer, OpenAPI and SDK doc comments follow "Requires no
+  permission." with "Returns only what the caller may see.", naming no
+  internal permission.
 - Generated SDK guides name at most six operations that fill an idempotency
   token; past that they name three and count the rest. `AGENTS.md` still
   lists every one.
@@ -175,6 +202,26 @@ version's section when it is prepared.
   nanosecond (a `timedelta` cannot hold it); `a.nanoseconds_since(b)` returns
   the exact difference. The documentation snippet for a timestamp finer than a
   microsecond uses `Timestamp`, not a truncated `datetime`.
+- The compiler checks `sender.public` and `permissions.public` are now
+  `sender.anonymous` and `permissions.anonymous`, and say `anonymous`.
+- Generated SDK guides say a bearer token is sent "except on anonymous
+  operations" rather than "public operations".
+- `crucible-ir`: `Operation::public` is `Operation::anonymous`. It is still
+  serialized as `public`, so frozen releases, their locks and
+  `crucible-model.json` read and write unchanged.
+
+### Deprecated
+
+- `.cru`: `public` on an operation, in a rule condition and in a metadata
+  key's `conflicts`. It still compiles, as `anonymous`, with a
+  `deprecated.public` warning at each use, and is removed in the next minor
+  release.
+- `Operation::PUBLIC` and `OperationMetadata::public` in
+  `crucible-server-runtime-rust` (and `crucible-wire`), deprecated since
+  0.10.0 and removed in the next minor release. The runtime treats an
+  operation as anonymous when either `ANONYMOUS` or the deprecated `PUBLIC` is
+  set, and fills `OperationMetadata::public` with the same value as
+  `anonymous`.
 
 ### Fixed
 
@@ -187,6 +234,18 @@ version's section when it is prepared.
 
 ### Migration
 
+- `.cru`: write `anonymous` where an operation or a rule condition says
+  `public` (`public readonly operation Health` becomes `anonymous readonly
+  operation Health`; `every operation where public` becomes `every operation
+  where anonymous`), and in a metadata key's `conflicts`. The formatter and
+  the language server's quick fix rewrite the modifier; either spelling
+  generates the same output.
+- Rust services: read `OperationMetadata::anonymous` instead of `public` (for
+  example in an authentication middleware that skips anonymous operations),
+  and in a hand-written `Operation` marker set `const ANONYMOUS: bool = true`
+  instead of `PUBLIC`. Regenerate bindings: generated markers set `ANONYMOUS`.
+- Tooling that matches the diagnostic codes `sender.public` or
+  `permissions.public` matches `sender.anonymous` and `permissions.anonymous`.
 - C# client: timestamp members are `Timestamp`, not `DateTimeOffset`. No shim
   can keep the old member type. Assigning a `DateTimeOffset` still compiles
   through the implicit conversion. Where code reads a member as a

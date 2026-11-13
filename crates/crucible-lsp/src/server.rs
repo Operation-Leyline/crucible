@@ -25,7 +25,7 @@ use lsp_types::request::{
 use lsp_types::{
     CodeAction, CodeActionKind, CodeActionOrCommand, CodeActionProviderCapability, CodeLens,
     CodeLensOptions, Command, CompletionOptions, CompletionResponse, Diagnostic,
-    DiagnosticSeverity, DidChangeWatchedFilesRegistrationOptions, DocumentHighlight,
+    DiagnosticSeverity, DiagnosticTag, DidChangeWatchedFilesRegistrationOptions, DocumentHighlight,
     DocumentHighlightKind, DocumentLink, DocumentLinkOptions, DocumentSymbol,
     DocumentSymbolResponse, FileChangeType, FileEvent, FileSystemWatcher,
     FoldingRangeProviderCapability, GlobPattern, GotoDefinitionResponse, Hover, HoverContents,
@@ -1898,6 +1898,33 @@ impl Server {
                 }));
                 continue;
             }
+            // The deprecated `public`: the diagnostic's range is the word.
+            if actions::deprecated_public(&diagnostic.message) {
+                let range = diagnostic.range;
+                let start = lines.offset(range.start);
+                let end = lines.offset(range.end);
+                // A client may send any range: rewrite only the word itself.
+                if document.text.get(start..end) == Some("public") {
+                    out.push(CodeActionOrCommand::CodeAction(CodeAction {
+                        title: "Replace `public` with `anonymous`".to_owned(),
+                        kind: Some(CodeActionKind::QUICKFIX),
+                        diagnostics: Some(vec![diagnostic.clone()]),
+                        edit: Some(WorkspaceEdit {
+                            changes: Some(HashMap::from([(
+                                uri.clone(),
+                                vec![TextEdit {
+                                    range,
+                                    new_text: "anonymous".to_owned(),
+                                }],
+                            )])),
+                            ..Default::default()
+                        }),
+                        is_preferred: Some(true),
+                        ..Default::default()
+                    }));
+                }
+                continue;
+            }
             let Some(name) = actions::unknown_type(&diagnostic.message) else {
                 continue;
             };
@@ -1976,6 +2003,8 @@ fn at_severity(range: Range, message: String, severity: crucible_lang::Severity)
             crucible_lang::Severity::Advice => DiagnosticSeverity::INFORMATION,
             _ => DiagnosticSeverity::WARNING,
         }),
+        // An editor strikes the deprecated `public` through.
+        tags: actions::deprecated_public(&message).then(|| vec![DiagnosticTag::DEPRECATED]),
         ..error(range, message)
     }
 }

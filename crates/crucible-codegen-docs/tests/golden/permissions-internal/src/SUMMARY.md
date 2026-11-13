@@ -3,8 +3,10 @@
 - [Service overview](index.md)
 - Organization
   - [GetOrganization](operations/API_GetOrganization.md)
+  - [ListOrganizations](operations/API_ListOrganizations.md)
   - Graph
     - [ArchiveGraph](operations/API_ArchiveGraph.md)
+    - [BatchGetGraphs](operations/API_BatchGetGraphs.md)
     - [CreateGraph](operations/API_CreateGraph.md)
     - [ExecuteQuery](operations/API_ExecuteQuery.md)
     - [GetGraph](operations/API_GetGraph.md)
@@ -25,6 +27,8 @@
   - [ValidationExceptionReason](shapes/ValidationExceptionReason.md)
   - [ArchiveGraphInput](shapes/ArchiveGraphInput.md)
   - [ArchiveGraphOutput](shapes/ArchiveGraphOutput.md)
+  - [BatchGetGraphsInput](shapes/BatchGetGraphsInput.md)
+  - [BatchGetGraphsOutput](shapes/BatchGetGraphsOutput.md)
   - [CreateGraphInput](shapes/CreateGraphInput.md)
   - [CreateGraphOutput](shapes/CreateGraphOutput.md)
   - [ExecuteQueryInput](shapes/ExecuteQueryInput.md)
@@ -40,6 +44,7 @@
   - [HistoryRef](shapes/HistoryRef.md)
   - [ListGraphsInput](shapes/ListGraphsInput.md)
   - [ListGraphsOutput](shapes/ListGraphsOutput.md)
+  - [ListOrganizationsOutput](shapes/ListOrganizationsOutput.md)
   - [Names](shapes/Names.md)
   - [OrganizationId](shapes/OrganizationId.md)
   - [QueryTarget](shapes/QueryTarget.md)

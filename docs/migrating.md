@@ -13,6 +13,7 @@ tag.
 
 | From | To | CHANGELOG | Section |
 |---|---|---|---|
+| 0.9.x | 0.10.0 (unreleased) | [Unreleased](../CHANGELOG.md#unreleased) | [0.9.0 to 0.10.0](#090-to-0100) |
 | 0.8.x | 0.9.0 | [0.9.0](../CHANGELOG.md#090---2026-11-04) | [0.8.0 to 0.9.0](#080-to-090) |
 | 0.7.x | 0.8.0 | [0.8.0](../CHANGELOG.md#080---2026-10-18) | [0.7.0 to 0.8.0](#070-to-080) |
 | 0.6.x | 0.7.0 | [0.7.0](../CHANGELOG.md#070---2026-10-12) | [0.6.0 to 0.7.0](#060-to-070) |
@@ -21,6 +22,49 @@ tag.
 | 0.3.x | 0.4.0 | [0.4.0](../CHANGELOG.md#040---2026-10-08) | [0.3.0 to 0.4.0](#030-to-040) |
 | 0.2.x | 0.3.0 | [0.3.0](../CHANGELOG.md#030---2026-10-07) | [0.2.0 to 0.3.0](#020-to-030) |
 | 0.1.x | 0.2.0 | [0.2.0](../CHANGELOG.md#020---2026-10-06) | [0.1.0 to 0.2.0](#010-to-020) |
+
+## 0.9.0 to 0.10.0
+
+Not yet released; this section collects what upgrading will need.
+
+An operation that takes no credential is now `anonymous`; `public` is its
+deprecated spelling, accepted until 0.11.0 with a `deprecated.public` warning
+at each use. Write `anonymous` on the operation, in a rule condition and in a
+metadata key's `conflicts`:
+
+```
+anonymous readonly operation Health {
+    http GET "/health"
+}
+
+rule AnonymousOperationsAreContained {
+    every operation where anonymous
+    must has @ownRequestLimit
+}
+```
+
+The `.cru` formatter (the language server's Format Document) rewrites the
+modifier, and the language server offers the rewrite as a quick fix at each
+warning. Either spelling generates the same output.
+
+In Rust, `OperationMetadata::public` and `Operation::PUBLIC` are deprecated
+for `OperationMetadata::anonymous` and `Operation::ANONYMOUS`:
+
+```rust
+// before
+if job.metadata().public { return Hook::Ready(Ok(())); }
+// after
+if job.metadata().anonymous { return Hook::Ready(Ok(())); }
+```
+
+A hand-written `Operation` marker sets `const ANONYMOUS: bool = true;`. One
+that still sets the deprecated `PUBLIC` keeps working until the shim is
+removed. Regenerate bindings so generated markers use `ANONYMOUS`.
+
+The compiler checks `sender.public` and `permissions.public` are renamed
+`sender.anonymous` and `permissions.anonymous`. Frozen releases need nothing:
+the IR field is `Operation::anonymous` in Rust but is still serialized as
+`public`, so every release and lock reads unchanged.
 
 ## 0.8.0 to 0.9.0
 

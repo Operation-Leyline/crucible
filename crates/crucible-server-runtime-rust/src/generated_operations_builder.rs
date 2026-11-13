@@ -334,6 +334,8 @@ fn index(operations: &mut Operations) {
 }
 
 /// Historical authentication/presence with the current handler's typed facts.
+// Keeps the deprecated `public` equal to `anonymous`.
+#[allow(deprecated)]
 fn versioned_metadata<Old: Operation>(serving: &Entry) -> OperationMetadata {
     OperationMetadata {
         pagination: serving.metadata.pagination,
@@ -343,7 +345,8 @@ fn versioned_metadata<Old: Operation>(serving: &Entry) -> OperationMetadata {
         replays_output: serving.metadata.replays_output,
         requirements: serving.metadata.requirements,
         checks: serving.metadata.checks,
-        public: serving.metadata.public,
+        anonymous: serving.metadata.anonymous,
+        public: serving.metadata.anonymous,
         ..OperationMetadata::of::<Old>()
     }
 }
@@ -526,7 +529,7 @@ mod tests {
     impl Operation for Current {
         const INFO: &'static OperationInfo = &INFO;
         const REQUIREMENTS: Requirements = Requirements::None;
-        const PUBLIC: bool = true;
+        const ANONYMOUS: bool = true;
         const CHECKS: Option<Checks<Unit>> = Some(|_, _| {});
         const IDEMPOTENCY_TOKEN: Option<PaginationMember> = Some(TOKEN);
         const OUTPUT_FROM_JSON: Option<OutputFromJson<Unit>> = Some(serde_json::from_value::<Unit>);
@@ -638,7 +641,7 @@ mod tests {
         // declared none.
         assert_eq!(*before.metadata.requirements, Requirements::None);
         assert!(before.metadata.checks.is_some());
-        assert!(before.metadata.public);
+        assert!(before.metadata.anonymous);
         // The operation facts an Authorizer sees (readonly, idempotent) are
         // read from the served version's own description.
         assert!(std::ptr::eq(before.info, Untokened::INFO));

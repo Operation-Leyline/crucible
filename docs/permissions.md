@@ -198,7 +198,7 @@ Leyline's authorization vocabulary uses roles at scopes:
   derives freshness from the action, not the call site.
 - Every check is a handler call (`service/src/api/shared/guard.rs:27-83`).
   There are 70 decision calls in 62 files across 129 operations. Five
-  operations are public (`@auth([])`). About 14 are user-self or
+  operations are anonymous (`@auth([])`). About 14 are user-self or
   bootstrap. Some operations need several actions
   (`api/history/backups/admission.rs:501`). `ExecuteQuery`'s action
   depends on the query text (`api/execution/query/mod.rs:42-49`).
@@ -461,19 +461,24 @@ operation with none of them is a compile error, `permissions.undeclared`
 
 - `requires none` says an authenticated operation needs no permission:
   `GetMe`, `ListMyWorkspaces`, and Leyline's user-self operations. Its `///`
-  says why, to readers of the model: `Requirements::None` carries no text,
-  so it reaches no generated output. It plays the role of `[AllowAnonymous]` or `skip_authorization`
-  in the frameworks, at the cost of one line.
+  says why, or what the handler checks per item instead ("Each graph
+  requires read access; the response reports inaccessible graphs as
+  item-level failures"): `Requirements::None { docs }` carries it, and
+  every output that says "Requires no permission." follows the sentence
+  with it (§6.3). Without a `///` the output is the sentence alone. It
+  plays the role of `[AllowAnonymous]` or `skip_authorization` in the
+  frameworks, at the cost of one line.
 - `requires pending because "<reason>"` is the migration suppression. It
   compiles with a warning that repeats the reason, lowers to
-  `Requirements::Pending` with the reason in the IR, and is listed by
-  `crucible check`, in the server-audience docs and in the shadow log. At
+  `Requirements::Pending` with the reason (and its `///`, if any) in the
+  IR, and is listed by `crucible check`, in the server-audience docs and in
+  the shadow log. At
   runtime the interceptor passes the operation through and records the
   reason, because the handler is still doing the checking. A reason is
   required and must be nonempty. The suppression sits on the operation, so
   the change that declares the operation's real requirements deletes it in
   the same diff.
-- A `public` operation, which has no authentication, may not carry any of
+- An `anonymous` operation, which takes no credential, may not carry any of
   these, the same rule scopes follow.
 
 At runtime the default is the same. An installed `Permissions` interceptor
@@ -613,7 +618,7 @@ readonly operation GetUsage {
 
 ### 4.11 Shared pieces
 
-`@auth([])` marks an operation `public` in the IR (§6.1): that is
+`@auth([])` marks an operation `anonymous` in the IR (§6.1): that is
 authentication, not permissions. And `crucible.errors#NotFoundException` is in
 the bundled `crucible.errors` package: it is the shared error vocabulary.
 
@@ -660,7 +665,7 @@ compile checks it.
 7. `requires p on R`: `R` resolves to a resource that declares permissions,
    and `p` is one of `R`'s, with a "did you mean" over all resources'
    symbols.
-8. A `public` operation declares no requirement. `requires none` and
+8. An `anonymous` operation declares no requirement. `requires none` and
    `requires pending` stand alone, and a pending reason is nonempty.
    Duplicate clauses are reported.
 9. Every identifier of the target, inherited ones included, is bound
@@ -778,8 +783,10 @@ pub requirements: Requirements,
 pub enum Requirements {
     Undeclared,                           // the default; a compile error on an authenticated
                                           // operation once permissions exist
-    None,                                 // `requires none`
-    Pending { reason: String },           // `requires pending because`
+    None { docs: Option<String>,          // `requires none` and its `///`;
+           filtered: bool },              // client projection only (§6.3)
+    Pending { reason: String,             // `requires pending because`
+              docs: Option<String> },
     List(Vec<Requirement>),               // source order, which is the refusal order
 }
 
@@ -817,7 +824,7 @@ internal members.
 
 *As built.* `Undeclared` survives lowering in two cases: every operation
 of a service that declares no permission, and an operation with no caller
-to authorize (declared `public`, or without an authentication scheme
+to authorize (declared `anonymous`, or without an authentication scheme
 because its service declares none), which may not declare requirements
 (check 8). The client audience projection also turns `Pending` into
 `Undeclared`, since a pending reason is the server's migration note.
@@ -826,9 +833,10 @@ Additions to the contract above, made in phase A1:
 
 ```rust
 // ir::Operation
-#[serde(default, skip_serializing_if = "std::ops::Not::not")]
-pub public: bool,      // declared public: `@auth([])` on the operation, or on the
-                       // service when the operation has no `@auth`; `public`.
+#[serde(rename = "public", default, skip_serializing_if = "std::ops::Not::not")]
+pub anonymous: bool,   // declared anonymous: `@auth([])` on the operation, or on the
+                       // service when the operation has no `@auth`; `anonymous`
+                       // (formerly `public`, still its serialized name).
                        // `auth.is_empty()` alone is not: a service that declares no
                        // scheme leaves every operation without one.
 
@@ -981,7 +989,11 @@ ends "; and further permissions internal to the service.", so holding
 every permission it names does not read as enough. A `filters` clause
 refuses nothing, so an internal one left out does not make the list
 partial, and a listing that only filters by internal permissions requires
-none in the client view. A clause a client sees
+none in the client view, but with `filtered: true`
+(`{"kind": "none", "filtered": true}`): every client-audience output
+follows "Requires no permission." with "Returns only what the caller may
+see.", so the narrowed answer does not read as unrestricted, and names no
+internal permission. A clause a client sees
 never reads an internal member: binding or testing one, or comparing with
 an internal enum value, is refused (`permissions.internal-member`), since
 the client contract would name what the projection removes and the clause
@@ -1122,10 +1134,20 @@ identifiers, then a table each for "Permissions", "Permission-only",
 an "Authorization" section with the requirement sentences ("Requires …",
 "Returns only …") and a table of its clauses (mode, permission, resource
 type, bindings, `when` or the handler clause's documentation). A
-`requires none` operation says "Requires no permission." An operation
+`requires none` operation says "Requires no permission.", then its `///`
+when it has one: in `describe.json` (`requirements.documentation`, beside
+it `renderedDocumentation`, and the last `requirementSentences` /
+`requirementDocumentation` entry), both references, the explorer,
+OpenAPI (`x-crucible-requires.documentation` and the description) and
+every SDK's doc comments. One paragraph is a sentence of its own after
+"Requires no permission."; anything longer follows as a block. A listing
+whose only clauses are internal `filters` says "Requires no permission.
+Returns only what the caller may see." in every client-audience output,
+naming no permission. An operation
 whose requirements are all internal says "Requires permissions internal to
 the service.", in the reference and in every SDK's doc comments alike. A
-pending operation's reason appears in the server audience only. SDK doc
+pending operation's reason, and its `///` (`requirements.documentation`),
+appear in the server audience only. SDK doc
 comments name only what the SDK's registry has: an internal-audience SDK
 keeps internal members and operations but, like its registry, no internal
 permission, so its requirement sentences leave internal clauses out the

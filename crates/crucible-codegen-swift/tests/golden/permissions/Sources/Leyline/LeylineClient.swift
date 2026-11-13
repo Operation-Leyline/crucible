@@ -30,6 +30,20 @@ public final class LeylineClient: Sendable {
     public func `archiveGraph`(_ input: `ArchiveGraphInput`) async throws -> `ArchiveGraphOutput` {
         try await runtime.call("ArchiveGraph", input: input, as: `ArchiveGraphOutput`.self)
     }
+    /// Reads several graphs at once.
+    ///
+    /// Not idempotent: not retried after a network failure or server error, since repeating it could repeat its effect. Throttling responses are still retried.
+    ///
+    /// Requires no permission.
+    ///
+    /// Each graph requires `graph:read`. The response reports inaccessible or missing graphs as item-level failures.
+    ///
+    /// - Parameter input: The ``BatchGetGraphsInput`` to send.
+    /// - Returns: The ``BatchGetGraphsOutput`` the service returned.
+    /// - Throws: ``InternalServerException``, ``ValidationException``, or another ``LeylineException`` when the service responds with an error.
+    public func `batchGetGraphs`(_ input: `BatchGetGraphsInput`) async throws -> `BatchGetGraphsOutput` {
+        try await runtime.call("BatchGetGraphs", input: input, as: `BatchGetGraphsOutput`.self)
+    }
     /// Not idempotent: not retried after a network failure or server error, since repeating it could repeat its effect. Throttling responses are still retried.
     ///
     /// Requires `graph:write` on every graph in the organization.
@@ -103,6 +117,20 @@ public final class LeylineClient: Sendable {
     /// - Throws: ``InternalServerException``, ``NotFoundException``, ``ValidationException``, or another ``LeylineException`` when the service responds with an error.
     public func `listGraphs`(_ input: `ListGraphsInput`) async throws -> `ListGraphsOutput` {
         try await runtime.call("ListGraphs", input: input, as: `ListGraphsOutput`.self)
+    }
+    /// The organizations the caller belongs to.
+    ///
+    /// Read-only: retried automatically after transient failures.
+    ///
+    /// Requires no permission.
+    ///
+    /// Returns only what the caller may see.
+    ///
+    /// - Parameter input: The ``Unit`` to send.
+    /// - Returns: The ``ListOrganizationsOutput`` the service returned.
+    /// - Throws: ``InternalServerException``, ``ValidationException``, or another ``LeylineException`` when the service responds with an error.
+    public func `listOrganizations`(_ input: Unit = .init()) async throws -> `ListOrganizationsOutput` {
+        try await runtime.call("ListOrganizations", input: input, as: `ListOrganizationsOutput`.self)
     }
     /// Not idempotent: not retried after a network failure or server error, since repeating it could repeat its effect. Throttling responses are still retried.
     ///

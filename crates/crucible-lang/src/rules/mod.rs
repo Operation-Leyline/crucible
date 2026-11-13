@@ -297,7 +297,7 @@ fn check_rule(
             checker.expr(kind, requirement);
         }
     }
-    if !checker.problems.is_empty() {
+    if checker.problems.iter().any(Diagnostic::is_error) {
         def.broken = true;
     }
     let file = def.file;

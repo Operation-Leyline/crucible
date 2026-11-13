@@ -36,6 +36,19 @@ final class LeylineClient {
   /// - [models.NotFoundException]
   /// - [models.ValidationException]
   Future<models.ArchiveGraphOutput> archiveGraph(models.ArchiveGraphInput input, {CancellationToken? cancellation}) => _runtime.call("ArchiveGraph", input, cancellation: cancellation);
+  /// Reads several graphs at once.
+  ///
+  /// Not idempotent: not retried after a network failure or server error, since repeating it could repeat its effect. Throttling responses are still retried.
+  ///
+  /// Requires no permission.
+  ///
+  /// Each graph requires `graph:read`. The response reports inaccessible or missing graphs as item-level failures.
+  ///
+  /// Throws:
+  ///
+  /// - [models.InternalServerException]
+  /// - [models.ValidationException]
+  Future<models.BatchGetGraphsOutput> batchGetGraphs(models.BatchGetGraphsInput input, {CancellationToken? cancellation}) => _runtime.call("BatchGetGraphs", input, cancellation: cancellation);
   /// Not idempotent: not retried after a network failure or server error, since repeating it could repeat its effect. Throttling responses are still retried.
   ///
   /// Requires `graph:write` on every graph in the organization.
@@ -108,6 +121,19 @@ final class LeylineClient {
   /// - [models.NotFoundException]
   /// - [models.ValidationException]
   Future<models.ListGraphsOutput> listGraphs(models.ListGraphsInput input, {CancellationToken? cancellation}) => _runtime.call("ListGraphs", input, cancellation: cancellation);
+  /// The organizations the caller belongs to.
+  ///
+  /// Read-only: retried automatically after transient failures.
+  ///
+  /// Requires no permission.
+  ///
+  /// Returns only what the caller may see.
+  ///
+  /// Throws:
+  ///
+  /// - [models.InternalServerException]
+  /// - [models.ValidationException]
+  Future<models.ListOrganizationsOutput> listOrganizations({CancellationToken? cancellation}) => _runtime.call("ListOrganizations", const models.Unit(), cancellation: cancellation);
   /// Not idempotent: not retried after a network failure or server error, since repeating it could repeat its effect. Throttling responses are still retried.
   ///
   /// Throws:

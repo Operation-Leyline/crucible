@@ -29,10 +29,10 @@ fn only_adapter_visible_streams_are_diagnosed() {
             file.text = file
                 .text
                 .replace(
-                    "readonly public operation Watch",
+                    "readonly anonymous operation Watch",
                     "readonly internal operation Watch",
                 )
-                .replace("public operation Publish", "internal operation Publish");
+                .replace("anonymous operation Publish", "internal operation Publish");
         }
     });
     let options = Options {
@@ -131,6 +131,38 @@ fn leyline_with(edit: impl Fn(String) -> String) -> crucible_ir::ir::Service {
 
 fn leyline() -> crucible_ir::ir::Service {
     leyline_with(|text| text)
+}
+
+/// A `CHECKS` closure whose clauses read no input (each binds only `*`,
+/// with no `when`) names its parameter `_input`, so a service built with
+/// `-D warnings` compiles; one that binds a member keeps `input`.
+#[test]
+fn checks_that_read_no_input_leave_the_parameter_unused() {
+    let checks = |service: &crucible_ir::ir::Service, operation: &str| {
+        let code = generate(service, &Options::default()).unwrap();
+        let marker = format!(
+            "impl ::crucible_server_runtime_rust::__generated::Operation for {operation} {{"
+        );
+        let (_, rest) = code
+            .split_once(&marker)
+            .unwrap_or_else(|| panic!("{operation}:\n{code}"));
+        rest.lines()
+            .find(|line| line.contains("const CHECKS"))
+            .unwrap()
+            .to_owned()
+    };
+    // An internal-only `filters` on a root resource, and a check on every
+    // instance of one.
+    assert!(checks(&leyline(), "ListOrganizations").contains("Some(|_input, out|"));
+    let every = leyline_with(|text| {
+        text.replace(
+            "    filters read on Organization\n",
+            "    requires admin on Organization(*)\n",
+        )
+    });
+    assert!(checks(&every, "ListOrganizations").contains("Some(|_input, out|"));
+    // `Graph(*)` binds `organizationId`, so it reads the input.
+    assert!(checks(&leyline(), "CreateGraph").contains("Some(|input, out|"));
 }
 
 /// An alias whose constant is one the enum already defines (`ALL`,

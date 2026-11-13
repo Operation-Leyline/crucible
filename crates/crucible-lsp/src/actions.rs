@@ -1,7 +1,18 @@
 //! Quick fixes for the compiler's diagnostics. Today: an unknown type offers
-//! the declared names it most resembles, and declaring it as a structure.
+//! the declared names it most resembles, and declaring it as a structure;
+//! the deprecated `public` offers `anonymous`.
+
+use crucible_lang::diagnostic::DEPRECATED_PUBLIC;
 
 use crate::analysis::{BUILTIN_TYPES, Index};
+
+/// Whether `message` is the warning for the deprecated `public`, whose
+/// range is the word.
+pub fn deprecated_public(message: &str) -> bool {
+    message
+        .strip_prefix(DEPRECATED_PUBLIC)
+        .is_some_and(|rest| rest.starts_with(':'))
+}
 
 /// The name in an `unknown type `X`` diagnostic.
 pub fn unknown_type(message: &str) -> Option<&str> {
