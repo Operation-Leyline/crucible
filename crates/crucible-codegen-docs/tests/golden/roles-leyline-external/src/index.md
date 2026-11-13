@@ -33,6 +33,7 @@ No modeled errors.
 - [GetUsage](operations/API_GetUsage.md)
 - [ListAuditEvents](operations/API_ListAuditEvents.md)
 - [PutRoleBinding](operations/API_PutRoleBinding.md)
+- [RevokeRoleBinding](operations/API_RevokeRoleBinding.md)
 
 ### Graph
 
@@ -48,6 +49,7 @@ No modeled errors.
 <p>The retained past of a graph, kept after the graph is deleted.</p>
 
 - [GetGraphHistory](operations/API_GetGraphHistory.md)
+- [ListGraphHistories](operations/API_ListGraphHistories.md)
 - [RestoreGraphHistory](operations/API_RestoreGraphHistory.md)
 
 ### Service operations

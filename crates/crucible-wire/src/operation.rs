@@ -46,6 +46,11 @@ pub trait Operation: Send + Sync + 'static {
     /// that applies, in clause order. Generated, so it reads fields rather
     /// than JSON; `None` for an operation with no such clause.
     const CHECKS: Option<crate::permissions::Checks<Self::Input>> = None;
+    /// The obligation an `assigns <member> at ..` or `assigns loaded at ..`
+    /// clause opens (docs/roles.md §4.5), which the handler discharges with
+    /// `roles::assign`. Generated for server bindings; `None` for an
+    /// operation that assigns nothing (or says `assigns none`).
+    const ASSIGNS: Option<crate::permissions::Assignment> = None;
     /// Whether the model explicitly makes the operation anonymous (it takes
     /// no credential: `@auth([])` on the operation, a `.cru` `anonymous`
     /// operation), so it carries no requirements and there is nothing to

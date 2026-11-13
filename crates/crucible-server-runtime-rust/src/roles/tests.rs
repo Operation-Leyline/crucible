@@ -128,6 +128,7 @@ fn context(caller: Option<Caller>) -> Context {
 
 fn facts(readonly: bool) -> OperationFacts {
     OperationFacts {
+        assigns: None,
         id: "t#Op",
         readonly,
         idempotent: readonly,

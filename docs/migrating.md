@@ -66,6 +66,28 @@ The compiler checks `sender.public` and `permissions.public` are renamed
 the IR field is `Operation::anonymous` in Rust but is still serialized as
 `public`, so every release and lock reads unchanged.
 
+Roles, new since 0.9.0, changed before release. A `ServiceGrants`
+implementation answers listings too:
+
+```rust
+impl ServiceGrants for Bindings {
+    async fn decide_by_service(&self, _: &Caller, grant: ByService<'_>) -> Result<bool, Unavailable> { .. }
+    // New and required: what the binding's relationship reaches in the
+    // listed collection, `grant.target` (`GraphHistory(o-1, *)`).
+    async fn visible_by_service(&self, _: &Caller, grant: ByService<'_>) -> Result<Visibility, Unavailable> { .. }
+}
+```
+
+`BindingSource::visible` is gone: `RoleAuthorizer` answers `filters`
+listings from the bindings. An operation that grants or revokes roles
+declares it (`assigns role at Organization`, `assigns loaded at
+Organization`, or `assigns none because ".."`), and its handler discharges
+the obligation before writing:
+
+```rust
+roles::assign(PutRoleBinding::ASSIGNMENT, roles::replaced(&held, &[input.role.as_str()]), ScopeRef::new(scope, &ids)).await?;
+```
+
 ## 0.8.0 to 0.9.0
 
 Upgrade the Rust toolchain to 1.88 or newer. The previous 1.85 metadata did

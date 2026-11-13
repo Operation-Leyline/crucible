@@ -6,10 +6,11 @@
 use std::collections::{BTreeMap, HashMap};
 
 use crucible_lang::ast::{
-    Annotation, Arg, BindingValue, Body, BodyKind, Clause, ClauseValue, Condition, ConditionKind,
-    ConstraintValue, Decl, Dotted, ErrorEntry, ExamplePart, Expr, ExprKind, GrantList, Ident, Item,
-    Key, Member, MemberKind, MetaType, OpEntry, Operand, Path, Ref, Requirement, RequirementKind,
-    RoleEntryKind, ScopeTarget, StepKind, TypeRef, Value,
+    Annotation, Arg, AssignedRoles, Assignment, AssignmentKind, BindingValue, Body, BodyKind,
+    Clause, ClauseValue, Condition, ConditionKind, ConstraintValue, Decl, Dotted, ErrorEntry,
+    ExamplePart, Expr, ExprKind, GrantList, Ident, Item, Key, Member, MemberKind, MetaType,
+    OpEntry, Operand, Path, Ref, Requirement, RequirementKind, RoleEntryKind, ScopeTarget,
+    StepKind, Target, TypeRef, Value,
 };
 use crucible_lang::{Parsed, TokenKind};
 
@@ -401,6 +402,7 @@ impl Walker<'_> {
                     }
                 }
                 OpEntry::Requirement(requirement) => self.requirement(requirement),
+                OpEntry::Assigns(assignment) => self.assignment(assignment),
             }
         }
     }
@@ -426,26 +428,44 @@ impl Walker<'_> {
             } => {
                 self.set(permission, Role::EnumMember, 0);
                 if let Some(target) = target {
-                    self.reference_kind(&target.resource, Some(Role::Class), RESOURCE);
-                    for binding in target.bindings.iter().flatten() {
-                        if let Some(name) = &binding.name {
-                            self.set(name, Role::Property, 0);
-                        }
-                        match &binding.value {
-                            BindingValue::All(_) => {}
-                            BindingValue::Label(label) => self.set(label, Role::Property, 0),
-                            BindingValue::Path(path) => {
-                                for part in &path.parts {
-                                    self.set(part, Role::Property, 0);
-                                }
-                            }
-                        }
-                    }
+                    self.target(target);
                 }
                 if let Some(when) = when {
                     self.condition(when);
                 }
             }
+        }
+    }
+
+    /// A target's resource, and its bindings' identifiers and input paths.
+    fn target(&mut self, target: &Target) {
+        self.reference_kind(&target.resource, Some(Role::Class), RESOURCE);
+        for binding in target.bindings.iter().flatten() {
+            if let Some(name) = &binding.name {
+                self.set(name, Role::Property, 0);
+            }
+            match &binding.value {
+                BindingValue::All(_) => {}
+                BindingValue::Label(label) => self.set(label, Role::Property, 0),
+                BindingValue::Path(path) => {
+                    for part in &path.parts {
+                        self.set(part, Role::Property, 0);
+                    }
+                }
+            }
+        }
+    }
+
+    /// `assigns`: the roles' member path and the target, as a `requires`
+    /// clause's; `loaded`, `none`, `because` and `at` are keywords.
+    fn assignment(&mut self, assignment: &Assignment) {
+        if let AssignmentKind::Roles { roles, at } = &assignment.kind {
+            if let AssignedRoles::Member(path) = roles {
+                for part in &path.parts {
+                    self.set(part, Role::Property, 0);
+                }
+            }
+            self.target(at);
         }
     }
 
@@ -1201,6 +1221,49 @@ operation GetCity reads City {
             (found.role, found.modifiers)
         };
         assert_eq!(role("Old"), (Role::Class, RESOURCE));
+    }
+
+    #[test]
+    fn assigns_clauses_are_classified() {
+        let source = r#"
+resource Store { id storeId: string }
+operation PutBinding on Store {
+    assigns grant.roles at Store(storeId: $storeId)
+}
+operation DeleteBinding on Store {
+    assigns loaded at Store
+}
+operation Count on Store {
+    assigns none because "it writes no binding"
+}
+"#;
+        let parsed = crucible_lang::parse(source);
+        assert!(parsed.diagnostics.is_empty(), "{:?}", parsed.diagnostics);
+        let index = Index::new(std::slice::from_ref(&parsed));
+        let highlights = highlights(&parsed, &index);
+        let at = |word: &str, nth: usize| {
+            let start = source
+                .match_indices(word)
+                .filter(|(index, _)| {
+                    let before = source[..*index].chars().last();
+                    let after = source[index + word.len()..].chars().next();
+                    !before.is_some_and(char::is_alphanumeric)
+                        && !after.is_some_and(char::is_alphanumeric)
+                })
+                .nth(nth)
+                .unwrap()
+                .0 as u32;
+            let highlight = highlights.iter().find(|h| h.start == start).unwrap();
+            (highlight.role, highlight.modifiers)
+        };
+        assert_eq!(at("assigns", 0), (Role::Keyword, 0));
+        assert_eq!(at("grant", 0), (Role::Property, 0));
+        assert_eq!(at("roles", 0), (Role::Property, 0));
+        assert_eq!(at("at", 0), (Role::Keyword, 0));
+        assert_eq!(at("Store", 2), (Role::Class, RESOURCE));
+        assert_eq!(at("loaded", 0), (Role::Keyword, 0));
+        assert_eq!(at("none", 0), (Role::Keyword, 0));
+        assert_eq!(at("because", 0), (Role::Keyword, 0));
     }
 
     #[test]

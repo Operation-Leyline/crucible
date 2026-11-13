@@ -84,6 +84,7 @@ fn operation_items(service: &Service, op: &Operation, diagnostics: &mut Diagnost
     let permissions = crate::permissions::marker_items(service, op, diagnostics);
     let mut out = marker(service, op, &output_type(service, op), &permissions);
     out.push_str(&crate::permissions::obligations(service, op));
+    out.push_str(&crate::permissions::assignment(service, op));
     // The marker type is what callers name, so it carries `#[deprecated]`. The
     // trait is what a service implements: warning there would only nag the
     // author about an operation they are still required to serve.

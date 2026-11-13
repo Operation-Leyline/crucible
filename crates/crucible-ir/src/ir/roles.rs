@@ -245,3 +245,61 @@ pub struct RoleGrant {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub docs: Option<String>,
 }
+
+/// `assigns ..` on an operation (docs/roles.md §4.5): what it says about
+/// the role bindings it writes. `assigns <member> at ..` and `assigns
+/// loaded at ..` lower to an obligation the handler discharges
+/// (`roles::assign`), which checks that the caller may grant or revoke
+/// each role there; `assigns none because ".."` says it changes no binding.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub enum Assigns {
+    /// `assigns <member> at <target>` or `assigns loaded at <target>`.
+    Roles {
+        /// Where the roles come from.
+        roles: AssignedRoles,
+        /// Where the binding is written.
+        at: AssignedAt,
+        /// The clause's `///`.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        docs: Option<String>,
+    },
+    /// `assigns none because ".."`: the operation matches a trigger of
+    /// `roles.unassigned` but changes no binding.
+    None {
+        #[serde(default)]
+        reason: String,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        docs: Option<String>,
+    },
+}
+
+impl Assigns {
+    /// Whether the operation opens an assignment obligation.
+    pub fn obliges(&self) -> bool {
+        matches!(self, Self::Roles { .. })
+    }
+}
+
+/// Where an `assigns` clause's roles come from.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub enum AssignedRoles {
+    /// An input member path whose value is a `@roleTypes` value or a list
+    /// of them: the roles being granted.
+    Member(Vec<String>),
+    /// `loaded`: the roles of the stored binding the operation revokes or
+    /// replaces, which the handler reads.
+    Loaded,
+}
+
+/// `at <target>`: the resource instance the binding being written is made
+/// at or within, bound from the input as a `requires` target is. The scope
+/// instance itself is the handler's to name (`roles::assign` takes it): a
+/// binding's scope is a request value, so its identifiers are not one
+/// model path.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct AssignedAt {
+    pub resource: ShapeId,
+    /// One per identifier of `resource`, root to leaf.
+    #[serde(default)]
+    pub bindings: Vec<crate::ir::permissions::Binding>,
+}

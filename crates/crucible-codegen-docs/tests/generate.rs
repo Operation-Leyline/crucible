@@ -1082,11 +1082,12 @@ fn roles_match_reviewed_goldens() {
             .unwrap_or_else(|| panic!("{name}"))
             .contents
     };
-    // Every operation that requires a permission says which roles grant it.
+    // Every operation that requires a permission says which roles grant it
+    // (a listing: what the caller sees "is granted by").
     for op in &server.operations {
         let contents = page(op.id.name());
         assert_eq!(
-            contents.contains("Granted by"),
+            contents.contains("Granted by") || contents.contains("is granted by"),
             !op.requirements.clauses().is_empty(),
             "{}",
             op.id

@@ -566,6 +566,48 @@ role graphAdmin = "graphAdmin" {
 - **`@roleTypes`** and **`@scopeTypes`** on a hand-written string enum
   check it against the role (scope) values both ways, as `@permissionTypes`
   checks resource types.
+- **`assigns`** says what an operation that can change who holds a role
+  assigns, beside its `requires` clauses:
+
+  ```
+  operation PutRoleBinding on Organization {
+      requires roleBindingManage
+      assigns role at Organization
+      input { $organizationId; principal: Name; role: Role; scope: RoleScopeType }
+  }
+  operation RevokeRoleBinding on Organization {
+      requires roleBindingManage
+      /// The role revoked is the stored binding's.
+      assigns loaded at Organization
+      input { $organizationId; principal: Name; scope: RoleScopeType }
+  }
+  readonly operation CountHolders on Organization {
+      requires roleBindingRead
+      assigns none because "it counts the holders of a role and writes no binding"
+      input { $organizationId; role: Role }
+  }
+  ```
+
+  `assigns <member> at <target>` names the input member path (through
+  structures, never a list element) holding the roles granted: a value of
+  the `@roleTypes` enum or a list of them. `assigns loaded at <target>`
+  says the roles are the stored binding's, which a revocation reads. The
+  target is a `requires` target (`R`, `R(path)`, `R(id: $x)`): the
+  resource instance the binding is written at or within; the binding's
+  own scope instance is a request value, which the handler names. Either
+  is an obligation the handler discharges with `roles::assign` before
+  writing, checking each role against `assignedBy`
+  ([framework.md](../framework.md#roles)); a success that leaves it open
+  fails. A replacement passes the roles it removes and the roles it adds.
+  `assigns none because ".."` says the operation matches a trigger below
+  but writes no binding. `loaded` and `none because` are the clause's own
+  words; an operation has one `assigns` clause.
+- **`roles.unassigned`**: an operation whose input carries a `@roleTypes`
+  value (a member of that enum, a list of it, a map with it as key or
+  value, at any depth), or
+  that `creates`, `puts`, `updates` or `deletes` a resource with a
+  property holding one, declares one of the three. A new binding grant or
+  revocation cannot skip the check.
 
 The other refusals: `roles.include-cycle`, `roles.unknown-scope`,
 `roles.unknown-role`, `roles.unknown-holder`, `roles.unknown-assigner`,
@@ -573,13 +615,19 @@ The other refusals: `roles.include-cycle`, `roles.unknown-scope`,
 `roles.value`, `roles.grant` (a name the resource does not declare, an
 alias, an `except` naming what `*` leaves out), `roles.at` (a role with no
 scope), `roles.scope` (a scope on a resource the service does not reach),
-`roles.principals` and `roles.types`. One compile reports all of them.
+`roles.principals`, `roles.types` and `roles.assigns` (an `assigns`
+member that holds no role values or that the input lacks, a target that is
+not a resource of the service or binds an identifier the input lacks, an
+empty reason, a second clause, or `assigns` in a service without roles).
+One compile reports all of them.
 
 The IR carries the catalogue as `Service::roles`, `Service::role_scopes`
 and `Service::role_settings`; each role holds what it declares and its
 effective grants (`Role::effective`, `Role::by_service`), settled once by
 `crucible_ir::roles::settle`, which also answers coverage
-(`crucible_ir::roles::covers`).
+(`crucible_ir::roles::covers`). `Operation::assigns` (`Assigns::Roles {
+roles, at, docs }` or `Assigns::None { reason, docs }`) is the clause;
+client projections drop it.
 
 Against a frozen release, a removed role or scope, a changed value, or a
 role that grants less, binds at fewer scopes or admits fewer holders is a

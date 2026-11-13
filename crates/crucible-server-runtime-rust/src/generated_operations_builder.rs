@@ -345,6 +345,9 @@ fn versioned_metadata<Old: Operation>(serving: &Entry) -> OperationMetadata {
         replays_output: serving.metadata.replays_output,
         requirements: serving.metadata.requirements,
         checks: serving.metadata.checks,
+        // The current handler runs, and it discharges the current model's
+        // assignment obligation.
+        assigns: serving.metadata.assigns,
         anonymous: serving.metadata.anonymous,
         public: serving.metadata.anonymous,
         ..OperationMetadata::of::<Old>()

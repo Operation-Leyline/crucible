@@ -4911,7 +4911,7 @@ impl<'a> Lowerer<'a> {
                 ),
                 OpEntry::Example(example) => examples.push(example),
                 // Lowered with the service's permissions, below.
-                OpEntry::Requirement(_) => {}
+                OpEntry::Requirement(_) | OpEntry::Assigns(_) => {}
             }
         }
 
@@ -5166,6 +5166,7 @@ impl<'a> Lowerer<'a> {
             }
         }
         let requirements = self.requirements(file, &id, operation);
+        let assigns = self.assigns(file, &id, operation);
         // Its clauses failed to lower, so the IR says `Undeclared` and the
         // shared check, which reads an anonymous operation without
         // requirements as correct, cannot tell it declared some.
@@ -5339,6 +5340,7 @@ impl<'a> Lowerer<'a> {
             requirements,
             sender: annotations.sender,
             granted_by: Vec::new(),
+            assigns,
         })
     }
 

@@ -149,6 +149,8 @@ pub mod leyline {
 
         pub type HistoryId = ::std::string::String;
 
+        pub type HistoryIds = ::std::vec::Vec<HistoryId>;
+
         #[derive(Clone, PartialEq, ::crucible_server_runtime_rust::__generated::serde::Serialize, ::crucible_server_runtime_rust::__generated::serde::Deserialize)]
         #[serde(crate = "::crucible_server_runtime_rust::__generated::serde")]
         pub struct ListAuditEventsInput {
@@ -159,6 +161,34 @@ pub mod leyline {
             fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
                 let mut debug = f.debug_struct("ListAuditEventsInput");
                 debug.field("organizationId", &self.organization_id);
+                debug.finish()
+            }
+        }
+
+        #[derive(Clone, PartialEq, ::crucible_server_runtime_rust::__generated::serde::Serialize, ::crucible_server_runtime_rust::__generated::serde::Deserialize)]
+        #[serde(crate = "::crucible_server_runtime_rust::__generated::serde")]
+        pub struct ListGraphHistoriesInput {
+            #[serde(rename = "organizationId")]
+            pub organization_id: OrganizationId,
+        }
+        impl ::std::fmt::Debug for ListGraphHistoriesInput {
+            fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+                let mut debug = f.debug_struct("ListGraphHistoriesInput");
+                debug.field("organizationId", &self.organization_id);
+                debug.finish()
+            }
+        }
+
+        #[derive(Clone, PartialEq, ::crucible_server_runtime_rust::__generated::serde::Serialize, ::crucible_server_runtime_rust::__generated::serde::Deserialize)]
+        #[serde(crate = "::crucible_server_runtime_rust::__generated::serde")]
+        pub struct ListGraphHistoriesOutput {
+            #[serde(rename = "historyIds")]
+            pub history_ids: HistoryIds,
+        }
+        impl ::std::fmt::Debug for ListGraphHistoriesOutput {
+            fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+                let mut debug = f.debug_struct("ListGraphHistoriesOutput");
+                debug.field("historyIds", &self.history_ids);
                 debug.finish()
             }
         }
@@ -217,6 +247,8 @@ pub mod leyline {
             pub role: Role,
             #[serde(rename = "scope")]
             pub scope: RoleScopeType,
+            #[serde(rename = "scopeId", default, skip_serializing_if = "::std::option::Option::is_none")]
+            pub scope_id: ::std::option::Option<Name>,
         }
         impl ::std::fmt::Debug for PutRoleBindingInput {
             fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
@@ -225,6 +257,7 @@ pub mod leyline {
                 debug.field("principal", &self.principal);
                 debug.field("role", &self.role);
                 debug.field("scope", &self.scope);
+                debug.field("scopeId", &self.scope_id);
                 debug.finish()
             }
         }
@@ -242,6 +275,29 @@ pub mod leyline {
                 let mut debug = f.debug_struct("RestoreGraphHistoryInput");
                 debug.field("organizationId", &self.organization_id);
                 debug.field("historyId", &self.history_id);
+                debug.finish()
+            }
+        }
+
+        #[derive(Clone, PartialEq, ::crucible_server_runtime_rust::__generated::serde::Serialize, ::crucible_server_runtime_rust::__generated::serde::Deserialize)]
+        #[serde(crate = "::crucible_server_runtime_rust::__generated::serde")]
+        pub struct RevokeRoleBindingInput {
+            #[serde(rename = "organizationId")]
+            pub organization_id: OrganizationId,
+            #[serde(rename = "principal")]
+            pub principal: Name,
+            #[serde(rename = "scope")]
+            pub scope: RoleScopeType,
+            #[serde(rename = "scopeId", default, skip_serializing_if = "::std::option::Option::is_none")]
+            pub scope_id: ::std::option::Option<Name>,
+        }
+        impl ::std::fmt::Debug for RevokeRoleBindingInput {
+            fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+                let mut debug = f.debug_struct("RevokeRoleBindingInput");
+                debug.field("organizationId", &self.organization_id);
+                debug.field("principal", &self.principal);
+                debug.field("scope", &self.scope);
+                debug.field("scopeId", &self.scope_id);
                 debug.finish()
             }
         }
@@ -491,6 +547,17 @@ pub mod leyline {
             }
         }
 
+        impl ::crucible_server_runtime_rust::__generated::validate::Validate for ListGraphHistoriesInput {
+            fn validate(&self, validator: &mut ::crucible_server_runtime_rust::__generated::validate::Validator) {
+                {
+                    let value = &self.organization_id;
+                    validator.at("organizationId", |validator| {
+                        validator.length(value.chars().count(), Some(3), Some(40));
+                    });
+                }
+            }
+        }
+
         impl ::crucible_server_runtime_rust::__generated::validate::Validate for PutRoleBindingInput {
             fn validate(&self, validator: &mut ::crucible_server_runtime_rust::__generated::validate::Validator) {
                 {
@@ -502,6 +569,11 @@ pub mod leyline {
                 {
                     let value = &self.principal;
                     validator.at("principal", |validator| {
+                        validator.length(value.chars().count(), Some(1), Some(64));
+                    });
+                }
+                if let Some(value) = &self.scope_id {
+                    validator.at("scopeId", |validator| {
                         validator.length(value.chars().count(), Some(1), Some(64));
                     });
                 }
@@ -520,6 +592,28 @@ pub mod leyline {
                     let value = &self.history_id;
                     validator.at("historyId", |validator| {
                         validator.length(value.chars().count(), Some(3), Some(40));
+                    });
+                }
+            }
+        }
+
+        impl ::crucible_server_runtime_rust::__generated::validate::Validate for RevokeRoleBindingInput {
+            fn validate(&self, validator: &mut ::crucible_server_runtime_rust::__generated::validate::Validator) {
+                {
+                    let value = &self.organization_id;
+                    validator.at("organizationId", |validator| {
+                        validator.length(value.chars().count(), Some(3), Some(40));
+                    });
+                }
+                {
+                    let value = &self.principal;
+                    validator.at("principal", |validator| {
+                        validator.length(value.chars().count(), Some(1), Some(64));
+                    });
+                }
+                if let Some(value) = &self.scope_id {
+                    validator.at("scopeId", |validator| {
+                        validator.length(value.chars().count(), Some(1), Some(64));
                     });
                 }
             }
@@ -604,7 +698,7 @@ pub mod leyline {
 
     #[doc(inline)]
     #[allow(unused_imports, deprecated)]
-    pub use model::{CreateBackupInput, CreateGraphInput, DeleteGraphInput, GetGraphHistoryInput, GetGraphInput, GetGraphOutput, GetOrganizationInput, GetOrganizationOutput, GetUsageInput, GraphId, HistoryId, ListAuditEventsInput, ListRolesOutput, Name, OrganizationId, PrincipalType, PrincipalTypes, PutRoleBindingInput, RestoreGraphHistoryInput, Role, RoleScopeType, RoleScopeTypes, RoleSummaries, RoleSummary, WriteGraphInput};
+    pub use model::{CreateBackupInput, CreateGraphInput, DeleteGraphInput, GetGraphHistoryInput, GetGraphInput, GetGraphOutput, GetOrganizationInput, GetOrganizationOutput, GetUsageInput, GraphId, HistoryId, HistoryIds, ListAuditEventsInput, ListGraphHistoriesInput, ListGraphHistoriesOutput, ListRolesOutput, Name, OrganizationId, PrincipalType, PrincipalTypes, PutRoleBindingInput, RestoreGraphHistoryInput, RevokeRoleBindingInput, Role, RoleScopeType, RoleScopeTypes, RoleSummaries, RoleSummary, WriteGraphInput};
     #[doc(inline)]
     #[allow(unused_imports, deprecated)]
     pub use errors::{ResourceNotFound};
@@ -613,32 +707,36 @@ pub mod leyline {
     mod __redaction {
         use ::crucible_server_runtime_rust::__generated::operation::Redaction;
         pub(super) static R_0: Redaction = Redaction::Public;
-        pub(super) static R_1: Redaction = Redaction::Structure(&[("organizationId", &R_15)]);
-        pub(super) static R_2: Redaction = Redaction::Structure(&[("organizationId", &R_15), ("name", &R_14)]);
-        pub(super) static R_3: Redaction = Redaction::Structure(&[("organizationId", &R_15), ("graphId", &R_10)]);
-        pub(super) static R_4: Redaction = Redaction::Structure(&[("organizationId", &R_15), ("historyId", &R_11)]);
-        pub(super) static R_5: Redaction = Redaction::Structure(&[("organizationId", &R_15), ("graphId", &R_10)]);
-        pub(super) static R_6: Redaction = Redaction::Structure(&[("name", &R_14)]);
-        pub(super) static R_7: Redaction = Redaction::Structure(&[("organizationId", &R_15)]);
-        pub(super) static R_8: Redaction = Redaction::Structure(&[("name", &R_14)]);
-        pub(super) static R_9: Redaction = Redaction::Structure(&[("organizationId", &R_15)]);
+        pub(super) static R_1: Redaction = Redaction::Structure(&[("organizationId", &R_18)]);
+        pub(super) static R_2: Redaction = Redaction::Structure(&[("organizationId", &R_18), ("name", &R_17)]);
+        pub(super) static R_3: Redaction = Redaction::Structure(&[("organizationId", &R_18), ("graphId", &R_10)]);
+        pub(super) static R_4: Redaction = Redaction::Structure(&[("organizationId", &R_18), ("historyId", &R_11)]);
+        pub(super) static R_5: Redaction = Redaction::Structure(&[("organizationId", &R_18), ("graphId", &R_10)]);
+        pub(super) static R_6: Redaction = Redaction::Structure(&[("name", &R_17)]);
+        pub(super) static R_7: Redaction = Redaction::Structure(&[("organizationId", &R_18)]);
+        pub(super) static R_8: Redaction = Redaction::Structure(&[("name", &R_17)]);
+        pub(super) static R_9: Redaction = Redaction::Structure(&[("organizationId", &R_18)]);
         pub(super) static R_10: Redaction = Redaction::Public;
         pub(super) static R_11: Redaction = Redaction::Public;
-        pub(super) static R_12: Redaction = Redaction::Structure(&[("organizationId", &R_15)]);
-        pub(super) static R_13: Redaction = Redaction::Structure(&[("roles", &R_24)]);
-        pub(super) static R_14: Redaction = Redaction::Public;
-        pub(super) static R_15: Redaction = Redaction::Public;
-        pub(super) static R_16: Redaction = Redaction::Public;
-        pub(super) static R_17: Redaction = Redaction::List(&R_16);
-        pub(super) static R_18: Redaction = Redaction::Structure(&[("organizationId", &R_15), ("principal", &R_14), ("role", &R_21), ("scope", &R_22)]);
-        pub(super) static R_19: Redaction = Redaction::Structure(&[("message", &R_0)]);
-        pub(super) static R_20: Redaction = Redaction::Structure(&[("organizationId", &R_15), ("historyId", &R_11)]);
-        pub(super) static R_21: Redaction = Redaction::Public;
-        pub(super) static R_22: Redaction = Redaction::Public;
-        pub(super) static R_23: Redaction = Redaction::List(&R_22);
-        pub(super) static R_24: Redaction = Redaction::List(&R_25);
-        pub(super) static R_25: Redaction = Redaction::Structure(&[("role", &R_21), ("scopes", &R_23), ("holders", &R_17)]);
-        pub(super) static R_26: Redaction = Redaction::Structure(&[("organizationId", &R_15), ("graphId", &R_10)]);
+        pub(super) static R_12: Redaction = Redaction::List(&R_11);
+        pub(super) static R_13: Redaction = Redaction::Structure(&[("organizationId", &R_18)]);
+        pub(super) static R_14: Redaction = Redaction::Structure(&[("organizationId", &R_18)]);
+        pub(super) static R_15: Redaction = Redaction::Structure(&[("historyIds", &R_12)]);
+        pub(super) static R_16: Redaction = Redaction::Structure(&[("roles", &R_28)]);
+        pub(super) static R_17: Redaction = Redaction::Public;
+        pub(super) static R_18: Redaction = Redaction::Public;
+        pub(super) static R_19: Redaction = Redaction::Public;
+        pub(super) static R_20: Redaction = Redaction::List(&R_19);
+        pub(super) static R_21: Redaction = Redaction::Structure(&[("organizationId", &R_18), ("principal", &R_17), ("role", &R_25), ("scope", &R_26), ("scopeId", &R_17)]);
+        pub(super) static R_22: Redaction = Redaction::Structure(&[("message", &R_0)]);
+        pub(super) static R_23: Redaction = Redaction::Structure(&[("organizationId", &R_18), ("historyId", &R_11)]);
+        pub(super) static R_24: Redaction = Redaction::Structure(&[("organizationId", &R_18), ("principal", &R_17), ("scope", &R_26), ("scopeId", &R_17)]);
+        pub(super) static R_25: Redaction = Redaction::Public;
+        pub(super) static R_26: Redaction = Redaction::Public;
+        pub(super) static R_27: Redaction = Redaction::List(&R_26);
+        pub(super) static R_28: Redaction = Redaction::List(&R_29);
+        pub(super) static R_29: Redaction = Redaction::Structure(&[("role", &R_25), ("scopes", &R_27), ("holders", &R_20)]);
+        pub(super) static R_30: Redaction = Redaction::Structure(&[("organizationId", &R_18), ("graphId", &R_10)]);
     }
 
 
@@ -653,7 +751,7 @@ pub mod leyline {
         &[],
         200,
         &[
-            ::crucible_server_runtime_rust::__generated::member_info("organizationId", ::crucible_server_runtime_rust::__generated::operation::Location::Label, ::crucible_server_runtime_rust::__generated::operation::Scalar::String, &__redaction::R_15, &[]),
+            ::crucible_server_runtime_rust::__generated::member_info("organizationId", ::crucible_server_runtime_rust::__generated::operation::Location::Label, ::crucible_server_runtime_rust::__generated::operation::Scalar::String, &__redaction::R_18, &[]),
         ],
         &[],
         &["ResourceNotFound"],
@@ -699,8 +797,8 @@ pub mod leyline {
         &[],
         200,
         &[
-            ::crucible_server_runtime_rust::__generated::member_info("organizationId", ::crucible_server_runtime_rust::__generated::operation::Location::Label, ::crucible_server_runtime_rust::__generated::operation::Scalar::String, &__redaction::R_15, &[]),
-            ::crucible_server_runtime_rust::__generated::member_info("name", ::crucible_server_runtime_rust::__generated::operation::Location::Body, ::crucible_server_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_14, &[]),
+            ::crucible_server_runtime_rust::__generated::member_info("organizationId", ::crucible_server_runtime_rust::__generated::operation::Location::Label, ::crucible_server_runtime_rust::__generated::operation::Scalar::String, &__redaction::R_18, &[]),
+            ::crucible_server_runtime_rust::__generated::member_info("name", ::crucible_server_runtime_rust::__generated::operation::Location::Body, ::crucible_server_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_17, &[]),
         ],
         &[],
         &["ResourceNotFound"],
@@ -746,7 +844,7 @@ pub mod leyline {
         &[],
         200,
         &[
-            ::crucible_server_runtime_rust::__generated::member_info("organizationId", ::crucible_server_runtime_rust::__generated::operation::Location::Label, ::crucible_server_runtime_rust::__generated::operation::Scalar::String, &__redaction::R_15, &[]),
+            ::crucible_server_runtime_rust::__generated::member_info("organizationId", ::crucible_server_runtime_rust::__generated::operation::Location::Label, ::crucible_server_runtime_rust::__generated::operation::Scalar::String, &__redaction::R_18, &[]),
             ::crucible_server_runtime_rust::__generated::member_info("graphId", ::crucible_server_runtime_rust::__generated::operation::Location::Label, ::crucible_server_runtime_rust::__generated::operation::Scalar::String, &__redaction::R_10, &[]),
         ],
         &[],
@@ -793,11 +891,11 @@ pub mod leyline {
         &[],
         200,
         &[
-            ::crucible_server_runtime_rust::__generated::member_info("organizationId", ::crucible_server_runtime_rust::__generated::operation::Location::Label, ::crucible_server_runtime_rust::__generated::operation::Scalar::String, &__redaction::R_15, &[]),
+            ::crucible_server_runtime_rust::__generated::member_info("organizationId", ::crucible_server_runtime_rust::__generated::operation::Location::Label, ::crucible_server_runtime_rust::__generated::operation::Scalar::String, &__redaction::R_18, &[]),
             ::crucible_server_runtime_rust::__generated::member_info("graphId", ::crucible_server_runtime_rust::__generated::operation::Location::Label, ::crucible_server_runtime_rust::__generated::operation::Scalar::String, &__redaction::R_10, &[]),
         ],
         &[
-            ::crucible_server_runtime_rust::__generated::member_info("name", ::crucible_server_runtime_rust::__generated::operation::Location::Body, ::crucible_server_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_14, &[]),
+            ::crucible_server_runtime_rust::__generated::member_info("name", ::crucible_server_runtime_rust::__generated::operation::Location::Body, ::crucible_server_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_17, &[]),
         ],
         &["ResourceNotFound"],
         true,
@@ -841,7 +939,7 @@ pub mod leyline {
         &[],
         200,
         &[
-            ::crucible_server_runtime_rust::__generated::member_info("organizationId", ::crucible_server_runtime_rust::__generated::operation::Location::Label, ::crucible_server_runtime_rust::__generated::operation::Scalar::String, &__redaction::R_15, &[]),
+            ::crucible_server_runtime_rust::__generated::member_info("organizationId", ::crucible_server_runtime_rust::__generated::operation::Location::Label, ::crucible_server_runtime_rust::__generated::operation::Scalar::String, &__redaction::R_18, &[]),
             ::crucible_server_runtime_rust::__generated::member_info("historyId", ::crucible_server_runtime_rust::__generated::operation::Location::Label, ::crucible_server_runtime_rust::__generated::operation::Scalar::String, &__redaction::R_11, &[]),
         ],
         &[],
@@ -888,10 +986,10 @@ pub mod leyline {
         &[],
         200,
         &[
-            ::crucible_server_runtime_rust::__generated::member_info("organizationId", ::crucible_server_runtime_rust::__generated::operation::Location::Label, ::crucible_server_runtime_rust::__generated::operation::Scalar::String, &__redaction::R_15, &[]),
+            ::crucible_server_runtime_rust::__generated::member_info("organizationId", ::crucible_server_runtime_rust::__generated::operation::Location::Label, ::crucible_server_runtime_rust::__generated::operation::Scalar::String, &__redaction::R_18, &[]),
         ],
         &[
-            ::crucible_server_runtime_rust::__generated::member_info("name", ::crucible_server_runtime_rust::__generated::operation::Location::Body, ::crucible_server_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_14, &[]),
+            ::crucible_server_runtime_rust::__generated::member_info("name", ::crucible_server_runtime_rust::__generated::operation::Location::Body, ::crucible_server_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_17, &[]),
         ],
         &["ResourceNotFound"],
         true,
@@ -935,7 +1033,7 @@ pub mod leyline {
         &[],
         200,
         &[
-            ::crucible_server_runtime_rust::__generated::member_info("organizationId", ::crucible_server_runtime_rust::__generated::operation::Location::Label, ::crucible_server_runtime_rust::__generated::operation::Scalar::String, &__redaction::R_15, &[]),
+            ::crucible_server_runtime_rust::__generated::member_info("organizationId", ::crucible_server_runtime_rust::__generated::operation::Location::Label, ::crucible_server_runtime_rust::__generated::operation::Scalar::String, &__redaction::R_18, &[]),
         ],
         &[],
         &["ResourceNotFound"],
@@ -981,7 +1079,7 @@ pub mod leyline {
         &[],
         200,
         &[
-            ::crucible_server_runtime_rust::__generated::member_info("organizationId", ::crucible_server_runtime_rust::__generated::operation::Location::Label, ::crucible_server_runtime_rust::__generated::operation::Scalar::String, &__redaction::R_15, &[]),
+            ::crucible_server_runtime_rust::__generated::member_info("organizationId", ::crucible_server_runtime_rust::__generated::operation::Location::Label, ::crucible_server_runtime_rust::__generated::operation::Scalar::String, &__redaction::R_18, &[]),
         ],
         &[],
         &["ResourceNotFound"],
@@ -1016,6 +1114,55 @@ pub mod leyline {
         fn list_audit_events(&self, input: ListAuditEventsInput) -> impl ::std::future::Future<Output = ::crucible_server_runtime_rust::__generated::Result<()>> + Send;
     }
 
+    /// The histories the caller may read.
+    pub struct ListGraphHistories;
+
+    static LIST_GRAPH_HISTORIES_OPERATION: ::crucible_server_runtime_rust::__generated::OperationInfo = ::crucible_server_runtime_rust::__generated::operation_info(
+        "example.leyline#ListGraphHistories",
+        "ListGraphHistories",
+        Some("GraphHistory"),
+        "GET",
+        &[::crucible_server_runtime_rust::__generated::operation::Segment::Literal("v1"), ::crucible_server_runtime_rust::__generated::operation::Segment::Literal("organizations"), ::crucible_server_runtime_rust::__generated::operation::Segment::Label("organizationId"), ::crucible_server_runtime_rust::__generated::operation::Segment::Literal("histories")],
+        &[],
+        200,
+        &[
+            ::crucible_server_runtime_rust::__generated::member_info("organizationId", ::crucible_server_runtime_rust::__generated::operation::Location::Label, ::crucible_server_runtime_rust::__generated::operation::Scalar::String, &__redaction::R_18, &[]),
+        ],
+        &[
+            ::crucible_server_runtime_rust::__generated::member_info("historyIds", ::crucible_server_runtime_rust::__generated::operation::Location::Body, ::crucible_server_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_12, &[]),
+        ],
+        &["ResourceNotFound"],
+        true,
+        false,
+        false,
+        None,
+        &[],
+    );
+
+    impl ::crucible_server_runtime_rust::__generated::Operation for ListGraphHistories {
+        const AUTH_BEARER: bool = true;
+        const AUTH_SCHEMES: ::std::option::Option<&'static [::crucible_server_runtime_rust::__generated::operation::AuthScheme]> = Some(&[::crucible_server_runtime_rust::__generated::operation::AuthScheme::Bearer]);
+        const REQUIREMENTS: ::crucible_server_runtime_rust::__generated::permissions::Requirements = {
+            static CLAUSES: [::crucible_server_runtime_rust::__generated::permissions::RequirementInfo; 1] = [
+                ::crucible_server_runtime_rust::__generated::permissions::RequirementInfo { mode: ::crucible_server_runtime_rust::__generated::permissions::Mode::Filter, permission: &permissions::GRAPH_HISTORY__READ, conditional: false },
+            ];
+            ::crucible_server_runtime_rust::__generated::permissions::Requirements::List(&CLAUSES)
+        };
+        #[allow(clippy::all, unreachable_patterns, unused_parens)]
+        const CHECKS: ::std::option::Option<::crucible_server_runtime_rust::__generated::permissions::Checks<Self::Input>> = ::std::option::Option::Some(|input, out| {
+            out.push(::crucible_server_runtime_rust::__generated::permissions::Check::declared(0, &permissions::GRAPH_HISTORY__READ, ::crucible_server_runtime_rust::__generated::permissions::ResourceRef::all(&permissions::GRAPH_HISTORY, [::crucible_server_runtime_rust::__generated::permissions::Target::from(&input.organization_id)])));
+        });
+        const API_VERSION: ::std::option::Option<&'static str> = ::std::option::Option::Some("2026-09-04");
+        const INFO: &'static ::crucible_server_runtime_rust::__generated::OperationInfo = &LIST_GRAPH_HISTORIES_OPERATION;
+        type Input = model::ListGraphHistoriesInput;
+        type Output = model::ListGraphHistoriesOutput;
+    }
+
+    /// The histories the caller may read.
+    pub trait ListGraphHistoriesOperation: ::crucible_server_runtime_rust::__generated::WithContext + Send + Sync + 'static {
+        fn list_graph_histories(&self, input: ListGraphHistoriesInput) -> impl ::std::future::Future<Output = ::crucible_server_runtime_rust::__generated::Result<ListGraphHistoriesOutput>> + Send;
+    }
+
     /// Every role a binding may name.
     /// Answers from the model's own catalogue, the same for every caller.
     pub struct ListRoles;
@@ -1030,7 +1177,7 @@ pub mod leyline {
         200,
         &[],
         &[
-            ::crucible_server_runtime_rust::__generated::member_info("roles", ::crucible_server_runtime_rust::__generated::operation::Location::Body, ::crucible_server_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_24, &[]),
+            ::crucible_server_runtime_rust::__generated::member_info("roles", ::crucible_server_runtime_rust::__generated::operation::Location::Body, ::crucible_server_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_28, &[]),
         ],
         &[],
         true,
@@ -1057,6 +1204,9 @@ pub mod leyline {
         fn list_roles(&self) -> impl ::std::future::Future<Output = ::crucible_server_runtime_rust::__generated::Result<ListRolesOutput>> + Send;
     }
 
+    /// Grants `role` to `principal` at `scope`, replacing the role a binding
+    /// there held: the role granted and the role replaced must each be one the
+    /// caller may assign.
     pub struct PutRoleBinding;
 
     static PUT_ROLE_BINDING_OPERATION: ::crucible_server_runtime_rust::__generated::OperationInfo = ::crucible_server_runtime_rust::__generated::operation_info(
@@ -1068,10 +1218,11 @@ pub mod leyline {
         &[],
         200,
         &[
-            ::crucible_server_runtime_rust::__generated::member_info("organizationId", ::crucible_server_runtime_rust::__generated::operation::Location::Label, ::crucible_server_runtime_rust::__generated::operation::Scalar::String, &__redaction::R_15, &[]),
-            ::crucible_server_runtime_rust::__generated::member_info("principal", ::crucible_server_runtime_rust::__generated::operation::Location::Label, ::crucible_server_runtime_rust::__generated::operation::Scalar::String, &__redaction::R_14, &[]),
-            ::crucible_server_runtime_rust::__generated::member_info("role", ::crucible_server_runtime_rust::__generated::operation::Location::Body, ::crucible_server_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_21, &[]),
-            ::crucible_server_runtime_rust::__generated::member_info("scope", ::crucible_server_runtime_rust::__generated::operation::Location::Body, ::crucible_server_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_22, &[]),
+            ::crucible_server_runtime_rust::__generated::member_info("organizationId", ::crucible_server_runtime_rust::__generated::operation::Location::Label, ::crucible_server_runtime_rust::__generated::operation::Scalar::String, &__redaction::R_18, &[]),
+            ::crucible_server_runtime_rust::__generated::member_info("principal", ::crucible_server_runtime_rust::__generated::operation::Location::Label, ::crucible_server_runtime_rust::__generated::operation::Scalar::String, &__redaction::R_17, &[]),
+            ::crucible_server_runtime_rust::__generated::member_info("role", ::crucible_server_runtime_rust::__generated::operation::Location::Body, ::crucible_server_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_25, &[]),
+            ::crucible_server_runtime_rust::__generated::member_info("scope", ::crucible_server_runtime_rust::__generated::operation::Location::Body, ::crucible_server_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_26, &[]),
+            ::crucible_server_runtime_rust::__generated::member_info("scopeId", ::crucible_server_runtime_rust::__generated::operation::Location::Body, ::crucible_server_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_17, &[]),
         ],
         &[],
         &["ResourceNotFound"],
@@ -1085,6 +1236,7 @@ pub mod leyline {
     impl ::crucible_server_runtime_rust::__generated::Operation for PutRoleBinding {
         const AUTH_BEARER: bool = true;
         const AUTH_SCHEMES: ::std::option::Option<&'static [::crucible_server_runtime_rust::__generated::operation::AuthScheme]> = Some(&[::crucible_server_runtime_rust::__generated::operation::AuthScheme::Bearer]);
+        const ASSIGNS: ::std::option::Option<::crucible_server_runtime_rust::__generated::permissions::Assignment> = ::std::option::Option::Some(Self::ASSIGNMENT);
         const REQUIREMENTS: ::crucible_server_runtime_rust::__generated::permissions::Requirements = {
             static CLAUSES: [::crucible_server_runtime_rust::__generated::permissions::RequirementInfo; 1] = [
                 ::crucible_server_runtime_rust::__generated::permissions::RequirementInfo { mode: ::crucible_server_runtime_rust::__generated::permissions::Mode::Check, permission: &permissions::ORGANIZATION__ROLE_BINDING_MANAGE, conditional: false },
@@ -1102,6 +1254,14 @@ pub mod leyline {
         type Output = ();
     }
 
+    impl PutRoleBinding {
+        /// The obligation `assigns` opens: the roles in `role`, at or within `Organization`. Discharge it with `roles::assign`, passing each role the request grants or revokes (both, for a replacement: `roles::replaced`) and the binding's scope instance, before any write; a success with it open fails.
+        pub const ASSIGNMENT: ::crucible_server_runtime_rust::__generated::permissions::Assignment = ::crucible_server_runtime_rust::__generated::permissions::Assignment { operation: "example.leyline#PutRoleBinding", member: ::std::option::Option::Some("role") };
+    }
+
+    /// Grants `role` to `principal` at `scope`, replacing the role a binding
+    /// there held: the role granted and the role replaced must each be one the
+    /// caller may assign.
     pub trait PutRoleBindingOperation: ::crucible_server_runtime_rust::__generated::WithContext + Send + Sync + 'static {
         fn put_role_binding(&self, input: PutRoleBindingInput) -> impl ::std::future::Future<Output = ::crucible_server_runtime_rust::__generated::Result<()>> + Send;
     }
@@ -1117,7 +1277,7 @@ pub mod leyline {
         &[],
         200,
         &[
-            ::crucible_server_runtime_rust::__generated::member_info("organizationId", ::crucible_server_runtime_rust::__generated::operation::Location::Label, ::crucible_server_runtime_rust::__generated::operation::Scalar::String, &__redaction::R_15, &[]),
+            ::crucible_server_runtime_rust::__generated::member_info("organizationId", ::crucible_server_runtime_rust::__generated::operation::Location::Label, ::crucible_server_runtime_rust::__generated::operation::Scalar::String, &__redaction::R_18, &[]),
             ::crucible_server_runtime_rust::__generated::member_info("historyId", ::crucible_server_runtime_rust::__generated::operation::Location::Label, ::crucible_server_runtime_rust::__generated::operation::Scalar::String, &__redaction::R_11, &[]),
         ],
         &[],
@@ -1153,6 +1313,67 @@ pub mod leyline {
         fn restore_graph_history(&self, input: RestoreGraphHistoryInput) -> impl ::std::future::Future<Output = ::crucible_server_runtime_rust::__generated::Result<()>> + Send;
     }
 
+    /// Revokes the binding `principal` holds at `scope`: the role it held must
+    /// be one the caller may assign.
+    pub struct RevokeRoleBinding;
+
+    static REVOKE_ROLE_BINDING_OPERATION: ::crucible_server_runtime_rust::__generated::OperationInfo = ::crucible_server_runtime_rust::__generated::operation_info(
+        "example.leyline#RevokeRoleBinding",
+        "RevokeRoleBinding",
+        Some("Organization"),
+        "POST",
+        &[::crucible_server_runtime_rust::__generated::operation::Segment::Literal("v1"), ::crucible_server_runtime_rust::__generated::operation::Segment::Literal("organizations"), ::crucible_server_runtime_rust::__generated::operation::Segment::Label("organizationId"), ::crucible_server_runtime_rust::__generated::operation::Segment::Literal("role-bindings"), ::crucible_server_runtime_rust::__generated::operation::Segment::Label("principal"), ::crucible_server_runtime_rust::__generated::operation::Segment::Literal("revoke")],
+        &[],
+        200,
+        &[
+            ::crucible_server_runtime_rust::__generated::member_info("organizationId", ::crucible_server_runtime_rust::__generated::operation::Location::Label, ::crucible_server_runtime_rust::__generated::operation::Scalar::String, &__redaction::R_18, &[]),
+            ::crucible_server_runtime_rust::__generated::member_info("principal", ::crucible_server_runtime_rust::__generated::operation::Location::Label, ::crucible_server_runtime_rust::__generated::operation::Scalar::String, &__redaction::R_17, &[]),
+            ::crucible_server_runtime_rust::__generated::member_info("scope", ::crucible_server_runtime_rust::__generated::operation::Location::Body, ::crucible_server_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_26, &[]),
+            ::crucible_server_runtime_rust::__generated::member_info("scopeId", ::crucible_server_runtime_rust::__generated::operation::Location::Body, ::crucible_server_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_17, &[]),
+        ],
+        &[],
+        &["ResourceNotFound"],
+        false,
+        true,
+        false,
+        None,
+        &[],
+    );
+
+    impl ::crucible_server_runtime_rust::__generated::Operation for RevokeRoleBinding {
+        const AUTH_BEARER: bool = true;
+        const AUTH_SCHEMES: ::std::option::Option<&'static [::crucible_server_runtime_rust::__generated::operation::AuthScheme]> = Some(&[::crucible_server_runtime_rust::__generated::operation::AuthScheme::Bearer]);
+        const ASSIGNS: ::std::option::Option<::crucible_server_runtime_rust::__generated::permissions::Assignment> = ::std::option::Option::Some(Self::ASSIGNMENT);
+        const REQUIREMENTS: ::crucible_server_runtime_rust::__generated::permissions::Requirements = {
+            static CLAUSES: [::crucible_server_runtime_rust::__generated::permissions::RequirementInfo; 1] = [
+                ::crucible_server_runtime_rust::__generated::permissions::RequirementInfo { mode: ::crucible_server_runtime_rust::__generated::permissions::Mode::Check, permission: &permissions::ORGANIZATION__ROLE_BINDING_MANAGE, conditional: false },
+            ];
+            ::crucible_server_runtime_rust::__generated::permissions::Requirements::List(&CLAUSES)
+        };
+        #[allow(clippy::all, unreachable_patterns, unused_parens)]
+        const CHECKS: ::std::option::Option<::crucible_server_runtime_rust::__generated::permissions::Checks<Self::Input>> = ::std::option::Option::Some(|input, out| {
+            out.push(::crucible_server_runtime_rust::__generated::permissions::Check::declared(0, &permissions::ORGANIZATION__ROLE_BINDING_MANAGE, ::crucible_server_runtime_rust::__generated::permissions::ResourceRef::new(&permissions::ORGANIZATION, [::crucible_server_runtime_rust::__generated::permissions::Target::from(&input.organization_id)])));
+        });
+        const API_VERSION: ::std::option::Option<&'static str> = ::std::option::Option::Some("2026-09-04");
+        const HAS_OUTPUT: bool = false;
+        const INFO: &'static ::crucible_server_runtime_rust::__generated::OperationInfo = &REVOKE_ROLE_BINDING_OPERATION;
+        type Input = model::RevokeRoleBindingInput;
+        type Output = ();
+    }
+
+    impl RevokeRoleBinding {
+        /// The obligation `assigns` opens: the stored roles it revokes (`loaded`), at or within `Organization`. Discharge it with `roles::assign`, passing each role the request grants or revokes (both, for a replacement: `roles::replaced`) and the binding's scope instance, before any write; a success with it open fails.
+        ///
+        /// The role revoked is the stored binding's.
+        pub const ASSIGNMENT: ::crucible_server_runtime_rust::__generated::permissions::Assignment = ::crucible_server_runtime_rust::__generated::permissions::Assignment { operation: "example.leyline#RevokeRoleBinding", member: ::std::option::Option::None };
+    }
+
+    /// Revokes the binding `principal` holds at `scope`: the role it held must
+    /// be one the caller may assign.
+    pub trait RevokeRoleBindingOperation: ::crucible_server_runtime_rust::__generated::WithContext + Send + Sync + 'static {
+        fn revoke_role_binding(&self, input: RevokeRoleBindingInput) -> impl ::std::future::Future<Output = ::crucible_server_runtime_rust::__generated::Result<()>> + Send;
+    }
+
     pub struct WriteGraph;
 
     static WRITE_GRAPH_OPERATION: ::crucible_server_runtime_rust::__generated::OperationInfo = ::crucible_server_runtime_rust::__generated::operation_info(
@@ -1164,7 +1385,7 @@ pub mod leyline {
         &[],
         200,
         &[
-            ::crucible_server_runtime_rust::__generated::member_info("organizationId", ::crucible_server_runtime_rust::__generated::operation::Location::Label, ::crucible_server_runtime_rust::__generated::operation::Scalar::String, &__redaction::R_15, &[]),
+            ::crucible_server_runtime_rust::__generated::member_info("organizationId", ::crucible_server_runtime_rust::__generated::operation::Location::Label, ::crucible_server_runtime_rust::__generated::operation::Scalar::String, &__redaction::R_18, &[]),
             ::crucible_server_runtime_rust::__generated::member_info("graphId", ::crucible_server_runtime_rust::__generated::operation::Location::Label, ::crucible_server_runtime_rust::__generated::operation::Scalar::String, &__redaction::R_10, &[]),
         ],
         &[],
@@ -1221,9 +1442,11 @@ pub mod leyline {
             &GET_ORGANIZATION_OPERATION,
             &GET_USAGE_OPERATION,
             &LIST_AUDIT_EVENTS_OPERATION,
+            &LIST_GRAPH_HISTORIES_OPERATION,
             &LIST_ROLES_OPERATION,
             &PUT_ROLE_BINDING_OPERATION,
             &RESTORE_GRAPH_HISTORY_OPERATION,
+            &REVOKE_ROLE_BINDING_OPERATION,
             &WRITE_GRAPH_OPERATION,
         ],
         &[&errors::RESOURCE_NOT_FOUND_INFO],
@@ -1303,6 +1526,11 @@ pub mod leyline {
             Self(self.0.add::<ListAuditEvents, S, _>(implementation, |implementation, input| async move { implementation.list_audit_events(input).await }))
         }
 
+        /// Serves ListGraphHistories with `implementation`.
+        pub fn list_graph_histories<S: ListGraphHistoriesOperation>(self, implementation: ::std::sync::Arc<S>) -> Self {
+            Self(self.0.add::<ListGraphHistories, S, _>(implementation, |implementation, input| async move { implementation.list_graph_histories(input).await }))
+        }
+
         /// Serves ListRoles with `implementation`.
         pub fn list_roles<S: ListRolesOperation>(self, implementation: ::std::sync::Arc<S>) -> Self {
             Self(self.0.add::<ListRoles, S, _>(implementation, |implementation, _| async move { implementation.list_roles().await }))
@@ -1316,6 +1544,11 @@ pub mod leyline {
         /// Serves RestoreGraphHistory with `implementation`.
         pub fn restore_graph_history<S: RestoreGraphHistoryOperation>(self, implementation: ::std::sync::Arc<S>) -> Self {
             Self(self.0.add::<RestoreGraphHistory, S, _>(implementation, |implementation, input| async move { implementation.restore_graph_history(input).await }))
+        }
+
+        /// Serves RevokeRoleBinding with `implementation`.
+        pub fn revoke_role_binding<S: RevokeRoleBindingOperation>(self, implementation: ::std::sync::Arc<S>) -> Self {
+            Self(self.0.add::<RevokeRoleBinding, S, _>(implementation, |implementation, input| async move { implementation.revoke_role_binding(input).await }))
         }
 
         /// Serves WriteGraph with `implementation`.
@@ -1335,7 +1568,7 @@ pub mod leyline {
     /// Every operation, served by one type: checked at compile time.
     pub fn operations<T>(implementation: ::std::sync::Arc<T>) -> ::crucible_server_runtime_rust::__generated::Operations
     where
-        T: CreateBackupOperation + CreateGraphOperation + DeleteGraphOperation + GetGraphOperation + GetGraphHistoryOperation + GetOrganizationOperation + GetUsageOperation + ListAuditEventsOperation + ListRolesOperation + PutRoleBindingOperation + RestoreGraphHistoryOperation + WriteGraphOperation,
+        T: CreateBackupOperation + CreateGraphOperation + DeleteGraphOperation + GetGraphOperation + GetGraphHistoryOperation + GetOrganizationOperation + GetUsageOperation + ListAuditEventsOperation + ListGraphHistoriesOperation + ListRolesOperation + PutRoleBindingOperation + RestoreGraphHistoryOperation + RevokeRoleBindingOperation + WriteGraphOperation,
     {
         builder()
             .create_backup(implementation.clone())
@@ -1346,9 +1579,11 @@ pub mod leyline {
             .get_organization(implementation.clone())
             .get_usage(implementation.clone())
             .list_audit_events(implementation.clone())
+            .list_graph_histories(implementation.clone())
             .list_roles(implementation.clone())
             .put_role_binding(implementation.clone())
             .restore_graph_history(implementation.clone())
+            .revoke_role_binding(implementation.clone())
             .write_graph(implementation.clone())
             .build()
             .expect("every operation is registered")

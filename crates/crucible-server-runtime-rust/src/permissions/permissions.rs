@@ -565,6 +565,7 @@ impl Interceptor for Permissions {
                 readonly: operation.readonly,
                 idempotent: operation.idempotent,
                 requirements: metadata.requirements,
+                assigns: metadata.assigns,
             },
         );
         let context = job.context().clone();

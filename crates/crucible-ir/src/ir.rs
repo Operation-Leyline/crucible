@@ -25,8 +25,8 @@ pub use permissions::{
 };
 pub mod roles;
 pub use roles::{
-    ClauseGrants, Grant, GrantedPermission, GrantedSet, Role, RoleGrant, RoleSettings, Scope,
-    ScopeTarget, ServiceGrant,
+    AssignedAt, AssignedRoles, Assigns, ClauseGrants, Grant, GrantedPermission, GrantedSet, Role,
+    RoleGrant, RoleSettings, Scope, ScopeTarget, ServiceGrant,
 };
 
 pub type Traits = BTreeMap<ShapeId, Value>;
@@ -1059,6 +1059,14 @@ pub struct Operation {
     /// entries of the clauses it removed, without their permission.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub granted_by: Vec<ClauseGrants>,
+    /// What the operation says about the role bindings it writes
+    /// (docs/roles.md §4.5): `assigns <member> at ..`, `assigns loaded at
+    /// ..` or `assigns none because ".."`. `None` when it says nothing,
+    /// which `roles.unassigned` refuses for an operation that carries a
+    /// `@roleTypes` value or writes a resource with a role-typed property.
+    /// A snapshot frozen before `assigns` existed has none.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub assigns: Option<Assigns>,
 }
 
 /// A sender-signed operation's caller (decision 81).

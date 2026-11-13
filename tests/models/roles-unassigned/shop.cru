@@ -1,0 +1,108 @@
+service Shop {
+    version "1"
+    protocol json
+    auth bearer
+    notFound Missing
+    resources [Store]
+    scopes [store]
+    roles [owner, keeper]
+}
+
+error Missing {
+    status 404
+    message: string
+}
+
+string StoreId { length 1..40 }
+string PrincipalId { length 1..40 }
+string Label { length 1..40 }
+
+resource Store {
+    id storeId: StoreId
+    permission bindingManage = "binding:manage"
+}
+
+/// Who holds which role in a store.
+resource Binding in Store {
+    id principalId: PrincipalId
+    readonly property role: RoleName
+    property label?: Label
+}
+
+scope store = "store" on Store
+
+role owner = "owner" {
+    at [store]
+    assignedBy [owner]
+    grants Store [bindingManage]
+}
+
+role keeper = "keeper" { at [store]; grants Store [bindingManage] }
+
+/// The roles a binding names.
+@roleTypes
+enum RoleName {
+    OWNER = "owner"
+    KEEPER = "keeper"
+}
+
+/// Grants a role, and says nothing about it.
+operation Grant on Store {
+    http POST "/stores/{storeId}/grants"
+    requires bindingManage
+    input {
+        $storeId
+        principalId: PrincipalId
+        role: RoleName
+    }
+}
+
+/// Relabels a binding: it updates a resource holding a role, and says
+/// nothing about it.
+operation Relabel updates Binding {
+    http PATCH "/stores/{storeId}/bindings/{principalId}"
+    requires bindingManage on Store
+    input {
+        $storeId
+        $principalId
+        $label
+    }
+}
+
+/// Assigns a member that holds no role.
+operation Misnamed on Store {
+    http POST "/stores/{storeId}/misnamed"
+    requires bindingManage
+    assigns label at Store
+    input {
+        $storeId
+        label: Label
+        role: RoleName
+    }
+}
+
+/// Assigns at a member the input lacks.
+operation Elsewhere on Store {
+    http POST "/stores/{storeId}/elsewhere"
+    requires bindingManage
+    assigns role at Store(nowhere)
+    input {
+        $storeId
+        role: RoleName
+    }
+}
+
+list PrincipalIds: PrincipalId
+
+/// Principals by the role they are granted: the roles are the map's keys.
+map PrincipalsByRole: RoleName -> PrincipalIds
+
+/// Grants roles keyed by role, and says nothing about it.
+operation GrantMany on Store {
+    http POST "/stores/{storeId}/grant-many"
+    requires bindingManage
+    input {
+        $storeId
+        grants: PrincipalsByRole
+    }
+}

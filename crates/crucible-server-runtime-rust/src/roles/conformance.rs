@@ -303,6 +303,7 @@ async fn ask<A: Authorizer, P: Clone + Send + Sync + 'static>(
     let context = Context::new(HeaderValue::from_static("conformance"), None, parts);
     context.set_attribute(principal);
     let facts = OperationFacts {
+        assigns: None,
         id: "crucible.roles#Conformance",
         readonly: true,
         idempotent: true,
@@ -347,6 +348,20 @@ impl BindingSource for Fixed {
 impl ServiceGrants for Fixed {
     async fn decide_by_service(&self, _: &(), _: ByService<'_>) -> Result<bool, Unavailable> {
         Ok(self.by_service)
+    }
+
+    /// The same fixed answer for a listing: the whole collection, or none
+    /// of it. The harness compares checks, not listings.
+    async fn visible_by_service(
+        &self,
+        _: &(),
+        _: ByService<'_>,
+    ) -> Result<crate::permissions::Visibility, Unavailable> {
+        Ok(if self.by_service {
+            crate::permissions::Visibility::All
+        } else {
+            crate::permissions::Visibility::Only(Default::default())
+        })
     }
 }
 

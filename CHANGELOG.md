@@ -17,6 +17,38 @@ version's section when it is prepared.
 
 ### Added
 
+- Roles R2c ([docs/roles.md](docs/roles.md) §4.5, §7.2): `assignedBy` is
+  enforced. `.cru` operations declare what they assign: `assigns <member>
+  at <target>` (the input member holding the roles granted, a `@roleTypes`
+  value or a list of them), `assigns loaded at <target>` (the stored roles
+  a revocation reads) or `assigns none because ".."`; the target is a
+  `requires` target. `roles.unassigned` refuses an operation whose input
+  carries a `@roleTypes` value, or that creates, puts, updates or deletes a
+  resource with a property holding one, without one of them;
+  `roles.assigns` refuses a clause that names no role member or no
+  resource of the service. The IR gains `Operation::assigns`
+  (`Assigns`, `AssignedRoles`, `AssignedAt`), `#[serde(default)]`, so
+  frozen releases read unchanged. Rust server bindings generate
+  `Op::ASSIGNMENT` and `Operation::ASSIGNS` (`crucible_wire::permissions::
+  Assignment`); `Permissions` opens it as an obligation, and the handler
+  discharges it with `roles::assign(obligation, roles, at)`
+  (`roles::replaced(before, after)` for a replacement), which refuses a role
+  the caller may not assign with the operation's 403 (`Origin::Assignment`);
+  a success with it open fails as an undischarged `by handler` clause does.
+  New in the runtime: the provided method `Authorizer::may_assign` (erroring
+  default), `RoleAuthorizer::may_assign_values`,
+  `OperationMetadata::assigns`, `OperationFacts::assigns`,
+  `AuthorizationRecord::assignment` and `AssignmentRecord`. The language
+  server highlights, completes and describes `assigns`.
+- Roles R2c: `RoleAuthorizer` answers `filters` listings itself
+  (`Authorizer::visible`, and `visible_for` without a request): a binding
+  covering the whole collection shows `All`, bindings on single instances
+  show `Only` those, `by service` grants answer through the new required
+  `ServiceGrants::visible_by_service(principal, grant)`, the answers are
+  unioned, and a listing nothing shows is refused as a check would be.
+  `Listing::new` builds a listing. A listing of a root resource reads the
+  principal's bindings under the new `Root::Every`.
+
 - Roles R1 ([docs/roles.md](docs/roles.md)): `.cru` declares `scope name =
   "value" on R | R(*) | service` and `role name = "value" { at [..];
   includes [..]; grants R [..] [by service]; holders [..]; assignedBy [..] }`,
@@ -295,6 +327,17 @@ version's section when it is prepared.
 
 ### Migration
 
+- Roles (unreleased since 0.9.0, so only services built from `main` are
+  affected): a `ServiceGrants` implementation adds `visible_by_service`,
+  answering a listing the way `decide_by_service` answers a check (no shim
+  can supply it: it has no default, by design). `BindingSource::visible` is
+  removed without a shim: `RoleAuthorizer` answers listings itself, so an
+  override would be ignored; delete it, or move a rule it encoded into
+  `visible_by_service`. An operation whose input carries a `@roleTypes`
+  value, or that writes a resource holding one, adds `assigns <member> at
+  R`, `assigns loaded at R` or `assigns none because ".."`, and its handler
+  calls `roles::assign` before writing. An `Authorizer` of the service's own
+  that serves such an operation implements `Authorizer::may_assign`.
 - `.cru`: write `anonymous` where an operation or a rule condition says
   `public` (`public readonly operation Health` becomes `anonymous readonly
   operation Health`; `every operation where public` becomes `every operation

@@ -1,5 +1,8 @@
 # PutRoleBinding
 
+<p>Grants <code>role</code> to <code>principal</code> at <code>scope</code>, replacing the role a binding
+there held: the role granted and the role replaced must each be one the
+caller may assign.</p>
 
 Protocol: <code>crucibleJson</code>.
 
@@ -40,7 +43,8 @@ Crucible-Version: 2026-09-04
 ```json
 {
   "role": "<enum>",
-  "scope": "<enum>"
+  "scope": "<enum>",
+  "scopeId": "<string>"
 }
 ```
 
@@ -48,6 +52,7 @@ Crucible-Version: 2026-09-04
 |---|---|---|---|---|---|---|
 | <code>role</code> | <code>body: role</code> | [Role](../shapes/Role.md) | Yes | — | — |  |
 | <code>scope</code> | <code>body: scope</code> | [RoleScopeType](../shapes/RoleScopeType.md) | Yes | — | — |  |
+| <code>scopeId</code> | <code>body: scopeId</code> | [Name](../shapes/Name.md) | No | — | length: <code>{&quot;max&quot;:64,&quot;min&quot;:1}</code> |  |
 
 ## Response syntax
 
@@ -81,7 +86,8 @@ Content-Type: application/json
 
 {
   "role": "owner",
-  "scope": "organization"
+  "scope": "organization",
+  "scopeId": "scopeId"
 }
 ```
 

@@ -1,0 +1,117 @@
+service Shop {
+    version "1"
+    protocol json
+    auth bearer
+    notFound Missing
+    resources [Store]
+    scopes [store, shelf]
+    roles [owner, keeper, shelver]
+}
+
+error Missing {
+    status 404
+    message: string
+}
+
+string StoreId { length 1..40 }
+string ShelfId { length 1..40 }
+string PrincipalId { length 1..40 }
+
+resource Store {
+    id storeId: StoreId
+    permission read = "store:read"
+    permission bindingManage = "binding:manage"
+}
+
+resource Shelf in Store {
+    id shelfId: ShelfId
+    permission manage = "shelf:manage"
+}
+
+/// Who holds which roles in a store.
+resource Binding in Store {
+    id principalId: PrincipalId
+    property roles: RoleNames
+}
+
+scope store = "store" on Store
+scope shelf = "shelf" on Shelf
+
+/// Everything in a store, and who holds which role there.
+role owner = "owner" {
+    at [store]
+    assignedBy [owner]
+    grants Store [read, bindingManage]
+    grants Shelf [manage]
+}
+
+role keeper = "keeper" {
+    at [store]
+    assignedBy [owner]
+    grants Store [read, bindingManage]
+}
+
+role shelver = "shelver" { at [shelf]; grants Shelf [manage] }
+
+/// The roles a binding names.
+@roleTypes
+enum RoleName {
+    OWNER = "owner"
+    KEEPER = "keeper"
+    SHELVER = "shelver"
+}
+
+list RoleNames: RoleName
+
+/// A grant, nested in a request.
+structure Grant {
+    roles: RoleNames
+}
+
+/// Replaces the roles `principalId` holds in the store.
+operation PutBinding puts Binding {
+    http PUT "/stores/{storeId}/bindings/{principalId}"
+    requires bindingManage on Store
+    /// The roles granted; a replacement checks the roles it removes too.
+    assigns roles at Store
+    input {
+        $storeId
+        $principalId
+        $roles
+    }
+}
+
+/// Revokes every role `principalId` holds in the store.
+operation DeleteBinding deletes Binding {
+    http DELETE "/stores/{storeId}/bindings/{principalId}"
+    requires bindingManage on Store
+    assigns loaded at Binding
+    input {
+        $storeId
+        $principalId
+    }
+}
+
+/// Grants roles on one shelf, from a nested grant.
+operation GrantOnShelf on Shelf {
+    http POST "/stores/{storeId}/shelves/{shelfId}/grants"
+    requires manage
+    assigns grant.roles at Shelf(storeId: $storeId, shelfId)
+    input {
+        $storeId
+        $shelfId
+        grant: Grant
+    }
+}
+
+/// How many principals hold a role in the store.
+readonly operation CountHolders on Store {
+    http GET "/stores/{storeId}/holders"
+    requires read
+    assigns none because "it counts the holders of a role and writes no binding"
+    input {
+        $storeId
+        @query
+        role: RoleName
+    }
+}

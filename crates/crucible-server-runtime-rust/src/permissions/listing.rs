@@ -11,3 +11,15 @@ pub struct Listing {
     /// its own identifier is [`Target::All`](super::Target::All).
     pub resource: ResourceRef,
 }
+
+impl Listing {
+    /// The listing of `resource` (`R(parents, *)`) by `permission`: what
+    /// `Permissions` asks for a `filters` clause, for asking an Authorizer
+    /// directly (`RoleAuthorizer::visible_for`, a test, a conformance run).
+    pub fn new(permission: impl Into<&'static PermissionInfo>, resource: ResourceRef) -> Self {
+        Self {
+            permission: permission.into(),
+            resource,
+        }
+    }
+}

@@ -206,14 +206,16 @@ PermissionDescription, Tier}` and `roles::{RoleDescription, RolePermission}`
 The `permissions` module is part of the documented surface. Its static
 descriptions are always present, since generated bindings state them:
 `ResourceInfo`, `PermissionInfo`, `RequirementInfo`, `Requirements`,
-`Obligation`, `Check`, `ResourceRef` and `Target`, with the non-exhaustive
-`Mode`, `Origin` and `Tier`. Generated bindings own the `'static`
+`Obligation`, `Assignment`, `Check`, `ResourceRef` and `Target`, with the
+non-exhaustive `Mode`, `Origin` (`Assignment` among its variants) and
+`Tier`. Generated bindings own the `'static`
 descriptions; services read them, and build `ResourceRef` and
 `Check::handler` values for handler checks. `Checks` and `ErasedChecks` are
 generated-code support.
 
-Behind the `permissions` feature, `Authorizer` (`decide`, and `visible` with
-an erroring default; a later provided method keeps a default) is the
+Behind the `permissions` feature, `Authorizer` (`decide`, and `visible` and
+`may_assign` with erroring defaults; a later provided method keeps a
+default) is the
 interface a service implements, and `Permissions::{new, refusal_factory,
 not_found_factory, allow_undeclared, shadow, assert_obligations,
 undeclared_operations}` installs it as an interceptor.
@@ -222,9 +224,9 @@ permission_for_logging, resource, origin, default_error}`, and the
 non-exhaustive `Verdict` and `Visibility` complete that configuration.
 `Verdicts` (what `decide` answers: a slice of `Verdict`, `into_vec`) is
 `#[must_use]`. `AuthorizationRequest`,
-`OperationFacts`, `Listing`, `AuthorizationRecord`, `Decision`,
-`ObligationRecord` and `ObligationOutcome` are non-exhaustive: the runtime
-constructs them and services read them. Handlers use `require`, `decide`,
+`OperationFacts`, `Listing` (`new`), `AuthorizationRecord`, `Decision`,
+`ObligationRecord`, `AssignmentRecord` and `ObligationOutcome` are
+non-exhaustive: the runtime constructs them and services read them. Handlers use `require`, `decide`,
 `discharge`, `not_applicable`, `visible` and `not_found`.
 
 `Authorizer::decide_naming_bindings` is that later provided method's
@@ -253,15 +255,17 @@ generated-code change (regenerate with the runtime), not a break.
 
 Behind the `roles` feature (which enables `permissions`),
 `BindingSource` is the interface a service implements: `bindings`, with
-`principal`, `kind`, `refusal` and `visible` provided (a later provided
-method keeps a default). `ServiceGrants::decide_by_service` and
+`principal`, `kind` and `refusal` provided (a later provided method keeps a
+default). `ServiceGrants::{decide_by_service, visible_by_service}` and
 `CustomRoles::custom_role` have no default: the generated
 `roles::authorizer(source)` requires each the model needs. Services build
 the authorizer only through it; `RoleAuthorizer`'s second type parameter
 and the hatch types (`NoHatches`, `ServiceHatch`, `CustomHatch`,
 `BothHatches`, `Hatches`) and `role_authorizer` are generated-code support.
 `RoleAuthorizer::{catalogue, source, decide_for, explain_for,
-capabilities, may_assign}`, `ShadowAuthorizer::{new, counts}`, `ShadowCounts`,
+capabilities, may_assign, may_assign_values, visible_for}`, the handler
+functions `roles::{assign, replaced}`, `ShadowAuthorizer::{new, counts}`,
+`ShadowCounts`,
 `Refusal`, `Unavailable` and `roles::conformance::{Conformance, Subject,
 UNKNOWN_ROLE}` complete it; `Root`, `ByService`, `Capabilities`, `Report`
 and `Disagreement` are non-exhaustive: the runtime constructs them and

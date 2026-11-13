@@ -21,6 +21,8 @@
 //! builder.interceptor(Permissions::new(authorizer))
 //! ```
 
+#[cfg(feature = "permissions")]
+mod assign;
 mod catalogue;
 mod grant;
 mod permission_set;
@@ -51,6 +53,8 @@ mod shadow_authorizer;
 #[cfg(feature = "roles")]
 mod unavailable;
 
+#[cfg(feature = "permissions")]
+pub use assign::{assign, replaced};
 pub use catalogue::RoleCatalogue;
 pub use grant::Grant;
 pub use permission_set::PermissionSet;

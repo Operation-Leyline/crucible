@@ -1,4 +1,5 @@
 use super::{BindingSource, ByService, PermissionSet, Root, Unavailable};
+use crate::permissions::Visibility;
 
 /// `grants .. by service` (docs/roles.md §4.6): whether a binding's
 /// relationship reaches the target. No default: the generated
@@ -39,11 +40,44 @@ use super::{BindingSource, ByService, PermissionSet, Root, Unavailable};
 /// #         Ok(Arc::from([]))
 /// #     }
 /// # }
+/// use crucible_server_runtime_rust::permissions::Visibility;
 /// impl ServiceGrants for Bindings {
 ///     async fn decide_by_service(&self, _: &(), grant: ByService<'_>) -> Result<bool, Unavailable> {
 ///         // The history of the graph the binding names, while it is live.
 ///         Ok(false)
 ///     }
+///
+///     async fn visible_by_service(&self, _: &(), grant: ByService<'_>) -> Result<Visibility, Unavailable> {
+///         // The histories of the graph the binding names, while it is live.
+///         Ok(Visibility::Only(Default::default()))
+///     }
+/// }
+///
+/// fn main() {
+///     let _ = leyline::roles::authorizer(Bindings);
+/// }
+/// ```
+///
+/// Both methods are required: a source that answers single checks but no
+/// listing does not implement the trait, so the authorizer does not build.
+///
+/// ```compile_fail,E0046
+/// # include!(concat!(env!("CARGO_MANIFEST_DIR"), "/../crucible-codegen-rust/tests/golden/roles_leyline.rs"));
+/// # use std::sync::Arc;
+/// # use crucible_server_runtime_rust::roles::{BindingSource, ByService, RoleBinding, Root, ServiceGrants, Unavailable};
+/// # struct Bindings;
+/// # impl BindingSource for Bindings {
+/// #     type Principal = ();
+/// #     async fn bindings(&self, _: &(), _: Root<'_>, _: bool) -> Result<Arc<[RoleBinding]>, Unavailable> {
+/// #         Ok(Arc::from([]))
+/// #     }
+/// # }
+/// impl ServiceGrants for Bindings {
+///     async fn decide_by_service(&self, _: &(), _: ByService<'_>) -> Result<bool, Unavailable> {
+///         Ok(false)
+///     }
+///     // No `visible_by_service`: Leyline's `graphAdmin` lists histories
+///     // by service too.
 /// }
 ///
 /// fn main() {
@@ -63,6 +97,24 @@ pub trait ServiceGrants: BindingSource {
         principal: &Self::Principal,
         grant: ByService<'_>,
     ) -> impl Future<Output = Result<bool, Unavailable>> + Send;
+
+    /// What of the listed collection `grant.target` (`GraphHistory(o-1,
+    /// *)`) `grant.binding`'s relationship reaches, so its role's `by
+    /// service` grant of `grant.permission` lets the caller see it in a
+    /// `filters` listing: [`Visibility::All`], or [`Visibility::Only`] the
+    /// instances (by the listed resource's own identifier), empty when it
+    /// reaches none. A graph administrator listing histories sees the
+    /// history of the graph its binding names. Asked, like
+    /// [`decide_by_service`](Self::decide_by_service), for every binding
+    /// under the root whose role is valid at its scope and grants the
+    /// permission `by service`, and only when no binding shows the whole
+    /// collection outright. `RoleAuthorizer` unions the answers with what
+    /// the bindings show; `Hidden` and `Denied` count as reaching nothing.
+    fn visible_by_service(
+        &self,
+        principal: &Self::Principal,
+        grant: ByService<'_>,
+    ) -> impl Future<Output = Result<Visibility, Unavailable>> + Send;
 }
 
 /// `roles [..] custom` (docs/roles.md §4.7): the permissions of a role the
@@ -98,6 +150,12 @@ pub trait Hatches<B: BindingSource>: Send + Sync + 'static {
         grant: ByService<'_>,
     ) -> impl Future<Output = Result<bool, Unavailable>> + Send;
 
+    fn visible_by_service(
+        source: &B,
+        principal: &B::Principal,
+        grant: ByService<'_>,
+    ) -> impl Future<Output = Result<Visibility, Unavailable>> + Send;
+
     fn custom_role(
         source: &B,
         principal: &B::Principal,
@@ -130,6 +188,10 @@ fn no_role() -> std::future::Ready<Result<Option<PermissionSet>, Unavailable>> {
     std::future::ready(Ok(None))
 }
 
+fn nothing_visible() -> std::future::Ready<Result<Visibility, Unavailable>> {
+    std::future::ready(Ok(Visibility::Only(Default::default())))
+}
+
 impl<B: BindingSource> Hatches<B> for NoHatches {
     fn by_service(
         _: &B,
@@ -137,6 +199,14 @@ impl<B: BindingSource> Hatches<B> for NoHatches {
         _: ByService<'_>,
     ) -> impl Future<Output = Result<bool, Unavailable>> + Send {
         refuse()
+    }
+
+    fn visible_by_service(
+        _: &B,
+        _: &B::Principal,
+        _: ByService<'_>,
+    ) -> impl Future<Output = Result<Visibility, Unavailable>> + Send {
+        nothing_visible()
     }
 
     fn custom_role(
@@ -158,6 +228,14 @@ impl<B: ServiceGrants> Hatches<B> for ServiceHatch {
         source.decide_by_service(principal, grant)
     }
 
+    fn visible_by_service(
+        source: &B,
+        principal: &B::Principal,
+        grant: ByService<'_>,
+    ) -> impl Future<Output = Result<Visibility, Unavailable>> + Send {
+        source.visible_by_service(principal, grant)
+    }
+
     fn custom_role(
         _: &B,
         _: &B::Principal,
@@ -177,6 +255,14 @@ impl<B: CustomRoles> Hatches<B> for CustomHatch {
         refuse()
     }
 
+    fn visible_by_service(
+        _: &B,
+        _: &B::Principal,
+        _: ByService<'_>,
+    ) -> impl Future<Output = Result<Visibility, Unavailable>> + Send {
+        nothing_visible()
+    }
+
     fn custom_role(
         source: &B,
         principal: &B::Principal,
@@ -194,6 +280,14 @@ impl<B: ServiceGrants + CustomRoles> Hatches<B> for BothHatches {
         grant: ByService<'_>,
     ) -> impl Future<Output = Result<bool, Unavailable>> + Send {
         source.decide_by_service(principal, grant)
+    }
+
+    fn visible_by_service(
+        source: &B,
+        principal: &B::Principal,
+        grant: ByService<'_>,
+    ) -> impl Future<Output = Result<Visibility, Unavailable>> + Send {
+        source.visible_by_service(principal, grant)
     }
 
     fn custom_role(

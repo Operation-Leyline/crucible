@@ -19,9 +19,11 @@ Every page below is Markdown. Requests are JSON over HTTP; each operation's page
 - [GetOrganization](src/operations/API_GetOrganization.md): `GET /v1/organizations/{organizationId}`. Granted by `owner`, `accessAdmin`, `graphGroupAdmin`, `usageViewer`, `auditViewer`, `auditAdmin`, `backupViewer` or `backupAdmin` at `organization`.
 - [GetUsage](src/operations/API_GetUsage.md): `GET /v1/organizations/{organizationId}/usage`. Granted by `owner` or `usageViewer` at `organization`.
 - [ListAuditEvents](src/operations/API_ListAuditEvents.md): `GET /v1/organizations/{organizationId}/audit-events`. Granted by `owner`, `auditViewer` or `auditAdmin` at `organization`.
+- [ListGraphHistories](src/operations/API_ListGraphHistories.md): `GET /v1/organizations/{organizationId}/histories`. The histories the caller may read\. What the caller sees is granted by `owner` at `organization`; `historyReader` or `historyAdmin` at `allHistories` or `history`; `graphAdmin` at `allGraphs` or `graph`, as the service decides (the history of a graph this binding covers, while the graph is live).
 - [ListRoles](src/operations/API_ListRoles.md): `GET /v1/roles`. Every role a binding may name\.
-- [PutRoleBinding](src/operations/API_PutRoleBinding.md): `PUT /v1/organizations/{organizationId}/role-bindings/{principal}`. Granted by `owner` or `accessAdmin` at `organization`.
+- [PutRoleBinding](src/operations/API_PutRoleBinding.md): `PUT /v1/organizations/{organizationId}/role-bindings/{principal}`. Grants role to principal at scope\, replacing the role a binding there held\: the role granted and the role replaced must each be one the caller may assign\. Granted by `owner` or `accessAdmin` at `organization`.
 - [RestoreGraphHistory](src/operations/API_RestoreGraphHistory.md): `POST /v1/organizations/{organizationId}/histories/{historyId}/restore`. Granted by `owner` at `organization`; `historyAdmin` at `allHistories` or `history`.
+- [RevokeRoleBinding](src/operations/API_RevokeRoleBinding.md): `POST /v1/organizations/{organizationId}/role-bindings/{principal}/revoke`. Revokes the binding principal holds at scope\: the role it held must be one the caller may assign\. Granted by `owner` or `accessAdmin` at `organization`.
 - [WriteGraph](src/operations/API_WriteGraph.md): `POST /v1/organizations/{organizationId}/graphs/{graphId}/writes`. Granted by `graphWriter` or `graphAdmin` at `allGraphs` or `graph`.
 
 ## Data types
@@ -37,7 +39,10 @@ Every page below is Markdown. Requests are JSON over HTTP; each operation's page
 - [GetUsageInput](src/shapes/GetUsageInput.md): structure.
 - [GraphId](src/shapes/GraphId.md): string.
 - [HistoryId](src/shapes/HistoryId.md): string.
+- [HistoryIds](src/shapes/HistoryIds.md): list.
 - [ListAuditEventsInput](src/shapes/ListAuditEventsInput.md): structure.
+- [ListGraphHistoriesInput](src/shapes/ListGraphHistoriesInput.md): structure.
+- [ListGraphHistoriesOutput](src/shapes/ListGraphHistoriesOutput.md): structure.
 - [ListRolesOutput](src/shapes/ListRolesOutput.md): structure.
 - [Name](src/shapes/Name.md): string.
 - [OrganizationId](src/shapes/OrganizationId.md): string.
@@ -46,6 +51,7 @@ Every page below is Markdown. Requests are JSON over HTTP; each operation's page
 - [PutRoleBindingInput](src/shapes/PutRoleBindingInput.md): structure.
 - [ResourceNotFound](src/shapes/ResourceNotFound.md): error, HTTP 404. The resource is missing\, or the caller may not know it exists\.
 - [RestoreGraphHistoryInput](src/shapes/RestoreGraphHistoryInput.md): structure.
+- [RevokeRoleBindingInput](src/shapes/RevokeRoleBindingInput.md): structure.
 - [Role](src/shapes/Role.md): enum. The roles a binding names\.
 - [RoleScopeType](src/shapes/RoleScopeType.md): enum. Where a binding is made\.
 - [RoleScopeTypes](src/shapes/RoleScopeTypes.md): list.

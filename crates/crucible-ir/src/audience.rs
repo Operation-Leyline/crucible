@@ -319,6 +319,11 @@ fn external(service: &Service, lenient: bool) -> Result<Service, Diagnostics> {
         .permissions
         .retain(|id, _| !service.resources.contains_key(id) || resources.contains(id));
     project_granted_by(&mut result);
+    // `assigns` is the server's obligation (docs/roles.md §4.5), and its
+    // paths may name members this view removed.
+    for op in &mut result.operations {
+        op.assigns = None;
+    }
     project_permissions(&mut result);
     project_roles(&mut result);
     // A binding whose path ran through a removed internal member goes with it.

@@ -1,7 +1,7 @@
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
 
-use super::RoleBinding;
+use super::{RoleBinding, ScopeRef};
 use crate::Result;
 use crate::permissions::{
     AuthorizationRequest, Authorizer, Check, Listing, Verdict, Visibility, loggable,
@@ -194,6 +194,50 @@ impl<P: Authorizer, C: Authorizer> Authorizer for ShadowAuthorizer<P, C> {
                     operation = request.operation.id,
                     error = %error,
                     "the candidate Authorizer could not answer a listing"
+                );
+            }
+        }
+        Ok(primary)
+    }
+
+    /// The primary judges the assignment; the candidate is asked too, and
+    /// a different answer is counted and logged.
+    async fn may_assign(
+        &self,
+        request: &AuthorizationRequest<'_>,
+        roles: &[&str],
+        at: ScopeRef<'_>,
+    ) -> Result<Vec<bool>> {
+        let (primary, candidate) = futures_util::future::join(
+            self.primary.may_assign(request, roles, at),
+            self.candidate.may_assign(request, roles, at),
+        )
+        .await;
+        let primary = primary?;
+        match candidate {
+            Ok(candidate) => {
+                self.counts.compared.fetch_add(1, Ordering::Relaxed);
+                if candidate != primary {
+                    self.counts.disagreements.fetch_add(1, Ordering::Relaxed);
+                    tracing::warn!(
+                        target: TARGET,
+                        operation = request.operation.id,
+                        scope = at.scope,
+                        primary = ?primary,
+                        candidate = ?candidate,
+                        "the Authorizers disagree on a role assignment"
+                    );
+                }
+            }
+            Err(error) => {
+                self.counts
+                    .candidate_failures
+                    .fetch_add(1, Ordering::Relaxed);
+                tracing::warn!(
+                    target: TARGET,
+                    operation = request.operation.id,
+                    error = %error,
+                    "the candidate Authorizer could not judge a role assignment"
                 );
             }
         }

@@ -14,7 +14,7 @@ use std::hint::black_box;
 use std::sync::Arc;
 
 use criterion::Criterion;
-use crucible_server_runtime_rust::permissions::{Check, ResourceRef, Verdict};
+use crucible_server_runtime_rust::permissions::{Check, ResourceRef, Verdict, Visibility};
 use crucible_server_runtime_rust::roles::{
     BindingSource, ByService, RoleAuthorizer, RoleBinding, Root, ServiceGrants, ServiceHatch,
     Unavailable,
@@ -73,6 +73,23 @@ impl ServiceGrants for Store {
             .identifier("historyId")
             .and_then(|t| t.as_one());
         Ok(graph.is_some() && history.map(|h| h.strip_prefix("h-")) == Some(graph))
+    }
+
+    async fn visible_by_service(
+        &self,
+        _: &Caller,
+        grant: ByService<'_>,
+    ) -> Result<Visibility, Unavailable> {
+        // The history of the binding's graph.
+        Ok(Visibility::Only(
+            grant
+                .binding
+                .identifiers
+                .get(1)
+                .map(|graph| format!("h-{graph}"))
+                .into_iter()
+                .collect(),
+        ))
     }
 }
 

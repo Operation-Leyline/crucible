@@ -1,5 +1,5 @@
 use super::{AuthorizationRequest, Check, Listing, Verdict, Visibility};
-use crate::roles::RoleBinding;
+use crate::roles::{RoleBinding, ScopeRef};
 use crate::{Error, Result};
 
 /// Decides whether the caller holds permissions: the service's grants,
@@ -62,6 +62,27 @@ pub trait Authorizer: Send + Sync + 'static {
     ) -> Result<Vec<Verdict>> {
         let _ = allowed_by;
         self.decide(request, checks).await
+    }
+
+    /// Whether the caller may grant or revoke each of `roles` (role
+    /// values, as bindings store them) at the scope instance `at`: what
+    /// discharges an `assigns` obligation (docs/roles.md §4.5,
+    /// `roles::assign`). One answer per role, in order. The default is the
+    /// internal error: an Authorizer that judges no assignment cannot
+    /// discharge one, and a model with `assigns` clauses needs one that
+    /// does. `RoleAuthorizer` (the `roles` feature) answers from the
+    /// catalogue's `assignedBy` and the caller's bindings.
+    async fn may_assign(
+        &self,
+        request: &AuthorizationRequest<'_>,
+        roles: &[&str],
+        at: ScopeRef<'_>,
+    ) -> Result<Vec<bool>> {
+        let _ = (roles, at);
+        Err(Error::internal(format!(
+            "the Authorizer judges no role assignment, and {} assigns roles: use RoleAuthorizer, or implement Authorizer::may_assign",
+            request.operation.id
+        )))
     }
 
     // Reserved: a later provided method for per-element batch checks, with

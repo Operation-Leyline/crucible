@@ -9,7 +9,9 @@ mod support;
 
 use std::sync::Arc;
 
-use crucible_server_runtime_rust::permissions::{Check, ResourceRef, Verdict};
+use std::collections::BTreeSet;
+
+use crucible_server_runtime_rust::permissions::{Check, Listing, ResourceRef, Verdict, Visibility};
 use crucible_server_runtime_rust::roles::conformance::{Conformance, Subject};
 use crucible_server_runtime_rust::roles::{
     BindingSource, ByService, Grant, RoleBinding, Root, ScopeKind, Unavailable,
@@ -367,6 +369,300 @@ async fn graph_admin_reads_a_history_only_as_the_service_decides() {
     assert_eq!(
         refusing.decide_for(&owner, &checks, false).await.unwrap(),
         [Verdict::Allowed, Verdict::Allowed]
+    );
+}
+
+/// `filters read on GraphHistory`: the histories of one organization.
+fn histories(organization: &str) -> Listing {
+    Listing::new(
+        GraphHistoryPermission::Read,
+        ResourceRef::from(GraphHistoryRef::all(organization)),
+    )
+}
+
+#[tokio::test]
+async fn a_listing_shows_all_some_or_none_of_the_collection() {
+    let authorizer = authorizer();
+    let visible = |caller: Caller| {
+        let authorizer = &authorizer;
+        async move {
+            authorizer
+                .visible_for(&caller, &histories("o-1"), false)
+                .await
+                .unwrap()
+        }
+    };
+    let only = |ids: &[&str]| Visibility::Only(ids.iter().map(|id| (*id).to_owned()).collect());
+    // A binding that covers the whole collection and grants the
+    // permission: every history, those made later included.
+    assert_eq!(
+        visible(caller(
+            USER,
+            [binding(Role::Owner, Scope::Organization, &["o-1"])]
+        ))
+        .await,
+        Visibility::All
+    );
+    assert_eq!(
+        visible(caller(
+            USER,
+            [binding(Role::HistoryReader, Scope::AllHistories, &["o-1"])]
+        ))
+        .await,
+        Visibility::All
+    );
+    // Bindings on single histories: those, unioned.
+    assert_eq!(
+        visible(caller(
+            USER,
+            [
+                binding(Role::HistoryReader, Scope::History, &["o-1", "h-1"]),
+                binding(Role::HistoryAdmin, Scope::History, &["o-1", "h-2"]),
+                // Another organization's history is not in this listing.
+                binding(Role::HistoryReader, Scope::History, &["o-2", "h-3"]),
+            ]
+        ))
+        .await,
+        only(&["h-1", "h-2"])
+    );
+    // All absorbs the instances.
+    assert_eq!(
+        visible(caller(
+            USER,
+            [
+                binding(Role::HistoryReader, Scope::History, &["o-1", "h-1"]),
+                binding(Role::HistoryReader, Scope::AllHistories, &["o-1"]),
+            ]
+        ))
+        .await,
+        Visibility::All
+    );
+    // Nothing reaches the collection: hidden, as a check on it would be...
+    assert_eq!(visible(caller(USER, [])).await, Visibility::Hidden);
+    assert_eq!(
+        visible(caller(
+            USER,
+            [binding(Role::GraphReader, Scope::Graph, &["o-1", "g-1"])]
+        ))
+        .await,
+        Visibility::Hidden
+    );
+    // ...and denied where a binding covers it but grants nothing on it.
+    assert_eq!(
+        visible(caller(
+            USER,
+            [binding(Role::UsageViewer, Scope::Organization, &["o-1"])]
+        ))
+        .await,
+        Visibility::Denied
+    );
+    // A role the principal's kind may not hold shows nothing and covers
+    // nothing.
+    assert_eq!(
+        visible(caller(
+            API_KEY,
+            [binding(Role::Owner, Scope::Organization, &["o-1"])]
+        ))
+        .await,
+        Visibility::Hidden
+    );
+}
+
+#[tokio::test]
+async fn a_listing_of_a_root_resource_reads_every_tenant() {
+    // `filters organizationRead on Organization`: each organization is a
+    // tenant of its own, so the listing reads every root (`Root::Every`)
+    // and each binding shows its own organization.
+    let organizations = Listing::new(
+        OrganizationPermission::OrganizationRead,
+        ResourceRef::from(OrganizationRef::all()),
+    );
+    let source = Memory::default();
+    let roots = source.roots.clone();
+    let authorizer = leyline::roles::authorizer(source);
+    let member = caller(
+        USER,
+        [
+            binding(Role::Owner, Scope::Organization, &["o-1"]),
+            binding(Role::UsageViewer, Scope::Organization, &["o-3"]),
+            // Grants no organization read: covers o-2, shows nothing.
+            binding(Role::GraphCreator, Scope::Organization, &["o-2"]),
+            // On a graph: not an organization instance.
+            binding(Role::GraphReader, Scope::Graph, &["o-4", "g-1"]),
+        ],
+    );
+    assert_eq!(
+        authorizer
+            .visible_for(&member, &organizations, false)
+            .await
+            .unwrap(),
+        Visibility::Only(BTreeSet::from(["o-1".to_owned(), "o-3".to_owned()]))
+    );
+    assert_eq!(*roots.lock().unwrap(), [format!("{:?}", Root::Every)]);
+    // A binding on an organization that grants no read: denied; none:
+    // hidden, as for a check.
+    let creator = caller(
+        USER,
+        [binding(Role::GraphCreator, Scope::Organization, &["o-2"])],
+    );
+    assert_eq!(
+        authorizer
+            .visible_for(&creator, &organizations, false)
+            .await
+            .unwrap(),
+        Visibility::Denied
+    );
+    assert_eq!(
+        authorizer
+            .visible_for(&caller(USER, []), &organizations, false)
+            .await
+            .unwrap(),
+        Visibility::Hidden
+    );
+    // A check on every organization still lies under no tenant: an owner
+    // of one does not hold it on all of them.
+    let every = check(
+        OrganizationPermission::OrganizationRead,
+        OrganizationRef::all(),
+    );
+    assert_eq!(
+        authorizer
+            .decide_for(&member, &[every], false)
+            .await
+            .unwrap(),
+        [Verdict::Hidden]
+    );
+}
+
+#[tokio::test]
+async fn graph_admin_lists_histories_through_visible_by_service() {
+    let authorizer = authorizer();
+    let admin = caller(
+        USER,
+        [
+            binding(Role::GraphAdmin, Scope::Graph, &["o-1", "g-1"]),
+            binding(Role::GraphAdmin, Scope::Graph, &["o-1", "g-2"]),
+            binding(Role::HistoryReader, Scope::History, &["o-1", "h-9"]),
+        ],
+    );
+    // The hook names each graph's history; the bindings name theirs; the
+    // listing shows the union.
+    assert_eq!(
+        authorizer
+            .visible_for(&admin, &histories("o-1"), false)
+            .await
+            .unwrap(),
+        Visibility::Only(BTreeSet::from([
+            "h-9".to_owned(),
+            "history-of-g-1".to_owned(),
+            "history-of-g-2".to_owned()
+        ]))
+    );
+    // An `allGraphs` binding: the hook answers every history.
+    let all = caller(
+        USER,
+        [binding(Role::GraphAdmin, Scope::AllGraphs, &["o-1"])],
+    );
+    assert_eq!(
+        authorizer
+            .visible_for(&all, &histories("o-1"), false)
+            .await
+            .unwrap(),
+        Visibility::All
+    );
+    // A hook that relates nothing: the graph bindings cover no history, so
+    // the listing is hidden, never silently shown.
+    let refusing = leyline::roles::authorizer(Memory::default());
+    let graph_only = caller(
+        USER,
+        [binding(Role::GraphAdmin, Scope::Graph, &["o-1", "g-1"])],
+    );
+    assert_eq!(
+        refusing
+            .visible_for(&graph_only, &histories("o-1"), false)
+            .await
+            .unwrap(),
+        Visibility::Hidden
+    );
+    // The hook is not asked once a binding shows the whole collection.
+    let source = Memory {
+        relate: true,
+        ..Memory::default()
+    };
+    let asked = source.asked.clone();
+    let owner_too = leyline::roles::authorizer(source);
+    let both = caller(
+        USER,
+        [
+            binding(Role::GraphAdmin, Scope::Graph, &["o-1", "g-1"]),
+            binding(Role::Owner, Scope::Organization, &["o-1"]),
+        ],
+    );
+    assert_eq!(
+        owner_too
+            .visible_for(&both, &histories("o-1"), false)
+            .await
+            .unwrap(),
+        Visibility::All
+    );
+    assert!(asked.lock().unwrap().is_empty());
+    // A hook that cannot tell fails the listing; it never shows it.
+    let failing = leyline::roles::authorizer(Memory {
+        relate: true,
+        fail_by_service: true,
+        ..Memory::default()
+    });
+    assert!(
+        failing
+            .visible_for(&graph_only, &histories("o-1"), false)
+            .await
+            .is_err()
+    );
+}
+
+#[tokio::test]
+async fn may_assign_values_judges_each_role_from_one_read() {
+    let authorizer = authorizer();
+    let org = vec!["o-1".to_owned()];
+    let at = ScopeRef::new("organization", &org);
+    let roles = ["owner", "accessAdmin", "graphCreator", "retired"];
+    let admin = caller(
+        USER,
+        [binding(Role::AccessAdmin, Scope::Organization, &["o-1"])],
+    );
+    // An access administrator assigns what no `assignedBy` restricts, never
+    // an owner-assigned role; a value the catalogue lacks never.
+    assert_eq!(
+        authorizer
+            .may_assign_values(&admin, &roles, at, true)
+            .await
+            .unwrap(),
+        [false, false, true, false]
+    );
+    let owner = caller(USER, [binding(Role::Owner, Scope::Organization, &["o-1"])]);
+    assert_eq!(
+        authorizer
+            .may_assign_values(&owner, &roles, at, true)
+            .await
+            .unwrap(),
+        [true, true, true, false]
+    );
+    // In another organization, the owner is no owner.
+    let other = vec!["o-2".to_owned()];
+    assert_eq!(
+        authorizer
+            .may_assign_values(&owner, &roles, ScopeRef::new("organization", &other), true)
+            .await
+            .unwrap(),
+        [false, false, true, false]
+    );
+    // A scope the catalogue lacks, or a malformed instance: nothing.
+    assert_eq!(
+        authorizer
+            .may_assign_values(&owner, &roles, ScopeRef::new("nowhere", &org), true)
+            .await
+            .unwrap(),
+        [false; 4]
     );
 }
 
@@ -772,6 +1068,8 @@ struct Memory {
     fail_bindings: bool,
     fail_by_service: bool,
     reads: Arc<std::sync::Mutex<Vec<(String, bool)>>>,
+    /// Every root `bindings` was asked under.
+    roots: Arc<std::sync::Mutex<Vec<String>>>,
     /// The bindings `decide_by_service` was asked about.
     asked: Arc<std::sync::Mutex<Vec<RoleBinding>>>,
 }
@@ -792,6 +1090,7 @@ impl BindingSource for Memory {
         if self.fail_bindings {
             return Err(Unavailable::new("the bindings table is unreachable"));
         }
+        self.roots.lock().unwrap().push(format!("{root:?}"));
         if let Root::Instance { id, .. } = root {
             self.reads.lock().unwrap().push((id.to_owned(), fresh));
         }
@@ -817,5 +1116,23 @@ impl ServiceGrants for Memory {
             .identifier("historyId")
             .and_then(|t| t.as_one());
         Ok(self.relate && history == Some(format!("history-of-{graph}").as_str()))
+    }
+
+    async fn visible_by_service(
+        &self,
+        _: &Caller,
+        grant: ByService<'_>,
+    ) -> Result<Visibility, Unavailable> {
+        self.asked.lock().unwrap().push(grant.binding.clone());
+        if self.fail_by_service {
+            return Err(Unavailable::new("the graph table is unreachable"));
+        }
+        // A graph binding reaches its graph's history; an `allGraphs` one,
+        // every graph's, so every history of a live graph: here, all.
+        Ok(match grant.binding.identifiers.get(1) {
+            _ if !self.relate => Visibility::Only(BTreeSet::new()),
+            Some(graph) => Visibility::Only(BTreeSet::from([format!("history-of-{graph}")])),
+            None => Visibility::All,
+        })
     }
 }

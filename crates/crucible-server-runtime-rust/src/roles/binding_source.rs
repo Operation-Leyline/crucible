@@ -2,7 +2,6 @@ use std::sync::Arc;
 
 use super::{Refusal, RoleBinding, Root, Unavailable};
 use crate::Context;
-use crate::permissions::{Listing, Visibility};
 
 /// What only the service knows, for [`RoleAuthorizer`](super::RoleAuthorizer):
 /// who the caller is and the role bindings it holds (docs/roles.md §7.2).
@@ -43,6 +42,8 @@ pub trait BindingSource: Send + Sync + 'static {
 
     /// Every binding `principal` holds under `root` (its tenant), in one
     /// read: `RoleAuthorizer` asks once per root per batch of checks.
+    /// [`Root::Every`] (a listing of a root resource's instances) asks for
+    /// every binding the principal holds, under any root.
     /// Bindings at scopes that name no identifier (`on service`) lie under
     /// every root. Returning more is harmless (only those `root` holds are
     /// read); returning fewer refuses what they would allow. `fresh` asks
@@ -57,32 +58,17 @@ pub trait BindingSource: Send + Sync + 'static {
         fresh: bool,
     ) -> impl Future<Output = Result<Arc<[RoleBinding]>, Unavailable>> + Send;
 
-    /// How a check no binding allows is refused. `covered`: some binding
-    /// whose role is valid where it is bound covers the target. By default
-    /// a target the caller holds nothing over is hidden (404) and one it
-    /// holds something over denied (403).
+    /// How a check no binding allows is refused, and a `filters` listing
+    /// no binding shows anything of. `covered`: some binding whose role is
+    /// valid where it is bound covers the target (for a listing, the
+    /// collection or one instance in it). By default a target the caller
+    /// holds nothing over is hidden (404) and one it holds something over
+    /// denied (403).
     fn refusal(&self, covered: bool) -> Refusal {
         if covered {
             Refusal::Denied
         } else {
             Refusal::Hidden
         }
-    }
-
-    /// What a `filters` listing may show (`Authorizer::visible`), which
-    /// stays the service's: by default the internal error, as an
-    /// `Authorizer` that answers no listing. `RoleAuthorizer::capabilities`
-    /// answers the per-instance question a listing filters by.
-    fn visible(
-        &self,
-        principal: &Self::Principal,
-        listing: &Listing,
-    ) -> impl Future<Output = crate::Result<Visibility>> + Send {
-        let _ = principal;
-        std::future::ready(Err(crate::Error::internal(format!(
-            "the BindingSource answers no `filters` listing, and {} on {} needs one",
-            listing.permission.value,
-            crate::permissions::loggable(&listing.resource)
-        ))))
     }
 }

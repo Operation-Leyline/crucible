@@ -7,6 +7,7 @@
 //! runtime's `permissions` module enforces them through a service's
 //! `Authorizer`.
 
+mod assignment;
 mod check;
 mod missing_resource;
 mod mode;
@@ -21,6 +22,7 @@ mod resource_ref;
 mod target;
 mod tier;
 
+pub use assignment::Assignment;
 pub use check::Check;
 pub use missing_resource::MissingResource;
 pub use mode::Mode;

@@ -9,4 +9,9 @@ pub enum Origin {
     /// A check the handler made that the model does not declare: a
     /// permission the request chooses, such as one being delegated.
     Handler,
+    /// An `assigns` obligation the handler discharged and the Authorizer
+    /// refused (docs/roles.md §4.5): the caller may not grant or revoke a
+    /// role there. A refusal names the operation's first declared check,
+    /// whose 403 it is answered with, under this origin.
+    Assignment,
 }

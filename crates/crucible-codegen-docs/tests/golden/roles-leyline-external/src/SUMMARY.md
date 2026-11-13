@@ -7,6 +7,7 @@
   - [GetUsage](operations/API_GetUsage.md)
   - [ListAuditEvents](operations/API_ListAuditEvents.md)
   - [PutRoleBinding](operations/API_PutRoleBinding.md)
+  - [RevokeRoleBinding](operations/API_RevokeRoleBinding.md)
   - Graph
     - [CreateGraph](operations/API_CreateGraph.md)
     - [DeleteGraph](operations/API_DeleteGraph.md)
@@ -14,6 +15,7 @@
     - [WriteGraph](operations/API_WriteGraph.md)
   - GraphHistory
     - [GetGraphHistory](operations/API_GetGraphHistory.md)
+    - [ListGraphHistories](operations/API_ListGraphHistories.md)
     - [RestoreGraphHistory](operations/API_RestoreGraphHistory.md)
 - Service operations
   - [ListRoles](operations/API_ListRoles.md)
@@ -30,7 +32,10 @@
   - [GetUsageInput](shapes/GetUsageInput.md)
   - [GraphId](shapes/GraphId.md)
   - [HistoryId](shapes/HistoryId.md)
+  - [HistoryIds](shapes/HistoryIds.md)
   - [ListAuditEventsInput](shapes/ListAuditEventsInput.md)
+  - [ListGraphHistoriesInput](shapes/ListGraphHistoriesInput.md)
+  - [ListGraphHistoriesOutput](shapes/ListGraphHistoriesOutput.md)
   - [ListRolesOutput](shapes/ListRolesOutput.md)
   - [Name](shapes/Name.md)
   - [OrganizationId](shapes/OrganizationId.md)
@@ -39,6 +44,7 @@
   - [PutRoleBindingInput](shapes/PutRoleBindingInput.md)
   - [ResourceNotFound](shapes/ResourceNotFound.md)
   - [RestoreGraphHistoryInput](shapes/RestoreGraphHistoryInput.md)
+  - [RevokeRoleBindingInput](shapes/RevokeRoleBindingInput.md)
   - [Role](shapes/Role.md)
   - [RoleScopeType](shapes/RoleScopeType.md)
   - [RoleScopeTypes](shapes/RoleScopeTypes.md)

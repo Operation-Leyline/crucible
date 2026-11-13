@@ -343,6 +343,34 @@ pub enum OpEntry {
     Example(Example),
     /// `requires ..` or `filters ..` (docs/permissions.md §4.2).
     Requirement(Requirement),
+    /// `assigns ..` (docs/roles.md §4.5).
+    Assigns(Assignment),
+}
+
+/// `assigns <member> at <Target>`, `assigns loaded at <Target>` or
+/// `assigns none because ".."`: what an operation that can change who holds
+/// a role assigns.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Assignment {
+    pub doc: Option<Doc>,
+    pub kind: AssignmentKind,
+    pub span: Span,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum AssignmentKind {
+    /// `assigns none because "reason"`; the span covers `none`.
+    None { none: Span, reason: StrLit },
+    /// `assigns <member> at <Target>` or `assigns loaded at <Target>`.
+    Roles { roles: AssignedRoles, at: Target },
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum AssignedRoles {
+    /// The input member holding the roles granted.
+    Member(Dotted),
+    /// `loaded`: the stored roles the handler reads; the span covers it.
+    Loaded(Span),
 }
 
 /// One authorization clause of an operation.
