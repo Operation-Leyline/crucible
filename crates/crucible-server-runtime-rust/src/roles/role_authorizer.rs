@@ -80,8 +80,13 @@ enum Kept<'a> {
     Custom(&'a PermissionSet),
 }
 
-/// A custom role resolved under a root: its definition there, if any.
-type Custom<'r> = (Root<'r>, String, Option<PermissionSet>);
+/// The tenant a custom role id is resolved in: the root's identifier and
+/// id, `None` for the service. A role id is the tenant's own, so the same
+/// id under two roots may name two definitions.
+type Tenant = Option<(&'static str, String)>;
+
+/// A custom role resolved in a tenant: its definition there, if any.
+type Custom = (Tenant, String, Option<PermissionSet>);
 
 /// One batch's reads: the bindings under each root asked so far (almost
 /// always one), and the custom roles they name.
@@ -89,9 +94,8 @@ type Custom<'r> = (Root<'r>, String, Option<PermissionSet>);
 struct Batch<'c> {
     first: Option<(Root<'c>, Arc<[RoleBinding]>)>,
     more: Vec<(Root<'c>, Arc<[RoleBinding]>)>,
-    /// Custom roles by (root, id): a role id is the tenant's own, so the
-    /// same id under two roots may name two definitions.
-    customs: Vec<(Root<'c>, String, Option<PermissionSet>)>,
+    /// Custom roles by (tenant, id).
+    customs: Vec<Custom>,
 }
 
 impl<B: BindingSource, H: Hatches<B>> RoleAuthorizer<B, H> {
@@ -299,7 +303,14 @@ impl<B: BindingSource, H: Hatches<B>> RoleAuthorizer<B, H> {
         }
         let bit = catalogue.bit(listing.permission);
         let kind = self.source.kind(principal);
-        let root = Root::of(collection);
+        // A root resource's instances are each a tenant: a binding on any of
+        // them may show it, so the listing reads every root. Any other
+        // listing lies in its parents' tenant, as a check does.
+        let root = if parents.is_empty() {
+            Root::Every
+        } else {
+            Root::of(collection)
+        };
         let mut batch = Batch::default();
         let bindings = batch.bindings(self, principal, root, fresh).await?;
         let mut only = BTreeSet::new();
@@ -403,7 +414,7 @@ impl<B: BindingSource, H: Hatches<B>> RoleAuthorizer<B, H> {
         kind: Option<&str>,
         root: Root<'_>,
         bindings: &[RoleBinding],
-        customs: &[Custom<'_>],
+        customs: &[Custom],
         check: &Check,
     ) -> std::result::Result<(Verdict, Option<usize>), Unavailable> {
         let catalogue = self.catalogue;
@@ -462,7 +473,7 @@ impl<B: BindingSource, H: Hatches<B>> RoleAuthorizer<B, H> {
         binding: &RoleBinding,
         root: Root<'_>,
         kind: Option<&str>,
-        customs: &'a [Custom<'_>],
+        customs: &'a [Custom],
     ) -> Option<(usize, Kept<'a>)> {
         let catalogue = self.catalogue;
         let scope = well_formed(catalogue, binding, root)?;
@@ -470,11 +481,14 @@ impl<B: BindingSource, H: Hatches<B>> RoleAuthorizer<B, H> {
             Some(role) => catalogue
                 .valid_for(role, scope, kind)
                 .then_some((scope, Kept::Role(role))),
-            None if catalogue.custom => customs
-                .iter()
-                .find(|(under, id, _)| *under == root && *id == binding.role)
-                .and_then(|(_, _, set)| set.as_ref())
-                .map(|set| (scope, Kept::Custom(set))),
+            None if catalogue.custom => {
+                let tenant = tenant(catalogue, binding, scope, root);
+                customs
+                    .iter()
+                    .find(|(under, id, _)| *under == tenant && *id == binding.role)
+                    .and_then(|(_, _, set)| set.as_ref())
+                    .map(|set| (scope, Kept::Custom(set)))
+            }
             None => None,
         }
     }
@@ -494,6 +508,36 @@ impl<B: BindingSource, H: Hatches<B>> RoleAuthorizer<B, H> {
                 std::any::type_name::<B::Principal>()
             ))
         })
+    }
+}
+
+/// The tenant whose custom roles a well-formed binding at `scope`, read
+/// under `root`, names: the root's, or for a listing of every root
+/// ([`Root::Every`]) the binding's own.
+fn tenant(
+    catalogue: &RoleCatalogue,
+    binding: &RoleBinding,
+    scope: usize,
+    root: Root<'_>,
+) -> Tenant {
+    match root {
+        Root::Instance { identifier, id } => Some((identifier, id.to_owned())),
+        Root::Every => match (
+            catalogue.scopes[scope].identifiers.first(),
+            binding.identifiers.first(),
+        ) {
+            (Some(identifier), Some(id)) => Some((identifier, id.clone())),
+            _ => None,
+        },
+        _ => None,
+    }
+}
+
+/// The tenant as the root `CustomRoles::custom_role` is asked under.
+fn tenant_root(tenant: &Tenant) -> Root<'_> {
+    match tenant {
+        Some((identifier, id)) => Root::Instance { identifier, id },
+        None => Root::Service,
     }
 }
 
@@ -530,18 +574,26 @@ impl<'c> Batch<'c> {
         let bindings = authorizer.source.bindings(principal, root, fresh).await?;
         if authorizer.catalogue.custom {
             for binding in bindings.iter() {
-                if well_formed(authorizer.catalogue, binding, root).is_none()
-                    || authorizer.catalogue.find_role(&binding.role).is_some()
+                let Some(scope) = well_formed(authorizer.catalogue, binding, root) else {
+                    continue;
+                };
+                let tenant = tenant(authorizer.catalogue, binding, scope, root);
+                if authorizer.catalogue.find_role(&binding.role).is_some()
                     || self
                         .customs
                         .iter()
-                        .any(|(under, id, _)| *under == root && *id == binding.role)
+                        .any(|(under, id, _)| *under == tenant && *id == binding.role)
                 {
                     continue;
                 }
-                let set =
-                    H::custom_role(&authorizer.source, principal, root, &binding.role).await?;
-                self.customs.push((root, binding.role.clone(), set));
+                let set = H::custom_role(
+                    &authorizer.source,
+                    principal,
+                    tenant_root(&tenant),
+                    &binding.role,
+                )
+                .await?;
+                self.customs.push((tenant, binding.role.clone(), set));
             }
         }
         if self.first.is_none() {

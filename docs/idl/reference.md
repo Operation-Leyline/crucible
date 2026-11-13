@@ -603,7 +603,8 @@ role graphAdmin = "graphAdmin" {
   but writes no binding. `loaded` and `none because` are the clause's own
   words; an operation has one `assigns` clause.
 - **`roles.unassigned`**: an operation whose input carries a `@roleTypes`
-  value (a member of that enum, a list or map of it, at any depth), or
+  value (a member of that enum, a list of it, a map with it as key or
+  value, at any depth), or
   that `creates`, `puts`, `updates` or `deletes` a resource with a
   property holding one, declares one of the three. A new binding grant or
   revocation cannot skip the check.

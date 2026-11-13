@@ -1612,7 +1612,10 @@ nothing shows is refused as a check would be, `refusal(covered)`, where
 `covered` means a kept binding covers the collection or one instance in
 it: by default Hidden (404) for a caller holding nothing there, Denied
 (403) for one whose bindings there grant something else. The handler
-filters to `permissions::visible()` as with any Authorizer.
+filters to `permissions::visible()` as with any Authorizer. A listing of
+a root resource (`Organization(*)`) reads `bindings` under `Root::Every`,
+every binding the principal holds, since each organization is a tenant of
+its own; a source answers it with all of them.
 
 **Assignment.** `RoleCatalogue::may_assign(assigner, kind, role, at)` (and
 `Role::may_assign`) is pure: a role without `assignedBy` may be assigned

@@ -1,7 +1,8 @@
 schema_version = 1
 
 # `roles.unassigned` and `roles.assigns` (docs/roles.md §4.5): an operation
-# whose input carries role values, or that writes a resource holding them,
+# whose input carries role values (a map keyed by role included), or that
+# writes a resource holding them,
 # says what it assigns; and what an `assigns` clause names is a member of
 # role values and a resource of the service.
 [model]

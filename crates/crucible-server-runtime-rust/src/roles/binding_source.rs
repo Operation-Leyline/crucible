@@ -42,6 +42,8 @@ pub trait BindingSource: Send + Sync + 'static {
 
     /// Every binding `principal` holds under `root` (its tenant), in one
     /// read: `RoleAuthorizer` asks once per root per batch of checks.
+    /// [`Root::Every`] (a listing of a root resource's instances) asks for
+    /// every binding the principal holds, under any root.
     /// Bindings at scopes that name no identifier (`on service`) lie under
     /// every root. Returning more is harmless (only those `root` holds are
     /// read); returning fewer refuses what they would allow. `fresh` asks

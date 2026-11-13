@@ -16,6 +16,13 @@ pub enum Root<'a> {
         identifier: &'static str,
         id: &'a str,
     },
+    /// Every root: a `filters` listing of a root resource
+    /// (`Organization(*)`), whose instances are each a tenant of their own,
+    /// so a binding on any of them may show one. A source returns every
+    /// binding the principal holds (each still judged under its own root).
+    /// Never the root of a check: `Root::of` answers `Service` for
+    /// `Organization(*)`, so tenant filtering of checks is unchanged.
+    Every,
 }
 
 impl<'a> Root<'a> {
@@ -36,7 +43,7 @@ impl<'a> Root<'a> {
     /// ignores any other it returns.
     pub fn holds(&self, identifiers: &[String]) -> bool {
         match (self, identifiers.first()) {
-            (_, None) => true,
+            (_, None) | (Self::Every, _) => true,
             (Self::Service, Some(_)) => false,
             (Self::Instance { id, .. }, Some(first)) => first == id,
         }

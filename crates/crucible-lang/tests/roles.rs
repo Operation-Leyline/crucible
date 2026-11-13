@@ -908,6 +908,8 @@ fn an_operation_that_can_change_who_holds_a_role_says_what_it_assigns() {
                 "Relabel",
                 "updates `Binding`, whose `role` holds role values",
             ),
+            // A map whose keys are roles carries them too.
+            &unassigned("GrantMany", "carries role values in its input (`grants`)"),
             "roles.assigns: `Misnamed` assigns `label`, a `Label`; the roles assigned are a `RoleName` or a list of them",
             "roles.assigns: `storeId` of `Store` is bound to `nowhere`, but the input has no member `nowhere`",
         ],

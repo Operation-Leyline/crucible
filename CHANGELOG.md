@@ -46,7 +46,8 @@ version's section when it is prepared.
   show `Only` those, `by service` grants answer through the new required
   `ServiceGrants::visible_by_service(principal, grant)`, the answers are
   unioned, and a listing nothing shows is refused as a check would be.
-  `Listing::new` builds a listing.
+  `Listing::new` builds a listing. A listing of a root resource reads the
+  principal's bindings under the new `Root::Every`.
 
 - Roles R1 ([docs/roles.md](docs/roles.md)): `.cru` declares `scope name =
   "value" on R | R(*) | service` and `role name = "value" { at [..];

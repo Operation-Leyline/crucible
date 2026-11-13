@@ -470,6 +470,7 @@ fn held<'s>(
     kind: Option<&str>,
     binding: &RoleBinding,
     root: Option<&str>,
+    every_root: bool,
     permission: &PermissionInfo,
 ) -> Option<Held<'s>> {
     let (resource, declared) = service
@@ -497,7 +498,7 @@ fn held<'s>(
     let under = match (binding.identifiers.first(), root) {
         (None, _) => true,
         (Some(first), Some(root)) => first == root,
-        (Some(_), None) => false,
+        (Some(_), None) => every_root,
     };
     if !under {
         return None;
@@ -575,6 +576,9 @@ fn oracle_listing(
         .map(|(id, _)| id)
         .unwrap();
     let root = ids[0].as_one();
+    // A root resource's instances are each a tenant: its listing reads
+    // every binding.
+    let every_root = ids.len() == 1;
     let prefix = |binding: &RoleBinding, k: usize| {
         ids.len() >= k
             && ids[..k]
@@ -586,7 +590,7 @@ fn oracle_listing(
     let mut only = BTreeSet::new();
     let mut by_service = Vec::new();
     for binding in bindings {
-        let Some(held) = held(service, kind, binding, root, permission) else {
+        let Some(held) = held(service, kind, binding, root, every_root, permission) else {
             continue;
         };
         if held.by_service {

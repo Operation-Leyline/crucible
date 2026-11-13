@@ -862,7 +862,8 @@ impl<'a> Checker<'a> {
 }
 
 /// The member path that first reaches a `role_types` value from `shape`,
-/// through structures, unions, lists and maps; `None` when none does.
+/// through structures, unions, lists and maps (keys and values); `None`
+/// when none does.
 fn role_path(
     service: &Service,
     shape: &ShapeId,
@@ -877,7 +878,10 @@ fn role_path(
     }
     match service.shape(shape)? {
         Shape::List(list) => role_path(service, &list.member.target, role_types, seen),
-        Shape::Map(map) => role_path(service, &map.value.target, role_types, seen),
+        // A map carries roles in its keys (`RoleName -> PrincipalIds`) as
+        // well as its values.
+        Shape::Map(map) => role_path(service, &map.key.target, role_types, seen)
+            .or_else(|| role_path(service, &map.value.target, role_types, seen)),
         Shape::Structure(s) | Shape::Union(s) => s.members.iter().find_map(|member| {
             role_path(service, &member.target, role_types, seen).map(|mut path| {
                 path.insert(0, member.name.clone());

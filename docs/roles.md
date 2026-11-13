@@ -354,7 +354,8 @@ bindings }, docs }`, `Assigns::None { reason, docs }`), `#[serde(default)]`
 and left out when `None`, so a snapshot frozen before it reads; client
 projections drop it. `crucible_ir::validate::roles` checks it:
 `roles.unassigned` (reported at the operation) when the input reaches a
-`@roleTypes` value through any structure, union, list or map, or the
+`@roleTypes` value through any structure, union, list or map (its keys
+or values), or the
 operation is a resource's `create`, `put`, `update` or `delete` and the
 resource has a property that reaches one; `roles.assigns` for what the
 clause names (a member of no role values, a path the input lacks, a target
@@ -918,7 +919,12 @@ already places on a model with `by service` grants (a doctest on
 `E0046`). An `All` answer is final; `Only` sets merge; `Hidden` and
 `Denied` from the hook count as reaching nothing. An empty union is
 `refusal(covered)` as for a check, `covered` meaning a kept binding covers
-the collection or one instance in it. `BindingSource::visible` is removed:
+the collection or one instance in it. A root resource's listing
+(`Organization(*)`) has no tenant of its own, since each instance is one, so
+it reads the bindings under `Root::Every` (a new variant of the
+non-exhaustive `Root`: every binding the principal holds) and each binding
+shows its own instance; a check's root, and so its tenant filtering, is
+unchanged. `BindingSource::visible` is removed:
 it was never released (R2 is in the same unreleased minor), and a source's
 override would otherwise be silently ignored. The differential test lists
 every `R(*)` it checks too, against an interpreter of the same rules.

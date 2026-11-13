@@ -469,6 +469,72 @@ async fn a_listing_shows_all_some_or_none_of_the_collection() {
 }
 
 #[tokio::test]
+async fn a_listing_of_a_root_resource_reads_every_tenant() {
+    // `filters organizationRead on Organization`: each organization is a
+    // tenant of its own, so the listing reads every root (`Root::Every`)
+    // and each binding shows its own organization.
+    let organizations = Listing::new(
+        OrganizationPermission::OrganizationRead,
+        ResourceRef::from(OrganizationRef::all()),
+    );
+    let source = Memory::default();
+    let roots = source.roots.clone();
+    let authorizer = leyline::roles::authorizer(source);
+    let member = caller(
+        USER,
+        [
+            binding(Role::Owner, Scope::Organization, &["o-1"]),
+            binding(Role::UsageViewer, Scope::Organization, &["o-3"]),
+            // Grants no organization read: covers o-2, shows nothing.
+            binding(Role::GraphCreator, Scope::Organization, &["o-2"]),
+            // On a graph: not an organization instance.
+            binding(Role::GraphReader, Scope::Graph, &["o-4", "g-1"]),
+        ],
+    );
+    assert_eq!(
+        authorizer
+            .visible_for(&member, &organizations, false)
+            .await
+            .unwrap(),
+        Visibility::Only(BTreeSet::from(["o-1".to_owned(), "o-3".to_owned()]))
+    );
+    assert_eq!(*roots.lock().unwrap(), [format!("{:?}", Root::Every)]);
+    // A binding on an organization that grants no read: denied; none:
+    // hidden, as for a check.
+    let creator = caller(
+        USER,
+        [binding(Role::GraphCreator, Scope::Organization, &["o-2"])],
+    );
+    assert_eq!(
+        authorizer
+            .visible_for(&creator, &organizations, false)
+            .await
+            .unwrap(),
+        Visibility::Denied
+    );
+    assert_eq!(
+        authorizer
+            .visible_for(&caller(USER, []), &organizations, false)
+            .await
+            .unwrap(),
+        Visibility::Hidden
+    );
+    // A check on every organization still lies under no tenant: an owner
+    // of one does not hold it on all of them.
+    let every = check(
+        OrganizationPermission::OrganizationRead,
+        OrganizationRef::all(),
+    );
+    assert_eq!(
+        authorizer
+            .decide_for(&member, &[every], false)
+            .await
+            .unwrap(),
+        [Verdict::Hidden]
+    );
+}
+
+#[tokio::test]
 async fn graph_admin_lists_histories_through_visible_by_service() {
     let authorizer = authorizer();
     let admin = caller(
@@ -1002,6 +1068,8 @@ struct Memory {
     fail_bindings: bool,
     fail_by_service: bool,
     reads: Arc<std::sync::Mutex<Vec<(String, bool)>>>,
+    /// Every root `bindings` was asked under.
+    roots: Arc<std::sync::Mutex<Vec<String>>>,
     /// The bindings `decide_by_service` was asked about.
     asked: Arc<std::sync::Mutex<Vec<RoleBinding>>>,
 }
@@ -1022,6 +1090,7 @@ impl BindingSource for Memory {
         if self.fail_bindings {
             return Err(Unavailable::new("the bindings table is unreachable"));
         }
+        self.roots.lock().unwrap().push(format!("{root:?}"));
         if let Root::Instance { id, .. } = root {
             self.reads.lock().unwrap().push((id.to_owned(), fresh));
         }

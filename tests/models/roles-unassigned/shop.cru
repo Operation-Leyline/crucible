@@ -91,3 +91,18 @@ operation Elsewhere on Store {
         role: RoleName
     }
 }
+
+list PrincipalIds: PrincipalId
+
+/// Principals by the role they are granted: the roles are the map's keys.
+map PrincipalsByRole: RoleName -> PrincipalIds
+
+/// Grants roles keyed by role, and says nothing about it.
+operation GrantMany on Store {
+    http POST "/stores/{storeId}/grant-many"
+    requires bindingManage
+    input {
+        $storeId
+        grants: PrincipalsByRole
+    }
+}
