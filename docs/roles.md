@@ -552,6 +552,15 @@ roles have no shape of their own. Besides the design's rules:
   see, so it is a review, not a refusal. `by service` removed, the model now
   granting it outright, is `compatibility.role-widened`, as is a new `by
   service` grant.
+  Where the role keeps a scope that does not cover the resource, `by
+  service` removed is also a `compatibility.role` error at that scope: the
+  service's hook could allow it there, the model cannot.
+- *`custom` and `direct`*, compared at the service: turned on is
+  `compatibility.role-widened` (a role or grant the model does not list may
+  meet a requirement, and ones stored before take effect); turned off is a
+  `compatibility.role` error (their holders are refused what they had),
+  declared by an exception at the service, since no migration step names
+  the catalogue as a whole.
 - *Coverage.* Coverage follows the resource tree, so a resource moved out
   from under a scope's resource narrows every role bound there that grants
   on it, though its scopes and grants read the same: for each scope a

@@ -419,7 +419,12 @@ exception names.
   operation admits): an assigner can no longer grant or revoke it. A
   permission or scope that is gone altogether is
   reported once, by `compatibility.permissions` or `compatibility.scope`,
-  not again for each role.
+  not again for each role. A grant the service decided that the model now
+  decides is one at each scope the role keeps that does not cover its
+  resource, where the service could allow it and the model cannot. At the
+  service, `custom` or `direct` turned off is one too: holders of custom
+  roles, or of permissions granted outside roles, are refused what they
+  had; an exception at the service declares it.
 - `compatibility.role` (warning): a grant the model decided now left to
   the service (`by service`). Holders keep it where the service's hook
   allows, which only a review of the hook can tell.
@@ -434,7 +439,9 @@ exception names.
   could not be: no holder gains anything, but whoever may assign it can
   now grant it there; and one that admits more kinds of principal
   (`holders` naming another, or dropped so every kind may hold it), since
-  bindings a narrowing made inert take effect again.
+  bindings a narrowing made inert take effect again. At the service,
+  `custom` or `direct` turned on is one too: a requirement may be met by
+  what the model does not list.
 
 A baseline frozen before roles existed has no roles to compare, so adding a
 catalogue reports nothing.

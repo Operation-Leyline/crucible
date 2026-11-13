@@ -235,7 +235,57 @@ pub(crate) fn changes(old: &Service, new: &Service) -> Vec<Change> {
         role_changes.coverage();
         role_changes.assigners();
     }
+    settings(old, new, &mut out);
     out
+}
+
+/// The catalogue's settings, at the service: `custom` (customers define
+/// roles at runtime, which the authorizer resolves through a hook) and
+/// `direct` (the service grants permissions outside roles). Turning either
+/// on lets something the model does not list grant permissions, and
+/// bindings or grants stored for it take effect: a widening. Turning
+/// either off refuses what such roles or grants gave: an error, declared by
+/// an exception at the service, since no step names one role. A baseline
+/// without a catalogue has nothing to compare.
+fn settings(old: &Service, new: &Service, out: &mut Vec<Change>) {
+    if old.roles.is_empty() && old.role_scopes.is_empty() && old.role_settings.is_default() {
+        return;
+    }
+    let name = old.id.name();
+    for (was, is, what, whom) in [
+        (
+            old.role_settings.custom,
+            new.role_settings.custom,
+            "lets customers define roles (`custom`)",
+            "custom roles",
+        ),
+        (
+            old.role_settings.direct,
+            new.role_settings.direct,
+            "grants permissions outside roles (`direct`)",
+            "permissions granted outside roles",
+        ),
+    ] {
+        match (was, is) {
+            (false, true) => out.push(Change {
+                site: old.id.clone(),
+                rule: "compatibility.role-widened",
+                breaking: false,
+                message: format!(
+                    "`{name}` now {what}: a requirement may be met by what the model does not list, and {whom} stored before take effect"
+                ),
+            }),
+            (true, false) => out.push(Change {
+                site: old.id.clone(),
+                rule: "compatibility.role",
+                breaking: true,
+                message: format!(
+                    "`{name}` no longer {what}: holders of {whom} are refused what they had"
+                ),
+            }),
+            _ => {}
+        }
+    }
 }
 
 /// A resource as a stored binding's scope instance names it.
@@ -673,6 +723,30 @@ impl<'a> RoleChanges<'a, '_> {
         }
     }
 
+    /// The values of the scopes the role keeps (by value) whose bindings
+    /// cover no instance of `resource` in the new model: where a grant the
+    /// model decides does not apply, though one the service decides could.
+    fn uncovering_scopes(&self, resource: &ShapeId) -> Vec<&'a str> {
+        let was: Vec<&str> = self
+            .role
+            .scopes
+            .iter()
+            .filter_map(|symbol| self.old.scope(symbol))
+            .map(|scope| scope.value.as_str())
+            .collect();
+        self.now
+            .scopes
+            .iter()
+            .filter_map(|symbol| self.new.scope(symbol))
+            .filter(|scope| was.contains(&scope.value.as_str()))
+            .filter(|scope| {
+                !covers(self.new, &scope.on, Target::Instance(resource))
+                    && !covers(self.new, &scope.on, Target::Every(resource))
+            })
+            .map(|scope| scope.value.as_str())
+            .collect()
+    }
+
     /// What it grants, the model or the service deciding.
     fn grants(&mut self) {
         let model: BTreeSet<Granted> = self
@@ -717,13 +791,26 @@ impl<'a> RoleChanges<'a, '_> {
                         "`{symbol}` now leaves {what} to the service (`by service`); its holders keep it only where the service allows"
                     ),
                 ),
-                (true, true, _) => self.push(
-                    "compatibility.role-widened",
-                    false,
-                    format!(
-                        "`{symbol}` now grants {what} outright, where the service decided (`by service`); its holders gain it without the service's check"
-                    ),
-                ),
+                (true, true, _) => {
+                    // The service could allow it at any scope; the model
+                    // grants it only where a scope covers the resource.
+                    let lost = self.uncovering_scopes(now.0);
+                    if !lost.is_empty() {
+                        let message = format!(
+                            "`{symbol}` bound at {} no longer grants {what}: the model decides it now, where the service did (`by service`), and those scopes do not cover `{}`; its holders bound there are refused what the service could allow",
+                            quoted(&lost),
+                            now.0.name()
+                        );
+                        self.push("compatibility.role", true, message);
+                    }
+                    self.push(
+                        "compatibility.role-widened",
+                        false,
+                        format!(
+                            "`{symbol}` now grants {what} outright, where the service decided (`by service`); its holders gain it without the service's check"
+                        ),
+                    );
+                }
                 (false, false, false) => self.push(
                     "compatibility.role",
                     true,

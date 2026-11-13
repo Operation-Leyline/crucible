@@ -854,6 +854,86 @@ fn a_star_covering_a_new_permission_widens_the_role() {
 }
 
 #[test]
+fn a_grant_the_model_takes_from_the_service_narrows_scopes_that_do_not_cover_it() {
+    // History hangs off the organization; graphAdmin is bound at graphs
+    // and at the organization. The service could allow History's read at
+    // a graph binding; the model grants it only at the organization.
+    let base = edit(
+        &history_under_organization(BASE),
+        "    at [allGraphs, graph]\n    includes [graphWriter]\n",
+        "    at [allGraphs, graph, organization]\n    includes [graphWriter]\n",
+    );
+    let decided = edit(
+        &base,
+        "    grants History [read] by service\n",
+        "    grants History [read]\n",
+    );
+    let found = findings_from(&base, &decided);
+    assert_eq!(
+        at(&found, "compatibility.role", "graphAdmin"),
+        [
+            "error: `graphAdmin` bound at \"allGraphs\", \"graph\" no longer grants \"history:read\" on `History`: the model decides it now, where the service did (`by service`), and those scopes do not cover `History`; its holders bound there are refused what the service could allow"
+        ]
+    );
+    assert_eq!(
+        at(&found, "compatibility.role-widened", "graphAdmin"),
+        [
+            "warning: `graphAdmin` now grants \"history:read\" on `History` outright, where the service decided (`by service`); its holders gain it without the service's check"
+        ]
+    );
+    // `narrow role graphAdmin` declares it.
+    assert!(crucible_policy::role_narrowed(
+        &lower(&base),
+        &lower(&decided),
+        "graphAdmin"
+    ));
+}
+
+#[test]
+fn turning_custom_or_direct_on_widens_and_off_narrows() {
+    let roles = "    roles [owner, graphReader, graphWriter, graphAdmin]\n";
+    for (word, on_message, off_message) in [
+        (
+            "custom",
+            "warning: `Atlas` now lets customers define roles (`custom`): a requirement may be met by what the model does not list, and custom roles stored before take effect",
+            "error: `Atlas` no longer lets customers define roles (`custom`): holders of custom roles are refused what they had",
+        ),
+        (
+            "direct",
+            "warning: `Atlas` now grants permissions outside roles (`direct`): a requirement may be met by what the model does not list, and permissions granted outside roles stored before take effect",
+            "error: `Atlas` no longer grants permissions outside roles (`direct`): holders of permissions granted outside roles are refused what they had",
+        ),
+    ] {
+        let on = edit(
+            BASE,
+            roles,
+            &format!("    roles [owner, graphReader, graphWriter, graphAdmin] {word}\n"),
+        );
+        let found = findings_from(BASE, &on);
+        assert_eq!(
+            at(&found, "compatibility.role-widened", "Atlas"),
+            [on_message],
+            "{word}"
+        );
+        assert!(at(&found, "compatibility.role", "Atlas").is_empty());
+        let found = findings_from(&on, BASE);
+        assert_eq!(
+            at(&found, "compatibility.role", "Atlas"),
+            [off_message],
+            "{word}"
+        );
+        assert!(at(&found, "compatibility.role-widened", "Atlas").is_empty());
+    }
+    // A release from before roles reports neither.
+    let custom = edit(
+        BASE,
+        roles,
+        "    roles [owner, graphReader, graphWriter, graphAdmin] custom\n",
+    );
+    assert!(role_findings(&findings_from(&without_roles(BASE), &custom)).is_empty());
+}
+
+#[test]
 fn a_grant_moving_between_the_model_and_the_service_is_reported_for_review() {
     // The service decided, now the model grants it outright: wider.
     let found = findings(&edit(
