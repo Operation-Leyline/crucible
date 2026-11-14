@@ -81,7 +81,8 @@ packages ship them; Java and Kotlin keep them beside `pom.xml` and
 - `AGENTS.md`, for a coding agent working in a project that depends on the
   package: the same facts as terse rules, with the exact install line,
   imports, client name and construction, the headers the client sends
-  itself (`Authorization`, `Crucible-Version`, default middleware such as
+  itself (`Authorization`, the model's release header, defaulting to
+  `Crucible-Version`, and default middleware such as
   `content-sha256`'s `x-amz-content-sha256`), pagination, errors, retries,
   which calls fill an idempotency token, and one complete call. Agents
   read it whenever they work beside the package, so they need not guess a

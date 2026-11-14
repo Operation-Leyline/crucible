@@ -3,6 +3,7 @@ from contextlib import contextmanager
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
 import os
+from sdk_test_support import version_header_model
 from pathlib import Path
 import shutil
 import tempfile
@@ -331,7 +332,7 @@ def qualify_error_documentation(output):
     sdk = output / "error-docs-sdk"
     consumer = output / "error-docs-consumer"
     consumer.mkdir(parents=True, exist_ok=True)
-    generate(ROOT / "tests/models/error-docs", sdk, "Docs")
+    generate(version_header_model(output), sdk, "Docs")
     sources = consumer / "Sources/DocsConsumer"
     sources.mkdir(parents=True, exist_ok=True)
     (consumer / "Package.swift").write_text('''// swift-tools-version: 6.0

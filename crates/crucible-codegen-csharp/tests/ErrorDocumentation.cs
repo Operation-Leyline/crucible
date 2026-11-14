@@ -31,6 +31,8 @@ static class Program
                         if (request.Length > 65536) throw new Exception("request header bound");
                     }
                     if (!request.ToString().StartsWith("GET /inspect HTTP/1.1")) throw new Exception("native GET request");
+                    var wireHeaders = request.ToString().ToLowerInvariant();
+                    if (!wireHeaders.Contains("\nexample-version: 1") || wireHeaders.Contains("\ncrucible-version:")) throw new Exception("release carrier");
                     var body = Encoding.UTF8.GetBytes(test["body"]!.GetValue<string>());
                     var headers = $"HTTP/1.1 {test["status"]!.GetValue<int>()} Fixture\r\nConnection: close\r\nContent-Length: {body.Length}\r\nx-request-id: documentation-consumer\r\n";
                     if (test["identity"] is JsonNode identity) headers += $"x-crucible-error: {identity.GetValue<string>()}\r\n";

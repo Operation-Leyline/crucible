@@ -1,6 +1,7 @@
 """Qualify generated Composer packages with exact codecs and real HTTP."""
 import json
 import os
+from sdk_test_support import version_header_model
 from pathlib import Path
 import shutil
 import subprocess
@@ -57,7 +58,7 @@ def check_snippets(output):
 def error_documentation(output):
     package = output / "error-docs-sdk"
     run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "generate", "php",
-        str(ROOT / "tests/models/error-docs"), "--out", str(package), "--package-name", "example/error-docs",
+        str(version_header_model(output)), "--out", str(package), "--package-name", "example/error-docs",
         "--namespace", "Example\\ErrorDocs", "--package-version", "0.0.0")
     consumer = output / "error-docs-consumer"
     # Composer keeps an installed path package whose version and reference are unchanged, so a

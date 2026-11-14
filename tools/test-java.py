@@ -1,6 +1,7 @@
 """Build a Java SDK jar, then exercise that jar with a separate consumer."""
 import os
 import sys
+from sdk_test_support import version_header_model
 from pathlib import Path
 import tempfile
 from sdk_cru_packages import copy_package, rename_shapes, write_package
@@ -23,7 +24,7 @@ def large_package(output):
 def error_documentation(output):
     package = output / "error-docs-sdk"
     run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "generate", "java",
-        str(ROOT / "tests/models/error-docs"), "--out", str(package),
+        str(version_header_model(output)), "--out", str(package),
         "--group-id", "example", "--artifact-id", "error-docs", "--package-name", "example.error_docs")
     run(MAVEN, "-q", "-Dmaven.repo.local=" + str(ROOT / "target/maven-repo"),
         "package", "dependency:copy-dependencies", cwd=package)

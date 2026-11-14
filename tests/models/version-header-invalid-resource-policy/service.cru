@@ -1,0 +1,13 @@
+service Example {
+    version "v1"
+    protocol json
+    versionHeader "Cross-Origin-Resource-Policy"
+    operations [Ping]
+}
+
+anonymous readonly operation Ping {
+    http GET "/ping"
+    input {
+    }
+    output { ok: boolean }
+}

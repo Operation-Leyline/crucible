@@ -5,11 +5,13 @@ namespace CrucibleGenerated\Runtime;
 final class ClientRuntime
 {
     private readonly string $endpoint;
+    private readonly string $apiVersionHeader;
     private readonly HttpTransport $transport;
     private bool $closed = false;
     public function __construct(private readonly ClientConfig $config, private readonly WireCodec $codec,
         private readonly \Closure $errors, string $endpoint)
     {
+        $this->apiVersionHeader = strtolower($codec->schema->get('apiVersionHeader') ?? 'crucible-version');
         $this->endpoint = rtrim($config->endpoint ?? $endpoint, '/');
         $url = self::url($this->endpoint);
         if (isset($url['query']) || isset($url['fragment'])) throw new \InvalidArgumentException('Endpoint must not have a query or fragment');
@@ -126,7 +128,7 @@ final class ClientRuntime
         }
         // The release this client was generated for (docs/api-versions-clients.md).
         $apiVersion = $this->codec->schema->get('apiVersion');
-        if (is_string($apiVersion)) $headers['crucible-version'] = $apiVersion;
+        if (is_string($apiVersion)) $headers[$this->apiVersionHeader] = $apiVersion;
         return new HttpRequest($this->endpoint . $path,WireCodec::string($op->get('method')),$headers,$body);
     }
     /** Converts timestamps between a member's document format and an HTTP binding format. */

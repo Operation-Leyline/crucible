@@ -354,6 +354,7 @@ func (s shapeDescription) knownWire(name string) bool {
 type schemaDescription struct {
 	Service string
 	APIVersion string `json:"apiVersion"`
+	APIVersionHeader string `json:"apiVersionHeader"`
 	Shapes     map[string]shapeDescription
 	Operations map[string]operationDescription
 	Bearer     bool
@@ -366,6 +367,7 @@ func mustSchema(text string) *schemaDescription {
 	if err := decoder.Decode(&schema); err != nil {
 		panic(err)
 	}
+	if schema.APIVersionHeader == "" { schema.APIVersionHeader = "Crucible-Version" }
 	return &schema
 }
 func newClient(config Config, schema *schemaDescription) (*clientRuntime, error) {
@@ -1095,7 +1097,7 @@ func (c *clientRuntime) sendMode(ctx context.Context, name string, values map[st
 		}
 	}
 	// The release this client was generated for (docs/api-versions-clients.md).
-	if c.schema.APIVersion != "" { headers.Set("Crucible-Version", c.schema.APIVersion) }
+	if c.schema.APIVersion != "" { headers.Set(c.schema.APIVersionHeader, c.schema.APIVersion) }
 	maxAttempts := c.config.MaxAttempts
 	endpoint := strings.TrimRight(c.config.Endpoint, "/")
 	lastCost := 0

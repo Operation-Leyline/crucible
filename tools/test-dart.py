@@ -1,6 +1,7 @@
 """Qualify generated Dart packages on the VM and JavaScript in headless Chrome."""
 import json
 import os
+from sdk_test_support import version_header_model
 from pathlib import Path
 import re
 import shutil
@@ -302,7 +303,7 @@ def qualify_error_documentation(output):
     consumer = output / "error-docs-consumer"
     consumer.mkdir(parents=True, exist_ok=True)
     run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "generate", "dart",
-        str(ROOT / "tests/models/error-docs"), "--out", str(sdk), "--package-name", "docs_client")
+        str(version_header_model(output)), "--out", str(sdk), "--package-name", "docs_client")
     (consumer / "pubspec.yaml").write_text(json.dumps({"name": "docs_consumer", "publish_to": "none",
         "environment": {"sdk": ">=3.6.2 <4.0.0"}, "dependencies": {"docs_client": {"path": "../error-docs-sdk"}}}), encoding="utf-8")
     shutil.copyfile(ROOT / "crates/crucible-codegen-dart/tests/error_docs.dart.template", consumer / "main.dart")

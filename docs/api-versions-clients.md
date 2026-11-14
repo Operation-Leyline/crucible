@@ -1,13 +1,19 @@
 # API versions and clients
 
-The Rust SDK and generated service CLI send the model's `versionHeader`,
-including when the model says `unversioned required`. Their operation markers
+Every generated client honours the service's `versionHeader` (default
+`Crucible-Version`) and accepts `unversioned required`. Clients always name
+the release their types describe; the policy needs no extra client mode.
+The twelve bundled native runtimes read optional `apiVersionHeader` from
+their shared description; TypeScript carries it on each operation spec.
+The key retains the model's spelling and is omitted for the default name.
+Runtimes loading an older description retain their original header fallback.
+
+The Rust SDK and generated service CLI operation markers
 carry `Operation::API_VERSION_HEADER` (default `crucible-version`) beside
 `API_VERSION`. The header name is fixed by the model; choosing another release
 requires an SDK generated for that release. Older release projections use the
 working model's header and policy, so one server serves all releases under
-one name. The TypeScript and twelve other SDK targets still refuse non-default
-header names and `required` policies.
+one name.
 
 The Rust server follows `unversioned oldest|required` even for one release.
 An explicit `Builder::api_version` may refine an `oldest` model; it cannot
@@ -615,7 +621,7 @@ A client, document or CLI can be generated for any supported release
   line whose last release has none (every language but Rust and
   TypeScript), or any SDK whose snapshot cannot be read, needs `--bump`:
   nothing else would see a break that reaches it. A line's reference
-  shows `Crucible-Version: <its release>` on every request it documents
+  shows the configured release header and its release on every request it documents
   and says which release is current (the index, `llms.txt`, the releases
   page and the Explorer); OpenAPI declares the header as a required
   parameter fixed to the document's release, for the current release too;
@@ -714,7 +720,7 @@ service. Keys are sorted, as everywhere in the document:
 | Field | Type | Derived from |
 |---|---|---|
 | `current` | string | `Service::api_version` of the current model, also in a per-release document |
-| `carrier` | object | `{kind: "header", name: "Crucible-Version"}`, the one carrier until a protocol declares another (decision 57) |
+| `carrier` | object | `{kind: "header", name: <configured header>}`, defaulting to `Crucible-Version` |
 | `releases` | array, oldest first, current last | the chain: `Service::versions`, then the current model |
 | release `name`, `current` | string, boolean | `ApiVersion::name`; `true` for the last only |
 | release `sunset` | string or `null` | `ApiVersion::sunset`, which the migration *from* that release declares; `null` for the current release |

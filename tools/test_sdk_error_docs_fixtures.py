@@ -36,11 +36,11 @@ class ErrorDocumentationFixtures(unittest.TestCase):
         module.ROOT = self.root
         return module.error_documentation_fixture()
 
-    def request(self, endpoint, method, path, index=0):
+    def request(self, endpoint, method, path, index=0, headers=None):
         parsed = urlsplit(endpoint)
         connection = HTTPConnection(parsed.hostname, parsed.port, timeout=5)
         try:
-            connection.request(method, path, headers={"x-case": str(index)})
+            connection.request(method, path, headers={"x-case": str(index), "Example-Version": "1"} if headers is None else headers)
             response = connection.getresponse()
             return response.status, response.headers, response.read()
         except RemoteDisconnected:
@@ -72,6 +72,20 @@ class ErrorDocumentationFixtures(unittest.TestCase):
                         self.assertEqual(headers.get("X-Error-Reason"), case["header"], case["name"])
                         self.assertEqual(body, case["body"].encode("utf-8"), case["name"])
                 self.assertTrue(required.issubset({case["name"] for case in cases}))
+
+    def test_each_fixture_rejects_a_missing_release_header(self):
+        for language in ("dart", "swift"):
+            with self.subTest(language=language):
+                with self.assertRaises(AssertionError):
+                    with self.fixture(language) as (_cases, endpoint):
+                        self.request(endpoint, "GET", "/inspect", headers={})
+
+    def test_each_fixture_rejects_the_old_header(self):
+        for language in ("dart", "swift"):
+            with self.subTest(language=language):
+                with self.assertRaises(AssertionError):
+                    with self.fixture(language) as (_cases, endpoint):
+                        self.request(endpoint, "GET", "/inspect", headers={"Crucible-Version": "1"})
 
     def test_each_fixture_rejects_the_wrong_path(self):
         for language in ("dart", "swift"):

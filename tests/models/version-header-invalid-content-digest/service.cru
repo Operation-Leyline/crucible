@@ -1,0 +1,13 @@
+service Example {
+    version "v1"
+    protocol json
+    versionHeader "X-AmZ-Content-Sha256"
+    operations [Ping]
+}
+
+anonymous readonly operation Ping {
+    http GET "/ping"
+    input {
+    }
+    output { ok: boolean }
+}

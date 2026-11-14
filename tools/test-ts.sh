@@ -42,6 +42,9 @@ crucible generate ts tests/models/globals \
   --out "$dir/generated-globals" --package-name @example/globals >/dev/null
 crucible generate ts tests/models/samples   --out "$dir/generated-samples" --package-name @example/samples >/dev/null
 
+crucible generate ts tests/models/version-header-named \
+  --out "$dir/generated-version-header" --package-name @example/version-header >/dev/null
+
 # The crucible.sdks/1 snippets (docs/docs.md, "Snippets") for a generated
 # package compile against it: each is described with the options the
 # package was generated with, so its names are the ones the package declares.

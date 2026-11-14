@@ -79,6 +79,8 @@ fun main() = runBlocking {
     server.createContext("/inspect") { exchange ->
         try {
             check(exchange.requestMethod == "GET")
+            check(exchange.requestHeaders.getFirst("Example-Version") == "1")
+            check(exchange.requestHeaders.getFirst("Crucible-Version") == null)
             val case = selected.get()
             case.identity?.let { exchange.responseHeaders.add("x-crucible-error", it) }
             case.header?.let { exchange.responseHeaders.add("X-Error-Reason", it) }

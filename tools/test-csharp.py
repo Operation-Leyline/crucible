@@ -1,5 +1,6 @@
 """Pack a NuGet SDK, install it in a separate consumer, and exercise HTTP behavior."""
 import os
+from sdk_test_support import version_header_model
 from pathlib import Path
 import shutil
 import sys
@@ -109,7 +110,7 @@ def check_snippets(output, weather_feed):
 
 
 def qualify(output):
-    consume(output, ROOT / "tests/models/error-docs", "error-docs", "Example.ErrorDocs", "ErrorDocumentation.cs",
+    consume(output, version_header_model(output), "error-docs", "Example.ErrorDocs", "ErrorDocumentation.cs",
             (str(ROOT / "tests/conformance/error-docs.json"),))
     # Doc comments and ToString of the generated models; pack runs with -warnaserror, so a malformed comment fails.
     consume(output, ROOT / "tests/models/client-docs-jvm", "display", "Example.Docs", "Display.cs")

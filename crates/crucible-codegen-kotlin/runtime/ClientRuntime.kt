@@ -37,6 +37,7 @@ internal class ClientRuntime(input: ClientConfig, endpoint: String,
     private val schema: JsonObject = loadSchema()) : AutoCloseable {
     private val config = input.copy(endpoint = (input.endpoint ?: endpoint).trimEnd('/'),
         headers = input.headers.toMap(), middleware = input.middleware.toList())
+    private val apiVersionHeader = schema.text("apiVersionHeader")?.lowercase() ?: "crucible-version"
     private val ownsHttp = input.httpClient == null
     private val http = input.httpClient ?: HttpClient {
         expectSuccess = false; followRedirects = false
@@ -127,7 +128,7 @@ internal class ClientRuntime(input: ClientConfig, endpoint: String,
             }
         }
         // The release this client was generated for (docs/api-versions-clients.md).
-        schema.text("apiVersion")?.let { headers["crucible-version"] = it }
+        schema.text("apiVersion")?.let { headers[apiVersionHeader] = it }
         return Prepared(op, Url(endpoint + uri), headers, bytes, endpoint, display.substringBefore('?'), sensitiveHeaders, sensitiveQuery)
     }
     /** The retry reason for a failed attempt, or null when it is not retryable. */

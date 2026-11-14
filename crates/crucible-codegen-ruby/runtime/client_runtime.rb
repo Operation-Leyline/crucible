@@ -5,6 +5,7 @@ module CrucibleGenerated
     class ClientRuntime
       def initialize(config, codec, endpoint:)
         @config, @codec = config, codec
+        @api_version_header = codec.schema.fetch('apiVersionHeader', 'crucible-version').downcase
         @endpoint = (config.endpoint || endpoint).sub(%r{/+\z}, '')
         uri = self.class.url(@endpoint)
         raise ::ArgumentError, 'Endpoint cannot contain query or fragment' if uri.query || uri.fragment
@@ -136,7 +137,7 @@ module CrucibleGenerated
         end
         # The release this client was generated for (docs/api-versions-clients.md).
         api_version = @codec.schema['apiVersion']
-        headers['crucible-version'] = api_version if api_version.is_a?(String)
+        headers[@api_version_header] = api_version if api_version.is_a?(String)
         HttpRequest.new(url: @endpoint + path, method: op.fetch('method'), headers: headers, body: body)
       end
       def send_request(op, prepared, scope)

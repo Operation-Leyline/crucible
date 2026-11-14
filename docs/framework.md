@@ -701,6 +701,10 @@ fails at build. The configured name is used for selection, echo, `Vary` and
 malformed-release violation paths. Sender deliveries without a release still
 use the current release.
 
+Every generated client sends its release using the model's `versionHeader`,
+defaulting to `Crucible-Version`. This also satisfies `unversioned required`;
+client runtimes keep the old name when their description omits the setting.
+
 ### Pagination tokens
 
 A `@paginated` operation hands its caller a token saying where the listing

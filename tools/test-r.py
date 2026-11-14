@@ -1,5 +1,6 @@
 """Qualify generated native R packages, shared wire behavior, and real HTTP."""
 import os
+from sdk_test_support import version_header_model
 from pathlib import Path
 import tempfile
 from sdk_test_support import ROOT, describe_sdk, run, snippets, weather
@@ -95,7 +96,7 @@ def qualify_error_docs(output):
     library = root / "library"
     library.mkdir(parents=True, exist_ok=True)
     package = root / "sdk"
-    generate(ROOT / "tests/models/error-docs", package, "docs.client")
+    generate(version_header_model(output), package, "docs.client")
     run(R, "CMD", "INSTALL", "--no-multiarch", "-l", str(library), str(package))
     with error_docs_fixture(root) as (endpoint, oracle):
         run(RSCRIPT, str(ROOT / "crates/crucible-codegen-r/tests/error_docs.R"), str(library),

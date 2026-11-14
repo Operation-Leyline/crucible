@@ -3,13 +3,16 @@ import Foundation
 internal final class ClientRuntime: Sendable {
     let config: ClientConfig
     private let endpoint: String
+    private let apiVersionHeader: String
     private let transport: any HTTPTransport
     private let owned: URLSessionTransport?
     let codec: WireCodec
     init(_ config: ClientConfig, endpoint: String) throws {
         self.config = config
         guard let resource = Bundle.module.url(forResource: "schema", withExtension: "json") else { throw WireError("SDK schema missing") }
-        codec = WireCodec(schema: try JSONValue(data: Data(contentsOf: resource)))
+        let description = try JSONValue(data: Data(contentsOf: resource))
+        codec = WireCodec(schema: description)
+        apiVersionHeader = description["apiVersionHeader"]?.text?.lowercased() ?? "crucible-version"
         var endpoint = config.endpoint ?? endpoint
         while endpoint.hasSuffix("/") { endpoint.removeLast() }
         guard let url = URLComponents(string: endpoint), ["http", "https"].contains(url.scheme ?? ""),
@@ -103,7 +106,7 @@ internal final class ClientRuntime: Sendable {
             if body?.isEmpty == true { body = nil } else if !modelledContentType { headers["content-type"] = payload.1 }
         }
         // The release this client was generated for (docs/api-versions-clients.md).
-        if let apiVersion = codec.schema["apiVersion"]?.text { headers["crucible-version"] = apiVersion }
+        if let apiVersion = codec.schema["apiVersion"]?.text { headers[apiVersionHeader] = apiVersion }
         guard let url = URL(string: base + path) else { throw WireError("Invalid request URL") }
         return Prepared(name: name, operation: op, request: HTTPRequest(url: url, method: try op["method"]!.string, headers: headers, body: body))
     }

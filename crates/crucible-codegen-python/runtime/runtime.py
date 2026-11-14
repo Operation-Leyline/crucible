@@ -505,6 +505,7 @@ class _Base:
         self._max_stream_event_bytes = max_stream_event_bytes
         self._endpoint = endpoint.rstrip("/")
         self._codec = _Codec(schema, classes)
+        self._api_version_header = schema.get("apiVersionHeader", "crucible-version").lower()
         self._token = token
         self._headers = headers or {}
         self._attempts = max_attempts
@@ -606,7 +607,7 @@ class _Base:
                     headers["content-type"] = payload[1]
         # The release this client was generated for (docs/api-versions-clients.md).
         if api_version := self._codec.schema.get("apiVersion"):
-            headers["crucible-version"] = api_version
+            headers[self._api_version_header] = api_version
         op["target"] = uri
         op["displayPath"] = display.split("?", 1)[0]
         op["sensitiveHeaders"] = frozenset(sensitive_headers)

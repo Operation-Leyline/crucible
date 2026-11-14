@@ -59,3 +59,32 @@ fn agent_guides_name_the_configured_header_and_policy() {
     assert!(text.contains("HTTP 400"));
     golden("version-header.agents.md", &text);
 }
+
+#[test]
+fn native_schema_carries_the_declared_header_spelling() {
+    let schema = crucible_codegen_common::schema(&service(), str::to_owned);
+    assert_eq!(schema["apiVersionHeader"], "Example-Version");
+    assert_eq!(schema["apiVersion"], "v1");
+}
+
+#[test]
+fn native_schema_omits_the_default_header() {
+    let mut service = service();
+    service.version_header = None;
+    assert!(
+        crucible_codegen_common::schema(&service, str::to_owned)
+            .get("apiVersionHeader")
+            .is_none()
+    );
+}
+
+#[test]
+fn native_schema_omits_a_case_only_default_spelling() {
+    let mut service = service();
+    service.version_header = Some("CRUCIBLE-version".into());
+    assert!(
+        crucible_codegen_common::schema(&service, str::to_owned)
+            .get("apiVersionHeader")
+            .is_none()
+    );
+}

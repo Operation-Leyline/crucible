@@ -552,6 +552,8 @@ pub fn capabilities() -> crucible_ir::Capabilities {
         Feature::ErrorPayload,
         Feature::MediaTypeHeaders,
         Feature::ErrorDocumentation,
+        Feature::VersionHeader,
+        Feature::UnversionedRequired,
     ])
 }
 

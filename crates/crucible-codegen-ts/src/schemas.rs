@@ -421,9 +421,18 @@ fn operation_spec(service: &Service, converting: &BTreeSet<ShapeId>, op: &Operat
         };
         fields.push(format!("stream: {schema}"));
     }
-    // The release this client sends in `Crucible-Version`.
+    // The release this client sends in the configured header.
     if let Some(version) = &service.api_version {
         fields.push(format!("apiVersion: {}", literal(version)));
+    }
+    if !service
+        .version_header()
+        .eq_ignore_ascii_case(crucible_ir::versions::VERSION_HEADER)
+    {
+        fields.push(format!(
+            "apiVersionHeader: {}",
+            literal(service.version_header())
+        ));
     }
     if !op.request.header_encodings.is_empty() {
         fields.push(format!(

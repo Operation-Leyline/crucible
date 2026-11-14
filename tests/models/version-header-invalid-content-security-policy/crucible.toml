@@ -1,0 +1,6 @@
+schema_version = 1
+
+[model]
+namespace = "example.version_header"
+language = 1
+sources = ["."]

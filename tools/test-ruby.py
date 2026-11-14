@@ -1,5 +1,6 @@
 """Qualify native Ruby gems against shared fixtures and real HTTP."""
 import os
+from sdk_test_support import version_header_model
 from pathlib import Path
 import subprocess
 import sys
@@ -32,7 +33,7 @@ def gem(*args, **kwargs):
 def error_documentation(output):
     package = output / "error-docs-sdk"
     run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "generate", "ruby",
-        str(ROOT / "tests/models/error-docs"), "--out", str(package), "--package-name", "error_docs_client",
+        str(version_header_model(output)), "--out", str(package), "--package-name", "error_docs_client",
         "--module-name", "ErrorDocs", "--package-version", "0.0.0")
     gem("build", "error_docs_client.gemspec", cwd=package)
     installed = output / "error-docs-installed"

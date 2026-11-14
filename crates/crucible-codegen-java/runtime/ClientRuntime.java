@@ -66,6 +66,7 @@ final class ClientRuntime {
   private final HttpClient http;
   private final ClientConfig config;
   private final JsonObject schema;
+  private final String apiVersionHeader;
   private final Map<String, Class<?>> classes;
 
   private void checkCollectionValue(JsonObject container, JsonObject member, Object value) {
@@ -119,6 +120,8 @@ final class ClientRuntime {
             ? HttpClient.newBuilder().followRedirects(HttpClient.Redirect.NEVER).build()
             : input.httpClient;
     this.schema = schema;
+    String carrier = text(schema, "apiVersionHeader");
+    this.apiVersionHeader = carrier == null ? "crucible-version" : carrier.toLowerCase(java.util.Locale.ROOT);
     this.classes = classes;
   }
 
@@ -646,7 +649,7 @@ final class ClientRuntime {
     }
     // The release this client was generated for (docs/api-versions-clients.md).
     String apiVersion = text(schema, "apiVersion");
-    if (apiVersion != null) headers.put("crucible-version", apiVersion);
+    if (apiVersion != null) headers.put(apiVersionHeader, apiVersion);
     return new Prepared(name, op, URI.create(config.endpoint + uri), headers, body);
   }
 

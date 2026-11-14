@@ -2,6 +2,7 @@
 import json
 import os
 import shutil
+from sdk_test_support import version_header_model
 from pathlib import Path
 import tempfile
 
@@ -164,7 +165,7 @@ def qualify_error_docs(output):
     from sdk_error_docs_fixture import error_docs_fixture
     root = output / "error-docs"
     package, sdk_build, install = root / "sdk", root / "sdk-build", root / "installed"
-    generate(ROOT / "tests/models/error-docs", package, "docs_client", "docs")
+    generate(version_header_model(output), package, "docs_client", "docs")
     configure(package, sdk_build, "-DCMAKE_INSTALL_PREFIX=" + install.as_posix())
     build(sdk_build)
     run(CMAKE, "--install", str(sdk_build), "--config", "Debug")

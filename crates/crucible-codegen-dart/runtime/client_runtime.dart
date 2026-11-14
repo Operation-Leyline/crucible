@@ -20,6 +20,7 @@ final class ClientRuntime {
   final ErrorDecoder errors;
   final Object Function() unit;
   late final String endpoint;
+  late final String _apiVersionHeader;
   late final HttpTransport _transport;
   late final bool _owned;
   bool _closed = false;
@@ -27,6 +28,7 @@ final class ClientRuntime {
       {required String endpoint}) {
     this.endpoint =
         (config.endpoint ?? endpoint).replaceFirst(RegExp(r'/+$'), '');
+    _apiVersionHeader = (codec.schema['apiVersionHeader'] as String? ?? 'crucible-version').toLowerCase();
     final url = Uri.parse(this.endpoint);
     _validateUrl(url);
     if (url.hasQuery || url.hasFragment)
@@ -251,7 +253,7 @@ final class ClientRuntime {
     }
     // The release this client was generated for (docs/api-versions-clients.md).
     final apiVersion = codec.schema['apiVersion'];
-    if (apiVersion is String) headers['crucible-version'] = apiVersion;
+    if (apiVersion is String) headers[_apiVersionHeader] = apiVersion;
     return HttpRequest(url: Uri.parse(endpoint + path), method: wireString(op['method']), headers: headers, body: body);
   }
 

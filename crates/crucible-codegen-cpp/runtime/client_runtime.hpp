@@ -35,6 +35,7 @@ class ClientRuntime {
     const Schema* schema_;
     ErrorFactory errors_;
     std::string endpoint_;
+    std::string api_version_header_ = "crucible-version";
     std::shared_ptr<Transport> transport_;
     std::atomic<bool> closed_ = false;
     [[nodiscard]] HttpRequest prepare(const Json& operation, const Json& input) const;
