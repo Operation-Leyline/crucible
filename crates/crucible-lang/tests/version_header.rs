@@ -380,3 +380,66 @@ fn http_owned_release_headers_keep_their_classification() {
             .starts_with("versionHeader.reserved:")
     );
 }
+
+#[test]
+fn invalid_content_digest_is_refused() {
+    refused(
+        "invalid-content-digest",
+        "versionHeader.runtime:",
+        "service Example {\n    version \"v1\"\n    protocol json\n    versionHeader \"X-AmZ-Content-Sha256\"\n    operations [Ping]\n}",
+    );
+}
+
+#[test]
+fn invalid_allow_is_refused() {
+    refused(
+        "invalid-allow",
+        "versionHeader.runtime:",
+        "service Example {\n    version \"v1\"\n    protocol json\n    versionHeader \"AlLoW\"\n    operations [Ping]\n}",
+    );
+}
+
+#[test]
+fn invalid_stream_is_refused() {
+    refused(
+        "invalid-stream",
+        "versionHeader.runtime:",
+        "service Example {\n    version \"v1\"\n    protocol json\n    versionHeader \"Crucible-Stream\"\n    operations [Ping]\n}",
+    );
+}
+
+#[test]
+fn invalid_resource_policy_is_refused() {
+    refused(
+        "invalid-resource-policy",
+        "versionHeader.runtime:",
+        "service Example {\n    version \"v1\"\n    protocol json\n    versionHeader \"Cross-Origin-Resource-Policy\"\n    operations [Ping]\n}",
+    );
+}
+
+#[test]
+fn invalid_content_security_policy_is_refused() {
+    refused(
+        "invalid-content-security-policy",
+        "versionHeader.runtime:",
+        "service Example {\n    version \"v1\"\n    protocol json\n    versionHeader \"Content-Security-Policy\"\n    operations [Ping]\n}",
+    );
+}
+
+#[test]
+fn invalid_content_type_options_is_refused() {
+    refused(
+        "invalid-content-type-options",
+        "versionHeader.runtime:",
+        "service Example {\n    version \"v1\"\n    protocol json\n    versionHeader \"X-Content-Type-Options\"\n    operations [Ping]\n}",
+    );
+}
+
+#[test]
+fn invalid_referrer_policy_is_refused() {
+    refused(
+        "invalid-referrer-policy",
+        "versionHeader.runtime:",
+        "service Example {\n    version \"v1\"\n    protocol json\n    versionHeader \"Referrer-Policy\"\n    operations [Ping]\n}",
+    );
+}

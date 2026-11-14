@@ -44,6 +44,38 @@ const RESERVED_HEADERS: &[&str] = &[
     "upgrade",
 ];
 
+// These built-ins write fixed headers independently of modelled member bindings.
+const BUILTIN_VERSION_HEADER_CONFLICTS: &[(&str, &str)] = &[
+    (
+        "x-amz-content-sha256",
+        "versionHeader.runtime: the contentSha256 client middleware owns this header",
+    ),
+    (
+        "allow",
+        "versionHeader.runtime: the JSON protocol method refusal owns this header",
+    ),
+    (
+        "crucible-stream",
+        "versionHeader.runtime: the JSON response streaming protocol owns this header",
+    ),
+    (
+        "cross-origin-resource-policy",
+        "versionHeader.runtime: the explorer security policy owns this header",
+    ),
+    (
+        "content-security-policy",
+        "versionHeader.runtime: the explorer security policy owns this header",
+    ),
+    (
+        "x-content-type-options",
+        "versionHeader.runtime: the explorer security policy owns this header",
+    ),
+    (
+        "referrer-policy",
+        "versionHeader.runtime: the explorer security policy owns this header",
+    ),
+];
+
 /// Fetch Standard §2.2.2 (Headers), the forbidden request-header name list.
 /// https://fetch.spec.whatwg.org/#forbidden-request-header
 const FETCH_FORBIDDEN_REQUEST_HEADERS: &[&str] = &[
@@ -118,6 +150,11 @@ fn version_header(service: &Service, diagnostics: &mut Diagnostics) {
     .contains(&lower.as_str())
     {
         Some("versionHeader.runtime: the runtime owns this header")
+    } else if let Some((_, problem)) = BUILTIN_VERSION_HEADER_CONFLICTS
+        .iter()
+        .find(|(header, _)| *header == lower)
+    {
+        Some(*problem)
     } else if FETCH_FORBIDDEN_REQUEST_HEADERS.contains(&lower.as_str())
         || ["sec-", "proxy-", "access-control-"]
             .iter()

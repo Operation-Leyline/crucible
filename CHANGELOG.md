@@ -15,6 +15,12 @@ version's section when it is prepared.
 
 ## [Unreleased]
 
+### Fixed
+
+- Release header validation also reserves built-in content-digest, method
+  refusal, response streaming and explorer security headers, preventing the
+  release value from overwriting middleware or protocol metadata.
+
 ### Added
 
 - Service clauses `versionHeader "Example-Version"` and `unversioned

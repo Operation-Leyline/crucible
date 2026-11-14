@@ -675,7 +675,12 @@ token of at most 64 bytes. Names compare without case; documentation keeps
 the spelling given. HTTP framing and hop-by-hop names, runtime-owned names,
 browser-forbidden names and the `sec-`, `proxy-` and `access-control-`
 prefixes are refused. It cannot reuse a modelled `@header` binding,
-including a sender's signature header. There is no alias for the default name.
+including a sender's signature header. Built-in reservations include
+`x-amz-content-sha256` (client content-digest middleware), `allow` (method
+refusals), `crucible-stream` (response streaming), and the explorer security
+headers `cross-origin-resource-policy`, `content-security-policy`,
+`x-content-type-options` and `referrer-policy`. There is no alias for the
+default name.
 
 `unversioned` accepts `oldest` (the default) or `required`. `oldest` serves
 the oldest supported release; `required` specifies HTTP 400 for a request
