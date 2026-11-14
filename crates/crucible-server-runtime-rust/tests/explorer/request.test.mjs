@@ -79,3 +79,23 @@ test("a sender-signed operation sends no bearer token, whatever is stored", () =
   const plain = api.buildRequest(description, op, first.input, base, { bearer: "secret" });
   assert.equal(new Headers(plain.headers).get("authorization"), "Bearer secret");
 });
+
+test("a named release header carries the current release", () => {
+  const named = structuredClone(description);
+  named.versions.carrier.name = "Acme-Version";
+  const request = api.buildRequest(named, op, first.input, base);
+  assert.equal(request.headers.get("Acme-Version"), named.versions.current);
+  assert.equal(request.headers.get("Crucible-Version"), null);
+});
+
+test("the default release header carries the current release", () => {
+  const request = api.buildRequest(description, op, first.input, base);
+  assert.equal(request.headers.get("Crucible-Version"), description.versions.current);
+});
+
+test("copied curl carries the configured current release", () => {
+  const named = structuredClone(description);
+  named.versions.carrier.name = "Acme-Version";
+  const request = api.buildRequest(named, op, first.input, base);
+  assert.ok(api.curl(request).includes(`-H 'acme-version: ${named.versions.current}'`));
+});

@@ -8,6 +8,7 @@ fn main() {
             crucible_build::model(&model)
                 .server()
                 .mcp()
+                .explorer()
                 .render()
                 .unwrap(),
         )

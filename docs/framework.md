@@ -1980,7 +1980,9 @@ Enable the runtime's optional `explorer` feature, generate the description with
 `if cfg!(debug_assertions)`. The service then serves `/explorer/` for loopback
 peers. The endpoint works on HTTP and Lambda; unknown peers are denied unless
 access is explicitly changed. Try-it calls use normal HTTP routes and the
-ordinary request pipeline. See [Crucible Explorer](explorer.md) for configuration,
+ordinary request pipeline. They name the current release in the configured
+release header, matching the forms' shapes, including in copied curl commands.
+See [Crucible Explorer](explorer.md) for configuration,
 authentication, audience selection and browser limits.
 
 ### Host selection

@@ -240,3 +240,50 @@ async fn mcp_is_exempt_from_the_models_required_release_policy() {
     let body: Value = serde_json::from_slice(&bytes).unwrap();
     assert_eq!(body["result"]["structuredContent"]["value"], "v1");
 }
+
+async fn explorer_case(pattern: &'static str) {
+    let service = Crucible::builder(required::probe::operations(Arc::new(Reader)))
+        .defaults()
+        .explorer(crucible_server_runtime_rust::explorer::Explorer::new(
+            required::probe::DESCRIPTION,
+        ))
+        .build()
+        .unwrap();
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let endpoint = format!("http://{}", listener.local_addr().unwrap());
+    let server = tokio::spawn(crucible_server_runtime_rust::host::http_on(
+        service, listener,
+    ));
+    let output = tokio::task::spawn_blocking(move || {
+        std::process::Command::new("node")
+            .arg("--test")
+            .arg("--test-name-pattern")
+            .arg(pattern)
+            .arg(concat!(
+                env!("CARGO_MANIFEST_DIR"),
+                "/../../crates/crucible-server-runtime-rust/tests/explorer/version-header.test.mjs"
+            ))
+            .env("EXPLORER_VERSION_URL", endpoint)
+            .output()
+            .unwrap()
+    })
+    .await
+    .unwrap();
+    server.abort();
+    assert!(
+        output.status.success() && String::from_utf8_lossy(&output.stdout).contains("# pass 1\n"),
+        "{}\n{}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn explorer_request_honours_the_required_release_policy() {
+    explorer_case("^Try it succeeds against a service requiring its release header$").await;
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn explorer_sender_request_names_the_current_release() {
+    explorer_case("^Try it preserves sender requests while naming the current release$").await;
+}
