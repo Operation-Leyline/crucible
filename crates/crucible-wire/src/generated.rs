@@ -68,6 +68,8 @@ pub const fn service_info(
         unknown,
         permissions: &[],
         not_found: None,
+        version_header: "Crucible-Version",
+        unversioned_required: false,
     }
 }
 

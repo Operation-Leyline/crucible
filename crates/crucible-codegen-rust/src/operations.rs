@@ -280,14 +280,18 @@ pub(crate) fn marker_for(
 }
 
 /// A marker's wire description when it differs from the defaults: the release
-/// a generated client names in `Crucible-Version`.
+/// a generated client names in the configured release header.
 fn wire(service: &Service) -> String {
-    service.api_version.as_ref().map_or_else(String::new, |version| {
+    let mut out = service.api_version.as_ref().map_or_else(String::new, |version| {
         format!(
             "    const API_VERSION: ::std::option::Option<&'static str> = ::std::option::Option::Some({});\n",
             literal(version)
         )
-    })
+    });
+    if service.version_header.is_some() {
+        out.push_str(&format!("    const API_VERSION_HEADER: &'static str = {};\n", literal(&service.version_header().to_ascii_lowercase())));
+    }
+    out
 }
 
 fn service_info(service: &Service, functions: &Functions, mcp: bool) -> String {
@@ -308,8 +312,14 @@ fn service_info(service: &Service, functions: &Functions, mcp: bool) -> String {
         }
     };
     let mcp_tools = if mcp { "Some(MCP_TOOLS)" } else { "None" };
+    let mut version_settings = service.version_header.as_ref().map_or_else(String::new, |name| {
+        format!("\n.with_version_header({})", literal(name))
+    });
+    if service.unversioned == crucible_ir::ir::UnversionedPolicy::Required {
+        version_settings.push_str("\n.with_unversioned_required()");
+    }
     format!(
-        "\n/// The service, as the framework sees it.\npub static SERVICE: ::crucible_server_runtime_rust::__generated::ServiceInfo = ::crucible_server_runtime_rust::__generated::service_info(\n    {},\n    {},\n    {mcp_tools},\n    &[\n        {}{}\n    ],\n    &[{}],\n    classify,\n    {},\n    {},\n    {},\n){}{};\n",
+        "\n/// The service, as the framework sees it.\npub static SERVICE: ::crucible_server_runtime_rust::__generated::ServiceInfo = ::crucible_server_runtime_rust::__generated::service_info(\n    {},\n    {},\n    {mcp_tools},\n    &[\n        {}{}\n    ],\n    &[{}],\n    classify,\n    {},\n    {},\n    {},\n){}{}{};\n",
         literal(&service.id.to_string()),
         literal(&service.version),
         operations.join(",\n        "),
@@ -320,6 +330,7 @@ fn service_info(service: &Service, functions: &Functions, mcp: bool) -> String {
         option(functions.unknown.is_some(), "unknown"),
         crate::permissions::registry(service),
         crate::permissions::not_found(service),
+        version_settings,
     )
 }
 
