@@ -27,6 +27,7 @@ const LINKS_EXTERNAL = golden("links-external");
 const HISTORY = golden("history-internal");
 const HISTORY_EXTERNAL = golden("history-external");
 const VERSIONED = golden("versioned-external");
+const VERSION_HEADER_REQUIRED = golden("version-header-required");
 const VERSIONED_V1 = golden("versioned-v1-external");
 const VERSIONED_V2 = golden("versioned-v2-external");
 const SENDER = golden("sender-external");
@@ -38,7 +39,7 @@ const GRANTED_EXTERNAL = golden("roles-granted-by-external");
 const schemas = (name) => JSON.parse(readFileSync(join(crate, "tests", "golden", "schemas", `${name}.json`), "utf8"));
 const WEATHER_SHARED = schemas("weather-shared");
 const WEATHER_OMIT = schemas("weather-omit");
-const DESCRIPTIONS = { WEATHER, WEATHER_EXTERNAL, CATALOG, PERMISSIONS, PERMISSIONS_EXTERNAL, SAMPLES, LINKS, LINKS_EXTERNAL, HISTORY, HISTORY_EXTERNAL, VERSIONED, VERSIONED_V1, VERSIONED_V2, WEATHER_SHARED, WEATHER_OMIT, SENDER, ROLES, ROLES_EXTERNAL, GRANTED, GRANTED_EXTERNAL };
+const DESCRIPTIONS = { VERSION_HEADER_REQUIRED, WEATHER, WEATHER_EXTERNAL, CATALOG, PERMISSIONS, PERMISSIONS_EXTERNAL, SAMPLES, LINKS, LINKS_EXTERNAL, HISTORY, HISTORY_EXTERNAL, VERSIONED, VERSIONED_V1, VERSIONED_V2, WEATHER_SHARED, WEATHER_OMIT, SENDER, ROLES, ROLES_EXTERNAL, GRANTED, GRANTED_EXTERNAL };
 
 // ---- walking rendered nodes ----------------------------------------------
 
@@ -654,6 +655,7 @@ test("the test fixtures cover all goldens the generator ships", () => {
     "roles-leyline-internal",
     "samples-external",
     "sender-external",
+    "version-header-required",
     "versioned-external",
     "versioned-v1-external",
     "versioned-v2-external",

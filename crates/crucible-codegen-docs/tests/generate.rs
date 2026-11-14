@@ -2145,7 +2145,8 @@ fn upgrade_guide_names_the_working_header() {
     let text = crucible_codegen_docs::upgrade_guide(&service, "v1", None).unwrap();
     assert!(text.contains("Example-Version"));
     assert!(text.contains("HTTP 400"));
-    let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/golden/version-header-upgrade.md");
+    let path = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/golden/upgrade/version-header-v1-to-v2.md");
     if std::env::var_os("CRUCIBLE_BLESS").is_some() {
         fs::write(&path, &text).unwrap();
     }
