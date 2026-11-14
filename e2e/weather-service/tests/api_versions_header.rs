@@ -6,15 +6,19 @@ use axum::http::{HeaderMap, Request, StatusCode};
 use crucible_server_runtime_rust::{Crucible, Result, WithContext};
 use serde_json::{Value, json};
 
+#[allow(dead_code)]
 mod named {
     include!(concat!(env!("OUT_DIR"), "/version_header_named.rs"));
 }
+#[allow(dead_code)]
 mod required {
     include!(concat!(env!("OUT_DIR"), "/version_header_required.rs"));
 }
+#[allow(dead_code)]
 mod named_client {
     include!(concat!(env!("OUT_DIR"), "/version_header_named_client.rs"));
 }
+#[allow(dead_code)]
 mod required_client {
     include!(concat!(
         env!("OUT_DIR"),
@@ -257,6 +261,7 @@ async fn explorer_case(pattern: &'static str) {
     let output = tokio::task::spawn_blocking(move || {
         std::process::Command::new("node")
             .arg("--test")
+            .arg("--test-reporter=tap")
             .arg("--test-name-pattern")
             .arg(pattern)
             .arg(concat!(
