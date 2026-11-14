@@ -3,6 +3,8 @@
 /// grant typed permissions on graphs.
 service Leyline {
     version "1"
+    versionHeader "Leyline-Version"
+    unversioned required
     protocol json
     auth bearer
     resources [Graph]

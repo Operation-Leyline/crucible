@@ -1,0 +1,17 @@
+service Probe {
+    version "v1"
+    unversioned required
+    protocol json
+    operations [Read, Notify]
+    errors [ValidationException, InternalServerException]
+}
+readonly operation Read {
+    http GET "/read"
+    output { value?: document }
+}
+@sender("Acme", signature: signature)
+anonymous operation Notify {
+    http POST "/notify"
+    input { @header("Acme-Signature") signature: string }
+    output { value?: document }
+}

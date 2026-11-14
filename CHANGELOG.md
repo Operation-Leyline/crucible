@@ -23,7 +23,11 @@ version's section when it is prepared.
   older projections use the working settings. Header renames (ignoring
   case) and `oldest` to `required` report `compatibility.protocol`.
   Descriptions, references, upgrade guides, OpenAPI, snippets and guides
-  describe them. Server, SDK and service CLI generation refuse non-default
+  describe them. The Rust server, Rust SDK and generated service CLI honour
+  both settings; the server rejects builder overrides that weaken `required`.
+  Explorer Try-it requests and copied curl commands name the current release
+  in the configured header.
+  TypeScript and the twelve other SDK targets still refuse non-default
   settings until their runtimes support them. Default generation is
   unchanged except the `unversioned` key in shared version descriptions.
 

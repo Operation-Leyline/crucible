@@ -1,5 +1,21 @@
 # API versions and clients
 
+The Rust SDK and generated service CLI send the model's `versionHeader`,
+including when the model says `unversioned required`. Their operation markers
+carry `Operation::API_VERSION_HEADER` (default `crucible-version`) beside
+`API_VERSION`. The header name is fixed by the model; choosing another release
+requires an SDK generated for that release. Older release projections use the
+working model's header and policy, so one server serves all releases under
+one name. The TypeScript and twelve other SDK targets still refuse non-default
+header names and `required` policies.
+
+The Rust server follows `unversioned oldest|required` even for one release.
+An explicit `Builder::api_version` may refine an `oldest` model; it cannot
+weaken `required` with `Oldest` or `Resolve`. Missing required and unknown
+releases are malformed requests whose violation path is the configured header.
+Sender deliveries without a release, MCP and direct invokes use the current
+release.
+
 **Status: 5a built (clients send their release), the reference's
 release history (PR 3), 5b built: the projections (PR 4), checked by
 the compiler (PR 5) and served by the Rust server (PR 6), 5c built:
@@ -14,7 +30,8 @@ listed under [Order](#order).
 ## What phase 5 delivers
 
 - **Clients send their release.** Every generated client sends the
-  release it was generated for in `Crucible-Version`.
+  release it was generated for in the model's release header (default
+  `Crucible-Version`).
 - **Releases as the current model sees them.** Each supported release has
   a model that is the current one seen at that release. Additive changes
   reach it, except inside a structure a later step reshapes or an
@@ -57,7 +74,7 @@ operation's protocol header:
   service; `apiVersion` is separate so only clients of a versioned service
   send it. A `version` that cannot travel in a header
   (empty, or not visible ASCII) is a diagnostic, and so is an `@header`
-  binding named `Crucible-Version`.
+  binding using the configured release header.
 - **When it is sent.** A client sends the header only for a `.cru` service,
   whose `version` is a release name. It sends it from the first release,
   before any migration exists. A client built then names its release
@@ -80,7 +97,7 @@ operation's protocol header:
   servers before publishing their clients, and do not roll a server back
   past a release whose clients are in use.
 - **Browsers.** CORS is configured outside the model (an API gateway, a
-  CDN, a tower layer) and must allow `Crucible-Version` and expose
+  CDN, a tower layer) and must allow the configured release header and expose
   `Sunset`, or browser requests fail their preflight. A non-safelisted
   header makes every cross-origin request preflighted, one extra round trip
   until the preflight is cached (`maxAge`).
@@ -92,8 +109,8 @@ operation's protocol header:
 - **Server.** Every `.cru` service knows its current release, with or
   without migrations. It serves the release named and refuses any other
   with `400`, including a newer client calling a server that has no
-  migrations yet. A request without the header is served as `Unversioned`
-  says. A service without releases ignores the header. A client
+  migrations yet. A request without the header follows the model's policy,
+  or an allowed explicit `Unversioned` override. A service without releases ignores the header. A client
   therefore names a release its server still serves, which is the point
   of a sunset.
 - **Testing.** The conformance fixtures declare no release, so they send none, so the header is tested where a client can name one:

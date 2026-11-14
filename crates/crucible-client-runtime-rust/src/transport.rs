@@ -314,7 +314,7 @@ impl Transport {
         if let Some(version) = O::API_VERSION
             && let Ok(value) = HeaderValue::from_str(version)
         {
-            bound_headers.insert("crucible-version", value);
+            bound_headers.insert(O::API_VERSION_HEADER, value);
         }
         // A Content-Type bound to an input member outranks a payload's media
         // type, which outranks client header defaults.

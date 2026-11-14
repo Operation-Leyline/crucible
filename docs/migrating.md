@@ -27,6 +27,19 @@ tag.
 
 Not yet released; this section collects what upgrading will need.
 
+Rust servers, Rust SDKs and generated service CLIs now honour `versionHeader`
+and `unversioned required`. Regenerate server and client bindings together
+when adopting either clause. Update hand-written requests and CORS allow/expose
+lists for a renamed header; the previous name is not an alias. TypeScript and
+the twelve other SDK targets still refuse these non-default settings.
+
+A `required` model rejects an explicit `Builder::api_version` override of
+`Oldest` or `Resolve` with `BuildError::UnversionedRequired`. Remove the
+override or use `Required`. Models without the clauses keep their defaults.
+`ServiceInfo::with_version_header` and `with_unversioned_required` are additive
+metadata setters; existing hand-written operation markers inherit
+`Operation::API_VERSION_HEADER = "crucible-version"`.
+
 An operation that takes no credential is now `anonymous`; `public` is its
 deprecated spelling, accepted until 0.11.0 with a `deprecated.public` warning
 at each use. Write `anonymous` on the operation, in a rule condition and in a

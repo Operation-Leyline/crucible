@@ -44,7 +44,8 @@ async fn call(
     let mut request = Request::builder()
         .method(method)
         .uri(path)
-        .header("content-type", "application/json");
+        .header("content-type", "application/json")
+        .header("leyline-version", "1");
     for (name, value) in headers {
         request = request.header(*name, *value);
     }
@@ -224,7 +225,7 @@ async fn lambda_events_reach_the_same_pipeline() {
             "routeKey": "$default",
             "rawPath": "/graphs/g-1",
             "rawQueryString": "",
-            "headers": {},
+            "headers": {"leyline-version": "1"},
             "requestContext": {
                 "http": { "method": "GET", "path": "/graphs/g-1", "protocol": "HTTP/1.1", "sourceIp": "192.0.2.1" },
                 "requestId": "leyline-event",
@@ -278,4 +279,49 @@ async fn roles_decide_through_the_framework_role_authorizer() {
     assert_eq!(hidden.status, StatusCode::NOT_FOUND, "{}", hidden.body);
     assert_eq!(hidden.body["__type"], "NotFoundException");
     assert!(audit.entries().is_empty(), "refused calls never run");
+}
+
+#[tokio::test]
+async fn release_echo_and_vary_use_the_modelled_header() {
+    let (service, _) = service();
+    let reply = call(&service, "GET", "/health", &[], None).await;
+    assert_eq!(reply.status, StatusCode::OK);
+    assert_eq!(reply.headers["leyline-version"], "1");
+    assert_eq!(reply.headers["vary"], "leyline-version");
+    assert!(!reply.headers.contains_key("crucible-version"));
+}
+
+#[tokio::test]
+async fn a_missing_release_is_refused_at_the_modelled_header() {
+    let (service, _) = service();
+    let response = service
+        .handle(Request::get("/health").body(Body::empty()).unwrap())
+        .await;
+    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+    let bytes = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let body: Value = serde_json::from_slice(&bytes).unwrap();
+    assert_eq!(body["reason"], "cannotParse");
+    assert_eq!(body["fieldList"][0]["name"], "Leyline-Version");
+}
+
+#[tokio::test]
+async fn the_old_header_does_not_satisfy_the_required_release() {
+    let (service, _) = service();
+    let response = service
+        .handle(
+            Request::get("/health")
+                .header("crucible-version", "1")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await;
+    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+    let bytes = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let body: Value = serde_json::from_slice(&bytes).unwrap();
+    assert_eq!(body["reason"], "cannotParse");
+    assert_eq!(body["fieldList"][0]["name"], "Leyline-Version");
 }

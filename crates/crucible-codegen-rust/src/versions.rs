@@ -82,6 +82,9 @@ pub(crate) fn emit(
     let mut out = String::from(
         "/// The API versions this service serves, oldest first. A request names\n/// one in the `Crucible-Version` header; a handler that changed behaviour\n/// branches on `self.context().api_version()`.\npub mod versions {\n",
     );
+    if service.version_header.is_some() {
+        out = out.replace("`Crucible-Version`", "configured release");
+    }
     let mut constants = BTreeSet::from(["CURRENT".to_owned()]);
     for (order, name) in names.iter().enumerate() {
         if name.is_empty() || !name.bytes().all(|b| b.is_ascii_graphic()) {

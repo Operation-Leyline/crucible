@@ -1,0 +1,3 @@
+[model]
+namespace="probe.required"
+imports=["crucible.errors"]

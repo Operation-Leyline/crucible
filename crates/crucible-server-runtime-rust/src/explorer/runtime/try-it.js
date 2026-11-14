@@ -106,6 +106,12 @@
     }
     // A sender-signed operation takes no credential of this service.
     if (credentials.bearer && !operation.sender) headers.set("Authorization", `Bearer ${credentials.bearer}`);
+    // Forms and their shapes describe the current release, even when an
+    // ordinary request without a release would select the oldest one.
+    const versions = description.versions;
+    if (versions?.carrier?.kind === "header" && typeof versions.current === "string") {
+      headers.set(versions.carrier.name, versions.current);
+    }
     if (query.length) uri += `${uri.includes("?") ? "&" : "?"}${query.join("&")}`;
     const baseUrl = new URL(base);
     const url = new URL(`${baseUrl.origin}${baseUrl.pathname}${uri.replace(/^\/+/, "")}`);
