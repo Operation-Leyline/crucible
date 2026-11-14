@@ -425,6 +425,15 @@ fn operation_spec(service: &Service, converting: &BTreeSet<ShapeId>, op: &Operat
     if let Some(version) = &service.api_version {
         fields.push(format!("apiVersion: {}", literal(version)));
     }
+    if !service
+        .version_header()
+        .eq_ignore_ascii_case(crucible_ir::versions::VERSION_HEADER)
+    {
+        fields.push(format!(
+            "apiVersionHeader: {}",
+            literal(service.version_header())
+        ));
+    }
     if !op.request.header_encodings.is_empty() {
         fields.push(format!(
             "headerEncodings: {}",

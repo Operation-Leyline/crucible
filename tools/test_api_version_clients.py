@@ -6,7 +6,9 @@ bundled runtimes read `apiVersion` from it, TypeScript from each operation's
 spec, and the Rust client from its operation marker. The Rust client and
 Python are exercised over the wire (e2e/weather-service/tests/api_versions.rs,
 crates/crucible-codegen-python/tests/test_runtime.py); this pins that no
-runtime is left out, since most run only in their own CI job.
+runtime is left out, since most run only in their own CI job. Native suites generate a named-header
+qualification model and assert its actual HTTP headers in their existing
+error-documentation oracles; these source checks guard portfolio coverage.
 """
 from pathlib import Path
 import unittest
@@ -34,16 +36,20 @@ class ApiVersionClients(unittest.TestCase):
         for language, path in RUNTIMES.items():
             with self.subTest(language=language):
                 source = (ROOT / path).read_text(encoding="utf-8")
+                if language == "cpp":
+                    source += (ROOT / path).with_suffix(".hpp").read_text(encoding="utf-8")
+                self.assertIn("apiVersionHeader", source)
                 self.assertIn("apiVersion", source)
                 self.assertIn("crucible-version", source.lower())
 
     def test_typescript_sets_the_header(self):
         runtime = (ROOT / RUNTIMES["typescript"]).read_text(encoding="utf-8")
-        self.assertIn('headers.set("crucible-version", operation.apiVersion)', runtime)
+        self.assertIn('headers.set(operation.apiVersionHeader ?? "crucible-version", operation.apiVersion)', runtime)
 
     def test_the_description_and_the_rust_client_carry_it(self):
         schema = (ROOT / "crates/crucible-codegen-common/src/lib.rs").read_text(encoding="utf-8")
         self.assertIn('value["apiVersion"]', schema)
+        self.assertIn('value["apiVersionHeader"]', schema)
         transport = (ROOT / "crates/crucible-client-runtime-rust/src/transport.rs").read_text(encoding="utf-8")
         self.assertIn("O::API_VERSION", transport)
 

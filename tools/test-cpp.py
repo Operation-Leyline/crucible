@@ -1,6 +1,7 @@
 """Qualify generated C++20 packages with native consumers and loopback HTTP."""
 import os
 import shutil
+from sdk_test_support import version_header_model
 from pathlib import Path
 import tempfile
 
@@ -113,7 +114,7 @@ def qualify_error_docs(output):
     root = output / "error-docs"
     package, sdk_build, install = root / "sdk", root / "sdk-build", root / "installed"
     run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "generate", "cpp",
-        str(ROOT / "tests/models/error-docs"), "--out", str(package), "--package-name", "docs_client", "--namespace", "docs")
+        str(version_header_model(output)), "--out", str(package), "--package-name", "docs_client", "--namespace", "docs")
     configure(package, sdk_build, "-DCMAKE_INSTALL_PREFIX=" + install.as_posix())
     build(sdk_build)
     run(CMAKE, "--install", str(sdk_build), "--config", "Debug")

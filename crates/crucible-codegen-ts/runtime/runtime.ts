@@ -594,6 +594,8 @@ export interface OperationSpec {
   readonly stream?: Schema;
   /** The release this client was generated for, sent as `Crucible-Version` (docs/api-versions-clients.md). */
   readonly apiVersion?: string;
+  /** The configured release carrier; absent for the default header. */
+  readonly apiVersionHeader?: string;
   readonly headerEncodings?: Readonly<Record<string,"base64">>;
   readonly name: string;
   /** Effective operation authentication; omitted only by older hand-written specs. */
@@ -1154,7 +1156,7 @@ export class Transport {
         if (!modelledContentType) headers.set("content-type", operation.payload.mediaType);
       }
     }
-    if (operation.apiVersion !== undefined) headers.set("crucible-version", operation.apiVersion);
+    if (operation.apiVersion !== undefined) headers.set(operation.apiVersionHeader ?? "crucible-version", operation.apiVersion);
     // A followed redirect would resend credential headers to wherever the
     // Location points; the 3xx is returned to the caller instead.
     return new Request(url, { method: operation.method, headers, body, signal: options.signal, redirect: "manual" });

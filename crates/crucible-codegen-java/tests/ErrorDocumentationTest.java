@@ -89,6 +89,7 @@ public final class ErrorDocumentationTest {
     server.createContext("/inspect", exchange -> {
       try {
         if (!exchange.getRequestMethod().equals("GET")) throw new AssertionError("GET request");
+        if (!"1".equals(exchange.getRequestHeaders().getFirst("Example-Version")) || exchange.getRequestHeaders().getFirst("Crucible-Version") != null) throw new AssertionError("release carrier");
         var test = selected.get();
         if (test.identity != null) exchange.getResponseHeaders().add("x-crucible-error", test.identity);
         if (test.header != null) exchange.getResponseHeaders().add("X-Error-Reason", test.header);

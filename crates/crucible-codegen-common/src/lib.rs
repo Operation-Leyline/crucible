@@ -220,6 +220,12 @@ pub fn schema(service: &Service, field: impl Fn(&str) -> String) -> Value {
     if let Some(version) = &service.api_version {
         value["apiVersion"] = json!(version);
     }
+    if !service
+        .version_header()
+        .eq_ignore_ascii_case(crucible_ir::versions::VERSION_HEADER)
+    {
+        value["apiVersionHeader"] = json!(service.version_header());
+    }
     // The permission registry (docs/permissions.md §6.3), for a console's
     // grant picker; never an internal permission, whatever the audience.
     let permissions = permissions::registry(service, false);

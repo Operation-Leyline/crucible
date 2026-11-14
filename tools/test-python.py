@@ -1,6 +1,7 @@
 """Generate, type-check, and exercise a Python SDK with this interpreter."""
 import os
 import queue
+from sdk_test_support import version_header_model
 from pathlib import Path
 import subprocess
 import sys
@@ -48,10 +49,14 @@ def qualify(package):
         "--package-name", "leyline-client", "--module-name", "leyline_client")
     error_docs = package.parent / "error-docs"
     run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "generate", "python",
-        "tests/models/error-docs", "--out", str(error_docs),
+        str(version_header_model(package.parent)), "--out", str(error_docs),
         "--package-name", "error-docs-client", "--module-name", "error_docs_client")
     run(sys.executable, "-m", "mypy", str(error_docs / "src"))
-    protocols = [error_docs]
+    named_header = package.parent / "named-header"
+    run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "generate", "python",
+        "tests/models/version-header-named", "--out", str(named_header),
+        "--package-name", "version-header-client", "--module-name", "version_header_client")
+    protocols = [error_docs, named_header]
     docs = package.parent / "docs"
     run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "generate", "python",
         "tests/models/client-docs", "--out", str(docs),

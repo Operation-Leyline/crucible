@@ -70,6 +70,15 @@ fn refuse(name: &str, policy: bool) {
             .any(|d| d.shape == service.id && d.message.contains(feature))
     );
 }
+fn accept_setting(name: &str, policy: bool) {
+    let mut service = common::load("version-header-default");
+    if policy {
+        service.unversioned = crucible_ir::ir::UnversionedPolicy::Required;
+    } else {
+        service.version_header = Some("Example-Version".into());
+    }
+    assert!(emit(name, &service).unwrap() > 0);
+}
 fn accept(name: &str) {
     let service = common::load("version-header-default");
     assert!(emit(name, &service).unwrap() > 0);
@@ -91,13 +100,13 @@ fn rust_accepts_default() {
 }
 
 #[test]
-fn ts_refuses_header() {
-    refuse("ts", false);
+fn ts_accepts_header() {
+    accept_setting("ts", false);
 }
 
 #[test]
-fn ts_refuses_required() {
-    refuse("ts", true);
+fn ts_accepts_required() {
+    accept_setting("ts", true);
 }
 
 #[test]
@@ -106,13 +115,13 @@ fn ts_accepts_default() {
 }
 
 #[test]
-fn python_refuses_header() {
-    refuse("python", false);
+fn python_accepts_header() {
+    accept_setting("python", false);
 }
 
 #[test]
-fn python_refuses_required() {
-    refuse("python", true);
+fn python_accepts_required() {
+    accept_setting("python", true);
 }
 
 #[test]
@@ -121,13 +130,13 @@ fn python_accepts_default() {
 }
 
 #[test]
-fn go_refuses_header() {
-    refuse("go", false);
+fn go_accepts_header() {
+    accept_setting("go", false);
 }
 
 #[test]
-fn go_refuses_required() {
-    refuse("go", true);
+fn go_accepts_required() {
+    accept_setting("go", true);
 }
 
 #[test]
@@ -136,13 +145,13 @@ fn go_accepts_default() {
 }
 
 #[test]
-fn java_refuses_header() {
-    refuse("java", false);
+fn java_accepts_header() {
+    accept_setting("java", false);
 }
 
 #[test]
-fn java_refuses_required() {
-    refuse("java", true);
+fn java_accepts_required() {
+    accept_setting("java", true);
 }
 
 #[test]
@@ -151,13 +160,13 @@ fn java_accepts_default() {
 }
 
 #[test]
-fn csharp_refuses_header() {
-    refuse("csharp", false);
+fn csharp_accepts_header() {
+    accept_setting("csharp", false);
 }
 
 #[test]
-fn csharp_refuses_required() {
-    refuse("csharp", true);
+fn csharp_accepts_required() {
+    accept_setting("csharp", true);
 }
 
 #[test]
@@ -166,13 +175,13 @@ fn csharp_accepts_default() {
 }
 
 #[test]
-fn kotlin_refuses_header() {
-    refuse("kotlin", false);
+fn kotlin_accepts_header() {
+    accept_setting("kotlin", false);
 }
 
 #[test]
-fn kotlin_refuses_required() {
-    refuse("kotlin", true);
+fn kotlin_accepts_required() {
+    accept_setting("kotlin", true);
 }
 
 #[test]
@@ -181,13 +190,13 @@ fn kotlin_accepts_default() {
 }
 
 #[test]
-fn swift_refuses_header() {
-    refuse("swift", false);
+fn swift_accepts_header() {
+    accept_setting("swift", false);
 }
 
 #[test]
-fn swift_refuses_required() {
-    refuse("swift", true);
+fn swift_accepts_required() {
+    accept_setting("swift", true);
 }
 
 #[test]
@@ -196,13 +205,13 @@ fn swift_accepts_default() {
 }
 
 #[test]
-fn dart_refuses_header() {
-    refuse("dart", false);
+fn dart_accepts_header() {
+    accept_setting("dart", false);
 }
 
 #[test]
-fn dart_refuses_required() {
-    refuse("dart", true);
+fn dart_accepts_required() {
+    accept_setting("dart", true);
 }
 
 #[test]
@@ -211,13 +220,13 @@ fn dart_accepts_default() {
 }
 
 #[test]
-fn php_refuses_header() {
-    refuse("php", false);
+fn php_accepts_header() {
+    accept_setting("php", false);
 }
 
 #[test]
-fn php_refuses_required() {
-    refuse("php", true);
+fn php_accepts_required() {
+    accept_setting("php", true);
 }
 
 #[test]
@@ -226,13 +235,13 @@ fn php_accepts_default() {
 }
 
 #[test]
-fn ruby_refuses_header() {
-    refuse("ruby", false);
+fn ruby_accepts_header() {
+    accept_setting("ruby", false);
 }
 
 #[test]
-fn ruby_refuses_required() {
-    refuse("ruby", true);
+fn ruby_accepts_required() {
+    accept_setting("ruby", true);
 }
 
 #[test]
@@ -241,13 +250,13 @@ fn ruby_accepts_default() {
 }
 
 #[test]
-fn cpp_refuses_header() {
-    refuse("cpp", false);
+fn cpp_accepts_header() {
+    accept_setting("cpp", false);
 }
 
 #[test]
-fn cpp_refuses_required() {
-    refuse("cpp", true);
+fn cpp_accepts_required() {
+    accept_setting("cpp", true);
 }
 
 #[test]
@@ -256,13 +265,13 @@ fn cpp_accepts_default() {
 }
 
 #[test]
-fn c_refuses_header() {
-    refuse("c", false);
+fn c_accepts_header() {
+    accept_setting("c", false);
 }
 
 #[test]
-fn c_refuses_required() {
-    refuse("c", true);
+fn c_accepts_required() {
+    accept_setting("c", true);
 }
 
 #[test]
@@ -271,13 +280,13 @@ fn c_accepts_default() {
 }
 
 #[test]
-fn r_refuses_header() {
-    refuse("r", false);
+fn r_accepts_header() {
+    accept_setting("r", false);
 }
 
 #[test]
-fn r_refuses_required() {
-    refuse("r", true);
+fn r_accepts_required() {
+    accept_setting("r", true);
 }
 
 #[test]

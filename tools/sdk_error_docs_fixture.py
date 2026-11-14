@@ -39,6 +39,8 @@ def error_docs_fixture(output, *, root=None):
             try:
                 if self.path != "/inspect":
                     raise AssertionError(f"unexpected request path: {self.path}")
+                assert self.headers.get("Example-Version") == "1"
+                assert self.headers.get("Crucible-Version") is None
                 case = cases[len(completed)]
                 completed.append(case["name"])
                 body = case["body"].encode("utf-8")

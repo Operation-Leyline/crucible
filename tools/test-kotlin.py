@@ -1,5 +1,6 @@
 """Install a Kotlin SDK jar, then compile and exercise a separate coroutine consumer."""
 import os
+from sdk_test_support import version_header_model
 from pathlib import Path
 import shutil
 import tempfile
@@ -73,7 +74,7 @@ def large_package(output):
 def error_documentation(output):
     package = output / "error-docs-sdk"
     run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "generate", "kotlin",
-        str(ROOT / "tests/models/error-docs"), "--out", str(package),
+        str(version_header_model(output)), "--out", str(package),
         "--group-id", "example", "--artifact-id", "error-docs", "--package-name", "example.error_docs",
         "--package-version", "0.0.0-test")
     run(MAVEN, "-q", REPO, "install", cwd=package)

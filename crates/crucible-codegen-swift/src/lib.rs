@@ -420,6 +420,8 @@ pub fn capabilities() -> crucible_ir::Capabilities {
         Feature::BigDecimal,
         Feature::Sparse,
         Feature::ErrorDocumentation,
+        Feature::VersionHeader,
+        Feature::UnversionedRequired,
     ])
 }
 

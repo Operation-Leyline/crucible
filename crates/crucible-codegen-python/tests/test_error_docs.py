@@ -100,6 +100,8 @@ class ErrorDocumentationTests(unittest.TestCase):
         class Handler(BaseHTTPRequestHandler):
             def do_GET(self):
                 code, status, body, headers = cls.responses.get(timeout=10)
+                assert self.headers.get("Example-Version") == "1"
+                assert self.headers.get("Crucible-Version") is None
                 cls.requests += 1
                 self.send_response(status)
                 self.send_header("Content-Type", "application/json")

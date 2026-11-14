@@ -15,6 +15,7 @@ serving = Thread.new do
         raise 'Request header bound' if request.bytesize > 65_536
       end
       raise 'Expected native GET' unless request.start_with?('GET /inspect HTTP/1.1')
+      raise 'Release carrier' unless request.match?(/^example-version: 1\r?$/i) && !request.match?(/^crucible-version:/i)
       headers = "HTTP/1.1 #{test.fetch('status')} Fixture\r\nConnection: close\r\nContent-Length: #{test.fetch('body').bytesize}\r\nx-request-id: documentation-consumer\r\n"
       headers << "x-crucible-error: #{test['identity']}\r\n" unless test['identity'].nil?
       headers << "X-Error-Reason: #{test['header']}\r\n" unless test['header'].nil?

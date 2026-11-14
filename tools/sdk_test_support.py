@@ -90,3 +90,17 @@ def weather():
         except subprocess.TimeoutExpired:
             server.kill()
             server.wait(timeout=10)
+
+
+def version_header_model(output):
+    """Reuse the installed-client HTTP oracle with a named release carrier.
+
+    Keep the committed default model and its goldens unchanged. Native suites
+    already call this contract through real HTTP transports.
+    """
+    model = Path(output) / "version-header-model"
+    shutil.copytree(ROOT / "tests/models/error-docs", model, dirs_exist_ok=True)
+    service = model / "service.cru"
+    service.write_text(service.read_text().replace('    version "1"',
+        '    version "1"\n    versionHeader "Example-Version"\n    unversioned required', 1))
+    return model

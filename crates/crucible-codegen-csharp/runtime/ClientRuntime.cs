@@ -16,6 +16,7 @@ internal sealed partial class ClientRuntime : IDisposable
     private readonly HttpClient streamHttp;
     private readonly bool ownsHttp;
     private readonly JsonObject schema;
+    private readonly string apiVersionHeader;
     private readonly IReadOnlyDictionary<string, Type> types;
     private static readonly JsonSerializerOptions JsonOptions = new() { Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping };
 
@@ -49,6 +50,7 @@ internal sealed partial class ClientRuntime : IDisposable
         // a supplied client keeps its caller-selected drain policy for both.
         streamHttp = input.HttpClient ?? new HttpClient(new SocketsHttpHandler { AllowAutoRedirect = false, MaxResponseDrainSize = 0 }) { Timeout = System.Threading.Timeout.InfiniteTimeSpan };
         this.schema = schema; this.types = types;
+        apiVersionHeader = Text(schema["apiVersionHeader"]) ?? "Crucible-Version";
         InitializePolicy();
     }
     public void Dispose() { if (ownsHttp) { http.Dispose(); streamHttp.Dispose(); } }
@@ -392,7 +394,7 @@ internal sealed partial class ClientRuntime : IDisposable
             if (!modelledContentType) headers["Content-Type"] = Text(payload[1])!;
         }
         // The release this client was generated for (docs/api-versions-clients.md).
-        if (Text(schema["apiVersion"]) is string apiVersion) headers["Crucible-Version"] = apiVersion;
+        if (Text(schema["apiVersion"]) is string apiVersion) headers[apiVersionHeader] = apiVersion;
         return new(op, new Uri(config.Endpoint!.TrimEnd('/') + path), headers, body, name)
         {
             DisplayPath = display.Split('?', 2)[0], SensitiveHeaders = sensitiveHeaders, SensitiveQuery = sensitiveQuery

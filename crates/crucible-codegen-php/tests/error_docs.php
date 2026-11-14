@@ -25,6 +25,7 @@ if (($argv[2] ?? '') === 'serve') {
                     if (strlen($request) > 65536) throw new RuntimeException('Request header bound');
                 }
                 if (!str_starts_with($request, 'GET /inspect HTTP/1.1')) throw new RuntimeException('Expected native GET');
+                if (!preg_match('/^example-version: 1\r?$/mi', $request) || preg_match('/^crucible-version:/mi', $request)) throw new RuntimeException('Release carrier');
                 $headers = "HTTP/1.1 {$case['status']} Fixture\r\nConnection: close\r\nContent-Length: " . strlen($case['body']) . "\r\nx-request-id: documentation-consumer\r\n";
                 if ($case['identity'] !== null) $headers .= "x-crucible-error: {$case['identity']}\r\n";
                 if ($case['header'] !== null) $headers .= "X-Error-Reason: {$case['header']}\r\n";

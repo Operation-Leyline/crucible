@@ -66,6 +66,7 @@ bool has_bearer(const HttpRequest& request) {
 }
 ClientRuntime::ClientRuntime(ClientConfig config, const Schema& schema, ErrorFactory errors, std::string endpoint)
     : config_(std::move(config)), schema_(&schema), errors_(std::move(errors)), endpoint_(config_.endpoint.value_or(std::move(endpoint))), transport_(config_.transport ? config_.transport : std::make_shared<CurlTransport>()) {
+    if (const auto* carrier = schema.description().find("apiVersionHeader")) api_version_header_ = lower(carrier->string());
     (void)scope();
     if (config_.max_attempts == 0 || !std::isfinite(config_.base_delay) || config_.base_delay < 0 || !std::isfinite(config_.max_delay) || config_.max_delay < 0) throw std::invalid_argument("Invalid retry limits");
     validate_url(endpoint_, true);
@@ -152,7 +153,7 @@ HttpRequest ClientRuntime::prepare(const Json& operation, const Json& input) con
     }
     // The release this client was generated for (docs/api-versions-clients.md).
     if (const auto* api_version = schema_->description().find("apiVersion"))
-        request.headers.insert_or_assign("crucible-version", api_version->string());
+        request.headers.insert_or_assign(api_version_header_, api_version->string());
     validate_request(request);
     return request;
 }
