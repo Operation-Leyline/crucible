@@ -1,0 +1,13 @@
+service Example {
+    version "v1"
+    protocol json
+    versionHeader "Proxy-Release"
+    operations [Ping]
+}
+
+anonymous readonly operation Ping {
+    http GET "/ping"
+    input {
+    }
+    output { ok: boolean }
+}

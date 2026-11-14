@@ -240,8 +240,9 @@ fn releases_index(current: &Service, releases: &[String]) -> [File; 2] {
         html(current_name)
     );
     let mut llms = format!(
-        "# {}\n\n> The API reference of every supported release, one directory each, oldest first.\n\nEach release's reference is complete on its own: its `llms.txt` indexes its Markdown pages, and every request it documents names that release in `Crucible-Version`. The current release is {}.\n\n## Releases\n\n",
+        "# {}\n\n> The API reference of every supported release, one directory each, oldest first.\n\nEach release's reference is complete on its own: its `llms.txt` indexes its Markdown pages, and every request it documents names that release in {}. The current release is {}.\n\n## Releases\n\n",
         markdown::plain(title),
+        markdown::code_span(current.version_header()),
         markdown::code_span(current_name)
     );
     for release in releases {

@@ -934,3 +934,19 @@ fn error_documentation_extension_uses_the_shared_projected_metadata() {
             .contains("x-crucible-error-documentation")
     );
 }
+
+#[test]
+fn named_release_header_and_required_policy_match_reviewed_golden() {
+    let output = generate(&load("version-header-named"), &Options::default()).unwrap();
+    let document: Value = serde_json::from_str(&output).unwrap();
+    let header = &document["paths"]["/ping"]["get"]["parameters"][0];
+    assert_eq!(header["name"], "Example-Version");
+    assert_eq!(header["required"], true);
+    assert!(header["description"].as_str().unwrap().contains("HTTP 400"));
+    let path = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/golden/version-header-required.openapi.json");
+    if std::env::var_os("CRUCIBLE_BLESS").is_some() {
+        fs::write(&path, &output).unwrap();
+    }
+    assert_eq!(fs::read_to_string(path).unwrap(), output);
+}

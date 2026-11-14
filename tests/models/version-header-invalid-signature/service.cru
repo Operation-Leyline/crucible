@@ -1,0 +1,16 @@
+service Example {
+    version "v1"
+    protocol json
+    versionHeader "Example-Signature"
+    operations [Ping]
+}
+
+@sender("Example", signature: signature)
+anonymous operation Ping {
+    http POST "/ping"
+    input {
+        @header("example-signature")
+        signature: string
+    }
+    output { ok: boolean }
+}

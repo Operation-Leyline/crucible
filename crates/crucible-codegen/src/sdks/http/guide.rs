@@ -175,7 +175,8 @@ fn request(facts: &Facts) -> Draft {
     out.push_str("| `Content-Type` | `application/json` | a request with a JSON body |\n");
     if let Some(version) = &service.api_version {
         out.push_str(&format!(
-            "| `Crucible-Version` | {} | every request |\n",
+            "| {} | {} | every request |\n",
+            code_span(service.version_header()),
             code_span(version)
         ));
     }
@@ -202,10 +203,15 @@ fn request(facts: &Facts) -> Draft {
         }
     }
     if service.api_version.is_some() {
-        out.push_str(
-            "\n`Crucible-Version` names the release this reference documents. A request without \
-             it is served at a release the service chooses, which may be an older one.",
-        );
+        out.push_str(&format!(
+            "\n{} names the release this reference documents. {}",
+            code_span(service.version_header()),
+            if service.unversioned == crucible_ir::ir::UnversionedPolicy::Required {
+                "A request without it is refused with HTTP 400, except for a sender-signed operation, which is served at the current release."
+            } else {
+                "A request without it is served at a release the service chooses, which may be an older one."
+            }
+        ));
     }
     if service
         .operations

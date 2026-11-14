@@ -45,6 +45,19 @@ const REFUSED: &[&str] = &[
     "roles-unknown-scope",
     "roles-unreachable-grant",
     "sender-signed-refusals",
+    "version-header-duplicate-header",
+    "version-header-duplicate-policy",
+    "version-header-invalid-access-control",
+    "version-header-invalid-binding",
+    "version-header-invalid-browser",
+    "version-header-invalid-length",
+    "version-header-invalid-proxy",
+    "version-header-invalid-reserved",
+    "version-header-invalid-runtime",
+    "version-header-invalid-sec",
+    "version-header-invalid-signature",
+    "version-header-invalid-token",
+    "version-header-unknown-policy",
 ];
 
 /// Every fallback a package's samples report, as `package: shape: path`.

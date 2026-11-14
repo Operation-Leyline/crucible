@@ -1883,6 +1883,24 @@ references are to the code as of the design.
     paragraph to explain. `anonymous` is the sense `[AllowAnonymous]`
     already names in the frameworks (docs/permissions.md).
 
+## Release header contract
+
+85. **The service names its release header and its unversioned policy.**
+    `versionHeader "Example-Version"` and `unversioned oldest|required`
+    are service clauses because they change the wire contract. Defaults
+    remain `Crucible-Version` and `oldest`. The IR validates the header as
+    an RFC 9110 token of at most 64 bytes and refuses HTTP-owned,
+    runtime-owned, browser-forbidden and model-bound names. Comparison
+    ignores case; documentation retains the spelling. There is no alias.
+    Frozen releases record both settings, but older projections inherit
+    the working model's settings: one server uses one header for every
+    release. A header rename or `oldest` to `required` is a
+    `compatibility.protocol` break; the reverse policy change is compatible.
+    Contract outputs describe the settings now. Runtime targets refuse
+    them through capability checks until they support them, so accepting
+    syntax cannot silently produce a different runtime contract.
+    *Amends:* decisions 53–59 and 76–79.
+
 ## Settled in the syntax pass
 
 - Annotations versus keywords: decision 27a. Optionality is `name?:`.

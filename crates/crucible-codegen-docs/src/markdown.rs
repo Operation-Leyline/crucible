@@ -68,6 +68,14 @@ fn release_banner(d: &Description, depth: usize) -> Option<String> {
     ))
 }
 
+fn version_note(d: &Description) -> &'static str {
+    if d.versions["unversioned"] == "required" {
+        "A request without it is refused with HTTP 400, except for a sender-signed operation, which is served at the current release."
+    } else {
+        VERSION_NOTE
+    }
+}
+
 /// The `Crucible-Version: <release>` line every request of a versioned
 /// service sends at the release this reference documents, or nothing for a
 /// service without an `api_version`.
@@ -319,7 +327,7 @@ pub(super) fn render(service: &Service, d: &Description) -> Vec<File> {
         index.push_str(&format!(
             "Every request names the release it is written for in a header: {}{which} {}\n\n",
             release_code(&header),
-            VERSION_NOTE
+            version_note(d)
         ));
     }
     if chained(d) {
@@ -1265,7 +1273,7 @@ fn message(d: &Description, op: &Value, request: bool) -> String {
         out.push_str(&format!(
             "{} names the release this page describes. {}\n\n",
             code(string(&d.versions["carrier"]["name"])),
-            VERSION_NOTE
+            version_note(d)
         ));
     }
     if let Some(shape) = d.shapes.get(string(&op[shape_key])) {

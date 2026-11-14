@@ -132,10 +132,13 @@ pub(crate) fn operation(service: &Service, op: &Operation) -> Value {
     // no release of this API (decision 81).
     if let (Some(release), None) = (&service.api_version, &op.sender) {
         parameters.push(json!({
-            "name": crucible_ir::versions::VERSION_HEADER,
+            "name": service.version_header(),
             "in": "header",
             "required": true,
-            "description": format!("The release this request is written for: {release}, the release this document describes."),
+            "description": format!("The release this request is written for: {release}, the release this document describes.{}",
+                if service.unversioned == crucible_ir::ir::UnversionedPolicy::Required {
+                    " A request without this header is refused with HTTP 400."
+                } else { "" }),
             "schema": {"type": "string", "const": release},
         }));
     }

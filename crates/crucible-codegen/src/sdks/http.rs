@@ -237,7 +237,7 @@ pub(super) fn document(
             headers.push(("Authorization".into(), "Bearer <token>".into()));
         }
         if let Some(version) = &service.api_version {
-            headers.push(("Crucible-Version".into(), version.clone()));
+            headers.push((service.version_header().into(), version.clone()));
         }
         for (name, header) in middleware {
             if name == CONTENT_SHA256 {

@@ -43,6 +43,11 @@ pub struct Service {
     pub requirements: Vec<crate::FeatureUse>,
     pub id: ShapeId,
     pub version: String,
+    /// The release carrier's documented spelling; absent selects the default.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub version_header: Option<String>,
+    #[serde(default, skip_serializing_if = "UnversionedPolicy::is_oldest")]
+    pub unversioned: UnversionedPolicy,
     pub title: Option<String>,
     /// The validated base for static error-code and reason documentation pages.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -74,7 +79,7 @@ pub struct Service {
     /// with the steps that take it to the next (docs/api-versions.md). Empty
     /// for a service with no migrations; `version` is the current one.
     pub versions: Vec<ApiVersion>,
-    /// The release a generated client names in its `Crucible-Version`
+    /// The release a generated client names in the service's release
     /// header (docs/api-versions-clients.md): the service's `version`, for
     /// a `.cru` service, whose versions are releases. `None` when the
     /// `version` cannot travel in a header, or for IR built by hand.
@@ -431,7 +436,29 @@ pub fn is_standard_trait(id: &ShapeId) -> bool {
     id.is_prelude() || id.namespace() == "crucible.protocols"
 }
 
+/// The contract for an HTTP request that names no release.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum UnversionedPolicy {
+    #[default]
+    Oldest,
+    Required,
+}
+
+impl UnversionedPolicy {
+    pub fn is_oldest(&self) -> bool {
+        *self == Self::Oldest
+    }
+}
+
 impl Service {
+    /// The effective release header name, retaining its documented spelling.
+    pub fn version_header(&self) -> &str {
+        self.version_header
+            .as_deref()
+            .unwrap_or(crate::versions::VERSION_HEADER)
+    }
+
     /// The error a hidden resource is refused with (docs/permissions.md
     /// check 17): the service's designated [`not_found`](Self::not_found),
     /// or `crucible.errors#NotFoundException`.
@@ -471,6 +498,23 @@ impl Service {
                 feature: crate::Feature::ErrorDocumentation,
                 shape: self.id.clone(),
                 source: ShapeId::prelude("errorDocs"),
+            });
+        }
+        if !self
+            .version_header()
+            .eq_ignore_ascii_case(crate::versions::VERSION_HEADER)
+        {
+            requirements.push(crate::FeatureUse {
+                feature: crate::Feature::VersionHeader,
+                shape: self.id.clone(),
+                source: ShapeId::prelude("versionHeader"),
+            });
+        }
+        if self.unversioned == UnversionedPolicy::Required {
+            requirements.push(crate::FeatureUse {
+                feature: crate::Feature::UnversionedRequired,
+                shape: self.id.clone(),
+                source: ShapeId::prelude("unversioned"),
             });
         }
         capabilities.check(&requirements)

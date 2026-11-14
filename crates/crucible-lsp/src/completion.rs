@@ -48,6 +48,7 @@ pub enum Context {
     Roles,
     HttpMethods,
     Protocols,
+    Unversioned,
     AuthSchemes,
     TimestampFormats,
     Mutability,
@@ -194,6 +195,14 @@ pub fn context(parsed: &Parsed, text: &str, offset: usize) -> Context {
         match (prev.kind, word(prev)) {
             (TokenKind::Ident, "http") => return Context::HttpMethods,
             (TokenKind::Ident, "protocol") => return Context::Protocols,
+            (TokenKind::Ident, "unversioned")
+                if open.last().is_some_and(|&index| {
+                    before[index].kind == TokenKind::LBrace
+                        && block_context(&before, index, text) == Context::Service
+                }) =>
+            {
+                return Context::Unversioned;
+            }
             (TokenKind::Ident, "auth") => return Context::AuthSchemes,
             // `notFound X` in a service names one of its errors.
             (TokenKind::Ident, "notFound")
@@ -530,6 +539,16 @@ pub fn complete(context: Context, index: &Index, snippets: bool) -> Vec<Completi
         }
         Context::Service => {
             items.snippet("version", "API version", "version \"$1\"");
+            items.snippet(
+                "versionHeader",
+                "API release header name",
+                "versionHeader \"${1:Crucible-Version}\"",
+            );
+            items.snippet(
+                "unversioned",
+                "requests without a release",
+                "unversioned ${1|oldest,required|}",
+            );
             items.snippet("title", "display title", "title \"$1\"");
             items.snippet("protocol", "wire protocol", "protocol ${1:json}");
             items.snippet("auth", "authentication", "auth ${1:bearer}");
@@ -775,6 +794,10 @@ pub fn complete(context: Context, index: &Index, snippets: bool) -> Vec<Completi
             for method in METHODS {
                 items.keyword(method, "HTTP method");
             }
+        }
+        Context::Unversioned => {
+            items.value("oldest", "serve the oldest supported release (default)");
+            items.value("required", "refuse a request without a release");
         }
         Context::Protocols => items.value("json", "Crucible JSON over HTTP"),
         Context::AuthSchemes => items.value("bearer", "HTTP bearer token"),
@@ -1166,6 +1189,31 @@ mod tests {
         context(&crucible_lang::parse(&text), &text, offset)
     }
 
+    #[test]
+    fn unversioned_values_complete_in_the_service() {
+        assert_eq!(
+            at("service S {\n    unversioned |\n}"),
+            Context::Unversioned
+        );
+        let parsed = crucible_lang::parse("");
+        let index = Index::new(std::slice::from_ref(&parsed));
+        let labels: Vec<_> = complete(Context::Unversioned, &index, true)
+            .into_iter()
+            .map(|i| i.label)
+            .collect();
+        assert_eq!(labels, ["oldest", "required"]);
+    }
+    #[test]
+    fn release_clauses_complete_in_the_service() {
+        let parsed = crucible_lang::parse("");
+        let index = Index::new(std::slice::from_ref(&parsed));
+        let labels: Vec<_> = complete(Context::Service, &index, true)
+            .into_iter()
+            .map(|i| i.label)
+            .collect();
+        assert!(labels.iter().any(|s| s == "versionHeader"));
+        assert!(labels.iter().any(|s| s == "unversioned"));
+    }
     #[test]
     fn roles_and_scopes_complete_where_they_are_written() {
         assert_eq!(at("role a = \"a\" {\n    |\n}"), Context::RoleEntries);

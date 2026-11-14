@@ -134,7 +134,8 @@ value       = string | number | ident | "[" [ value { "," value } ] "]"
 field       = ( ident | string ) ":" value ;
 
 service     = "service" ident "{" { clause } "}" ;
-                 (* clauses: version, title, protocol, auth, paginated(..),
+                 (* clauses: version, versionHeader "Header-Name",
+                    unversioned (oldest | required), title, protocol, auth, paginated(..),
                     operations, resources, errors, notFound Error, errorDocs "URL",
                     roles [..] [custom] [direct], scopes [..], principals Enum *)
 protocol    = "protocol" ident "{" { clause } "}" ;
@@ -654,6 +655,44 @@ less, binds at fewer scopes, admits fewer holders or leaves a grant to the
 service, and declares that. A role that includes a narrowed one narrows
 too and needs its own step. Roles are not versioned, so these steps convert
 nothing: a binding means the same at every version the server serves.
+
+## Release header
+
+A service can name the header that carries its release and declare what a
+request without that header gets:
+
+```cru
+service Example {
+    version "v1"
+    protocol json
+    versionHeader "Example-Version"
+    unversioned required
+}
+```
+
+`versionHeader` defaults to `Crucible-Version`. Its value is an RFC 9110
+token of at most 64 bytes. Names compare without case; documentation keeps
+the spelling given. HTTP framing and hop-by-hop names, runtime-owned names,
+browser-forbidden names and the `sec-`, `proxy-` and `access-control-`
+prefixes are refused. It cannot reuse a modelled `@header` binding,
+including a sender's signature header. There is no alias for the default name.
+
+`unversioned` accepts `oldest` (the default) or `required`. `oldest` serves
+the oldest supported release; `required` specifies HTTP 400 for a request
+without a release. Sender-signed operations keep their exemption: a request
+without a release uses the current one.
+
+Both settings are frozen in release snapshots. Every served projection
+uses the working model's settings. Changing the header name, except its
+case, or changing `oldest` to `required` is a `compatibility.protocol`
+break; changing `required` to `oldest` is compatible. A breaking change
+needs a compatibility exception; no migration step covers these settings.
+
+Descriptions, API references, upgrade guides, OpenAPI and HTTP request
+snippets describe these clauses. Server, SDK and service CLI generation
+currently refuse a non-default header name or `unversioned required` as
+unsupported target capabilities. The clauses do not yet configure runtime
+behaviour.
 
 ## Error documentation
 

@@ -1,0 +1,32 @@
+{
+  "format": "crucible.changes/1",
+  "service": "example.version_header#Example",
+  "versions": {
+    "carrier": {
+      "kind": "header",
+      "name": "Example-Version"
+    },
+    "current": "v1",
+    "releases": [
+      {
+        "changes": [],
+        "current": true,
+        "documentation": {
+          "html": "",
+          "markdown": "",
+          "text": ""
+        },
+        "from": null,
+        "name": "v1",
+        "retired": [],
+        "sunset": null,
+        "sunsetDocumentation": {
+          "html": "",
+          "markdown": "",
+          "text": ""
+        }
+      }
+    ],
+    "unversioned": "required"
+  }
+}

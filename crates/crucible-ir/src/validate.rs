@@ -54,6 +54,7 @@ pub fn service(service: &Service, diagnostics: &mut Diagnostics) {
             );
         }
     }
+    version_header(service, diagnostics);
     recursion(service, diagnostics);
     operations(service, diagnostics);
     names(service, diagnostics);
@@ -64,6 +65,45 @@ pub fn service(service: &Service, diagnostics: &mut Diagnostics) {
     }
     routes(&service.operations, diagnostics);
     sender_lifecycle(service, diagnostics);
+}
+
+fn version_header(service: &Service, diagnostics: &mut Diagnostics) {
+    let name = service.version_header();
+    let lower = name.to_ascii_lowercase();
+    let problem = if !is_token(name) {
+        Some("versionHeader.token: the release header must be an RFC 9110 token")
+    } else if name.len() > 64 {
+        Some("versionHeader.length: the release header must be at most 64 bytes")
+    } else if RESERVED_HEADERS.contains(&lower.as_str()) {
+        Some("versionHeader.reserved: the HTTP layer owns this header")
+    } else if [
+        "authorization",
+        "www-authenticate",
+        "content-type",
+        "accept",
+        "vary",
+        "sunset",
+        "retry-after",
+        "location",
+        "cache-control",
+        "x-request-id",
+        "x-crucible-error",
+    ]
+    .contains(&lower.as_str())
+    {
+        Some("versionHeader.runtime: the runtime owns this header")
+    } else if ["origin", "cookie", "set-cookie", "referer", "date", "via"].contains(&lower.as_str())
+        || ["sec-", "proxy-", "access-control-"]
+            .iter()
+            .any(|prefix| lower.starts_with(prefix))
+    {
+        Some("versionHeader.browser: browsers forbid this header")
+    } else {
+        None
+    };
+    if let Some(problem) = problem {
+        diagnostics.push(&service.id, problem);
+    }
 }
 
 fn error_documentation(service: &Service, diagnostics: &mut Diagnostics) {
@@ -625,6 +665,12 @@ fn headers(
             diagnostics.push(&id, format!("the header {name:?} is bound twice"));
         }
         header_name(&id, name, &lower, bearer, diagnostics);
+        if name.eq_ignore_ascii_case(service.version_header()) {
+            diagnostics.push(&id, format!(
+                "versionHeader.binding: `{}` carries the API release a client was generated for; bind the member to another header",
+                service.version_header()
+            ));
+        }
         if let Some(target) = shape.member(member)
             && !scalar_or_list(service, &target.target)
         {

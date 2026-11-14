@@ -217,9 +217,14 @@ fn title(service: &Service) -> String {
 fn version_line(service: &Service) -> String {
     match &service.api_version {
         Some(version) => format!(
-            "API version {}, sent as {} on every request",
+            "API version {}, sent as {} on every request{}",
             code_span(version),
-            code_span(&format!("Crucible-Version: {version}"))
+            code_span(&format!("{}: {version}", service.version_header())),
+            if service.unversioned == crucible_ir::ir::UnversionedPolicy::Required {
+                "; a request without the release header is refused with HTTP 400 (sender-signed operations use the current release)"
+            } else {
+                ""
+            }
         ),
         None => format!("model version {}", code_span(&service.version)),
     }

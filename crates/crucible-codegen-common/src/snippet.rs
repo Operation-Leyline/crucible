@@ -575,7 +575,7 @@ fn added(service: &Service, middleware: &[crate::surface::Middleware]) -> Vec<Ad
     }
     if let Some(version) = &service.api_version {
         headers.push(Added {
-            header: format!("Crucible-Version: {version}"),
+            header: format!("{}: {version}", service.version_header()),
             note: None,
             sent_on: None,
         });
