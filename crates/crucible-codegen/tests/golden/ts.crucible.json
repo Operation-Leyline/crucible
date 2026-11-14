@@ -10,5 +10,5 @@
   "service": "example.weather#Weather",
   "serviceVersion": "2026-10-01",
   "schemaSha256": "6d506a25de4e9c3af9b17009affa51c3276c279f661dab02af48cd85ed34f4fb",
-  "contentDigest": "crucible-content-1:sha256:60da4b97f3e309695ce40a838a016604924cb3f2152c1ddb6140397f5bd8f9f2"
+  "contentDigest": "crucible-content-1:sha256:e84912f0f310ecc99032538c7ec547f5601eb96c7b498ead5ace5206e6c4bc90"
 }
