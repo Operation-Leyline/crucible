@@ -703,17 +703,23 @@
       out.push(h("h3", {}, group.kind === "resource" ? link("resource", group.id, group.label) : group.label, " ", group.item ? badges(group.item) : null));
       out.push(h("ul", { class: "cx-list" }, group.entries.map((e) => h("li", {}, link("op", e.id, e.item.name), " ", badges(e.item), summaryLine(e.item)))));
     }
-    if (m.releases.length) {
+    const required = m.versions && m.versions.unversioned === "required";
+    if (m.releases.length || required) {
       const carrier = m.versions.carrier || {};
       out.push(
-        h("h2", {}, "Releases"),
+        h("h2", {}, m.releases.length ? "Releases" : "API release"),
         // A reference of an older release (an SDK line) documents that
         // release, and says which is current.
         s.version !== m.versions.current
           ? h("p", {}, "This reference documents release ", code(s.version), "; the current release is ", code(m.versions.current), ". A client names the release it was built for in the ", code(carrier.name), " header.")
           : h("p", {}, "The current release is ", code(m.versions.current), ". A client names the release it was built for in the ", code(carrier.name), " header."),
-        h("ul", { class: "cx-list" }, m.releases.map((r) => h("li", {}, link("release", r.name, r.name), " ", releaseBadges(r), r.sunset ? h("span", { class: "cx-muted" }, " — supported until ", code(r.sunset)) : null))),
       );
+      if (required) {
+        out.push(h("p", {}, "A request without it is refused with HTTP 400, except for a sender-signed operation, which is served at the current release."));
+      }
+      if (m.releases.length) {
+        out.push(h("ul", { class: "cx-list" }, m.releases.map((r) => h("li", {}, link("release", r.name, r.name), " ", releaseBadges(r), r.sunset ? h("span", { class: "cx-muted" }, " — supported until ", code(r.sunset)) : null))));
+      }
     }
     return out;
   }

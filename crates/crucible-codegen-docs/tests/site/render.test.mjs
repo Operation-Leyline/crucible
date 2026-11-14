@@ -2,6 +2,7 @@
 // No npm packages. The goldens are the generator's own describe.json output, so
 // a contract change that the renderer cannot handle fails here.
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { readFileSync, readdirSync } from "node:fs";
 import { createRequire } from "node:module";
 import { dirname, join } from "node:path";
@@ -662,6 +663,29 @@ test("the test fixtures cover all goldens the generator ships", () => {
     "weather-external",
     "weather-internal",
   ].sort());
+});
+
+test("a single-release required-header overview explains its carrier and missing-release policy", () => {
+  const m = x.index(VERSION_HEADER_REQUIRED);
+  assert.equal(m.versions.releases.length, 1);
+  const overview = textOf(x.overviewView(m)).replace(/\n/g, "");
+  assert.ok(overview.includes("Example-Version"), overview);
+  assert.ok(overview.includes("A request without it is refused with HTTP 400, except for a sender-signed operation, which is served at the current release."), overview);
+});
+
+test("a required-header overview explains the policy for multiple releases too", () => {
+  const description = structuredClone(VERSIONED);
+  description.versions.unversioned = "required";
+  const overview = textOf(x.overviewView(x.index(description))).replace(/\n/g, "");
+  assert.ok(overview.includes("A request without it is refused with HTTP 400"), overview);
+});
+
+test("the default single-release overview remains byte-identical", () => {
+  assert.equal(WEATHER.versions.unversioned, "oldest");
+  assert.equal(WEATHER.versions.releases.length, 1);
+  // The overview emitted before adding the required-policy explanation.
+  const html = htmlOf(x.overviewView(x.index(WEATHER)));
+  assert.equal(createHash("sha256").update(html).digest("hex"), "beb91ea2e39a8907369af3428fc251e6da15b9e17742354db94be2016032f0f1");
 });
 
 test("an older release's reference says which release it documents and which is current", () => {
