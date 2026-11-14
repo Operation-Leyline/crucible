@@ -8,6 +8,20 @@ their shared description; TypeScript carries it on each operation spec.
 The key retains the model's spelling and is omitted for the default name.
 Runtimes loading an older description retain their original header fallback.
 
+The Rust SDK and generated service CLI operation markers
+carry `Operation::API_VERSION_HEADER` (default `crucible-version`) beside
+`API_VERSION`. The header name is fixed by the model; choosing another release
+requires an SDK generated for that release. Older release projections use the
+working model's header and policy, so one server serves all releases under
+one name.
+
+The Rust server follows `unversioned oldest|required` even for one release.
+An explicit `Builder::api_version` may refine an `oldest` model; it cannot
+weaken `required` with `Oldest` or `Resolve`. Missing required and unknown
+releases are malformed requests whose violation path is the configured header.
+Sender deliveries without a release, MCP and direct invokes use the current
+release.
+
 **Status: 5a built (clients send their release), the reference's
 release history (PR 3), 5b built: the projections (PR 4), checked by
 the compiler (PR 5) and served by the Rust server (PR 6), 5c built:
@@ -22,7 +36,8 @@ listed under [Order](#order).
 ## What phase 5 delivers
 
 - **Clients send their release.** Every generated client sends the
-  release it was generated for in the configured release header.
+  release it was generated for in the model's release header (default
+  `Crucible-Version`).
 - **Releases as the current model sees them.** Each supported release has
   a model that is the current one seen at that release. Additive changes
   reach it, except inside a structure a later step reshapes or an
@@ -100,8 +115,8 @@ operation's protocol header:
 - **Server.** Every `.cru` service knows its current release, with or
   without migrations. It serves the release named and refuses any other
   with `400`, including a newer client calling a server that has no
-  migrations yet. A request without the header is served as `Unversioned`
-  says. A service without releases ignores the header. A client
+  migrations yet. A request without the header follows the model's policy,
+  or an allowed explicit `Unversioned` override. A service without releases ignores the header. A client
   therefore names a release its server still serves, which is the point
   of a sunset.
 - **Testing.** The conformance fixtures declare no release, so they send none, so the header is tested where a client can name one:

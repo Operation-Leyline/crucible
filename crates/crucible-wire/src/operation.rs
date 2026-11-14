@@ -19,9 +19,11 @@ pub trait Operation: Send + Sync + 'static {
     /// Handwritten operations must opt in explicitly when bearer auth is supported.
     const AUTH_BEARER: bool = false;
     const AUTH_SCHEMES: Option<&'static [AuthScheme]> = None;
-    /// The release a generated client names in its `Crucible-Version`
+    /// The release a generated client names in its configured
     /// header: the `.cru` service's `version` (docs/api-versions-clients.md).
     const API_VERSION: Option<&'static str> = None;
+    /// The lowercase HTTP header name carrying this operation's release.
+    const API_VERSION_HEADER: &'static str = "crucible-version";
     /// How the operation pages (`@paginated`), for server extensions that
     /// read the token from the decoded input.
     const PAGINATION: Option<Pagination> = None;
@@ -104,6 +106,10 @@ pub struct ServiceInfo {
     /// builds it: the service's `not_found_factory` does, and every
     /// response that carries it is sent with `Cache-Control: no-store`.
     pub not_found: Option<&'static str>,
+    /// The model's release header, preserving its declared spelling.
+    pub version_header: &'static str,
+    /// Whether ordinary HTTP requests must name a release.
+    pub unversioned_required: bool,
 }
 
 pub type Classify =
@@ -112,6 +118,18 @@ pub type RejectFn = fn(&Rejection) -> Box<dyn ModelledError>;
 pub type InternalFn = fn() -> Box<dyn ModelledError>;
 
 impl ServiceInfo {
+    /// Sets the model's release header. Validated when the service is built.
+    pub const fn with_version_header(mut self, name: &'static str) -> Self {
+        self.version_header = name;
+        self
+    }
+
+    /// Requires ordinary HTTP requests to name a release.
+    pub const fn with_unversioned_required(mut self) -> Self {
+        self.unversioned_required = true;
+        self
+    }
+
     pub fn operation(&self, name: &str) -> Option<&'static OperationInfo> {
         self.operations.iter().copied().find(|op| op.name == name)
     }

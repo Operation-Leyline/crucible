@@ -1479,3 +1479,23 @@ fn optional_document_output_retains_the_frozen_conversion_registration() {
     assert!(code.contains(".add_versioned::<v1::Read, super::Read>(V1,"));
     assert!(!code.contains(".add_versioned_identity::<v1::Read, super::Read>"));
 }
+
+#[test]
+fn the_server_description_carries_both_release_settings() {
+    let fixture = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../e2e/weather-service/tests/fixtures/version-header-named");
+    let mut service = lower(&fixture);
+    service.unversioned = crucible_ir::ir::UnversionedPolicy::Required;
+    let code = generate(&service, &Options::default()).unwrap();
+    assert!(code.contains(".with_version_header(\"Acme-Version\")"));
+    assert!(code.contains(".with_unversioned_required()"));
+}
+
+#[test]
+fn a_rust_client_marker_carries_the_configured_release_header() {
+    let fixture = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../e2e/weather-service/tests/fixtures/version-header-named");
+    let service = lower(&fixture);
+    let code = crucible_codegen_rust::generate_client(&service).unwrap();
+    assert!(code.contains("const API_VERSION_HEADER: &'static str = \"acme-version\";"));
+}

@@ -1,6 +1,6 @@
 //! Serving older API versions from the current implementation
 //! (docs/api-versions.md). A request names its version in the
-//! `Crucible-Version` header; an older version is routed and decoded with
+//! service's release header (default `Crucible-Version`); an older version is routed and decoded with
 //! its own release's types, converted step by step to the current input,
 //! handled, and its output or error converted back before encoding. The
 //! conversions are `'static` data generated from the model's migrations;
@@ -19,7 +19,7 @@ use crate::error::Error;
 use crate::operation::Input;
 use crate::validate::Rejection;
 
-/// The request header that names the API version.
+/// The default request header that names the API version.
 pub const VERSION_HEADER: &str = "crucible-version";
 
 /// One API version of the service. Versions order as they were released, so
@@ -401,11 +401,11 @@ pub enum Unversioned {
 /// Why a request's version cannot be served, as a client sees it. The
 /// version it named is the client's text, of any length: the message lists
 /// what the service serves instead of repeating it.
-pub(crate) fn unsupported(supported: &[ApiVersion]) -> Rejection {
+pub(crate) fn unsupported(header: &str, supported: &[ApiVersion]) -> Rejection {
     Rejection::malformed(
-        "Crucible-Version",
+        header,
         format!(
-            "this API version is not supported; this service serves {}",
+            "{header} names an unsupported API version; this service serves {}",
             supported
                 .iter()
                 .map(|v| v.name)
@@ -415,11 +415,11 @@ pub(crate) fn unsupported(supported: &[ApiVersion]) -> Rejection {
     )
 }
 
-pub(crate) fn missing(supported: &[ApiVersion]) -> Rejection {
+pub(crate) fn missing(header: &str, supported: &[ApiVersion]) -> Rejection {
     Rejection::malformed(
-        "Crucible-Version",
+        header,
         format!(
-            "this service requires the API version; it serves {}",
+            "this service requires {header}; it serves {}",
             supported
                 .iter()
                 .map(|v| v.name)
@@ -438,6 +438,20 @@ pub(crate) fn http_date(date: &str) -> Option<String> {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn an_unsupported_release_is_malformed_at_the_custom_header() {
+        let refusal = super::unsupported("Acme-Version", &[super::ApiVersion::new(0, "v1")]);
+        assert!(refusal.is_malformed());
+        assert_eq!(refusal.violations()[0].path, "Acme-Version");
+    }
+
+    #[test]
+    fn a_missing_release_is_malformed_at_the_custom_header() {
+        let refusal = super::missing("Acme-Version", &[super::ApiVersion::new(0, "v1")]);
+        assert!(refusal.is_malformed());
+        assert_eq!(refusal.violations()[0].path, "Acme-Version");
+    }
+
     use super::*;
     use serde_json::json;
 

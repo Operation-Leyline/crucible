@@ -686,12 +686,20 @@ occurs after encoding. Tower is not required for application extension interface
 
 A service whose `.cru` model has migrations also serves older API
 versions ([api-versions.md](api-versions.md)). After the raw middleware
-runs, the request's version is settled from its `Crucible-Version`
-header, so routing and decoding use that version's operations. After
+runs, the request's version is settled from the service's `versionHeader`
+header (default `Crucible-Version`), so routing and decoding use that version's operations. After
 decoding, an older version's input is converted to the current one, so
 interceptors and the handler see only current types. Before encoding,
 after the interceptors' and operation middleware's `after` phases, the
 output or error is converted back.
+
+The generated `ServiceInfo` carries the header and `unversioned` policy.
+The builder parses the header and constructs its `Vary` value once. Requests
+with no release follow the model, including for a single release; an explicit
+`Builder::api_version(Oldest|Resolve)` cannot weaken a `required` model and
+fails at build. The configured name is used for selection, echo, `Vary` and
+malformed-release violation paths. Sender deliveries without a release still
+use the current release.
 
 Every generated client sends its release using the model's `versionHeader`,
 defaulting to `Crucible-Version`. This also satisfies `unversioned required`;
@@ -1976,7 +1984,9 @@ Enable the runtime's optional `explorer` feature, generate the description with
 `if cfg!(debug_assertions)`. The service then serves `/explorer/` for loopback
 peers. The endpoint works on HTTP and Lambda; unknown peers are denied unless
 access is explicitly changed. Try-it calls use normal HTTP routes and the
-ordinary request pipeline. See [Crucible Explorer](explorer.md) for configuration,
+ordinary request pipeline. They name the current release in the configured
+release header, matching the forms' shapes, including in copied curl commands.
+See [Crucible Explorer](explorer.md) for configuration,
 authentication, audience selection and browser limits.
 
 ### Host selection

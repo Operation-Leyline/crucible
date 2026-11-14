@@ -54,8 +54,11 @@ has passed.
 
 ## The carrier
 
-The version travels in a request header, `Crucible-Version`, for every HTTP
-protocol. Other carriers, such as a field of an invoke envelope, come with
+The version travels in the service's `versionHeader` for every HTTP
+protocol; its default is `Crucible-Version`. The Rust server and Rust client
+honour a configured name. TypeScript and the other SDK targets refuse a
+non-default name or `unversioned required` until their runtimes support them.
+There is no alias for the default name after a rename. Other carriers, such as a field of an invoke envelope, come with
 the protocol declaration (decision 57). The response echoes the version it
 was served at. MCP tool calls and direct invocations (`Crucible::invoke`,
 Lambda direct invokes) are served at the current version: their callers
@@ -65,13 +68,19 @@ are built from the current model.
 |---|---|
 | A supported version | That version |
 | The current version | The current version: no conversion |
-| No version | As the builder says (below); for a sender-signed operation (`@sender`, decision 81), whose third-party caller names no release, the current version |
+| No version | As the model and builder say (below); for a sender-signed operation (`@sender`, decision 81), whose third-party caller names no release, the current version |
 | An unknown version | Refused with `400`, the service's validation error naming the supported versions |
 | A version with a `sunset` | Served, with a `Sunset: <date>` header (RFC 8594) |
 
-Versioned responses carry `Vary: Crucible-Version`.
+Versioned responses echo the configured header and include its name in `Vary`.
 
-A request with no version is settled by `Builder::api_version`:
+A request with no version follows the service's `unversioned oldest|required`
+clause, including on a service with one release. Omission means `oldest`.
+The Rust builder can override an `oldest` model through `Builder::api_version`.
+For a `required` model, an explicit `Oldest` or `Resolve` override is a
+`BuildError`; `Required` agrees with the published contract.
+
+The builder policies are:
 
 - `Unversioned::Oldest` (the default) serves it at the oldest supported
   version. That is right for a client built for the oldest release, before
@@ -84,7 +93,9 @@ A request with no version is settled by `Builder::api_version`:
   `request_id`: it can pin each account to the version it first used, as
   Stripe does. A resolver that returns `None` falls back to the oldest.
 - `Unversioned::Required` refuses the request with `400`, the service's
-  validation error naming the supported versions.
+  validation error with parse reason (`cannotParse`), naming the configured
+  header as the violation path and listing the supported versions. An unknown
+  release is refused the same way.
 
 ## Compiler and IR
 
