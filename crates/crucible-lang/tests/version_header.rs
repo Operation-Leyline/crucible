@@ -318,3 +318,65 @@ fn a_64_byte_header_is_valid() {
     crucible_ir::validate::service(&service, &mut diagnostics);
     assert!(diagnostics.is_empty(), "{diagnostics}");
 }
+
+#[test]
+fn accept_encoding_cannot_carry_a_release() {
+    refused(
+        "invalid-accept-encoding",
+        "versionHeader.browser:",
+        "service Example {\n    version \"v1\"\n    protocol json\n    versionHeader \"Accept-Encoding\"\n    operations [Ping]\n}",
+    );
+}
+
+#[test]
+fn accept_charset_cannot_carry_a_release() {
+    refused(
+        "invalid-accept-charset",
+        "versionHeader.browser:",
+        "service Example {\n    version \"v1\"\n    protocol json\n    versionHeader \"Accept-Charset\"\n    operations [Ping]\n}",
+    );
+}
+
+#[test]
+fn dnt_cannot_carry_a_release() {
+    refused(
+        "invalid-dnt",
+        "versionHeader.browser:",
+        "service Example {\n    version \"v1\"\n    protocol json\n    versionHeader \"DNT\"\n    operations [Ping]\n}",
+    );
+}
+
+#[test]
+fn cookie2_cannot_carry_a_release() {
+    refused(
+        "invalid-cookie2",
+        "versionHeader.browser:",
+        "service Example {\n    version \"v1\"\n    protocol json\n    versionHeader \"Cookie2\"\n    operations [Ping]\n}",
+    );
+}
+
+#[test]
+fn a_custom_release_header_is_not_browser_forbidden() {
+    let mut service = load("default");
+    service.version_header = Some("Example-Version".into());
+    let mut diagnostics = crucible_ir::Diagnostics::default();
+    crucible_ir::validate::service(&service, &mut diagnostics);
+    assert!(diagnostics.is_empty(), "{diagnostics}");
+}
+
+#[test]
+fn http_owned_release_headers_keep_their_classification() {
+    let mut service = load("default");
+    service.version_header = Some("Connection".into());
+    let mut diagnostics = crucible_ir::Diagnostics::default();
+    crucible_ir::validate::service(&service, &mut diagnostics);
+    assert_eq!(diagnostics.iter().count(), 1);
+    assert!(
+        diagnostics
+            .iter()
+            .next()
+            .unwrap()
+            .message
+            .starts_with("versionHeader.reserved:")
+    );
+}

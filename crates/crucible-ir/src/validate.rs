@@ -44,6 +44,32 @@ const RESERVED_HEADERS: &[&str] = &[
     "upgrade",
 ];
 
+/// Fetch Standard §2.2.2 (Headers), the forbidden request-header name list.
+/// https://fetch.spec.whatwg.org/#forbidden-request-header
+const FETCH_FORBIDDEN_REQUEST_HEADERS: &[&str] = &[
+    "accept-charset",
+    "accept-encoding",
+    "access-control-request-headers",
+    "access-control-request-method",
+    "connection",
+    "content-length",
+    "cookie",
+    "cookie2",
+    "date",
+    "dnt",
+    "expect",
+    "host",
+    "keep-alive",
+    "origin",
+    "referer",
+    "set-cookie",
+    "te",
+    "trailer",
+    "transfer-encoding",
+    "upgrade",
+    "via",
+];
+
 /// Every rule below, against `service`.
 pub fn service(service: &Service, diagnostics: &mut Diagnostics) {
     for root in &service.export_roots {
@@ -92,7 +118,7 @@ fn version_header(service: &Service, diagnostics: &mut Diagnostics) {
     .contains(&lower.as_str())
     {
         Some("versionHeader.runtime: the runtime owns this header")
-    } else if ["origin", "cookie", "set-cookie", "referer", "date", "via"].contains(&lower.as_str())
+    } else if FETCH_FORBIDDEN_REQUEST_HEADERS.contains(&lower.as_str())
         || ["sec-", "proxy-", "access-control-"]
             .iter()
             .any(|prefix| lower.starts_with(prefix))
