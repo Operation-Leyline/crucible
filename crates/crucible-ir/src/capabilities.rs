@@ -24,6 +24,8 @@ features! {
     MediaTypeHeaders => "media-type-headers",
     ServerStreaming => "server-streaming",
     ErrorDocumentation => "error-documentation",
+    VersionHeader => "version-header",
+    UnversionedRequired => "unversioned-required",
 }
 
 impl fmt::Display for Feature {

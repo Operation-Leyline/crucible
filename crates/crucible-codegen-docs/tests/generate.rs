@@ -2120,3 +2120,35 @@ fn a_payload_error_s_code_is_in_its_header_alone() {
     );
     assert!(!pages.contains("and in its JSON body"), "{pages}");
 }
+
+#[test]
+fn named_release_header_and_required_policy_match_reviewed_goldens() {
+    let service = documented("version-header-named");
+    let output = generate(&service).unwrap();
+    let index = &output
+        .iter()
+        .find(|f| f.path == "src/index.md")
+        .unwrap()
+        .contents;
+    assert!(index.contains("Example&#45;Version&#58; v1"), "{index}");
+    assert!(index.contains("refused with HTTP 400"));
+    assert!(!index.contains("may be an older one"));
+    golden_files("version-header-required", output);
+}
+#[test]
+fn upgrade_guide_names_the_working_header() {
+    let mut service =
+        crucible_lang::load_versioned_service(&package_dir("version-projection-conditions"))
+            .unwrap();
+    service.version_header = Some("Example-Version".into());
+    service.unversioned = crucible_ir::ir::UnversionedPolicy::Required;
+    let text = crucible_codegen_docs::upgrade_guide(&service, "v1", None).unwrap();
+    assert!(text.contains("Example-Version"));
+    assert!(text.contains("HTTP 400"));
+    let path = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/golden/upgrade/version-header-v1-to-v2.md");
+    if std::env::var_os("CRUCIBLE_BLESS").is_some() {
+        fs::write(&path, &text).unwrap();
+    }
+    assert_eq!(fs::read_to_string(path).unwrap(), text);
+}

@@ -386,6 +386,18 @@ const KEYWORDS: &[Row] = &[
     ),
     // ---- services ----------------------------------------------------------
     (
+        "versionHeader",
+        SERVICE,
+        "The HTTP header carrying the API release, default Crucible-Version. An RFC 9110 token of at most 64 bytes; reserved and model-bound headers are refused. Names compare without case; documentation retains the spelling given.",
+        "service Weather {\n    versionHeader \"Weather-Version\"\n}",
+    ),
+    (
+        "unversioned",
+        SERVICE,
+        "Requests without a release: oldest (default) serves the oldest supported release; required refuses with HTTP 400. Sender-signed operations keep their current-release exemption.",
+        "service Weather {\n    unversioned required\n}",
+    ),
+    (
         "version",
         SERVICE,
         "The service's API version. A release is frozen under it (`releases/<version>.json`) and generated clients send it. Every service declares one.",
@@ -2443,6 +2455,22 @@ mod tests {
         }
     }
 
+    #[test]
+    fn release_header_hover_explains_the_default() {
+        let text = hover_at(
+            "service S { versionHeader \"Example-Version\" }",
+            "versionHeader",
+            0,
+        )
+        .unwrap();
+        assert!(text.contains("Crucible-Version"));
+        assert!(text.contains("64 bytes"));
+    }
+    #[test]
+    fn unversioned_hover_explains_the_policy() {
+        let text = hover_at("service S { unversioned required }", "unversioned", 0).unwrap();
+        assert!(text.contains("HTTP 400"));
+    }
     #[test]
     fn keywords_explain_themselves_with_a_fenced_example() {
         let source = r#"

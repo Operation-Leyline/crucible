@@ -43,6 +43,26 @@ impl Checker<'_> {
                 "wire protocol or its settings changed",
             );
         }
+        if !self
+            .old
+            .version_header()
+            .eq_ignore_ascii_case(self.new.version_header())
+        {
+            self.push(
+                "compatibility.protocol",
+                &self.old.id.clone(),
+                "the API release header name changed",
+            );
+        }
+        if self.old.unversioned == crucible_ir::ir::UnversionedPolicy::Oldest
+            && self.new.unversioned == crucible_ir::ir::UnversionedPolicy::Required
+        {
+            self.push(
+                "compatibility.protocol",
+                &self.old.id.clone(),
+                "requests must now name an API release",
+            );
+        }
         for service in [self.old, self.new] {
             for usage in &service.requirements {
                 if !matches!(

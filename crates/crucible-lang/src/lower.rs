@@ -4522,13 +4522,6 @@ impl<'a> Lowerer<'a> {
                     name: parameter,
                 });
             } else if let Some(header) = string("httpHeader") {
-                // Generated clients send their release in this header.
-                if header.eq_ignore_ascii_case("crucible-version") {
-                    self.error_at(
-                        &owner.with_member(&member.name),
-                        "`Crucible-Version` carries the API release a client was generated for; bind the member to another header",
-                    );
-                }
                 bindings.headers.push(Binding {
                     member: member.name.clone(),
                     name: header,
@@ -5453,6 +5446,8 @@ impl<'a> Lowerer<'a> {
         let mut version = None;
         let mut title = None;
         let mut error_docs_base = None;
+        let mut version_header = None;
+        let mut unversioned = crucible_ir::ir::UnversionedPolicy::Oldest;
         let mut protocol = None;
         let mut auth_scheme = None;
         let mut not_found = None;
@@ -5476,6 +5471,8 @@ impl<'a> Lowerer<'a> {
                     | "paginated"
                     | "notFound"
                     | "errorDocs"
+                    | "versionHeader"
+                    | "unversioned"
                     | "roles"
                     | "scopes"
                     | "principals"
@@ -5484,13 +5481,30 @@ impl<'a> Lowerer<'a> {
                 self.error(
                     file,
                     clause.span,
-                    format!("a service has one `{name}` clause"),
+                    format!("service.duplicate: a service has one `{name}` clause"),
                 );
                 continue;
             }
             match (clause.name.name.as_str(), &clause.value) {
                 ("version", ClauseValue::Value(Value::Str(s))) => version = Some(s.value.clone()),
                 ("title", ClauseValue::Value(Value::Str(s))) => title = Some(s.value.clone()),
+                ("versionHeader", ClauseValue::Value(Value::Str(s))) => {
+                    version_header = Some(s.value.clone());
+                }
+                ("unversioned", ClauseValue::Value(Value::Ident(policy))) => {
+                    unversioned = match policy.name.as_str() {
+                        "oldest" => crucible_ir::ir::UnversionedPolicy::Oldest,
+                        "required" => crucible_ir::ir::UnversionedPolicy::Required,
+                        _ => {
+                            self.error(
+                                file,
+                                policy.span,
+                                "service.unversioned: expected oldest or required",
+                            );
+                            crucible_ir::ir::UnversionedPolicy::Oldest
+                        }
+                    };
+                }
                 ("errorDocs", ClauseValue::Value(Value::Str(s))) => {
                     match crucible_ir::error_docs::base(&s.value) {
                         Ok(base) => error_docs_base = Some(base),
@@ -5762,6 +5776,8 @@ impl<'a> Lowerer<'a> {
             version: version.unwrap_or_default(),
             title,
             error_docs_base,
+            version_header,
+            unversioned,
             docs,
             notes: annotations.notes,
             auth: auth.clone(),
@@ -5797,7 +5813,7 @@ impl<'a> Lowerer<'a> {
         if version_declared && service.api_version.is_none() {
             self.error_at(
                 &service.id,
-                "the service's version names the release clients send in the `Crucible-Version` header: use visible ASCII without spaces",
+                &format!("the service's version names the release clients send in the `{}` header: use visible ASCII without spaces", service.version_header()),
             );
         }
         // What each role grants, inclusion and `*` expanded: settled once,

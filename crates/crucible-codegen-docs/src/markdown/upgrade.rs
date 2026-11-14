@@ -159,6 +159,9 @@ pub(in crate::markdown) fn page(d: &Description, from: usize, to: usize) -> Stri
         code(string(&d.versions["carrier"]["name"])),
         release_code(new),
     ));
+    if d.versions["unversioned"] == "required" {
+        out.push_str("A request without the release header is refused with HTTP 400, except for a sender-signed operation, which is served at the current release.\n\n");
+    }
     // The releases a client passes through, and the one it arrives at.
     let sunsets: Vec<&Value> = releases[from..=to]
         .iter()

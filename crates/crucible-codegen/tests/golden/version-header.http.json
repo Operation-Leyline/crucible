@@ -1,0 +1,57 @@
+{
+  "format": "crucible.sdks/1",
+  "http": {
+    "endpointEnv": "EXAMPLE_ENDPOINT",
+    "guide": {
+      "fence": "sh",
+      "language": "HTTP",
+      "sections": [
+        {
+          "html": "<p>Every operation is one HTTP request to the API's endpoint. A body, in a request or a response, is JSON. The commands here read the endpoint from <code>EXAMPLE_ENDPOINT</code>:</p>\n<pre><code class=\"language-sh\">export EXAMPLE_ENDPOINT='https://&lt;endpoint&gt;'\n</code></pre>\n<p>Send these headers:</p>\n<table><thead><tr><th>Header</th><th>Value</th><th>On</th></tr></thead><tbody>\n<tr><td><code>Content-Type</code></td><td><code>application/json</code></td><td>a request with a JSON body</td></tr>\n<tr><td><code>Example-Version</code></td><td><code>v1</code></td><td>every request</td></tr>\n</tbody></table>\n<p><code>Example-Version</code> names the release this reference documents. A request without it is refused with HTTP 400, except for a sender-signed operation, which is served at the current release.</p>\n",
+          "id": "request",
+          "markdown": "Every operation is one HTTP request to the API's endpoint. A body, in a request or a response, is JSON. The commands here read the endpoint from `EXAMPLE_ENDPOINT`:\n\n```sh\nexport EXAMPLE_ENDPOINT='https://<endpoint>'\n```\n\nSend these headers:\n\n| Header | Value | On |\n|---|---|---|\n| `Content-Type` | `application/json` | a request with a JSON body |\n| `Example-Version` | `v1` | every request |\n\n`Example-Version` names the release this reference documents. A request without it is refused with HTTP 400, except for a sender-signed operation, which is served at the current release.",
+          "title": "Send a request"
+        },
+        {
+          "html": "<p><code>Ping</code> is <code>GET /ping</code>:</p>\n<pre><code class=\"language-sh\">curl \"$EXAMPLE_ENDPOINT\"'/ping' \\\n  -H 'Example-Version: v1'\n</code></pre>\n<p>It answers <code>200</code> with a JSON body:</p>\n<pre><code class=\"language-json\">{\n  \"ok\": false\n}\n</code></pre>\n<p>Every operation's page has its request, its response and a command like this one.</p>\n",
+          "id": "call",
+          "markdown": "`Ping` is `GET /ping`:\n\n```sh\ncurl \"$EXAMPLE_ENDPOINT\"'/ping' \\\n  -H 'Example-Version: v1'\n```\n\nIt answers `200` with a JSON body:\n\n```json\n{\n  \"ok\": false\n}\n```\n\nEvery operation's page has its request, its response and a command like this one.",
+          "title": "Call an operation"
+        },
+        {
+          "html": "<p>Each of the API's simple types is written in JSON like this:</p>\n<table><thead><tr><th>API type</th><th>JSON</th></tr></thead><tbody>\n<tr><td>boolean</td><td><code>true</code> or <code>false</code></td></tr>\n</tbody></table>\n<p>A structure is an object with a member for each of its members. Leave an optional member out to send nothing for it. In a path, a query string or a header, a value is written as text.</p>\n",
+          "id": "types",
+          "markdown": "Each of the API's simple types is written in JSON like this:\n\n| API type | JSON |\n|---|---|\n| boolean | `true` or `false` |\n\nA structure is an object with a member for each of its members. Leave an optional member out to send nothing for it. In a path, a query string or a header, a value is written as text.",
+          "title": "Types"
+        },
+        {
+          "html": "<p>Retry with backoff, and only where a retry is safe: a throttling error for any operation; a connection failure, HTTP 500, 502, 503 or 504, or another error marked retryable, only for an operation that is read-only, idempotent or takes an idempotency token.</p>\n",
+          "id": "retries",
+          "markdown": "Retry with backoff, and only where a retry is safe: a throttling error for any operation; a connection failure, HTTP 500, 502, 503 or 504, or another error marked retryable, only for an operation that is read-only, idempotent or takes an idempotency token.",
+          "title": "Retries and idempotency"
+        }
+      ]
+    },
+    "operations": {
+      "example.version_header#Ping": {
+        "body": null,
+        "bodyEncoding": null,
+        "example": null,
+        "headers": [
+          {
+            "name": "Example-Version",
+            "value": "v1"
+          }
+        ],
+        "method": "GET",
+        "omitted": [],
+        "snippet": "curl \"$EXAMPLE_ENDPOINT\"'/ping' \\\n  -H 'Example-Version: v1'\n",
+        "uri": "/ping"
+      }
+    },
+    "tokenEnv": null
+  },
+  "lines": {},
+  "sdks": {},
+  "service": "example.version_header#Example"
+}

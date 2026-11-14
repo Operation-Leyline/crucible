@@ -1,0 +1,76 @@
+{
+  "openapi": "3.1.1",
+  "info": {
+    "title": "Example",
+    "version": "v1"
+  },
+  "paths": {
+    "/ping": {
+      "get": {
+        "operationId": "Ping",
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "$ref": "#/components/schemas/crucible.api.Boolean"
+                    }
+                  },
+                  "required": [
+                    "ok"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "security": [],
+        "x-crucible-shape": "example.version_header#Ping",
+        "x-crucible-traits": {},
+        "x-crucible-readonly": true,
+        "parameters": [
+          {
+            "name": "Example-Version",
+            "in": "header",
+            "required": true,
+            "description": "The release this request is written for: v1, the release this document describes. A request without this header is refused with HTTP 400.",
+            "schema": {
+              "type": "string",
+              "const": "v1"
+            }
+          }
+        ]
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "crucible.api.Boolean": {
+        "type": "boolean"
+      },
+      "example.version_header.PingInput": {
+        "type": "object",
+        "properties": {}
+      },
+      "example.version_header.PingOutput": {
+        "type": "object",
+        "properties": {
+          "ok": {
+            "$ref": "#/components/schemas/crucible.api.Boolean"
+          }
+        },
+        "required": [
+          "ok"
+        ]
+      }
+    },
+    "securitySchemes": {}
+  },
+  "x-crucible-service": "example.version_header#Example",
+  "x-crucible-protocol": "crucible.protocols#json",
+  "x-crucible-traits": {}
+}

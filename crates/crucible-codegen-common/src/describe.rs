@@ -1021,7 +1021,8 @@ fn versions(
         }));
     }
     json!({
-        "carrier": {"kind": "header", "name": crucible_ir::versions::VERSION_HEADER},
+        "carrier": {"kind": "header", "name": service.version_header()},
+        "unversioned": service.unversioned,
         "current": name,
         "releases": releases,
     })

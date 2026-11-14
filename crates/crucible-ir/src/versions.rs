@@ -26,8 +26,8 @@ pub use projection::{
 use crate::ShapeId;
 use crate::ir::{ApiVersion, Hook, Service, Shape, VersionStep};
 
-/// The header a client names its release in: the one carrier until a
-/// protocol declares another (decision 57).
+/// The default release header. Read [`Service::version_header`] for a
+/// service's effective carrier name.
 pub const VERSION_HEADER: &str = "Crucible-Version";
 
 /// When an element arrived and changed, by release name.

@@ -1,0 +1,13 @@
+service Example {
+    version "v1"
+    protocol json
+    versionHeader "Not A Token"
+    operations [Ping]
+}
+
+anonymous readonly operation Ping {
+    http GET "/ping"
+    input {
+    }
+    output { ok: boolean }
+}

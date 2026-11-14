@@ -329,6 +329,8 @@ fn without_versions(service: &Service) -> Service {
         version: service.version.clone(),
         title: service.title.clone(),
         error_docs_base: service.error_docs_base.clone(),
+        version_header: service.version_header.clone(),
+        unversioned: service.unversioned,
         docs: service.docs.clone(),
         notes: service.notes.clone(),
         auth: service.auth.clone(),

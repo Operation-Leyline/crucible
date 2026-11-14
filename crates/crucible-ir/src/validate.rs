@@ -44,6 +44,32 @@ const RESERVED_HEADERS: &[&str] = &[
     "upgrade",
 ];
 
+/// Fetch Standard §2.2.2 (Headers), the forbidden request-header name list.
+/// https://fetch.spec.whatwg.org/#forbidden-request-header
+const FETCH_FORBIDDEN_REQUEST_HEADERS: &[&str] = &[
+    "accept-charset",
+    "accept-encoding",
+    "access-control-request-headers",
+    "access-control-request-method",
+    "connection",
+    "content-length",
+    "cookie",
+    "cookie2",
+    "date",
+    "dnt",
+    "expect",
+    "host",
+    "keep-alive",
+    "origin",
+    "referer",
+    "set-cookie",
+    "te",
+    "trailer",
+    "transfer-encoding",
+    "upgrade",
+    "via",
+];
+
 /// Every rule below, against `service`.
 pub fn service(service: &Service, diagnostics: &mut Diagnostics) {
     for root in &service.export_roots {
@@ -54,6 +80,7 @@ pub fn service(service: &Service, diagnostics: &mut Diagnostics) {
             );
         }
     }
+    version_header(service, diagnostics);
     recursion(service, diagnostics);
     operations(service, diagnostics);
     names(service, diagnostics);
@@ -64,6 +91,45 @@ pub fn service(service: &Service, diagnostics: &mut Diagnostics) {
     }
     routes(&service.operations, diagnostics);
     sender_lifecycle(service, diagnostics);
+}
+
+fn version_header(service: &Service, diagnostics: &mut Diagnostics) {
+    let name = service.version_header();
+    let lower = name.to_ascii_lowercase();
+    let problem = if !is_token(name) {
+        Some("versionHeader.token: the release header must be an RFC 9110 token")
+    } else if name.len() > 64 {
+        Some("versionHeader.length: the release header must be at most 64 bytes")
+    } else if RESERVED_HEADERS.contains(&lower.as_str()) {
+        Some("versionHeader.reserved: the HTTP layer owns this header")
+    } else if [
+        "authorization",
+        "www-authenticate",
+        "content-type",
+        "accept",
+        "vary",
+        "sunset",
+        "retry-after",
+        "location",
+        "cache-control",
+        "x-request-id",
+        "x-crucible-error",
+    ]
+    .contains(&lower.as_str())
+    {
+        Some("versionHeader.runtime: the runtime owns this header")
+    } else if FETCH_FORBIDDEN_REQUEST_HEADERS.contains(&lower.as_str())
+        || ["sec-", "proxy-", "access-control-"]
+            .iter()
+            .any(|prefix| lower.starts_with(prefix))
+    {
+        Some("versionHeader.browser: browsers forbid this header")
+    } else {
+        None
+    };
+    if let Some(problem) = problem {
+        diagnostics.push(&service.id, problem);
+    }
 }
 
 fn error_documentation(service: &Service, diagnostics: &mut Diagnostics) {
@@ -625,6 +691,12 @@ fn headers(
             diagnostics.push(&id, format!("the header {name:?} is bound twice"));
         }
         header_name(&id, name, &lower, bearer, diagnostics);
+        if name.eq_ignore_ascii_case(service.version_header()) {
+            diagnostics.push(&id, format!(
+                "versionHeader.binding: `{}` carries the API release a client was generated for; bind the member to another header",
+                service.version_header()
+            ));
+        }
         if let Some(target) = shape.member(member)
             && !scalar_or_list(service, &target.target)
         {

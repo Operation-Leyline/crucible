@@ -17,6 +17,16 @@ version's section when it is prepared.
 
 ### Added
 
+- Service clauses `versionHeader "Example-Version"` and `unversioned
+  oldest|required` define the release carrier and the contract for a
+  request without a release. The IR validates and freezes the settings;
+  older projections use the working settings. Header renames (ignoring
+  case) and `oldest` to `required` report `compatibility.protocol`.
+  Descriptions, references, upgrade guides, OpenAPI, snippets and guides
+  describe them. Server, SDK and service CLI generation refuse non-default
+  settings until their runtimes support them. Default generation is
+  unchanged except the `unversioned` key in shared version descriptions.
+
 - Roles R2c ([docs/roles.md](docs/roles.md) §4.5, §7.2): `assignedBy` is
   enforced. `.cru` operations declare what they assign: `assigns <member>
   at <target>` (the input member holding the roles granted, a `@roleTypes`
