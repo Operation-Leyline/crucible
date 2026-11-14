@@ -1,0 +1,4 @@
+# Frozen first release of the named-header fixture.
+
+[releases]
+"v1.json" = "sha256:45c27a6817a4fca61daf8abef9003c095f475b42604413bbc40f4cab742ce0c5"

@@ -686,12 +686,20 @@ occurs after encoding. Tower is not required for application extension interface
 
 A service whose `.cru` model has migrations also serves older API
 versions ([api-versions.md](api-versions.md)). After the raw middleware
-runs, the request's version is settled from its `Crucible-Version`
-header, so routing and decoding use that version's operations. After
+runs, the request's version is settled from the service's `versionHeader`
+header (default `Crucible-Version`), so routing and decoding use that version's operations. After
 decoding, an older version's input is converted to the current one, so
 interceptors and the handler see only current types. Before encoding,
 after the interceptors' and operation middleware's `after` phases, the
 output or error is converted back.
+
+The generated `ServiceInfo` carries the header and `unversioned` policy.
+The builder parses the header and constructs its `Vary` value once. Requests
+with no release follow the model, including for a single release; an explicit
+`Builder::api_version(Oldest|Resolve)` cannot weaken a `required` model and
+fails at build. The configured name is used for selection, echo, `Vary` and
+malformed-release violation paths. Sender deliveries without a release still
+use the current release.
 
 ### Pagination tokens
 
