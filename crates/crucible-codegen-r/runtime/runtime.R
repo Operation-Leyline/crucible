@@ -95,7 +95,7 @@ client_config <- function(endpoint = NULL, token = NULL, transport = NULL, timeo
   text <- paste0(sprintf('%02x', bytes), collapse = '')
   paste(substr(text,1,8),substr(text,9,12),substr(text,13,16),substr(text,17,20),substr(text,21,32),sep='-')
 }
-.crucible_prepare <- function(op, input, config, endpoint) {
+.crucible_prepare <- function(op, input, config, endpoint, version_header = "crucible-version") {
   values <- input
   if (!is.null(op$token) && is.null(values[[op$token]])) values[[op$token]] <- .crucible_uuid()
   bindings <- op$request; path <- op$uri
@@ -143,7 +143,7 @@ client_config <- function(endpoint = NULL, token = NULL, transport = NULL, timeo
   }
   # The release this client was generated for (docs/api-versions-clients.md).
   api_version <- .crucible_schema[['apiVersion']]
-  if (is.character(api_version) && length(api_version) == 1L) headers[['crucible-version']] <- api_version
+  if (is.character(api_version) && length(api_version) == 1L) headers[[version_header]] <- api_version
   list(request = .crucible_request(list(url = paste0(endpoint, path), method = op$method, headers = headers, body = body)))
 }
 .crucible_reformat <- function(value, description, format, encode) {
@@ -237,7 +237,10 @@ client_config <- function(endpoint = NULL, token = NULL, transport = NULL, timeo
   closed <- FALSE; client <- new.env(parent = emptyenv())
   client$close <- function() { if (!closed && is.null(config$transport)) attr(transport, 'close')(); closed <<- TRUE; transport <<- NULL; invisible(NULL) }
   operation <- function(name) { op <- .crucible_schema$operations[[name]]; if (is.null(op)) stop('Unknown operation: ', name, call. = FALSE); op }
-  prepare <- function(op, values) .crucible_prepare(op, values, config, endpoint)
+  version_header <- .crucible_schema[['apiVersionHeader']]
+  if (is.null(version_header)) version_header <- 'crucible-version'
+  version_header <- tolower(version_header)
+  prepare <- function(op, values) .crucible_prepare(op, values, config, endpoint, version_header)
   send <- function(op, prepared, scope) {
     if (closed) stop('Client is closed', call. = FALSE)
     read_body <- length(op$response$body) > 0L || !is.null(op$response$payload)

@@ -1,3 +1,4 @@
+import { ExampleClient } from "./generated-version-header/src/index.js";
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { WeatherClient } from "./generated/src/index.js";
@@ -141,4 +142,14 @@ test("a client names the release it was generated for in Crucible-Version", asyn
   // The generated spec's release wins over a configured header: the client's types are that release's.
   await transport.send({ ...operation, apiVersion: '2026-09-04' }, {});
   assert.equal(sent[1].headers.get('crucible-version'), '2026-09-04');
+});
+
+test("a generated client sends the configured release header", async () => {
+  const sent: Request[] = [];
+  const client = new ExampleClient({ endpoint: "https://example.test", fetch: async request => {
+    sent.push(request); return new Response('{"ok":true}', { status: 200 });
+  } });
+  await client.ping({});
+  assert.equal(sent[0].headers.get('Example-Version'), 'v1');
+  assert.equal(sent[0].headers.get('Crucible-Version'), null);
 });

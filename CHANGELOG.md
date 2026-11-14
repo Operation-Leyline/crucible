@@ -23,12 +23,12 @@ version's section when it is prepared.
   older projections use the working settings. Header renames (ignoring
   case) and `oldest` to `required` report `compatibility.protocol`.
   Descriptions, references, upgrade guides, OpenAPI, snippets and guides
-  describe them. The Rust server, Rust SDK and generated service CLI honour
-  both settings; the server rejects builder overrides that weaken `required`.
-  Explorer Try-it requests and copied curl commands name the current release
-  in the configured header.
-  TypeScript and the twelve other SDK targets still refuse non-default
-  settings until their runtimes support them. Default generation is
+  describe them. The Rust server and every generated client and service CLI
+  honour both settings; the server rejects builder overrides that weaken
+  `required`. Explorer Try-it requests and copied curl commands name the current
+  release in the configured header. Optional `apiVersionHeader` metadata retains
+  the declared spelling and is omitted for the default name. Existing runtime
+  descriptions retain their old header fallback. Default generation is
   unchanged except the `unversioned` key in shared version descriptions.
 
 - Roles R2c ([docs/roles.md](docs/roles.md) §4.5, §7.2): `assignedBy` is

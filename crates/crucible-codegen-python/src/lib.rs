@@ -62,6 +62,8 @@ pub fn capabilities() -> Capabilities {
         Feature::MediaTypeHeaders,
         Feature::ErrorPayload,
         Feature::ErrorDocumentation,
+        Feature::VersionHeader,
+        Feature::UnversionedRequired,
         Feature::ServerStreaming,
     ])
 }

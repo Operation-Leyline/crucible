@@ -167,6 +167,8 @@ pub fn capabilities() -> crucible_ir::Capabilities {
     crucible_ir::Capabilities::new([
         crucible_ir::Feature::NonBlobPayload,
         crucible_ir::Feature::ErrorDocumentation,
+        crucible_ir::Feature::VersionHeader,
+        crucible_ir::Feature::UnversionedRequired,
         crucible_ir::Feature::MediaTypeHeaders,
         crucible_ir::Feature::ErrorPayload,
         crucible_ir::Feature::GreedyLabels,

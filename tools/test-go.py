@@ -1,6 +1,7 @@
 """Generate, test over HTTP, and consume a Go SDK from a separate module."""
 import os
 import json
+from sdk_test_support import version_header_model
 from pathlib import Path
 import queue
 import shutil
@@ -21,7 +22,7 @@ def run(*args, **kwargs):
 def qualify(output):
     error_docs = output / "error-docs"
     run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "generate", "go",
-        "tests/models/error-docs", "--out", str(error_docs),
+        str(version_header_model(output)), "--out", str(error_docs),
         "--module-path", "example.com/error-docs", "--package-name", "error_docs")
     run(GO, "fmt", "./...", cwd=error_docs)
     run(GO, "vet", "./...", cwd=error_docs)

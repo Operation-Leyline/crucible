@@ -101,6 +101,7 @@ func TestErrorDocumentationOverHTTP(t *testing.T) {
 			var requests atomic.Int32
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				requests.Add(1)
+				if r.Header.Get("Example-Version") != "1" || len(r.Header.Values("Crucible-Version")) != 0 { t.Error("wrong release carrier on the wire") }
 				if r.Method != "GET" || r.URL.Path != "/inspect" {
 					t.Errorf("unexpected request: %s %s", r.Method, r.URL)
 				}

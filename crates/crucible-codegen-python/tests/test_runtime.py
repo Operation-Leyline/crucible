@@ -78,6 +78,16 @@ class RuntimeTests(unittest.TestCase):
             client.ping()
             self.assertEqual(sent[-1].headers["crucible-version"], "2026-09-04")
 
+    def test_a_generated_client_uses_the_named_release_header(self):
+        from version_header_client import ExampleClient, PingInput
+        sent = []
+        with httpx.Client(transport=httpx.MockTransport(
+                lambda request: (sent.append(request), httpx.Response(200, json={"ok": True}))[1])) as http:
+            client = ExampleClient(endpoint="https://example.test", http=http)
+            client.ping(PingInput())
+        self.assertEqual(sent[0].headers["Example-Version"], "v1")
+        self.assertNotIn("Crucible-Version", sent[0].headers)
+
     def test_hardening_auth_dot_labels_and_dense_collections(self):
         sent = []
         def credential():
