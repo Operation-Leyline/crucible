@@ -421,7 +421,7 @@ fn operation_spec(service: &Service, converting: &BTreeSet<ShapeId>, op: &Operat
         };
         fields.push(format!("stream: {schema}"));
     }
-    // The release this client sends in `Crucible-Version`.
+    // The release this client sends in the configured header.
     if let Some(version) = &service.api_version {
         fields.push(format!("apiVersion: {}", literal(version)));
     }

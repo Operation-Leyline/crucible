@@ -693,6 +693,10 @@ interceptors and the handler see only current types. Before encoding,
 after the interceptors' and operation middleware's `after` phases, the
 output or error is converted back.
 
+Every generated client sends its release using the model's `versionHeader`,
+defaulting to `Crucible-Version`. This also satisfies `unversioned required`;
+client runtimes keep the old name when their description omits the setting.
+
 ### Pagination tokens
 
 A `@paginated` operation hands its caller a token saying where the listing

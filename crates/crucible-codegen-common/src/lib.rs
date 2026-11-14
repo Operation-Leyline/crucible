@@ -215,7 +215,7 @@ pub fn schema(service: &Service, field: impl Fn(&str) -> String) -> Value {
     }).collect();
     let mut value = json!({"service":service.id.to_string(),"version":service.version,"shapes":shapes,"operations":operations,
         "bearer":service.auth.iter().any(|id|service.is_bearer(id))});
-    // The release every request names in `Crucible-Version`
+    // The release every request names in the service's release header
     // (docs/api-versions-clients.md); absent when the service names none.
     if let Some(version) = &service.api_version {
         value["apiVersion"] = json!(version);

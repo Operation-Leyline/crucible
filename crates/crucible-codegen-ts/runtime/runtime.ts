@@ -592,7 +592,7 @@ function parseTimestamp(value: string | number | JsonNumber): PreciseDate {
 export interface OperationSpec {
   /** Each item in a typed response sequence, using document encoding. */
   readonly stream?: Schema;
-  /** The release this client was generated for, sent as `Crucible-Version` (docs/api-versions-clients.md). */
+  /** The release this client was generated for, sent in the configured release header (docs/api-versions-clients.md). */
   readonly apiVersion?: string;
   /** The configured release carrier; absent for the default header. */
   readonly apiVersionHeader?: string;

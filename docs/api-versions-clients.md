@@ -1,5 +1,13 @@
 # API versions and clients
 
+Every generated client honours the service's `versionHeader` (default
+`Crucible-Version`) and accepts `unversioned required`. Clients always name
+the release their types describe; the policy needs no extra client mode.
+The twelve bundled native runtimes read optional `apiVersionHeader` from
+their shared description; TypeScript carries it on each operation spec.
+The key retains the model's spelling and is omitted for the default name.
+Runtimes loading an older description retain their original header fallback.
+
 **Status: 5a built (clients send their release), the reference's
 release history (PR 3), 5b built: the projections (PR 4), checked by
 the compiler (PR 5) and served by the Rust server (PR 6), 5c built:
@@ -14,7 +22,7 @@ listed under [Order](#order).
 ## What phase 5 delivers
 
 - **Clients send their release.** Every generated client sends the
-  release it was generated for in `Crucible-Version`.
+  release it was generated for in the configured release header.
 - **Releases as the current model sees them.** Each supported release has
   a model that is the current one seen at that release. Additive changes
   reach it, except inside a structure a later step reshapes or an
@@ -57,7 +65,7 @@ operation's protocol header:
   service; `apiVersion` is separate so only clients of a versioned service
   send it. A `version` that cannot travel in a header
   (empty, or not visible ASCII) is a diagnostic, and so is an `@header`
-  binding named `Crucible-Version`.
+  binding using the configured release header.
 - **When it is sent.** A client sends the header only for a `.cru` service,
   whose `version` is a release name. It sends it from the first release,
   before any migration exists. A client built then names its release
@@ -80,7 +88,7 @@ operation's protocol header:
   servers before publishing their clients, and do not roll a server back
   past a release whose clients are in use.
 - **Browsers.** CORS is configured outside the model (an API gateway, a
-  CDN, a tower layer) and must allow `Crucible-Version` and expose
+  CDN, a tower layer) and must allow the configured release header and expose
   `Sunset`, or browser requests fail their preflight. A non-safelisted
   header makes every cross-origin request preflighted, one extra round trip
   until the preflight is cached (`maxAge`).
@@ -598,7 +606,7 @@ A client, document or CLI can be generated for any supported release
   line whose last release has none (every language but Rust and
   TypeScript), or any SDK whose snapshot cannot be read, needs `--bump`:
   nothing else would see a break that reaches it. A line's reference
-  shows `Crucible-Version: <its release>` on every request it documents
+  shows the configured release header and its release on every request it documents
   and says which release is current (the index, `llms.txt`, the releases
   page and the Explorer); OpenAPI declares the header as a required
   parameter fixed to the document's release, for the current release too;
@@ -697,7 +705,7 @@ service. Keys are sorted, as everywhere in the document:
 | Field | Type | Derived from |
 |---|---|---|
 | `current` | string | `Service::api_version` of the current model, also in a per-release document |
-| `carrier` | object | `{kind: "header", name: "Crucible-Version"}`, the one carrier until a protocol declares another (decision 57) |
+| `carrier` | object | `{kind: "header", name: <configured header>}`, defaulting to `Crucible-Version` |
 | `releases` | array, oldest first, current last | the chain: `Service::versions`, then the current model |
 | release `name`, `current` | string, boolean | `ApiVersion::name`; `true` for the last only |
 | release `sunset` | string or `null` | `ApiVersion::sunset`, which the migration *from* that release declares; `null` for the current release |

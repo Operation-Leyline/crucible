@@ -23,8 +23,10 @@ version's section when it is prepared.
   older projections use the working settings. Header renames (ignoring
   case) and `oldest` to `required` report `compatibility.protocol`.
   Descriptions, references, upgrade guides, OpenAPI, snippets and guides
-  describe them. Server, SDK and service CLI generation refuse non-default
-  settings until their runtimes support them. Default generation is
+  describe them. All generated clients honour the configured header and
+  accept `unversioned required`; optional `apiVersionHeader` metadata retains
+  the declared spelling and is omitted for the default name. Existing runtime
+  descriptions retain their old header fallback. Default generation is
   unchanged except the `unversioned` key in shared version descriptions.
 
 - Roles R2c ([docs/roles.md](docs/roles.md) §4.5, §7.2): `assignedBy` is
