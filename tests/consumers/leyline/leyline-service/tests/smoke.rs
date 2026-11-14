@@ -294,9 +294,13 @@ async fn release_echo_and_vary_use_the_modelled_header() {
 #[tokio::test]
 async fn a_missing_release_is_refused_at_the_modelled_header() {
     let (service, _) = service();
-    let response = service.handle(Request::get("/health").body(Body::empty()).unwrap()).await;
+    let response = service
+        .handle(Request::get("/health").body(Body::empty()).unwrap())
+        .await;
     assert_eq!(response.status(), StatusCode::BAD_REQUEST);
-    let bytes = axum::body::to_bytes(response.into_body(), usize::MAX).await.unwrap();
+    let bytes = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
     let body: Value = serde_json::from_slice(&bytes).unwrap();
     assert_eq!(body["reason"], "cannotParse");
     assert_eq!(body["fieldList"][0]["name"], "Leyline-Version");
@@ -305,9 +309,18 @@ async fn a_missing_release_is_refused_at_the_modelled_header() {
 #[tokio::test]
 async fn the_old_header_does_not_satisfy_the_required_release() {
     let (service, _) = service();
-    let response = service.handle(Request::get("/health").header("crucible-version", "1").body(Body::empty()).unwrap()).await;
+    let response = service
+        .handle(
+            Request::get("/health")
+                .header("crucible-version", "1")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await;
     assert_eq!(response.status(), StatusCode::BAD_REQUEST);
-    let bytes = axum::body::to_bytes(response.into_body(), usize::MAX).await.unwrap();
+    let bytes = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
     let body: Value = serde_json::from_slice(&bytes).unwrap();
     assert_eq!(body["reason"], "cannotParse");
     assert_eq!(body["fieldList"][0]["name"], "Leyline-Version");

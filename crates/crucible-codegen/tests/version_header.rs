@@ -294,14 +294,22 @@ fn r_accepts_default() {
 fn server_accepts_named_header() {
     let mut service = common::load("version-header-default");
     service.version_header = Some("Example-Version".into());
-    assert!(!crucible_codegen_rust::generate(&service, &Default::default()).unwrap().is_empty());
+    assert!(
+        !crucible_codegen_rust::generate(&service, &Default::default())
+            .unwrap()
+            .is_empty()
+    );
 }
 #[cfg(feature = "rust")]
 #[test]
 fn server_accepts_required_policy() {
     let mut service = common::load("version-header-default");
     service.unversioned = crucible_ir::ir::UnversionedPolicy::Required;
-    assert!(!crucible_codegen_rust::generate(&service, &Default::default()).unwrap().is_empty());
+    assert!(
+        !crucible_codegen_rust::generate(&service, &Default::default())
+            .unwrap()
+            .is_empty()
+    );
 }
 #[cfg(feature = "rust")]
 #[test]
@@ -329,14 +337,22 @@ fn cli_options() -> crucible_codegen_cli::Options {
 fn cli_accepts_named_header() {
     let mut service = common::load("version-header-default");
     service.version_header = Some("Example-Version".into());
-    assert!(!crucible_codegen_cli::emit(&service, &cli_options()).unwrap().is_empty());
+    assert!(
+        !crucible_codegen_cli::emit(&service, &cli_options())
+            .unwrap()
+            .is_empty()
+    );
 }
 #[cfg(feature = "cli")]
 #[test]
 fn cli_accepts_required_policy() {
     let mut service = common::load("version-header-default");
     service.unversioned = crucible_ir::ir::UnversionedPolicy::Required;
-    assert!(!crucible_codegen_cli::emit(&service, &cli_options()).unwrap().is_empty());
+    assert!(
+        !crucible_codegen_cli::emit(&service, &cli_options())
+            .unwrap()
+            .is_empty()
+    );
 }
 #[cfg(feature = "cli")]
 #[test]

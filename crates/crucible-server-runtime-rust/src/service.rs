@@ -561,7 +561,8 @@ impl Crucible {
             .any(|protocol| protocol.current_version_only(job.request()))
         {
             job.context.select_api_version(current);
-            job.response_headers.insert(self.inner.version_header.clone(), current.header());
+            job.response_headers
+                .insert(self.inner.version_header.clone(), current.header());
             return Ok(operations);
         }
         // `None` is the current version.
@@ -574,7 +575,13 @@ impl Crucible {
                 .iter()
                 .find(|older| older.version.name() == name)
                 .map(Some)
-                .ok_or_else(|| versioning::unsupported(operations.service.version_header, &versions.supported()).into())
+                .ok_or_else(|| {
+                    versioning::unsupported(
+                        operations.service.version_header,
+                        &versions.supported(),
+                    )
+                    .into()
+                })
         };
         let header = job
             .request()
@@ -600,7 +607,11 @@ impl Crucible {
                 // No version, and none chosen: the oldest supported.
                 Unversioned::Oldest => versions.older.first(),
                 Unversioned::Required => {
-                    return Err(versioning::missing(operations.service.version_header, &versions.supported()).into());
+                    return Err(versioning::missing(
+                        operations.service.version_header,
+                        &versions.supported(),
+                    )
+                    .into());
                 }
                 Unversioned::Resolve(resolver) => match resolver(job.request()) {
                     Some(name) => pick(&name)?,
@@ -618,12 +629,11 @@ impl Crucible {
             None => (current, operations),
         };
         job.context.select_api_version(version);
-        job.response_headers.insert(self.inner.version_header.clone(), version.header());
+        job.response_headers
+            .insert(self.inner.version_header.clone(), version.header());
         // A cache keeps one response per version.
-        job.response_headers.append(
-            axum::http::header::VARY,
-            self.inner.version_vary.clone(),
-        );
+        job.response_headers
+            .append(axum::http::header::VARY, self.inner.version_vary.clone());
         Ok(table)
     }
 
@@ -1035,12 +1045,19 @@ impl Builder {
         let version_vary = HeaderValue::from_str(version_header.as_str())
             .map_err(|_| BuildError::InvalidVersionHeader)?;
         if service.unversioned_required
-            && self.unversioned.as_ref().is_some_and(|policy| !matches!(policy, Unversioned::Required))
+            && self
+                .unversioned
+                .as_ref()
+                .is_some_and(|policy| !matches!(policy, Unversioned::Required))
         {
             return Err(BuildError::UnversionedRequired);
         }
         let unversioned = self.unversioned.unwrap_or({
-            if service.unversioned_required { Unversioned::Required } else { Unversioned::Oldest }
+            if service.unversioned_required {
+                Unversioned::Required
+            } else {
+                Unversioned::Oldest
+            }
         });
         let invalid_duration = |duration: Duration| {
             duration.is_zero() || std::time::Instant::now().checked_add(duration).is_none()
@@ -1193,8 +1210,12 @@ pub enum BuildError {
 impl fmt::Display for BuildError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str(match self {
-            Self::InvalidVersionHeader => "the service release header is not a valid HTTP header name",
-            Self::UnversionedRequired => "the model requires a release header: api_version must be Required",
+            Self::InvalidVersionHeader => {
+                "the service release header is not a valid HTTP header name"
+            }
+            Self::UnversionedRequired => {
+                "the model requires a release header: api_version must be Required"
+            }
             Self::NoProtocol => "no protocol is registered",
             Self::NoRejection => {
                 "the validation error has required members crucible cannot fill: call on_rejection"
@@ -1209,17 +1230,30 @@ impl std::error::Error for BuildError {}
 #[cfg(test)]
 mod version_policy_tests {
     use super::{BuildError, Builder, Crucible, JsonProtocol, Operations, Unversioned};
-    use std::sync::Arc;
     use crate::__generated::service_info;
     use crate::operation::ServiceInfo;
+    use std::sync::Arc;
 
-    const DEFAULT: ServiceInfo = service_info("test#Service", "v1", None, &[], &[], |_| None, None, None, None);
+    const DEFAULT: ServiceInfo = service_info(
+        "test#Service",
+        "v1",
+        None,
+        &[],
+        &[],
+        |_| None,
+        None,
+        None,
+        None,
+    );
     static OLDEST: ServiceInfo = DEFAULT.with_version_header("Acme-Version");
-    static REQUIRED: ServiceInfo = DEFAULT.with_version_header("Acme-Version").with_unversioned_required();
+    static REQUIRED: ServiceInfo = DEFAULT
+        .with_version_header("Acme-Version")
+        .with_unversioned_required();
     static INVALID: ServiceInfo = DEFAULT.with_version_header("bad header");
 
     fn builder(info: &'static ServiceInfo) -> Builder {
-        Crucible::builder(Operations::builder(info).build().unwrap()).protocol(JsonProtocol)
+        Crucible::builder(Operations::builder(info).build().unwrap())
+            .protocol(JsonProtocol)
             .on_rejection(|_| unreachable!("no requests in builder tests"))
     }
 
@@ -1237,22 +1271,38 @@ mod version_policy_tests {
 
     #[test]
     fn an_explicit_required_override_agrees_with_the_model() {
-        assert!(builder(&REQUIRED).api_version(Unversioned::Required).build().is_ok());
+        assert!(
+            builder(&REQUIRED)
+                .api_version(Unversioned::Required)
+                .build()
+                .is_ok()
+        );
     }
 
     #[test]
     fn an_explicit_oldest_override_cannot_weaken_required() {
-        assert!(matches!(builder(&REQUIRED).api_version(Unversioned::Oldest).build(), Err(BuildError::UnversionedRequired)));
+        assert!(matches!(
+            builder(&REQUIRED).api_version(Unversioned::Oldest).build(),
+            Err(BuildError::UnversionedRequired)
+        ));
     }
 
     #[test]
     fn an_explicit_resolver_cannot_weaken_required() {
-        assert!(matches!(builder(&REQUIRED).api_version(Unversioned::Resolve(Arc::new(|_| None))).build(), Err(BuildError::UnversionedRequired)));
+        assert!(matches!(
+            builder(&REQUIRED)
+                .api_version(Unversioned::Resolve(Arc::new(|_| None)))
+                .build(),
+            Err(BuildError::UnversionedRequired)
+        ));
     }
 
     #[test]
     fn an_oldest_model_allows_an_explicit_required_override() {
-        let service = builder(&OLDEST).api_version(Unversioned::Required).build().unwrap();
+        let service = builder(&OLDEST)
+            .api_version(Unversioned::Required)
+            .build()
+            .unwrap();
         assert!(matches!(service.inner.unversioned, Unversioned::Required));
     }
 
@@ -1265,6 +1315,9 @@ mod version_policy_tests {
 
     #[test]
     fn an_invalid_header_is_a_build_error() {
-        assert!(matches!(builder(&INVALID).build(), Err(BuildError::InvalidVersionHeader)));
+        assert!(matches!(
+            builder(&INVALID).build(),
+            Err(BuildError::InvalidVersionHeader)
+        ));
     }
 }

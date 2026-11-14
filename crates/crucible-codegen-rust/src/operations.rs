@@ -289,7 +289,10 @@ fn wire(service: &Service) -> String {
         )
     });
     if service.version_header.is_some() {
-        out.push_str(&format!("    const API_VERSION_HEADER: &'static str = {};\n", literal(&service.version_header().to_ascii_lowercase())));
+        out.push_str(&format!(
+            "    const API_VERSION_HEADER: &'static str = {};\n",
+            literal(&service.version_header().to_ascii_lowercase())
+        ));
     }
     out
 }
@@ -312,9 +315,12 @@ fn service_info(service: &Service, functions: &Functions, mcp: bool) -> String {
         }
     };
     let mcp_tools = if mcp { "Some(MCP_TOOLS)" } else { "None" };
-    let mut version_settings = service.version_header.as_ref().map_or_else(String::new, |name| {
-        format!("\n.with_version_header({})", literal(name))
-    });
+    let mut version_settings = service
+        .version_header
+        .as_ref()
+        .map_or_else(String::new, |name| {
+            format!("\n.with_version_header({})", literal(name))
+        });
     if service.unversioned == crucible_ir::ir::UnversionedPolicy::Required {
         version_settings.push_str("\n.with_unversioned_required()");
     }

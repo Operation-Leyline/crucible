@@ -3,10 +3,20 @@ fn main() {
     for name in ["named", "required"] {
         let model = format!("tests/fixtures/version-header-{name}");
         println!("cargo::rerun-if-changed={model}");
-        std::fs::write(header_out.join(format!("version_header_{name}.rs")),
-            crucible_build::model(&model).server().mcp().render().unwrap()).unwrap();
-        std::fs::write(header_out.join(format!("version_header_{name}_client.rs")),
-            crucible_build::model(&model).client().render().unwrap()).unwrap();
+        std::fs::write(
+            header_out.join(format!("version_header_{name}.rs")),
+            crucible_build::model(&model)
+                .server()
+                .mcp()
+                .render()
+                .unwrap(),
+        )
+        .unwrap();
+        std::fs::write(
+            header_out.join(format!("version_header_{name}_client.rs")),
+            crucible_build::model(&model).client().render().unwrap(),
+        )
+        .unwrap();
     }
 
     let document = "tests/fixtures/version-identity-document";

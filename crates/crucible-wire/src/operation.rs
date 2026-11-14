@@ -22,7 +22,7 @@ pub trait Operation: Send + Sync + 'static {
     /// The release a generated client names in its configured
     /// header: the `.cru` service's `version` (docs/api-versions-clients.md).
     const API_VERSION: Option<&'static str> = None;
-    /// The HTTP header carrying the release named by this operation.
+    /// The lowercase HTTP header name carrying this operation's release.
     const API_VERSION_HEADER: &'static str = "crucible-version";
     /// How the operation pages (`@paginated`), for server extensions that
     /// read the token from the decoded input.
