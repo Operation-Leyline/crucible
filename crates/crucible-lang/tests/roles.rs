@@ -1312,11 +1312,11 @@ fn a_model_without_roles_lowers_to_byte_identical_ir() {
     for (package, before) in [
         (
             "weather",
-            "f55c68ebeee61f06108a5a219b8e31524313b691f8ea5a3eea37b1b85ae19a46",
+            "51a05761b95dc982e8238d9d7a5cdfcecac1ed0a82facd4f393920bb5beb54dc",
         ),
         (
             "internal-resource",
-            "64dfbfe15ee20aa404a6a764979a7473272c12b26da80a9d5c86fc887692acc3",
+            "04ea192f538bc812618a2993e1c98a5728a1c5c0f4f1b03306548c440f44a3fe",
         ),
     ] {
         let service = load_service(&models().join(package)).unwrap();
@@ -1331,4 +1331,53 @@ fn a_model_without_roles_lowers_to_byte_identical_ir() {
             .collect();
         assert_eq!(digest, before, "{package}: its IR changed");
     }
+}
+
+#[test]
+fn permissionless_resources_keep_identifier_declaration_order() {
+    let service = service("roles-identifier-order");
+    assert!(service.permissions.is_empty());
+    let parent = ShapeId::new("example.gaps", "Parent");
+    let child = ShapeId::new("example.gaps", "Child");
+    assert_eq!(
+        crucible_ir::roles::identifiers(&service, &parent),
+        ["zParent", "aParent"]
+    );
+    assert_eq!(
+        crucible_ir::roles::identifiers(&service, &child),
+        ["zParent", "aParent", "zChild", "aChild"]
+    );
+    assert_eq!(
+        crucible_ir::roles::scope_identifiers(&service, &ScopeTarget::Every(child.clone())),
+        ["zParent", "aParent"]
+    );
+    let text = snapshot::write(&service, "test");
+    let read = snapshot::read(&text).unwrap();
+    assert_eq!(
+        read.resources[&child].identifier_order,
+        service.resources[&child].identifier_order
+    );
+    assert_eq!(snapshot::write(&read, "test"), text);
+    // Old snapshots cannot recover declaration order that was never frozen,
+    // but still load and retain the legacy deterministic fallback.
+    let mut old: serde_json::Value = serde_json::from_str(&text).unwrap();
+    for resource in old["service"]["resources"]
+        .as_object_mut()
+        .unwrap()
+        .values_mut()
+    {
+        assert!(
+            resource
+                .as_object_mut()
+                .unwrap()
+                .remove("identifier_order")
+                .is_some()
+        );
+    }
+    let read = snapshot::read(&old.to_string()).unwrap();
+    assert!(read.resources[&child].identifier_order.is_empty());
+    assert_eq!(
+        crucible_ir::roles::identifiers(&read, &child),
+        ["aParent", "zParent", "aChild", "zChild"]
+    );
 }

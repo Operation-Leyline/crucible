@@ -444,7 +444,7 @@ impl Undo<'_> {
     /// docs/permissions.md §7.3 has them).
     fn map_requirements(&mut self, operation: &mut Operation) {
         let id = operation.id.clone();
-        let (Requirements::List(clauses) | Requirements::Partial(clauses)) =
+        let (Requirements::List { clauses, .. } | Requirements::Partial { clauses, .. }) =
             &mut operation.requirements
         else {
             return;
@@ -978,7 +978,7 @@ impl Undo<'_> {
                     *size = renamed_path(shapes, input.as_ref(), size, new, to, from);
                 }
             }
-            if let Requirements::List(clauses) | Requirements::Partial(clauses) =
+            if let Requirements::List { clauses, .. } | Requirements::Partial { clauses, .. } =
                 &mut operation.requirements
             {
                 for clause in clauses {

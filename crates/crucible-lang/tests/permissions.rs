@@ -148,7 +148,10 @@ fn the_registry_is_sorted_by_resource_then_value() {
 #[test]
 fn instance_parent_and_collection_requirements_bind_every_identifier() {
     let (service, _) = pigeon();
-    let Requirements::List(get_inbox) = requirements(&service, "GetInbox") else {
+    let Requirements::List {
+        clauses: get_inbox, ..
+    } = requirements(&service, "GetInbox")
+    else {
         panic!()
     };
     assert_eq!(get_inbox.len(), 1);
@@ -160,19 +163,30 @@ fn instance_parent_and_collection_requirements_bind_every_identifier() {
         [member("workspaceId"), member("inboxId")]
     );
     // A message operation checks its parent inbox.
-    let Requirements::List(get_message) = requirements(&service, "GetMessage") else {
+    let Requirements::List {
+        clauses: get_message,
+        ..
+    } = requirements(&service, "GetMessage")
+    else {
         panic!()
     };
     assert_eq!(get_message[0].resource, id("Inbox"));
     assert_eq!(get_message[0].permission, "mailRead");
     // The workspace itself: one identifier.
-    let Requirements::List(delete_key) = requirements(&service, "DeleteApiKey") else {
+    let Requirements::List {
+        clauses: delete_key,
+        ..
+    } = requirements(&service, "DeleteApiKey")
+    else {
         panic!()
     };
     assert_eq!(delete_key[0].resource, id("Workspace"));
     assert_eq!(delete_key[0].bindings, [member("workspaceId")]);
     // A creation: the parent by name, every instance.
-    let Requirements::List(create) = requirements(&service, "CreateInbox") else {
+    let Requirements::List {
+        clauses: create, ..
+    } = requirements(&service, "CreateInbox")
+    else {
         panic!()
     };
     assert_eq!(create[0].bindings, [member("workspaceId"), Binding::All]);
@@ -181,7 +195,7 @@ fn instance_parent_and_collection_requirements_bind_every_identifier() {
 #[test]
 fn send_message_requires_the_template_only_when_one_is_sent() {
     let (service, _) = pigeon();
-    let Requirements::List(clauses) = requirements(&service, "SendMessage") else {
+    let Requirements::List { clauses, .. } = requirements(&service, "SendMessage") else {
         panic!()
     };
     assert_eq!(clauses.len(), 2);
@@ -207,14 +221,14 @@ fn send_message_requires_the_template_only_when_one_is_sent() {
 #[test]
 fn a_listing_filters_and_handler_obligations_bind_nothing() {
     let (service, _) = pigeon();
-    let Requirements::List(list) = requirements(&service, "ListInboxes") else {
+    let Requirements::List { clauses: list, .. } = requirements(&service, "ListInboxes") else {
         panic!()
     };
     assert_eq!(list.len(), 1);
     assert_eq!(list[0].mode, Mode::Filter);
     assert_eq!(list[0].bindings, [member("workspaceId"), Binding::All]);
     for operation in ["PutGrant", "DeleteGrant"] {
-        let Requirements::List(clauses) = requirements(&service, operation) else {
+        let Requirements::List { clauses, .. } = requirements(&service, operation) else {
             panic!()
         };
         assert_eq!(clauses[0].mode, Mode::Check);
@@ -492,7 +506,7 @@ fn the_client_audience_drops_internal_permissions_and_their_requirements() {
         .unwrap();
     // `requires manage` is dropped; `requires read` stays, marked partial
     // so a client does not read it as all the caller needs.
-    let Requirements::Partial(clauses) = &manage.requirements else {
+    let Requirements::Partial { clauses, .. } = &manage.requirements else {
         panic!("{:?}", manage.requirements)
     };
     let kept: Vec<&str> = clauses.iter().map(|c| c.permission.as_str()).collect();
@@ -533,13 +547,14 @@ fn the_client_audience_leaves_out_internal_filters_without_a_partial_list() {
             .requirements
             .clone()
     };
-    let Requirements::List(clauses) = requirements(
+    let Requirements::List { clauses, filtered } = requirements(
         "requires read on Store\n    filters read on Order",
         "ListOrders",
     ) else {
         panic!("a list, not a partial one")
     };
     assert_eq!(clauses.len(), 1);
+    assert!(filtered);
     // Nothing refuses the caller, but the answer is narrowed: the client
     // is told so, without the internal permission being named.
     assert_eq!(
@@ -2210,10 +2225,13 @@ fn an_empty_requirement_list_in_the_ir_is_refused() {
     let operation = service
         .operations
         .iter_mut()
-        .find(|op| matches!(op.requirements, Requirements::List(_)))
+        .find(|op| matches!(op.requirements, Requirements::List { .. }))
         .expect("an operation with requirements");
     let name = operation.id.name().to_owned();
-    operation.requirements = Requirements::List(Vec::new());
+    operation.requirements = Requirements::List {
+        clauses: Vec::new(),
+        filtered: false,
+    };
     let found: Vec<String> = crucible_ir::validate::permissions_from_ir(&service)
         .iter()
         .map(|f| f.text())
@@ -2483,7 +2501,7 @@ fn a_condition_that_does_not_lower_leaves_its_clause_out() {
     );
     assert!(compiled.has_errors());
     let service = compiled.best_effort.expect("best effort");
-    let Requirements::List(clauses) = requirements(&service, "ManageStore") else {
+    let Requirements::List { clauses, .. } = requirements(&service, "ManageStore") else {
         panic!()
     };
     // Not an unconditional `manage`.

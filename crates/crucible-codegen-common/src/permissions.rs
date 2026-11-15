@@ -345,8 +345,9 @@ pub fn clause_text(service: &Service, clause: &Requirement) -> Option<String> {
 /// it has names a permission the reader does not see.
 pub const INTERNAL_REQUIREMENTS: &str = "Requires permissions internal to the service.";
 
-/// The clauses `reader` may see, and whether others were left out: by the
-/// client audience projection (`Internal`, `Partial`), or here, for a
+/// The visible clauses, whether refusing clauses were left out, and whether
+/// hidden filters narrow the answer: by the client audience projection
+/// (`Internal`, `Partial`), or here, for a
 /// client output generated from the server audience's IR, which still has
 /// its internal clauses. `None` for an operation that says nothing a reader
 /// should see (undeclared, pending) or `requires none`.
@@ -354,11 +355,11 @@ fn visible_clauses<'a>(
     service: &Service,
     op: &'a Operation,
     internal: bool,
-) -> Option<(Vec<&'a Requirement>, bool)> {
-    let (clauses, mut hidden) = match &op.requirements {
-        Requirements::List(clauses) => (clauses.as_slice(), false),
-        Requirements::Partial(clauses) => (clauses.as_slice(), true),
-        Requirements::Internal => (&[][..], true),
+) -> Option<(Vec<&'a Requirement>, bool, bool)> {
+    let (clauses, mut hidden, mut filtered) = match &op.requirements {
+        Requirements::List { clauses, filtered } => (clauses.as_slice(), false, *filtered),
+        Requirements::Partial { clauses, filtered } => (clauses.as_slice(), true, *filtered),
+        Requirements::Internal => (&[][..], true, false),
         Requirements::Undeclared | Requirements::None { .. } | Requirements::Pending { .. } => {
             return None;
         }
@@ -370,19 +371,19 @@ fn visible_clauses<'a>(
                 // A `filters` clause narrows a listing and refuses nothing:
                 // leaving it out hides no requirement.
                 hidden |= clause.mode != Mode::Filter;
+                filtered |= clause.mode == Mode::Filter;
             }
             _ => visible.push(clause),
         }
     }
-    Some((visible, hidden))
+    Some((visible, hidden, filtered))
 }
 
 /// The sentence `requires none` gets.
 pub const NO_PERMISSION: &str = "Requires no permission.";
 
-/// The sentence an operation gets whose only clauses are `filters` on
-/// permissions the reader does not see: nothing refuses the caller, but the
-/// answer is narrowed, and which permission narrows it is not said.
+/// The sentence an operation gets when internal filters narrow its answer.
+/// Which permission narrows it is not said.
 pub const FILTERED_RESULTS: &str = "Returns only what the caller may see.";
 
 /// `requires none`'s sentences: [`NO_PERMISSION`], [`FILTERED_RESULTS`]
@@ -415,7 +416,7 @@ fn requirement_parts(
     }
     // Undeclared, or pending: the server-audience docs state a pending
     // reason themselves.
-    let Some((clauses, hidden)) = visible_clauses(service, op, internal) else {
+    let Some((clauses, hidden, filtered)) = visible_clauses(service, op, internal) else {
         return (Vec::new(), Vec::new());
     };
     // Every clause an internal `filters` left out: nothing refuses the
@@ -455,6 +456,9 @@ fn requirement_parts(
                 chars.as_str()
             ));
         }
+    }
+    if filtered {
+        sentences.push(FILTERED_RESULTS.to_owned());
     }
     (sentences, blocks)
 }
@@ -546,8 +550,8 @@ pub fn registry(service: &Service, internal: bool) -> Value {
 /// An operation's requirements as data (`x-crucible-requires`, the
 /// description's `requirements`), or `None` when it declares nothing.
 /// `requires none` and `requires pending` carry their `///` as
-/// `documentation`, and a `none` whose answer internal filters narrow says
-/// `filtered`; each is absent otherwise.
+/// `documentation`; `none` and `list` say `filtered` when internal filters
+/// narrow their answer. Each optional field is absent otherwise.
 pub fn requirements(service: &Service, op: &Operation) -> Option<Value> {
     fn documented(mut value: Value, docs: Option<&String>) -> Value {
         if let Some(docs) = docs.map(|d| d.trim()).filter(|d| !d.is_empty()) {
@@ -570,7 +574,7 @@ pub fn requirements(service: &Service, op: &Operation) -> Option<Value> {
         Requirements::Pending { reason, docs } => {
             documented(json!({"kind": "pending", "reason": reason}), docs.as_ref())
         }
-        Requirements::List(clauses) | Requirements::Partial(clauses) => {
+        Requirements::List { clauses, filtered } | Requirements::Partial { clauses, filtered } => {
             let clauses: Vec<Value> = clauses
                 .iter()
                 .filter_map(|clause| {
@@ -606,9 +610,12 @@ pub fn requirements(service: &Service, op: &Operation) -> Option<Value> {
                 })
                 .collect();
             let mut value = json!({"kind": "list", "clauses": clauses});
+            if *filtered {
+                value["filtered"] = json!(true);
+            }
             // Further clauses name internal permissions, which this
             // audience does not see: the list is not all the caller needs.
-            if matches!(op.requirements, Requirements::Partial(_)) {
+            if matches!(op.requirements, Requirements::Partial { .. }) {
                 value["partial"] = json!(true);
             }
             value

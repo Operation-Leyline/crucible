@@ -209,7 +209,15 @@ fn without_docs(service: &Service) -> serde_json::Value {
             _ => {}
         }
     }
-    let mut value = json(service);
+    // Old snapshots omit identifier order. Compare their legacy inferred
+    // order with the explicit order recorded by current lowering.
+    let mut normalized = service.clone();
+    for (id, resource) in &mut normalized.resources {
+        if resource.identifier_order.is_empty() {
+            resource.identifier_order = crucible_ir::roles::identifiers(service, id);
+        }
+    }
+    let mut value = json(&normalized);
     strip(&mut value);
     value
 }
@@ -738,7 +746,7 @@ fn a_restored_operation_requires_todays_permissions() {
     let projections = projected(&service);
     let v1 = at(&projections, "v1");
     let count = operation(v1, "CountNotes");
-    let Requirements::List(clauses) = &count.requirements else {
+    let Requirements::List { clauses, .. } = &count.requirements else {
         panic!("{:?}", count.requirements);
     };
     let shelf = service
@@ -889,7 +897,8 @@ fn a_condition_reads_a_renamed_member_by_its_older_name() {
     let (service, _) = load("tests/models/version-projection-conditions");
     let projections = projected(&service);
     let condition = |model: &Service| {
-        let Requirements::List(clauses) = &operation(model, "PaintShelf").requirements else {
+        let Requirements::List { clauses, .. } = &operation(model, "PaintShelf").requirements
+        else {
             panic!("no requirements");
         };
         clauses[0].when.clone()

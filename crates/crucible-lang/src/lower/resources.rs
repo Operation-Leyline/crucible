@@ -106,6 +106,10 @@ impl<'a> Lowerer<'a> {
                 internal: decl.item.is_internal(),
                 id: id.clone(),
                 identifiers: self.identifier_types(name).into_iter().collect(),
+                identifier_order: {
+                    let (inherited, own) = self.identifiers(name);
+                    inherited.into_iter().chain(own).collect()
+                },
                 properties,
                 resources: children.into_iter().collect(),
                 lifecycle: ResourceLifecycle::default(),

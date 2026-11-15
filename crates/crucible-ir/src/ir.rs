@@ -376,6 +376,10 @@ pub struct Resource {
     pub internal: bool,
     pub id: ShapeId,
     pub identifiers: BTreeMap<String, ShapeId>,
+    /// Root-to-leaf declaration order, including inherited identifiers.
+    /// Empty in snapshots frozen before this order was recorded.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub identifier_order: Vec<String>,
     pub properties: BTreeMap<String, ShapeId>,
     pub resources: Vec<ShapeId>,
     pub lifecycle: ResourceLifecycle,

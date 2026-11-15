@@ -189,24 +189,28 @@ impl Checker<'_> {
             let (added, hidden): (Vec<&Requirement>, bool) = match (&renamed, &new_op.requirements)
             {
                 (
-                    Requirements::List(old) | Requirements::Partial(old),
-                    Requirements::List(new) | Requirements::Partial(new),
+                    Requirements::List { clauses: old, .. }
+                    | Requirements::Partial { clauses: old, .. },
+                    Requirements::List { clauses: new, .. }
+                    | Requirements::Partial { clauses: new, .. },
                 ) => (
                     new.iter()
                         .filter(|clause| !old.iter().any(|before| self.same_clause(before, clause)))
                         .collect(),
-                    matches!(new_op.requirements, Requirements::Partial(_))
-                        && !matches!(old_op.requirements, Requirements::Partial(_))
+                    matches!(new_op.requirements, Requirements::Partial { .. })
+                        && !matches!(old_op.requirements, Requirements::Partial { .. })
                         && old.iter().all(|before| {
                             new.iter().any(|clause| self.same_clause(before, clause))
                         }),
                 ),
-                (_, Requirements::List(new)) => (new.iter().collect(), false),
-                (old, Requirements::Partial(new)) => {
+                (_, Requirements::List { clauses: new, .. }) => (new.iter().collect(), false),
+                (old, Requirements::Partial { clauses: new, .. }) => {
                     (new.iter().collect(), !matches!(old, Requirements::Internal))
                 }
                 (
-                    Requirements::List(_) | Requirements::Partial(_) | Requirements::Internal,
+                    Requirements::List { .. }
+                    | Requirements::Partial { .. }
+                    | Requirements::Internal,
                     Requirements::Internal,
                 ) => (Vec::new(), false),
                 (_, Requirements::Internal) => (Vec::new(), true),
@@ -219,7 +223,9 @@ impl Checker<'_> {
                 Requirements::Undeclared => " (it declared none)",
                 Requirements::None { .. } => " (it was `requires none`)",
                 Requirements::Pending { .. } => " (it was `requires pending`)",
-                Requirements::List(_) | Requirements::Partial(_) | Requirements::Internal => "",
+                Requirements::List { .. }
+                | Requirements::Partial { .. }
+                | Requirements::Internal => "",
             };
             let mut clauses: Vec<String> = added
                 .iter()
@@ -256,7 +262,8 @@ impl Checker<'_> {
         if self.renames.is_empty() {
             return requirements;
         }
-        let (Requirements::List(clauses) | Requirements::Partial(clauses)) = &mut requirements
+        let (Requirements::List { clauses, .. } | Requirements::Partial { clauses, .. }) =
+            &mut requirements
         else {
             return requirements;
         };

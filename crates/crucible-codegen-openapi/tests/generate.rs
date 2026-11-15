@@ -321,7 +321,7 @@ fn permissions_match_reviewed_golden_per_audience() {
                     Requirements::None { .. } => Some("none"),
                     Requirements::Pending { .. } => Some("pending"),
                     Requirements::Internal => Some("internal"),
-                    Requirements::List(_) | Requirements::Partial(_) => Some("list"),
+                    Requirements::List { .. } | Requirements::Partial { .. } => Some("list"),
                 };
                 (op.id.name().to_owned(), kind.map(str::to_owned))
             })
@@ -949,4 +949,29 @@ fn named_release_header_and_required_policy_match_reviewed_golden() {
         fs::write(&path, &output).unwrap();
     }
     assert_eq!(fs::read_to_string(path).unwrap(), output);
+}
+
+#[test]
+fn mixed_internal_filters_keep_the_note_and_extension() {
+    let service = crucible_ir::project(
+        &load("permissions-mixed-filter"),
+        crucible_ir::Audience::External,
+    )
+    .unwrap();
+    let output = generate(&service, &Options::default()).unwrap();
+    assert!(!output.contains("note:secretRead") && !output.contains("workspace:audit"));
+    let value: Value = serde_json::from_str(&output).unwrap();
+    for path in [
+        "/workspaces/{workspaceId}/notes",
+        "/workspaces/{workspaceId}/audited-notes",
+    ] {
+        let op = &value["paths"][path]["get"];
+        assert_eq!(op["x-crucible-requires"]["filtered"], true);
+        assert!(
+            op["description"]
+                .as_str()
+                .unwrap()
+                .contains("Returns only what the caller may see.")
+        );
+    }
 }

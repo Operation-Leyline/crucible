@@ -228,3 +228,42 @@ fn a_filter_is_granted_by_any_binding_that_covers_an_instance() {
         ]
     );
 }
+
+#[test]
+fn mixed_lists_keep_the_hidden_filter_note_for_every_client_reader() {
+    use crucible_codegen_common::permissions::{requirement_sentences, requirements};
+    let server = load("permissions-mixed-filter");
+    let client = project(&server, Audience::External).unwrap();
+    for name in ["ListNotes", "ListAuditedNotes"] {
+        let operation = |service: &Service| {
+            service
+                .operations
+                .iter()
+                .position(|op| op.id.name() == name)
+                .unwrap()
+        };
+        let client_op = &client.operations[operation(&client)];
+        let server_op = &server.operations[operation(&server)];
+        let sentences = requirement_sentences(&client, client_op, false);
+        assert_eq!(
+            sentences.last().unwrap(),
+            "Returns only what the caller may see."
+        );
+        assert_eq!(sentences, requirement_sentences(&server, server_op, false));
+        let text = sentences.join(" ");
+        assert!(text.contains("workspace:read"));
+        assert!(!text.contains("note:secretRead") && !text.contains("workspace:audit"));
+        let value = requirements(&client, client_op).unwrap();
+        assert_eq!(value["filtered"], true);
+        assert_eq!(
+            value["partial"].as_bool().unwrap_or(false),
+            name == "ListAuditedNotes"
+        );
+        assert_eq!(value["clauses"].as_array().unwrap().len(), 1);
+        assert!(
+            !requirement_sentences(&server, server_op, true)
+                .iter()
+                .any(|s| s == "Returns only what the caller may see.")
+        );
+    }
+}

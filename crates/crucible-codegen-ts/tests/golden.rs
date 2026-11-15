@@ -1166,3 +1166,31 @@ fn a_v1_line_matches_golden_files() {
          review the change and rerun with CRUCIBLE_BLESS=1"
     );
 }
+
+#[test]
+fn mixed_internal_filters_are_documented_in_client_methods() {
+    let dir =
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("../../tests/models/permissions-mixed-filter");
+    let service = crucible_lang::load_service(&dir).unwrap();
+    let client = crucible_ir::project(&service, crucible_ir::Audience::External).unwrap();
+    let generated = emit(&client, &options("@example/lists")).unwrap();
+    let code = generated
+        .iter()
+        .find(|file| file.path == "src/client.ts")
+        .unwrap();
+    assert_eq!(
+        code.contents
+            .matches("Returns only what the caller may see.")
+            .count(),
+        2
+    );
+    for file in &generated {
+        assert!(!file.contents.contains("note:secretRead"), "{}", file.path);
+        assert!(!file.contents.contains("workspace:audit"), "{}", file.path);
+    }
+    let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/golden/mixed_internal_filters.ts");
+    if std::env::var_os("CRUCIBLE_BLESS").is_some() {
+        fs::write(&path, &code.contents).unwrap();
+    }
+    assert_eq!(fs::read_to_string(path).unwrap(), code.contents);
+}

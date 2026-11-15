@@ -460,8 +460,8 @@ fn older_requirements(
             operation.requirements = released.requirements.clone();
         }
         let (id, name) = (operation.id.clone(), operation.name().to_owned());
-        if let crucible_ir::ir::Requirements::List(clauses)
-        | crucible_ir::ir::Requirements::Partial(clauses) = &mut operation.requirements
+        if let crucible_ir::ir::Requirements::List { clauses, .. }
+        | crucible_ir::ir::Requirements::Partial { clauses, .. } = &mut operation.requirements
         {
             for clause in clauses.iter_mut() {
                 match current_permission(current, old, clause) {

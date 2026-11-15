@@ -17,6 +17,12 @@ version's section when it is prepared.
 
 ### Fixed
 
+- Client-audience outputs retain the “Returns only what the caller may see.”
+  note when visible requirements accompany an internal filter. Descriptions
+  and OpenAPI mark these requirement lists with `filtered: true`. Resource
+  identifiers retain declaration order even without permissions, so composite
+  scope identities detect reordering; older release snapshots still load.
+
 - Release header validation also reserves built-in content-digest, method
   refusal, response streaming and explorer security headers, preventing the
   release value from overwriting middleware or protocol metadata.

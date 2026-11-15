@@ -720,7 +720,10 @@ impl<'a> Lowerer<'a> {
             self.unlowered_requirements.insert(id.clone());
             return Requirements::Undeclared;
         }
-        Requirements::List(lowered)
+        Requirements::List {
+            clauses: lowered,
+            filtered: false,
+        }
     }
 
     /// The identifiers the input binds: those of the operation's own

@@ -830,3 +830,26 @@ fn enum_wire_value_patterns_and_severity_apply() {
     let found = wire_findings("severity = \"error\"\nenum_wire_values = \"camelCase\"\n");
     assert!(found.iter().all(|f| f.1 == Severity::Error));
 }
+
+#[test]
+fn reordering_permissionless_composite_identifiers_changes_scope_identity() {
+    let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../tests/models/roles-identifier-order");
+    let mut package = crucible_lang::load_package(&dir).unwrap();
+    let before = crucible_lang::compile(&package, None).service.unwrap();
+    for file in &mut package.files {
+        file.text = file.text.replace(
+            "id zChild: string\n    id aChild: string",
+            "id aChild: string\n    id zChild: string",
+        );
+    }
+    let after = crucible_lang::compile(&package, None).service.unwrap();
+    let findings = diff(&before, &after, &wire());
+    assert!(
+        findings
+            .findings
+            .iter()
+            .any(|f| f.rule == "compatibility.scope"),
+        "{findings:#?}"
+    );
+}

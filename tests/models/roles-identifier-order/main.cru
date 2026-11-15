@@ -1,0 +1,17 @@
+service Identity {
+    version "1"
+    protocol json
+    resources [Parent]
+    scopes [parent, child, allChildren]
+}
+resource Parent {
+    id zParent: string
+    id aParent: string
+}
+resource Child in Parent {
+    id zChild: string
+    id aChild: string
+}
+scope parent = "parent" on Parent
+scope child = "child" on Child
+scope allChildren = "allChildren" on Child(*)

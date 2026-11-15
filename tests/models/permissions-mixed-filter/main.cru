@@ -1,0 +1,32 @@
+service Lists {
+    version "1"
+    protocol json
+    auth bearer
+    resources [Workspace]
+}
+resource Workspace {
+    id workspaceId: string
+    permission read = "workspace:read"
+    internal permission audit = "workspace:audit"
+}
+resource Note in Workspace {
+    id noteId: string
+    internal permission read = "note:secretRead"
+}
+readonly operation ListNotes on Note collection {
+    http GET "/workspaces/{workspaceId}/notes"
+    requires read on Workspace
+    filters read on Note
+    input { $workspaceId }
+    output { names: Names }
+}
+readonly operation ListAuditedNotes on Note collection {
+    http GET "/workspaces/{workspaceId}/audited-notes"
+    requires read on Workspace
+    requires audit on Workspace
+    filters read on Note
+    input { $workspaceId }
+    output { names: Names }
+}
+
+list Names: string

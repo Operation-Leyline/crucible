@@ -70,11 +70,18 @@ pub fn covers(service: &Service, scope: &ScopeTarget, target: Target<'_>) -> boo
 }
 
 /// The identifiers that name one instance of `resource`, root to leaf:
-/// `["organizationId", "graphId"]`. A resource that declares permissions
+/// `["organizationId", "graphId"]`, in declaration order. For legacy
+/// snapshots without that order, a resource that declares permissions
 /// says so itself; for one that does not, a resource beneath it that does
 /// names its prefix, and failing that each level of the `in` chain adds the
 /// identifiers its parent lacks, in name order.
 pub fn identifiers(service: &Service, resource: &ShapeId) -> Vec<String> {
+    if let Some(resource) = service.resources.get(resource)
+        && !resource.identifier_order.is_empty()
+    {
+        return resource.identifier_order.clone();
+    }
+    // Legacy snapshots did not record every resource's declaration order.
     if let Some(permissions) = service.permissions.get(resource) {
         return permissions.identifiers.clone();
     }
@@ -494,6 +501,7 @@ mod tests {
             internal: false,
             id: id(name),
             identifiers: BTreeMap::new(),
+            identifier_order: Vec::new(),
             properties: BTreeMap::new(),
             resources: children.iter().map(|c| id(c)).collect(),
             lifecycle: ResourceLifecycle::default(),
