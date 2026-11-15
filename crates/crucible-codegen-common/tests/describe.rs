@@ -331,3 +331,23 @@ fn frozen_error_documentation_roles_are_not_inferred_from_current_bundled_defini
     }
     assert!(checked > 0);
 }
+
+#[test]
+fn describe_retains_clearable_input_members() {
+    let service = load("clearable");
+    let description = describe::describe(&service).unwrap();
+    for operation in &service.operations {
+        let input = operation.input.as_ref().unwrap();
+        let members = description.shapes[&input.to_string()]["members"]
+            .as_array()
+            .unwrap();
+        let member = members.iter().find(|m| m["name"] == "description").unwrap();
+        assert_eq!(member["clearable"], true);
+        assert!(
+            members
+                .iter()
+                .filter(|m| m["name"] != "description")
+                .all(|m| m.get("clearable").is_none())
+        );
+    }
+}

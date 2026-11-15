@@ -1,0 +1,2 @@
+service Notes { version "1" protocol json operations [Update] }
+operation Update { http PATCH "/notes/{description}" input { clearable description?: string } }

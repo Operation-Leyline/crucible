@@ -19,6 +19,15 @@ fn a_snapshot_reads_back_as_the_model_it_froze() {
     let text = snapshot::write(&service, "test");
     let read = snapshot::read(&text).unwrap();
     assert_eq!(format!("{read:#?}"), format!("{service:#?}"));
+    // Older snapshots have no clearable field; its false default must not
+    // change their canonical bytes when they are read and written.
+    assert!(!text.contains("\"clearable\""));
+    assert!(
+        read.shapes
+            .values()
+            .flat_map(|shape| shape.members())
+            .all(|m| !m.clearable)
+    );
     // Canonical: writing what was read gives the same file.
     assert_eq!(snapshot::write(&read, "test"), text);
 }
@@ -430,4 +439,21 @@ fn a_format_2_snapshot_reads_without_what_format_3_dropped() {
     }
     let error = snapshot::read(&renamed.to_string()).unwrap_err();
     assert!(error.contains("JSON name"), "{error}");
+}
+
+#[test]
+fn a_committed_snapshot_without_clearable_keeps_its_bytes() {
+    let text = include_str!("../../../tests/models/version-reused-operation-name/releases/v1.json");
+    assert!(!text.contains("\"clearable\""));
+    let metadata: serde_json::Value = serde_json::from_str(text).unwrap();
+    let compiler = metadata["compiler"].as_str().unwrap();
+    let service = snapshot::read(text).unwrap();
+    assert!(
+        service
+            .shapes
+            .values()
+            .flat_map(|shape| shape.members())
+            .all(|m| !m.clearable)
+    );
+    assert_eq!(snapshot::write(&service, compiler), text);
 }

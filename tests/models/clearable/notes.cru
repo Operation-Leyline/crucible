@@ -1,0 +1,24 @@
+service Notes {
+    version "1"
+    protocol json
+    operations [Update]
+    resources [Note]
+}
+resource Note {
+    id noteId: string
+    property description: string
+}
+operation Update {
+    http PATCH "/notes"
+    input {
+        clearable description?: string
+        other?: string
+    }
+}
+operation UpdateResource updates Note {
+    http PATCH "/notes/{noteId}"
+    input {
+        $noteId
+        clearable $description?
+    }
+}

@@ -118,7 +118,7 @@ but are never required.
 file        = { item } ;
 item        = [ doc ] { annotation } { modifier } declaration ;
 modifier    = "readonly" | "idempotent" | "anonymous" | "strict" | "internal"
-            | "sensitive" | "sparse" ;
+            | "sensitive" | "sparse" | "clearable" ;
                                                            (* each position checks its own;
                                                               "public" is the deprecated
                                                               spelling of "anonymous" *)
@@ -196,7 +196,7 @@ error       = "error" ident "{" { error_entry } "}" ;
 error_entry = "status" number | "retryable" [ "throttling" ] | member ;
 
 member      = [ doc ] { annotation } { modifier } ( include | all | elided | field_member ) ;
-                                                           (* modifiers: internal, sensitive *)
+                                                           (* modifiers: internal, sensitive, clearable *)
 include     = "include" ident ;
 all         = "$" "*" ;          (* in a `for` view only *)
 elided      = "$" ident [ "as" ident ] [ "?" ] ;
@@ -279,6 +279,25 @@ grant       = names | "*" [ "except" "[" names "]" ] ;
 names       = ident { "," ident } ;
 ```
 
+`clearable` marks an optional member of an operation input, including a
+resource property included as `clearable $description?`. For example:
+
+```cru
+operation UpdateNote {
+    input {
+        clearable description?: string
+    }
+}
+```
+
+For this member, absence leaves the value unchanged, JSON `null` clears it,
+and a value sets it. The member's own type never admits null. The modifier
+is refused on required or defaulted members, outputs, errors, headers,
+URI path labels, query parameters and union arms. Client and server
+generators must support the `clearable` capability; none does yet, so these
+models can be checked but cannot yet generate bindings. Docs and describe
+exports carry the flag without a capability gate (decision 34i).
+
 ## Checks
 
 Beyond the grammar, the compiler refuses a model that breaks the rules in
@@ -311,7 +330,9 @@ language's own checks include:
   `crucible_ir::validate`);
 - a metadata declaration is checked once (targets, conflicts, retention,
   value type, no built-in annotation's name) and each use's value against
-  its type;
+  its type. Modifier names such as `sensitive`, `internal` and `clearable`
+  remain available as custom metadata names; `@name` and a bare modifier
+  are distinct;
 - resources: the parent is a resource with no cycle, identifier names are
   unique across the chain, a property's name differs from every identifier
   the resource has (inherited ones too) and from its other properties,

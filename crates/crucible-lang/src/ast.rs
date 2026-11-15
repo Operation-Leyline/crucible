@@ -497,7 +497,7 @@ pub enum ExamplePart {
 pub struct Member {
     pub doc: Option<Doc>,
     pub annotations: Vec<Annotation>,
-    /// `internal`, `sensitive` (decision 19).
+    /// `internal`, `sensitive` (decision 19), `clearable` (decision 34i).
     pub modifiers: Vec<Ident>,
     pub kind: MemberKind,
     pub span: Span,

@@ -1175,6 +1175,9 @@ fn members(
         if m["sensitive"] == true {
             detail.push_str(" <strong>Sensitive</strong>");
         }
+        if m["clearable"] == true {
+            detail.push_str(" <strong>Clearable:</strong> send <code>null</code> to clear; omit to leave unchanged.");
+        }
         out.push_str(&format!(
             "| {} | {} | {} | {} | {} | {} | {} |\n",
             code(name),

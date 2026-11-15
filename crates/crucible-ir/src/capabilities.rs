@@ -18,7 +18,7 @@ macro_rules! features {
 }
 
 features! {
-    GreedyLabels => "greedy-labels", Sparse => "sparse",
+    GreedyLabels => "greedy-labels", Sparse => "sparse", Clearable => "clearable",
     IntEnum => "int-enum", BigInteger => "big-integer", BigDecimal => "big-decimal",
     NonBlobPayload => "non-blob-payload", ErrorPayload => "error-payload",
     MediaTypeHeaders => "media-type-headers",

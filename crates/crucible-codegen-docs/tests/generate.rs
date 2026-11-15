@@ -2310,3 +2310,31 @@ fn mixed_internal_filters_match_reviewed_goldens() {
     assert_eq!(goldens.len(), 3);
     golden_files("mixed-internal-filters", goldens);
 }
+
+#[test]
+fn clearable_members_explain_clearing_in_the_reference() {
+    let generated = files("clearable", Audience::External);
+    for operation in ["Update", "UpdateResource"] {
+        let suffix = format!("_{operation}.md");
+        let page = &generated
+            .iter()
+            .find(|f| f.path.starts_with("src/operations/") && f.path.ends_with(&suffix))
+            .unwrap()
+            .contents;
+        let row = page
+            .lines()
+            .find(|line| line.starts_with("| <code>description</code> | "))
+            .unwrap();
+        assert!(row.contains("<strong>Clearable:</strong> send <code>null</code> to clear; omit to leave unchanged."), "{page}");
+    }
+    let page = &generated
+        .iter()
+        .find(|f| f.path == "src/operations/API_Update.md")
+        .unwrap()
+        .contents;
+    let other = page
+        .lines()
+        .find(|line| line.starts_with("| <code>other</code> | "))
+        .unwrap();
+    assert!(!other.contains("Clearable"), "{other}");
+}

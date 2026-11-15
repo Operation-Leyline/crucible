@@ -29,6 +29,12 @@ version's section when it is prepared.
 
 ### Added
 
+- Optional operation input members can use `clearable`: absent leaves the
+  value unchanged, JSON null clears it, and a value sets it. The IR,
+  formatter, editor help, describe metadata and API references retain the
+  flag. Client and server generation requires the new `clearable`
+  capability; no target supports it yet.
+
 - Role references list the operations each role allows, grouped by resource
   with scopes and authorization qualifiers. `describe.json` adds root
   role and scope catalogues and allowed operations. The shared IR analysis

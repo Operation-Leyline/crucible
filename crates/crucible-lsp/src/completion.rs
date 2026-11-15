@@ -76,6 +76,7 @@ const MODIFIERS: &[&str] = &[
     "internal",
     "strict",
     "sensitive",
+    "clearable",
     "sparse",
 ];
 const ROLES: &[&str] = &[
@@ -632,6 +633,7 @@ pub fn complete(context: Context, index: &Index, snippets: bool) -> Vec<Completi
             );
         }
         Context::Members | Context::ViewMembers => {
+            items.keyword("clearable", "optional input member: null clears its value");
             items.snippet(
                 "include",
                 "include another structure's members",
@@ -1187,6 +1189,18 @@ mod tests {
         let offset = source.find('|').expect("a caret");
         let text = source.replace('|', "");
         context(&crucible_lang::parse(&text), &text, offset)
+    }
+
+    #[test]
+    fn clearable_completes_in_an_input() {
+        let parsed = crucible_lang::parse("");
+        let index = Index::new(std::slice::from_ref(&parsed));
+        let items = complete(
+            at("operation Update {\n    input {\n        |\n    }\n}"),
+            &index,
+            true,
+        );
+        assert!(items.iter().any(|item| item.label == "clearable"));
     }
 
     #[test]

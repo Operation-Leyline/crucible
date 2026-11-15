@@ -226,13 +226,17 @@ fn kind(shape: &Shape) -> String {
 // optionality is one fact for client and server (decision 20), so it is
 // always false.
 fn member(service: &Service, m: &Member) -> Value {
-    json!({"name":m.name,"wireName":m.name,"target":m.target.to_string(),
+    let mut value = json!({"name":m.name,"wireName":m.name,"target":m.target.to_string(),
         "targetName":service.name_of(&m.target),"targetType":kind(service.shape(&m.target).expect("validated target")),
         "required":m.required,"nullable":m.optional_on_server(),"clientOptional":false,
         "default":m.default,"wireDefault":m.wire_default,"constraints":constraints(&m.constraints),
         "sensitive":service.sensitive(m),"internal":m.internal,
         "documentation":documentation(service, m.docs.as_deref()),"notes":notes(&m.notes),
-        "timestampFormat":m.wire_timestamp_format})
+        "timestampFormat":m.wire_timestamp_format});
+    if m.clearable {
+        value["clearable"] = json!(true);
+    }
+    value
 }
 
 fn pairs(bindings: &[Binding]) -> Vec<Value> {

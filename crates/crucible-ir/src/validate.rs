@@ -912,9 +912,10 @@ pub(crate) fn example_problems(
         "input",
         operation.input.as_ref(),
         example.input.as_ref().unwrap_or(&empty),
+        true,
     );
     if let Some(output) = &example.output {
-        check.io("output", operation.output.as_ref(), output);
+        check.io("output", operation.output.as_ref(), output, false);
     }
     if let Some(error) = &example.error {
         if example.output.is_some() {
@@ -923,7 +924,7 @@ pub(crate) fn example_problems(
                 .push("an example cannot have both an output and an error".into());
         }
         if operation.errors.contains(&error.shape) {
-            check.io("error", Some(&error.shape), &error.content);
+            check.io("error", Some(&error.shape), &error.content, false);
         } else {
             check.problems.push(format!(
                 "`{}` is not one of this operation's errors",

@@ -877,6 +877,9 @@ impl Structure {
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct Member {
+    /// Explicit null clears this optional operation input member.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub clearable: bool,
     /// Visibility settled from `internal` during lowering.
     pub internal: bool,
     /// `@sensitive` on the member itself; see [`Service::sensitive`].
