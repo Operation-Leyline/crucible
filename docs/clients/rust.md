@@ -17,6 +17,16 @@ The inherent `next()` needs no additional dependency. For `StreamExt`
 combinators, add `futures-util` to the consuming application and import its
 extension trait as usual.
 
+## Clearing a member
+
+For an input member marked `clearable`, omit its builder setter to leave the
+member unchanged, call `description("text")` to set it, or call
+`clear_description()` to clear it. The clear method sets the existing public
+`Field<T>` to `Field::Null`, which sends JSON null. A clear method is generated
+only for clearable members; the public fields and value setters stay available.
+If a member name already occupies the clear method's name, the generated
+clear method gains a numeric suffix while the value setter keeps its name.
+
 ## API audience
 
 Clients omit `@internal` API by default. Select `--audience internal` for a full

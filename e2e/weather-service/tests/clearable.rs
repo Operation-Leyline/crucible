@@ -1,4 +1,4 @@
-//! Clearable PATCH members through the generated server, without a generated client.
+//! Clearable PATCH members through generated server and client bindings.
 use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
@@ -147,4 +147,61 @@ async fn json_payloads_preserve_omission_null_and_value() {
             assert_eq!(*states.lock().unwrap(), [expected]);
         }
     }
+}
+
+// The modelled exception names are preserved in generated error variants.
+#[allow(clippy::enum_variant_names)]
+mod sdk {
+    include!(concat!(env!("OUT_DIR"), "/clearable_client.rs"));
+}
+
+#[tokio::test]
+async fn generated_client_sends_absent_clear_and_value_to_the_handler() {
+    let calls = Arc::new(AtomicUsize::new(0));
+    let service = Crucible::builder(notes::operations(Arc::new(notes_handler::NotesHandler(
+        calls.clone(),
+    ))))
+    .defaults()
+    .interceptor(Permissions::new(grants::Grants(true)))
+    .build()
+    .unwrap();
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let endpoint = format!("http://{}", listener.local_addr().unwrap());
+    let server = tokio::spawn(crucible_server_runtime_rust::host::http_on(
+        service, listener,
+    ));
+    let client = sdk::NotesClient::new(crucible_client_runtime_rust::Config::new(endpoint));
+    for (input, expected) in [
+        (
+            sdk::PatchInput::builder().note_id("n-1").build().unwrap(),
+            "absent",
+        ),
+        (
+            sdk::PatchInput::builder()
+                .note_id("n-1")
+                .clear_description()
+                .build()
+                .unwrap(),
+            "null",
+        ),
+        (
+            sdk::PatchInput::builder()
+                .note_id("n-1")
+                .description("alpha")
+                .build()
+                .unwrap(),
+            "value:alpha",
+        ),
+    ] {
+        let wire = serde_json::to_value(&input).unwrap();
+        match expected {
+            "absent" => assert!(wire.get("description").is_none()),
+            "null" => assert_eq!(wire["description"], Value::Null),
+            _ => assert_eq!(wire["description"], "alpha"),
+        }
+        let output = client.patch(input).await.unwrap();
+        assert_eq!(output.description_state, expected);
+    }
+    server.abort();
+    assert_eq!(calls.load(Ordering::SeqCst), 3);
 }

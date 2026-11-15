@@ -81,6 +81,24 @@ pub(crate) fn setter_names(structure: &Structure) -> BTreeMap<String, String> {
     method_names(structure, &["build", "default", "clone"])
 }
 
+/// Clear methods never displace existing value setters.
+fn clearer_names(structure: &Structure) -> BTreeMap<String, String> {
+    let mut used: BTreeSet<String> = setter_names(structure).into_values().collect();
+    used.extend(["build", "default", "clone"].into_iter().map(str::to_owned));
+    let mut names = BTreeMap::new();
+    for member in structure.members.iter().filter(|member| member.clearable) {
+        let base = format!("clear_{}", field(&member.name).trim_start_matches("r#"));
+        let mut method = base.clone();
+        let mut suffix = 2;
+        while !used.insert(method.clone()) {
+            method = format!("{base}{suffix}");
+            suffix += 1;
+        }
+        names.insert(member.name.clone(), method);
+    }
+    names
+}
+
 /// Whether `build` needs this member set: it is neither optional nor
 /// filled from a modeled default.
 pub(crate) fn required_to_build(member: &crucible_ir::ir::Member) -> bool {
@@ -104,6 +122,7 @@ pub(crate) fn emit(
     let name = service.name_of(id);
     let getters = getter_names(structure);
     let setters = setter_names(structure);
+    let clearers = clearer_names(structure);
     out.push_str(&format!(
         "impl {name} {{\n    /// Starts a builder with all optional members absent.\n    pub fn builder() -> {builder} {{ {builder}::default() }}\n"
     ));
@@ -178,6 +197,16 @@ pub(crate) fn emit(
             &member.notes,
         );
         out.push_str(&format!("    pub fn {setter}(mut self, value: impl ::std::convert::Into<{ty}>) -> Self {{ self.{native} = {constructor}(value.into()); self }}\n"));
+        if let Some(clearer) = clearers.get(&member.name) {
+            documented(
+                out,
+                Links::child(service, true),
+                "    ",
+                Some("Clears this member by sending JSON null."),
+                &member.notes,
+            );
+            out.push_str(&format!("    pub fn {clearer}(mut self) -> Self {{ self.{native} = ::crucible_server_runtime_rust::__generated::Field::Null; self }}\n"));
+        }
     }
     let fallible = fallible(structure);
     let result = if fallible {

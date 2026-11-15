@@ -6,6 +6,10 @@ use crucible_client_runtime_rust::Field;
 use serde_json::Value;
 use weather_client::{CitySummary, GetCityOutput, Location, Photo, Sky};
 
+mod clearable {
+    include!(concat!(env!("OUT_DIR"), "/clearable_client.rs"));
+}
+
 const PROFILE: &str = "rust-chrono-ns";
 
 fn cases() -> Vec<Value> {
@@ -76,6 +80,12 @@ fn round_trip<T: DeserializeOwned + Serialize>(row: &Value, observe: impl FnOnce
 
 fn run(row: &Value) {
     match row["target"].as_str().unwrap() {
+        "example.clearable#UpdateInput" => {
+            round_trip::<clearable::UpdateInput>(row, |native, expect| {
+                assert_eq!(state(&native.description), expect["states"]["description"]);
+                assert_eq!(state(&native.other), expect["states"]["other"]);
+            })
+        }
         "example.weather#CitySummary" => round_trip::<CitySummary>(row, |native, expect| {
             if let Some(states) = expect["states"].as_object() {
                 for (member, wanted) in states {
@@ -150,6 +160,19 @@ fn shared_serialization_all_18_cases() {
     let rows = cases();
     assert_eq!(rows.len(), 18, "Update corpus coverage when extending it");
     for row in &rows {
+        run(row);
+    }
+}
+
+#[test]
+fn clearable_companion_corpus_covers_all_three_states() {
+    let corpus: Value = serde_json::from_str(include_str!(
+        "../../../tests/conformance/clearable-serialization.json"
+    ))
+    .unwrap();
+    let rows = corpus["cases"].as_array().unwrap();
+    assert_eq!(rows.len(), 3);
+    for row in rows {
         run(row);
     }
 }

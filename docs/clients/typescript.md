@@ -7,6 +7,14 @@ provide `fetch`, `Request`, Web Crypto, and `structuredClone`. Models are
 TypeScript interfaces and aliases; JavaScript callers use the same built package.
 The package declares TypeScript `>=5.7 <7` as a build dependency.
 
+## Clearing a member
+
+An input member marked `clearable` has type `description?: string | null`:
+omit it or assign `undefined` to leave it unchanged, assign a string to set it,
+or assign `null` to clear it. The client preserves explicit null on the wire
+and omits undefined members. Other optional inputs keep their existing types,
+such as `description?: string`; output types are unchanged.
+
 ## API audience
 
 Clients omit `@internal` API by default. Select `--audience internal` for a full

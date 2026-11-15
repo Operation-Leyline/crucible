@@ -1,0 +1,41 @@
+{
+  "_comment": "PRs 4 and 5 add each native runner as it gains Clearable; merge these rows into serialization.json once every SDK supports it.",
+  "cases": [
+    {
+      "id": "clearable-absent",
+      "target": "example.clearable#UpdateInput",
+      "wire": "{}",
+      "expect": {
+        "json": "{}",
+        "states": {
+          "description": "absent",
+          "other": "absent"
+        }
+      }
+    },
+    {
+      "id": "clearable-null",
+      "target": "example.clearable#UpdateInput",
+      "wire": "{\"description\":null}",
+      "expect": {
+        "json": "{\"description\":null}",
+        "states": {
+          "description": "null",
+          "other": "absent"
+        }
+      }
+    },
+    {
+      "id": "clearable-value",
+      "target": "example.clearable#UpdateInput",
+      "wire": "{\"description\":\"set\"}",
+      "expect": {
+        "json": "{\"description\":\"set\"}",
+        "states": {
+          "description": "value",
+          "other": "absent"
+        }
+      }
+    }
+  ]
+}

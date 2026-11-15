@@ -12,6 +12,11 @@ fn main() {
         std::fs::write(out.join(name), code).unwrap();
     };
     render(
+        "../../tests/models/clearable",
+        "clearable_client.rs",
+        Side::Client,
+    );
+    render(
         "tests/fixtures/presence",
         "presence_client.rs",
         Side::Client,

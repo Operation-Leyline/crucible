@@ -8,6 +8,12 @@ fn main() {
     )
     .unwrap();
 
+    std::fs::write(
+        clearable_out.join("clearable_client.rs"),
+        crucible_build::model(clearable).client().render().unwrap(),
+    )
+    .unwrap();
+
     let json_payloads = "../../tests/models/clearable-json-payload";
     println!("cargo::rerun-if-changed={json_payloads}");
     std::fs::write(

@@ -29,6 +29,11 @@ version's section when it is prepared.
 
 ### Added
 
+- Rust and TypeScript clients support clearable inputs. Rust builders add
+  `clear_<member>()` without changing public fields or value setters;
+  TypeScript adds `| null` only to clearable inputs. Omission stays unchanged,
+  explicit null clears, and ordinary optional input/output types stay the same.
+
 - Rust server clearable inputs preserve omission, explicit null and a value
   with `Field<T>`. The runtime re-exports `Field`; its additive `is_clear`,
   `as_value` and `map` helpers preserve these states. Constraints apply only

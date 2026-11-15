@@ -190,6 +190,7 @@ pub fn capabilities() -> crucible_ir::Capabilities {
     crucible_ir::Capabilities::new([
         Feature::GreedyLabels,
         Feature::Sparse,
+        Feature::Clearable,
         Feature::IntEnum,
         Feature::BigInteger,
         Feature::BigDecimal,
