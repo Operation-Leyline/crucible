@@ -1,0 +1,3 @@
+[model]
+namespace = "test.clearable"
+imports = ["crucible.errors"]

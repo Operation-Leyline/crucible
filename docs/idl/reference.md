@@ -293,10 +293,14 @@ operation UpdateNote {
 For this member, absence leaves the value unchanged, JSON `null` clears it,
 and a value sets it. The member's own type never admits null. The modifier
 is refused on required or defaulted members, outputs, errors, headers,
-URI path labels, query parameters and union arms. Client and server
-generators must support the `clearable` capability; none does yet, so these
-models can be checked but cannot yet generate bindings. Docs and describe
-exports carry the flag without a capability gate (decision 34i).
+URI path labels, query parameters, union arms and raw string, enum or blob
+`@payload` members. JSON document, structure and union payloads can be
+clearable. Client and server generators must support the `clearable`
+capability. The Rust server supports
+it; Rust client generation remains unsupported. JSON Schema and OpenAPI
+exports use `x-crucible-clearable: true` to distinguish clear-by-null from
+ordinary optional null, which is accepted and read as absent. Docs and
+describe exports carry the flag without a capability gate (decision 34i).
 
 ## Checks
 

@@ -1,0 +1,34 @@
+service Notes {
+    version "1"
+    protocol json
+    auth bearer
+    resources [Note]
+    errors [ValidationException, InternalServerException]
+}
+
+string Description { length 1..8 pattern "^[a-z]+$" }
+float Rating { range 1..10 }
+
+resource Note {
+    id noteId: string
+    property description?: Description
+    permission edit = "edit"
+}
+
+operation Patch updates Note {
+    http PATCH "/clearable/{noteId}"
+    requires edit on Note when has description
+    requires edit on Note(otherId) when has otherId
+    input {
+        $noteId
+        clearable $description?
+        clearable rating?: Rating
+        clearable otherId?: string
+        ordinary?: string
+    }
+    output {
+        descriptionState: string
+        ratingState: string
+        ordinaryPresent: boolean
+    }
+}

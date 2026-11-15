@@ -228,3 +228,22 @@ fn error_documentation_does_not_change_the_value_schema() {
     assert_eq!(configured, document(&ordinary, "DefaultReason"));
     assert!(!configured.to_string().contains("reasonUrls"));
 }
+
+#[test]
+fn optional_null_validates_but_only_clearable_is_marked() {
+    let schema = document(&load("clearable"), "UpdateInput");
+    let check = validator(&schema);
+    assert!(check.is_valid(&json!({})));
+    assert!(check.is_valid(&json!({"description": null})));
+    assert!(check.is_valid(&json!({"description": "set", "other": "set"})));
+    assert!(check.is_valid(&json!({"other": null})));
+    assert_eq!(
+        schema["properties"]["description"]["x-crucible-clearable"],
+        true
+    );
+    assert!(
+        schema["properties"]["other"]
+            .get("x-crucible-clearable")
+            .is_none()
+    );
+}

@@ -134,3 +134,28 @@ fn standalone_rewrites_schema_references_without_changing_defaults_or_traits() {
         "#/$defs/example.weather.Location"
     );
 }
+
+#[test]
+fn clearable_members_distinguish_clear_from_ignored_null() {
+    let service = load("clearable");
+    let operation = service
+        .operations
+        .iter()
+        .find(|op| op.name() == "Update")
+        .unwrap();
+    let schema = standalone(&service, operation.input.as_ref());
+    assert_eq!(
+        schema["properties"]["description"]["anyOf"][1]["type"],
+        "null"
+    );
+    assert_eq!(
+        schema["properties"]["description"]["x-crucible-clearable"],
+        true
+    );
+    assert_eq!(schema["properties"]["other"]["anyOf"][1]["type"], "null");
+    assert!(
+        schema["properties"]["other"]
+            .get("x-crucible-clearable")
+            .is_none()
+    );
+}

@@ -14,6 +14,21 @@ const BACKSLASH: char = '\u{5c}';
 /// request without one.
 pub const IDEMPOTENCY_TOKEN_NOTE: &str = "SDKs send this automatically. When calling the API directly, send a unique value for each intended operation, and the same value when retrying it; a service may refuse a request without one.";
 
+/// Documentation for explicitly clearing an optional input member.
+pub const CLEARABLE_NOTE: &str = "Send `null` to clear.";
+
+/// Member documentation, including its clearing contract.
+pub fn member_documentation(member: &Member) -> Option<String> {
+    if member.clearable {
+        Some(member.docs.as_deref().map_or_else(
+            || CLEARABLE_NOTE.to_owned(),
+            |docs| format!("{docs}\n\n{CLEARABLE_NOTE}"),
+        ))
+    } else {
+        member.docs.clone()
+    }
+}
+
 /// What a string representation prints in place of a `@sensitive` value.
 pub const REDACTED: &str = "*** Sensitive Data Redacted ***";
 

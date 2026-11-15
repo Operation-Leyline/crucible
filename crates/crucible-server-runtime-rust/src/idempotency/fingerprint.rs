@@ -99,6 +99,25 @@ mod tests {
     }
 
     #[test]
+    fn omitted_and_cleared_input_members_fingerprint_differently() {
+        #[derive(serde::Serialize, serde::Deserialize)]
+        struct Input {
+            #[serde(
+                default,
+                skip_serializing_if = "crucible_wire::field::Field::is_absent"
+            )]
+            description: crucible_wire::field::Field<String>,
+        }
+        let absent: Input = serde_json::from_value(json!({})).unwrap();
+        let clear: Input = serde_json::from_value(json!({"description": null})).unwrap();
+        let absent = serde_json::to_value(absent).unwrap();
+        let clear = serde_json::to_value(clear).unwrap();
+        assert_eq!(absent, json!({}));
+        assert_eq!(clear, json!({"description": null}));
+        assert_ne!(Fingerprint::of(&absent), Fingerprint::of(&clear));
+    }
+
+    #[test]
     fn hex_round_trips() {
         let fingerprint = Fingerprint::of(&json!({"a": 1}));
         let text = fingerprint.to_hex();

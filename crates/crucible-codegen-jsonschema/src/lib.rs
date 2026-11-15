@@ -13,6 +13,7 @@ pub fn capabilities() -> Capabilities {
     Capabilities::new([
         Feature::GreedyLabels,
         Feature::Sparse,
+        Feature::Clearable,
         Feature::IntEnum,
         Feature::BigInteger,
         Feature::BigDecimal,

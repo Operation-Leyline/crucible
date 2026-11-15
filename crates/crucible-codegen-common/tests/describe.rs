@@ -351,3 +351,21 @@ fn describe_retains_clearable_input_members() {
         );
     }
 }
+
+#[test]
+fn describe_distinguishes_clearable_from_ordinary_optional() {
+    let service = load("clearable");
+    let description = describe::describe(&service).unwrap();
+    let op = service
+        .operations
+        .iter()
+        .find(|op| op.name() == "Update")
+        .unwrap();
+    let members = description.shapes[&op.input.as_ref().unwrap().to_string()]["members"]
+        .as_array()
+        .unwrap();
+    for member in members {
+        assert_eq!(member["nullable"], true);
+        assert_eq!(member["clearable"] == true, member["name"] == "description");
+    }
+}

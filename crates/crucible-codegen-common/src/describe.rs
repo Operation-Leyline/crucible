@@ -231,7 +231,7 @@ fn member(service: &Service, m: &Member) -> Value {
         "required":m.required,"nullable":m.optional_on_server(),"clientOptional":false,
         "default":m.default,"wireDefault":m.wire_default,"constraints":constraints(&m.constraints),
         "sensitive":service.sensitive(m),"internal":m.internal,
-        "documentation":documentation(service, m.docs.as_deref()),"notes":notes(&m.notes),
+        "documentation":documentation(service, crate::docs::member_documentation(m).as_deref()),"notes":notes(&m.notes),
         "timestampFormat":m.wire_timestamp_format});
     if m.clearable {
         value["clearable"] = json!(true);

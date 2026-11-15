@@ -86,6 +86,34 @@ fn header_member_is_refused() {
     );
 }
 #[test]
+fn raw_payload_members_are_refused() {
+    let error = crucible_lang::load_service(&package("clearable-raw-payload")).unwrap_err();
+    assert_eq!(
+        error
+            .matches("`clearable` does not apply to a raw `@payload` member")
+            .count(),
+        3,
+        "{error}",
+    );
+}
+
+#[test]
+fn json_payload_members_remain_clearable() {
+    let service = crucible_lang::load_service(&package("clearable-json-payload")).unwrap();
+    for operation in &service.operations {
+        assert_eq!(
+            operation.request.payload.as_ref().unwrap().kind,
+            crucible_ir::ir::PayloadKind::Document
+        );
+        let Shape::Structure(input) = service.shape(operation.input.as_ref().unwrap()).unwrap()
+        else {
+            panic!("input is a structure");
+        };
+        assert!(input.members[0].clearable);
+    }
+}
+
+#[test]
 fn query_member_is_refused() {
     refuses(
         "clearable-query",

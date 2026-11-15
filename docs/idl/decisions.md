@@ -644,13 +644,17 @@ trait when a project defines it.
     and a value sets it. The member's type itself never admits null.
     Write `clearable description?: string` or `clearable $description?`
     in an operation input. Required and defaulted members, outputs, errors,
-    HTTP headers, URI labels, query parameters and union arms cannot be
-    `clearable`. No field mask or merge keyword is needed. Decision 20's
+    HTTP headers, URI labels, query parameters, union arms and raw string,
+    enum or blob `@payload` members cannot be `clearable`. JSON document,
+    structure and union payloads preserve explicit null and can be clearable.
+    No field mask or merge keyword is needed. Decision 20's
     required, optional and defaulted states remain the same.
     The IR records `Member.clearable`; a client or server generator must
     declare the `clearable` capability before generating bindings for it.
-    Language support precedes runtime and client support: no generator
-    declares that capability yet. Docs and describe exports carry the
+    The Rust server declares it; clients remain unsupported. JSON Schema
+    and OpenAPI retain ordinary optional nullability: null is accepted and
+    read as absent. They mark clearing with `x-crucible-clearable: true`,
+    rather than narrowing nullability. Docs and describe exports carry the
     flag without a capability gate. A protocol that loses explicit null
     cannot implement clearing. *Why:* callers need to distinguish keeping
     an optional value from removing it, and the model must state that

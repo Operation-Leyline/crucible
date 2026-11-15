@@ -934,6 +934,8 @@ struct Read<'a> {
     /// `Option<&T>` expression.
     expression: String,
     optional: bool,
+    /// Clear requests are present even though they supply no value.
+    presence: Option<String>,
     member: &'a Member,
 }
 
@@ -942,6 +944,7 @@ impl<'a> Reader<'a> {
         let mut current = self.input?.clone();
         let mut expression = "input".to_owned();
         let mut optional = false;
+        let mut presence = None;
         // Whether `expression`, a place, holds a `Box`. An `Option`
         // expression always yields a plain reference.
         let mut place_boxed = false;
@@ -953,6 +956,7 @@ impl<'a> Reader<'a> {
             };
             let member = structure.member(segment)?;
             let boxed = self.boxed.contains(&current.with_member(&member.name));
+            presence = None;
             if matches!(shape, Shape::Union(_)) {
                 let union = format!("model::{}", self.service.name_of(&current));
                 let arm = variant(&member.name);
@@ -972,13 +976,25 @@ impl<'a> Reader<'a> {
             } else {
                 let name = field(&member.name);
                 let unbox = if boxed { ".map(|v| &**v)" } else { "" };
+                let borrow = if member.clearable {
+                    "as_value"
+                } else {
+                    "as_ref"
+                };
+                if member.clearable {
+                    presence = Some(if optional {
+                        format!("{expression}.is_some_and(|v| !v.{name}.is_absent())")
+                    } else {
+                        format!("!{expression}.{name}.is_absent()")
+                    });
+                }
                 expression = match (optional, member.optional_on_server()) {
                     (false, false) => format!("{expression}.{name}"),
-                    (false, true) => format!("{expression}.{name}.as_ref(){unbox}"),
+                    (false, true) => format!("{expression}.{name}.{borrow}(){unbox}"),
                     (true, false) if boxed => format!("{expression}.map(|v| &*v.{name})"),
                     (true, false) => format!("{expression}.map(|v| &v.{name})"),
                     (true, true) => {
-                        format!("{expression}.and_then(|v| v.{name}.as_ref()){unbox}")
+                        format!("{expression}.and_then(|v| v.{name}.{borrow}()){unbox}")
                     }
                 };
                 place_boxed = !optional && !member.optional_on_server() && boxed;
@@ -990,6 +1006,7 @@ impl<'a> Reader<'a> {
         Some(Read {
             expression,
             optional,
+            presence,
             member: last?,
         })
     }
@@ -1014,7 +1031,9 @@ impl<'a> Reader<'a> {
             Condition::Not(inner) => Some(format!("!{}", self.condition(inner, diagnostics, op)?)),
             Condition::Has(path) => {
                 let read = self.readable(path, diagnostics, op)?;
-                Some(if read.optional {
+                Some(if let Some(presence) = read.presence {
+                    presence
+                } else if read.optional {
                     format!("{}.is_some()", read.expression)
                 } else {
                     "true".to_owned()

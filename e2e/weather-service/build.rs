@@ -1,4 +1,24 @@
 fn main() {
+    let clearable = "clearable";
+    println!("cargo::rerun-if-changed={clearable}");
+    let clearable_out = std::path::PathBuf::from(std::env::var_os("OUT_DIR").expect("OUT_DIR"));
+    std::fs::write(
+        clearable_out.join("clearable.rs"),
+        crucible_build::model(clearable).server().render().unwrap(),
+    )
+    .unwrap();
+
+    let json_payloads = "../../tests/models/clearable-json-payload";
+    println!("cargo::rerun-if-changed={json_payloads}");
+    std::fs::write(
+        clearable_out.join("clearable_json_payloads.rs"),
+        crucible_build::model(json_payloads)
+            .server()
+            .render()
+            .unwrap(),
+    )
+    .unwrap();
+
     let header_out = std::path::PathBuf::from(std::env::var_os("OUT_DIR").expect("OUT_DIR"));
     for name in ["named", "required"] {
         let model = format!("tests/fixtures/version-header-{name}");

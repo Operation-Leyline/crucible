@@ -1,0 +1,20 @@
+service Notes {
+    version "1"
+    protocol json
+    operations [SetDocument, SetStructure, SetUnion]
+    errors [ValidationException, InternalServerException]
+}
+structure Details { name: string }
+union Selection { details: Details text: string }
+idempotent operation SetDocument {
+    http PUT "/document"
+    input { @payload clearable value?: document }
+}
+idempotent operation SetStructure {
+    http PUT "/structure"
+    input { @payload clearable value?: Details }
+}
+idempotent operation SetUnion {
+    http PUT "/union"
+    input { @payload clearable value?: Selection }
+}

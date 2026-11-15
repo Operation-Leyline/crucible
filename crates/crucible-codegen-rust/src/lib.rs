@@ -107,8 +107,14 @@ pub struct Options {
     pub require_rejection: bool,
 }
 
-/// The generated file's contents.
+/// Constructs supported by the generated server and its runtime.
 pub fn capabilities() -> crucible_ir::Capabilities {
+    use crucible_ir::Feature;
+    crucible_ir::Capabilities::new(client_capabilities().iter().chain([Feature::Clearable]))
+}
+
+/// Constructs supported by the generated client and its bundled runtime.
+pub fn client_capabilities() -> crucible_ir::Capabilities {
     use crucible_ir::Feature;
     crucible_ir::Capabilities::new([
         Feature::GreedyLabels,
@@ -124,11 +130,6 @@ pub fn capabilities() -> crucible_ir::Capabilities {
         Feature::VersionHeader,
         Feature::UnversionedRequired,
     ])
-}
-
-/// Constructs supported by the generated client and its bundled runtime.
-pub fn client_capabilities() -> crucible_ir::Capabilities {
-    capabilities()
 }
 
 pub fn generate(service: &Service, options: &Options) -> Result<String, Diagnostics> {
