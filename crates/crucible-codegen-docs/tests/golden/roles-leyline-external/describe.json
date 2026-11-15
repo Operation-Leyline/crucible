@@ -136,16 +136,8 @@
         "query": [],
         "timestampFormats": {}
       },
-      "requirementDocumentation": [
-        {
-          "html": "<p>Requires permissions internal to the service.</p>\n",
-          "markdown": "Requires permissions internal to the service.",
-          "text": "Requires permissions internal to the service."
-        }
-      ],
-      "requirementSentences": [
-        "Requires permissions internal to the service."
-      ],
+      "requirementDocumentation": [],
+      "requirementSentences": [],
       "requirements": {
         "internalClauses": [
           {
@@ -336,16 +328,8 @@
         "query": [],
         "timestampFormats": {}
       },
-      "requirementDocumentation": [
-        {
-          "html": "<p>Requires permissions internal to the service.</p>\n",
-          "markdown": "Requires permissions internal to the service.",
-          "text": "Requires permissions internal to the service."
-        }
-      ],
-      "requirementSentences": [
-        "Requires permissions internal to the service."
-      ],
+      "requirementDocumentation": [],
+      "requirementSentences": [],
       "requirements": {
         "internalClauses": [
           {
@@ -541,16 +525,8 @@
         "query": [],
         "timestampFormats": {}
       },
-      "requirementDocumentation": [
-        {
-          "html": "<p>Requires permissions internal to the service.</p>\n",
-          "markdown": "Requires permissions internal to the service.",
-          "text": "Requires permissions internal to the service."
-        }
-      ],
-      "requirementSentences": [
-        "Requires permissions internal to the service."
-      ],
+      "requirementDocumentation": [],
+      "requirementSentences": [],
       "requirements": {
         "internalClauses": [
           {
@@ -763,16 +739,8 @@
         "query": [],
         "timestampFormats": {}
       },
-      "requirementDocumentation": [
-        {
-          "html": "<p>Requires permissions internal to the service.</p>\n",
-          "markdown": "Requires permissions internal to the service.",
-          "text": "Requires permissions internal to the service."
-        }
-      ],
-      "requirementSentences": [
-        "Requires permissions internal to the service."
-      ],
+      "requirementDocumentation": [],
+      "requirementSentences": [],
       "requirements": {
         "internalClauses": [
           {
@@ -979,16 +947,8 @@
         "query": [],
         "timestampFormats": {}
       },
-      "requirementDocumentation": [
-        {
-          "html": "<p>Requires permissions internal to the service.</p>\n",
-          "markdown": "Requires permissions internal to the service.",
-          "text": "Requires permissions internal to the service."
-        }
-      ],
-      "requirementSentences": [
-        "Requires permissions internal to the service."
-      ],
+      "requirementDocumentation": [],
+      "requirementSentences": [],
       "requirements": {
         "internalClauses": [
           {
@@ -1206,16 +1166,8 @@
         "query": [],
         "timestampFormats": {}
       },
-      "requirementDocumentation": [
-        {
-          "html": "<p>Requires permissions internal to the service.</p>\n",
-          "markdown": "Requires permissions internal to the service.",
-          "text": "Requires permissions internal to the service."
-        }
-      ],
-      "requirementSentences": [
-        "Requires permissions internal to the service."
-      ],
+      "requirementDocumentation": [],
+      "requirementSentences": [],
       "requirements": {
         "internalClauses": [
           {
@@ -1429,16 +1381,8 @@
         "query": [],
         "timestampFormats": {}
       },
-      "requirementDocumentation": [
-        {
-          "html": "<p>Requires permissions internal to the service.</p>\n",
-          "markdown": "Requires permissions internal to the service.",
-          "text": "Requires permissions internal to the service."
-        }
-      ],
-      "requirementSentences": [
-        "Requires permissions internal to the service."
-      ],
+      "requirementDocumentation": [],
+      "requirementSentences": [],
       "requirements": {
         "internalClauses": [
           {
@@ -1608,16 +1552,8 @@
         "query": [],
         "timestampFormats": {}
       },
-      "requirementDocumentation": [
-        {
-          "html": "<p>Requires permissions internal to the service.</p>\n",
-          "markdown": "Requires permissions internal to the service.",
-          "text": "Requires permissions internal to the service."
-        }
-      ],
-      "requirementSentences": [
-        "Requires permissions internal to the service."
-      ],
+      "requirementDocumentation": [],
+      "requirementSentences": [],
       "requirements": {
         "internalClauses": [
           {
@@ -2362,16 +2298,8 @@
         "query": [],
         "timestampFormats": {}
       },
-      "requirementDocumentation": [
-        {
-          "html": "<p>Requires permissions internal to the service.</p>\n",
-          "markdown": "Requires permissions internal to the service.",
-          "text": "Requires permissions internal to the service."
-        }
-      ],
-      "requirementSentences": [
-        "Requires permissions internal to the service."
-      ],
+      "requirementDocumentation": [],
+      "requirementSentences": [],
       "requirements": {
         "internalClauses": [
           {
@@ -2572,16 +2500,8 @@
         "query": [],
         "timestampFormats": {}
       },
-      "requirementDocumentation": [
-        {
-          "html": "<p>Requires permissions internal to the service.</p>\n",
-          "markdown": "Requires permissions internal to the service.",
-          "text": "Requires permissions internal to the service."
-        }
-      ],
-      "requirementSentences": [
-        "Requires permissions internal to the service."
-      ],
+      "requirementDocumentation": [],
+      "requirementSentences": [],
       "requirements": {
         "internalClauses": [
           {
@@ -2820,16 +2740,8 @@
         "query": [],
         "timestampFormats": {}
       },
-      "requirementDocumentation": [
-        {
-          "html": "<p>Requires permissions internal to the service.</p>\n",
-          "markdown": "Requires permissions internal to the service.",
-          "text": "Requires permissions internal to the service."
-        }
-      ],
-      "requirementSentences": [
-        "Requires permissions internal to the service."
-      ],
+      "requirementDocumentation": [],
+      "requirementSentences": [],
       "requirements": {
         "internalClauses": [
           {
@@ -3028,16 +2940,8 @@
         "query": [],
         "timestampFormats": {}
       },
-      "requirementDocumentation": [
-        {
-          "html": "<p>Requires permissions internal to the service.</p>\n",
-          "markdown": "Requires permissions internal to the service.",
-          "text": "Requires permissions internal to the service."
-        }
-      ],
-      "requirementSentences": [
-        "Requires permissions internal to the service."
-      ],
+      "requirementDocumentation": [],
+      "requirementSentences": [],
       "requirements": {
         "internalClauses": [
           {
@@ -3237,6 +3141,761 @@
       "summary": "The tenant: every graph, member and history belongs to one."
     }
   },
+  "roles": [
+    {
+      "allowedOperations": [
+        {
+          "assignments": [],
+          "byService": false,
+          "conditional": false,
+          "mode": "check",
+          "operation": "example.leyline#CreateBackup",
+          "resource": "example.leyline#Organization",
+          "scopes": [
+            "organization"
+          ]
+        },
+        {
+          "assignments": [],
+          "byService": false,
+          "conditional": false,
+          "mode": "check",
+          "operation": "example.leyline#GetGraphHistory",
+          "resource": "example.leyline#GraphHistory",
+          "scopes": [
+            "organization"
+          ]
+        },
+        {
+          "assignments": [],
+          "byService": false,
+          "conditional": false,
+          "mode": "check",
+          "operation": "example.leyline#GetOrganization",
+          "resource": "example.leyline#Organization",
+          "scopes": [
+            "organization"
+          ]
+        },
+        {
+          "assignments": [],
+          "byService": false,
+          "conditional": false,
+          "mode": "check",
+          "operation": "example.leyline#GetUsage",
+          "resource": "example.leyline#Organization",
+          "scopes": [
+            "organization"
+          ]
+        },
+        {
+          "assignments": [],
+          "byService": false,
+          "conditional": false,
+          "mode": "check",
+          "operation": "example.leyline#ListAuditEvents",
+          "resource": "example.leyline#Organization",
+          "scopes": [
+            "organization"
+          ]
+        },
+        {
+          "assignments": [],
+          "byService": false,
+          "conditional": false,
+          "mode": "filter",
+          "operation": "example.leyline#ListGraphHistories",
+          "resource": "example.leyline#GraphHistory",
+          "scopes": [
+            "organization"
+          ]
+        },
+        {
+          "assignments": [
+            {
+              "assignedBy": [
+                "owner"
+              ],
+              "role": "accessAdmin"
+            },
+            {
+              "assignedBy": [
+                "owner"
+              ],
+              "role": "auditAdmin"
+            },
+            {
+              "assignedBy": [
+                "owner"
+              ],
+              "role": "owner"
+            }
+          ],
+          "byService": false,
+          "conditional": false,
+          "mode": "check",
+          "operation": "example.leyline#PutRoleBinding",
+          "resource": "example.leyline#Organization",
+          "scopes": [
+            "organization"
+          ]
+        },
+        {
+          "assignments": [],
+          "byService": false,
+          "conditional": false,
+          "mode": "check",
+          "operation": "example.leyline#RestoreGraphHistory",
+          "resource": "example.leyline#GraphHistory",
+          "scopes": [
+            "organization"
+          ]
+        },
+        {
+          "assignments": [
+            {
+              "assignedBy": [
+                "owner"
+              ],
+              "role": "accessAdmin"
+            },
+            {
+              "assignedBy": [
+                "owner"
+              ],
+              "role": "auditAdmin"
+            },
+            {
+              "assignedBy": [
+                "owner"
+              ],
+              "role": "owner"
+            }
+          ],
+          "byService": false,
+          "conditional": false,
+          "mode": "check",
+          "operation": "example.leyline#RevokeRoleBinding",
+          "resource": "example.leyline#Organization",
+          "scopes": [
+            "organization"
+          ]
+        }
+      ],
+      "assignedBy": [
+        "owner"
+      ],
+      "deprecated": false,
+      "description": "Everything in the organization, and every history in it.",
+      "holders": [
+        "user"
+      ],
+      "name": "owner",
+      "permissions": [],
+      "scopes": [
+        "organization"
+      ],
+      "value": "owner"
+    },
+    {
+      "allowedOperations": [
+        {
+          "assignments": [],
+          "byService": false,
+          "conditional": false,
+          "mode": "check",
+          "operation": "example.leyline#GetOrganization",
+          "resource": "example.leyline#Organization",
+          "scopes": [
+            "organization"
+          ]
+        },
+        {
+          "assignments": [
+            {
+              "assignedBy": [
+                "owner"
+              ],
+              "role": "accessAdmin"
+            },
+            {
+              "assignedBy": [
+                "owner"
+              ],
+              "role": "auditAdmin"
+            },
+            {
+              "assignedBy": [
+                "owner"
+              ],
+              "role": "owner"
+            }
+          ],
+          "byService": false,
+          "conditional": false,
+          "mode": "check",
+          "operation": "example.leyline#PutRoleBinding",
+          "resource": "example.leyline#Organization",
+          "scopes": [
+            "organization"
+          ]
+        },
+        {
+          "assignments": [
+            {
+              "assignedBy": [
+                "owner"
+              ],
+              "role": "accessAdmin"
+            },
+            {
+              "assignedBy": [
+                "owner"
+              ],
+              "role": "auditAdmin"
+            },
+            {
+              "assignedBy": [
+                "owner"
+              ],
+              "role": "owner"
+            }
+          ],
+          "byService": false,
+          "conditional": false,
+          "mode": "check",
+          "operation": "example.leyline#RevokeRoleBinding",
+          "resource": "example.leyline#Organization",
+          "scopes": [
+            "organization"
+          ]
+        }
+      ],
+      "assignedBy": [
+        "owner"
+      ],
+      "deprecated": false,
+      "description": "Who belongs to the organization, its keys, and who holds which role.",
+      "holders": [
+        "user"
+      ],
+      "name": "accessAdmin",
+      "permissions": [],
+      "scopes": [
+        "organization"
+      ],
+      "value": "accessAdmin"
+    },
+    {
+      "allowedOperations": [
+        {
+          "assignments": [],
+          "byService": false,
+          "conditional": false,
+          "mode": "check",
+          "operation": "example.leyline#GetOrganization",
+          "resource": "example.leyline#Organization",
+          "scopes": [
+            "organization"
+          ]
+        }
+      ],
+      "assignedBy": [],
+      "deprecated": false,
+      "description": "The organization's graph groups.",
+      "holders": [],
+      "name": "graphGroupAdmin",
+      "permissions": [],
+      "scopes": [
+        "organization"
+      ],
+      "value": "graphGroupAdmin"
+    },
+    {
+      "allowedOperations": [
+        {
+          "assignments": [],
+          "byService": false,
+          "conditional": false,
+          "mode": "check",
+          "operation": "example.leyline#GetOrganization",
+          "resource": "example.leyline#Organization",
+          "scopes": [
+            "organization"
+          ]
+        },
+        {
+          "assignments": [],
+          "byService": false,
+          "conditional": false,
+          "mode": "check",
+          "operation": "example.leyline#GetUsage",
+          "resource": "example.leyline#Organization",
+          "scopes": [
+            "organization"
+          ]
+        }
+      ],
+      "assignedBy": [],
+      "deprecated": false,
+      "description": "What the organization uses and is billed for.",
+      "holders": [],
+      "name": "usageViewer",
+      "permissions": [],
+      "scopes": [
+        "organization"
+      ],
+      "value": "usageViewer"
+    },
+    {
+      "allowedOperations": [
+        {
+          "assignments": [],
+          "byService": false,
+          "conditional": false,
+          "mode": "check",
+          "operation": "example.leyline#GetOrganization",
+          "resource": "example.leyline#Organization",
+          "scopes": [
+            "organization"
+          ]
+        },
+        {
+          "assignments": [],
+          "byService": false,
+          "conditional": false,
+          "mode": "check",
+          "operation": "example.leyline#ListAuditEvents",
+          "resource": "example.leyline#Organization",
+          "scopes": [
+            "organization"
+          ]
+        }
+      ],
+      "assignedBy": [],
+      "deprecated": false,
+      "description": "The organization's audit log.",
+      "holders": [],
+      "name": "auditViewer",
+      "permissions": [],
+      "scopes": [
+        "organization"
+      ],
+      "value": "auditViewer"
+    },
+    {
+      "allowedOperations": [
+        {
+          "assignments": [],
+          "byService": false,
+          "conditional": false,
+          "mode": "check",
+          "operation": "example.leyline#GetOrganization",
+          "resource": "example.leyline#Organization",
+          "scopes": [
+            "organization"
+          ]
+        },
+        {
+          "assignments": [],
+          "byService": false,
+          "conditional": false,
+          "mode": "check",
+          "operation": "example.leyline#ListAuditEvents",
+          "resource": "example.leyline#Organization",
+          "scopes": [
+            "organization"
+          ]
+        }
+      ],
+      "assignedBy": [
+        "owner"
+      ],
+      "deprecated": false,
+      "description": "The audit log and its retention.",
+      "holders": [
+        "user"
+      ],
+      "name": "auditAdmin",
+      "permissions": [],
+      "scopes": [
+        "organization"
+      ],
+      "value": "auditAdmin"
+    },
+    {
+      "allowedOperations": [
+        {
+          "assignments": [],
+          "byService": false,
+          "conditional": false,
+          "mode": "check",
+          "operation": "example.leyline#GetOrganization",
+          "resource": "example.leyline#Organization",
+          "scopes": [
+            "organization"
+          ]
+        }
+      ],
+      "assignedBy": [],
+      "deprecated": false,
+      "description": "The organization's backups.",
+      "holders": [],
+      "name": "backupViewer",
+      "permissions": [],
+      "scopes": [
+        "organization"
+      ],
+      "value": "backupViewer"
+    },
+    {
+      "allowedOperations": [
+        {
+          "assignments": [],
+          "byService": false,
+          "conditional": false,
+          "mode": "check",
+          "operation": "example.leyline#CreateBackup",
+          "resource": "example.leyline#Organization",
+          "scopes": [
+            "organization"
+          ]
+        },
+        {
+          "assignments": [],
+          "byService": false,
+          "conditional": false,
+          "mode": "check",
+          "operation": "example.leyline#GetOrganization",
+          "resource": "example.leyline#Organization",
+          "scopes": [
+            "organization"
+          ]
+        }
+      ],
+      "assignedBy": [],
+      "deprecated": false,
+      "description": "Take and manage backups.",
+      "holders": [],
+      "name": "backupAdmin",
+      "permissions": [],
+      "scopes": [
+        "organization"
+      ],
+      "value": "backupAdmin"
+    },
+    {
+      "allowedOperations": [
+        {
+          "assignments": [],
+          "byService": false,
+          "conditional": false,
+          "mode": "check",
+          "operation": "example.leyline#CreateGraph",
+          "resource": "example.leyline#Graph",
+          "scopes": [
+            "organization"
+          ]
+        }
+      ],
+      "assignedBy": [],
+      "deprecated": false,
+      "description": "Create graphs; the create handler makes the creator `graphAdmin` on each.",
+      "holders": [],
+      "name": "graphCreator",
+      "permissions": [],
+      "scopes": [
+        "organization"
+      ],
+      "value": "graphCreator"
+    },
+    {
+      "allowedOperations": [
+        {
+          "assignments": [],
+          "byService": false,
+          "conditional": false,
+          "mode": "check",
+          "operation": "example.leyline#GetGraph",
+          "resource": "example.leyline#Graph",
+          "scopes": [
+            "allGraphs",
+            "graph"
+          ]
+        }
+      ],
+      "assignedBy": [],
+      "deprecated": false,
+      "description": "Read graph data.",
+      "holders": [],
+      "name": "graphReader",
+      "permissions": [],
+      "scopes": [
+        "allGraphs",
+        "graph"
+      ],
+      "value": "graphReader"
+    },
+    {
+      "allowedOperations": [
+        {
+          "assignments": [],
+          "byService": false,
+          "conditional": false,
+          "mode": "check",
+          "operation": "example.leyline#GetGraph",
+          "resource": "example.leyline#Graph",
+          "scopes": [
+            "allGraphs",
+            "graph"
+          ]
+        },
+        {
+          "assignments": [],
+          "byService": false,
+          "conditional": false,
+          "mode": "check",
+          "operation": "example.leyline#WriteGraph",
+          "resource": "example.leyline#Graph",
+          "scopes": [
+            "allGraphs",
+            "graph"
+          ]
+        }
+      ],
+      "assignedBy": [],
+      "deprecated": false,
+      "description": "Read and write graph data.",
+      "holders": [],
+      "name": "graphWriter",
+      "permissions": [],
+      "scopes": [
+        "allGraphs",
+        "graph"
+      ],
+      "value": "graphWriter"
+    },
+    {
+      "allowedOperations": [
+        {
+          "assignments": [],
+          "byService": false,
+          "conditional": false,
+          "mode": "check",
+          "operation": "example.leyline#CreateGraph",
+          "resource": "example.leyline#Graph",
+          "scopes": [
+            "allGraphs"
+          ]
+        },
+        {
+          "assignments": [],
+          "byService": false,
+          "conditional": false,
+          "mode": "check",
+          "operation": "example.leyline#DeleteGraph",
+          "resource": "example.leyline#Graph",
+          "scopes": [
+            "allGraphs",
+            "graph"
+          ]
+        },
+        {
+          "assignments": [],
+          "byService": false,
+          "conditional": false,
+          "mode": "check",
+          "operation": "example.leyline#GetGraph",
+          "resource": "example.leyline#Graph",
+          "scopes": [
+            "allGraphs",
+            "graph"
+          ]
+        },
+        {
+          "assignments": [],
+          "byService": true,
+          "conditional": false,
+          "documentation": "The history of a graph this binding covers, while the graph is live.",
+          "mode": "check",
+          "operation": "example.leyline#GetGraphHistory",
+          "resource": "example.leyline#GraphHistory",
+          "scopes": [
+            "allGraphs",
+            "graph"
+          ]
+        },
+        {
+          "assignments": [],
+          "byService": true,
+          "conditional": false,
+          "documentation": "The history of a graph this binding covers, while the graph is live.",
+          "mode": "filter",
+          "operation": "example.leyline#ListGraphHistories",
+          "resource": "example.leyline#GraphHistory",
+          "scopes": [
+            "allGraphs",
+            "graph"
+          ]
+        },
+        {
+          "assignments": [],
+          "byService": false,
+          "conditional": false,
+          "mode": "check",
+          "operation": "example.leyline#WriteGraph",
+          "resource": "example.leyline#Graph",
+          "scopes": [
+            "allGraphs",
+            "graph"
+          ]
+        }
+      ],
+      "assignedBy": [],
+      "deprecated": false,
+      "description": "Read, write, configure and delete graphs.",
+      "holders": [],
+      "name": "graphAdmin",
+      "permissions": [],
+      "scopes": [
+        "allGraphs",
+        "graph"
+      ],
+      "value": "graphAdmin"
+    },
+    {
+      "allowedOperations": [
+        {
+          "assignments": [],
+          "byService": false,
+          "conditional": false,
+          "mode": "check",
+          "operation": "example.leyline#GetGraphHistory",
+          "resource": "example.leyline#GraphHistory",
+          "scopes": [
+            "allHistories",
+            "history"
+          ]
+        },
+        {
+          "assignments": [],
+          "byService": false,
+          "conditional": false,
+          "mode": "filter",
+          "operation": "example.leyline#ListGraphHistories",
+          "resource": "example.leyline#GraphHistory",
+          "scopes": [
+            "allHistories",
+            "history"
+          ]
+        }
+      ],
+      "assignedBy": [],
+      "deprecated": false,
+      "description": "Read graph histories.",
+      "holders": [],
+      "name": "historyReader",
+      "permissions": [],
+      "scopes": [
+        "allHistories",
+        "history"
+      ],
+      "value": "historyReader"
+    },
+    {
+      "allowedOperations": [
+        {
+          "assignments": [],
+          "byService": false,
+          "conditional": false,
+          "mode": "check",
+          "operation": "example.leyline#GetGraphHistory",
+          "resource": "example.leyline#GraphHistory",
+          "scopes": [
+            "allHistories",
+            "history"
+          ]
+        },
+        {
+          "assignments": [],
+          "byService": false,
+          "conditional": false,
+          "mode": "filter",
+          "operation": "example.leyline#ListGraphHistories",
+          "resource": "example.leyline#GraphHistory",
+          "scopes": [
+            "allHistories",
+            "history"
+          ]
+        },
+        {
+          "assignments": [],
+          "byService": false,
+          "conditional": false,
+          "mode": "check",
+          "operation": "example.leyline#RestoreGraphHistory",
+          "resource": "example.leyline#GraphHistory",
+          "scopes": [
+            "allHistories",
+            "history"
+          ]
+        }
+      ],
+      "assignedBy": [],
+      "deprecated": false,
+      "description": "Read and restore graph histories.",
+      "holders": [],
+      "name": "historyAdmin",
+      "permissions": [],
+      "scopes": [
+        "allHistories",
+        "history"
+      ],
+      "value": "historyAdmin"
+    }
+  ],
+  "scopes": [
+    {
+      "deprecated": false,
+      "description": "The organization itself: membership, keys, usage, audit and ownership.",
+      "kind": "instance",
+      "name": "organization",
+      "resource": "example.leyline#Organization",
+      "value": "organization"
+    },
+    {
+      "deprecated": false,
+      "description": "Every graph in the organization, including graphs created later.",
+      "kind": "every",
+      "name": "allGraphs",
+      "resource": "example.leyline#Graph",
+      "value": "allGraphs"
+    },
+    {
+      "deprecated": false,
+      "description": "One graph.",
+      "kind": "instance",
+      "name": "graph",
+      "resource": "example.leyline#Graph",
+      "value": "graph"
+    },
+    {
+      "deprecated": false,
+      "description": "Every graph history in the organization, retired ones too.",
+      "kind": "every",
+      "name": "allHistories",
+      "resource": "example.leyline#GraphHistory",
+      "value": "allHistories"
+    },
+    {
+      "deprecated": false,
+      "description": "One graph history.",
+      "kind": "instance",
+      "name": "history",
+      "resource": "example.leyline#GraphHistory",
+      "value": "history"
+    }
+  ],
   "service": {
     "auth": [
       "crucible.api#httpBearerAuth"
@@ -3267,6 +3926,145 @@
     ],
     "roles": [
       {
+        "allowedOperations": [
+          {
+            "assignments": [],
+            "byService": false,
+            "conditional": false,
+            "mode": "check",
+            "operation": "example.leyline#CreateBackup",
+            "resource": "example.leyline#Organization",
+            "scopes": [
+              "organization"
+            ]
+          },
+          {
+            "assignments": [],
+            "byService": false,
+            "conditional": false,
+            "mode": "check",
+            "operation": "example.leyline#GetGraphHistory",
+            "resource": "example.leyline#GraphHistory",
+            "scopes": [
+              "organization"
+            ]
+          },
+          {
+            "assignments": [],
+            "byService": false,
+            "conditional": false,
+            "mode": "check",
+            "operation": "example.leyline#GetOrganization",
+            "resource": "example.leyline#Organization",
+            "scopes": [
+              "organization"
+            ]
+          },
+          {
+            "assignments": [],
+            "byService": false,
+            "conditional": false,
+            "mode": "check",
+            "operation": "example.leyline#GetUsage",
+            "resource": "example.leyline#Organization",
+            "scopes": [
+              "organization"
+            ]
+          },
+          {
+            "assignments": [],
+            "byService": false,
+            "conditional": false,
+            "mode": "check",
+            "operation": "example.leyline#ListAuditEvents",
+            "resource": "example.leyline#Organization",
+            "scopes": [
+              "organization"
+            ]
+          },
+          {
+            "assignments": [],
+            "byService": false,
+            "conditional": false,
+            "mode": "filter",
+            "operation": "example.leyline#ListGraphHistories",
+            "resource": "example.leyline#GraphHistory",
+            "scopes": [
+              "organization"
+            ]
+          },
+          {
+            "assignments": [
+              {
+                "assignedBy": [
+                  "owner"
+                ],
+                "role": "accessAdmin"
+              },
+              {
+                "assignedBy": [
+                  "owner"
+                ],
+                "role": "auditAdmin"
+              },
+              {
+                "assignedBy": [
+                  "owner"
+                ],
+                "role": "owner"
+              }
+            ],
+            "byService": false,
+            "conditional": false,
+            "mode": "check",
+            "operation": "example.leyline#PutRoleBinding",
+            "resource": "example.leyline#Organization",
+            "scopes": [
+              "organization"
+            ]
+          },
+          {
+            "assignments": [],
+            "byService": false,
+            "conditional": false,
+            "mode": "check",
+            "operation": "example.leyline#RestoreGraphHistory",
+            "resource": "example.leyline#GraphHistory",
+            "scopes": [
+              "organization"
+            ]
+          },
+          {
+            "assignments": [
+              {
+                "assignedBy": [
+                  "owner"
+                ],
+                "role": "accessAdmin"
+              },
+              {
+                "assignedBy": [
+                  "owner"
+                ],
+                "role": "auditAdmin"
+              },
+              {
+                "assignedBy": [
+                  "owner"
+                ],
+                "role": "owner"
+              }
+            ],
+            "byService": false,
+            "conditional": false,
+            "mode": "check",
+            "operation": "example.leyline#RevokeRoleBinding",
+            "resource": "example.leyline#Organization",
+            "scopes": [
+              "organization"
+            ]
+          }
+        ],
         "assignedBy": [
           "owner"
         ],
@@ -3275,6 +4073,7 @@
         "holders": [
           "user"
         ],
+        "name": "owner",
         "permissions": [],
         "scopes": [
           "organization"
@@ -3282,6 +4081,79 @@
         "value": "owner"
       },
       {
+        "allowedOperations": [
+          {
+            "assignments": [],
+            "byService": false,
+            "conditional": false,
+            "mode": "check",
+            "operation": "example.leyline#GetOrganization",
+            "resource": "example.leyline#Organization",
+            "scopes": [
+              "organization"
+            ]
+          },
+          {
+            "assignments": [
+              {
+                "assignedBy": [
+                  "owner"
+                ],
+                "role": "accessAdmin"
+              },
+              {
+                "assignedBy": [
+                  "owner"
+                ],
+                "role": "auditAdmin"
+              },
+              {
+                "assignedBy": [
+                  "owner"
+                ],
+                "role": "owner"
+              }
+            ],
+            "byService": false,
+            "conditional": false,
+            "mode": "check",
+            "operation": "example.leyline#PutRoleBinding",
+            "resource": "example.leyline#Organization",
+            "scopes": [
+              "organization"
+            ]
+          },
+          {
+            "assignments": [
+              {
+                "assignedBy": [
+                  "owner"
+                ],
+                "role": "accessAdmin"
+              },
+              {
+                "assignedBy": [
+                  "owner"
+                ],
+                "role": "auditAdmin"
+              },
+              {
+                "assignedBy": [
+                  "owner"
+                ],
+                "role": "owner"
+              }
+            ],
+            "byService": false,
+            "conditional": false,
+            "mode": "check",
+            "operation": "example.leyline#RevokeRoleBinding",
+            "resource": "example.leyline#Organization",
+            "scopes": [
+              "organization"
+            ]
+          }
+        ],
         "assignedBy": [
           "owner"
         ],
@@ -3290,6 +4162,7 @@
         "holders": [
           "user"
         ],
+        "name": "accessAdmin",
         "permissions": [],
         "scopes": [
           "organization"
@@ -3297,10 +4170,24 @@
         "value": "accessAdmin"
       },
       {
+        "allowedOperations": [
+          {
+            "assignments": [],
+            "byService": false,
+            "conditional": false,
+            "mode": "check",
+            "operation": "example.leyline#GetOrganization",
+            "resource": "example.leyline#Organization",
+            "scopes": [
+              "organization"
+            ]
+          }
+        ],
         "assignedBy": [],
         "deprecated": false,
         "description": "The organization's graph groups.",
         "holders": [],
+        "name": "graphGroupAdmin",
         "permissions": [],
         "scopes": [
           "organization"
@@ -3308,10 +4195,35 @@
         "value": "graphGroupAdmin"
       },
       {
+        "allowedOperations": [
+          {
+            "assignments": [],
+            "byService": false,
+            "conditional": false,
+            "mode": "check",
+            "operation": "example.leyline#GetOrganization",
+            "resource": "example.leyline#Organization",
+            "scopes": [
+              "organization"
+            ]
+          },
+          {
+            "assignments": [],
+            "byService": false,
+            "conditional": false,
+            "mode": "check",
+            "operation": "example.leyline#GetUsage",
+            "resource": "example.leyline#Organization",
+            "scopes": [
+              "organization"
+            ]
+          }
+        ],
         "assignedBy": [],
         "deprecated": false,
         "description": "What the organization uses and is billed for.",
         "holders": [],
+        "name": "usageViewer",
         "permissions": [],
         "scopes": [
           "organization"
@@ -3319,10 +4231,35 @@
         "value": "usageViewer"
       },
       {
+        "allowedOperations": [
+          {
+            "assignments": [],
+            "byService": false,
+            "conditional": false,
+            "mode": "check",
+            "operation": "example.leyline#GetOrganization",
+            "resource": "example.leyline#Organization",
+            "scopes": [
+              "organization"
+            ]
+          },
+          {
+            "assignments": [],
+            "byService": false,
+            "conditional": false,
+            "mode": "check",
+            "operation": "example.leyline#ListAuditEvents",
+            "resource": "example.leyline#Organization",
+            "scopes": [
+              "organization"
+            ]
+          }
+        ],
         "assignedBy": [],
         "deprecated": false,
         "description": "The organization's audit log.",
         "holders": [],
+        "name": "auditViewer",
         "permissions": [],
         "scopes": [
           "organization"
@@ -3330,6 +4267,30 @@
         "value": "auditViewer"
       },
       {
+        "allowedOperations": [
+          {
+            "assignments": [],
+            "byService": false,
+            "conditional": false,
+            "mode": "check",
+            "operation": "example.leyline#GetOrganization",
+            "resource": "example.leyline#Organization",
+            "scopes": [
+              "organization"
+            ]
+          },
+          {
+            "assignments": [],
+            "byService": false,
+            "conditional": false,
+            "mode": "check",
+            "operation": "example.leyline#ListAuditEvents",
+            "resource": "example.leyline#Organization",
+            "scopes": [
+              "organization"
+            ]
+          }
+        ],
         "assignedBy": [
           "owner"
         ],
@@ -3338,6 +4299,7 @@
         "holders": [
           "user"
         ],
+        "name": "auditAdmin",
         "permissions": [],
         "scopes": [
           "organization"
@@ -3345,10 +4307,24 @@
         "value": "auditAdmin"
       },
       {
+        "allowedOperations": [
+          {
+            "assignments": [],
+            "byService": false,
+            "conditional": false,
+            "mode": "check",
+            "operation": "example.leyline#GetOrganization",
+            "resource": "example.leyline#Organization",
+            "scopes": [
+              "organization"
+            ]
+          }
+        ],
         "assignedBy": [],
         "deprecated": false,
         "description": "The organization's backups.",
         "holders": [],
+        "name": "backupViewer",
         "permissions": [],
         "scopes": [
           "organization"
@@ -3356,10 +4332,35 @@
         "value": "backupViewer"
       },
       {
+        "allowedOperations": [
+          {
+            "assignments": [],
+            "byService": false,
+            "conditional": false,
+            "mode": "check",
+            "operation": "example.leyline#CreateBackup",
+            "resource": "example.leyline#Organization",
+            "scopes": [
+              "organization"
+            ]
+          },
+          {
+            "assignments": [],
+            "byService": false,
+            "conditional": false,
+            "mode": "check",
+            "operation": "example.leyline#GetOrganization",
+            "resource": "example.leyline#Organization",
+            "scopes": [
+              "organization"
+            ]
+          }
+        ],
         "assignedBy": [],
         "deprecated": false,
         "description": "Take and manage backups.",
         "holders": [],
+        "name": "backupAdmin",
         "permissions": [],
         "scopes": [
           "organization"
@@ -3367,10 +4368,24 @@
         "value": "backupAdmin"
       },
       {
+        "allowedOperations": [
+          {
+            "assignments": [],
+            "byService": false,
+            "conditional": false,
+            "mode": "check",
+            "operation": "example.leyline#CreateGraph",
+            "resource": "example.leyline#Graph",
+            "scopes": [
+              "organization"
+            ]
+          }
+        ],
         "assignedBy": [],
         "deprecated": false,
         "description": "Create graphs; the create handler makes the creator `graphAdmin` on each.",
         "holders": [],
+        "name": "graphCreator",
         "permissions": [],
         "scopes": [
           "organization"
@@ -3378,10 +4393,25 @@
         "value": "graphCreator"
       },
       {
+        "allowedOperations": [
+          {
+            "assignments": [],
+            "byService": false,
+            "conditional": false,
+            "mode": "check",
+            "operation": "example.leyline#GetGraph",
+            "resource": "example.leyline#Graph",
+            "scopes": [
+              "allGraphs",
+              "graph"
+            ]
+          }
+        ],
         "assignedBy": [],
         "deprecated": false,
         "description": "Read graph data.",
         "holders": [],
+        "name": "graphReader",
         "permissions": [],
         "scopes": [
           "allGraphs",
@@ -3390,10 +4420,37 @@
         "value": "graphReader"
       },
       {
+        "allowedOperations": [
+          {
+            "assignments": [],
+            "byService": false,
+            "conditional": false,
+            "mode": "check",
+            "operation": "example.leyline#GetGraph",
+            "resource": "example.leyline#Graph",
+            "scopes": [
+              "allGraphs",
+              "graph"
+            ]
+          },
+          {
+            "assignments": [],
+            "byService": false,
+            "conditional": false,
+            "mode": "check",
+            "operation": "example.leyline#WriteGraph",
+            "resource": "example.leyline#Graph",
+            "scopes": [
+              "allGraphs",
+              "graph"
+            ]
+          }
+        ],
         "assignedBy": [],
         "deprecated": false,
         "description": "Read and write graph data.",
         "holders": [],
+        "name": "graphWriter",
         "permissions": [],
         "scopes": [
           "allGraphs",
@@ -3402,10 +4459,86 @@
         "value": "graphWriter"
       },
       {
+        "allowedOperations": [
+          {
+            "assignments": [],
+            "byService": false,
+            "conditional": false,
+            "mode": "check",
+            "operation": "example.leyline#CreateGraph",
+            "resource": "example.leyline#Graph",
+            "scopes": [
+              "allGraphs"
+            ]
+          },
+          {
+            "assignments": [],
+            "byService": false,
+            "conditional": false,
+            "mode": "check",
+            "operation": "example.leyline#DeleteGraph",
+            "resource": "example.leyline#Graph",
+            "scopes": [
+              "allGraphs",
+              "graph"
+            ]
+          },
+          {
+            "assignments": [],
+            "byService": false,
+            "conditional": false,
+            "mode": "check",
+            "operation": "example.leyline#GetGraph",
+            "resource": "example.leyline#Graph",
+            "scopes": [
+              "allGraphs",
+              "graph"
+            ]
+          },
+          {
+            "assignments": [],
+            "byService": true,
+            "conditional": false,
+            "documentation": "The history of a graph this binding covers, while the graph is live.",
+            "mode": "check",
+            "operation": "example.leyline#GetGraphHistory",
+            "resource": "example.leyline#GraphHistory",
+            "scopes": [
+              "allGraphs",
+              "graph"
+            ]
+          },
+          {
+            "assignments": [],
+            "byService": true,
+            "conditional": false,
+            "documentation": "The history of a graph this binding covers, while the graph is live.",
+            "mode": "filter",
+            "operation": "example.leyline#ListGraphHistories",
+            "resource": "example.leyline#GraphHistory",
+            "scopes": [
+              "allGraphs",
+              "graph"
+            ]
+          },
+          {
+            "assignments": [],
+            "byService": false,
+            "conditional": false,
+            "mode": "check",
+            "operation": "example.leyline#WriteGraph",
+            "resource": "example.leyline#Graph",
+            "scopes": [
+              "allGraphs",
+              "graph"
+            ]
+          }
+        ],
         "assignedBy": [],
         "deprecated": false,
         "description": "Read, write, configure and delete graphs.",
         "holders": [],
+        "name": "graphAdmin",
         "permissions": [],
         "scopes": [
           "allGraphs",
@@ -3414,10 +4547,37 @@
         "value": "graphAdmin"
       },
       {
+        "allowedOperations": [
+          {
+            "assignments": [],
+            "byService": false,
+            "conditional": false,
+            "mode": "check",
+            "operation": "example.leyline#GetGraphHistory",
+            "resource": "example.leyline#GraphHistory",
+            "scopes": [
+              "allHistories",
+              "history"
+            ]
+          },
+          {
+            "assignments": [],
+            "byService": false,
+            "conditional": false,
+            "mode": "filter",
+            "operation": "example.leyline#ListGraphHistories",
+            "resource": "example.leyline#GraphHistory",
+            "scopes": [
+              "allHistories",
+              "history"
+            ]
+          }
+        ],
         "assignedBy": [],
         "deprecated": false,
         "description": "Read graph histories.",
         "holders": [],
+        "name": "historyReader",
         "permissions": [],
         "scopes": [
           "allHistories",
@@ -3426,10 +4586,49 @@
         "value": "historyReader"
       },
       {
+        "allowedOperations": [
+          {
+            "assignments": [],
+            "byService": false,
+            "conditional": false,
+            "mode": "check",
+            "operation": "example.leyline#GetGraphHistory",
+            "resource": "example.leyline#GraphHistory",
+            "scopes": [
+              "allHistories",
+              "history"
+            ]
+          },
+          {
+            "assignments": [],
+            "byService": false,
+            "conditional": false,
+            "mode": "filter",
+            "operation": "example.leyline#ListGraphHistories",
+            "resource": "example.leyline#GraphHistory",
+            "scopes": [
+              "allHistories",
+              "history"
+            ]
+          },
+          {
+            "assignments": [],
+            "byService": false,
+            "conditional": false,
+            "mode": "check",
+            "operation": "example.leyline#RestoreGraphHistory",
+            "resource": "example.leyline#GraphHistory",
+            "scopes": [
+              "allHistories",
+              "history"
+            ]
+          }
+        ],
         "assignedBy": [],
         "deprecated": false,
         "description": "Read and restore graph histories.",
         "holders": [],
+        "name": "historyAdmin",
         "permissions": [],
         "scopes": [
           "allHistories",
@@ -3443,6 +4642,7 @@
         "deprecated": false,
         "description": "The organization itself: membership, keys, usage, audit and ownership.",
         "kind": "instance",
+        "name": "organization",
         "resource": "example.leyline#Organization",
         "value": "organization"
       },
@@ -3450,6 +4650,7 @@
         "deprecated": false,
         "description": "Every graph in the organization, including graphs created later.",
         "kind": "every",
+        "name": "allGraphs",
         "resource": "example.leyline#Graph",
         "value": "allGraphs"
       },
@@ -3457,6 +4658,7 @@
         "deprecated": false,
         "description": "One graph.",
         "kind": "instance",
+        "name": "graph",
         "resource": "example.leyline#Graph",
         "value": "graph"
       },
@@ -3464,6 +4666,7 @@
         "deprecated": false,
         "description": "Every graph history in the organization, retired ones too.",
         "kind": "every",
+        "name": "allHistories",
         "resource": "example.leyline#GraphHistory",
         "value": "allHistories"
       },
@@ -3471,6 +4674,7 @@
         "deprecated": false,
         "description": "One graph history.",
         "kind": "instance",
+        "name": "history",
         "resource": "example.leyline#GraphHistory",
         "value": "history"
       }

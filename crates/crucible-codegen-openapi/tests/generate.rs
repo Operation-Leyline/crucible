@@ -391,6 +391,12 @@ fn roles_match_reviewed_golden_per_audience() {
         // PurgeNote's only requirement is internal: a client still learns
         // that `owner` grants it.
         let purge = &document["paths"]["/workspaces/{workspaceId}/notes/{noteId}/purge"]["post"];
+        assert!(
+            !purge["description"]
+                .as_str()
+                .unwrap()
+                .contains("Requires permissions internal to the service.")
+        );
         let requires = &purge["x-crucible-requires"];
         let granted = if internal {
             &requires["clauses"][0]["grantedBy"]

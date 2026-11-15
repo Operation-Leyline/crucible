@@ -23,6 +23,23 @@ What a role binding names: a role and an instance of one of its scopes. A bindin
 - Assigned by: holders of <code>owner</code> only.
 - Grants: <code>history:read</code>, <code>history:restore</code>, <code>organization:read</code>, <code>settings:read</code>, <code>settings:manage</code>, <code>member:read</code>, <code>member:manage</code>, <code>apiKey:read</code>, <code>apiKey:manage</code>, <code>roleBinding:read</code>, <code>roleBinding:manage</code>, <code>graphGroup:read</code>, <code>graphGroup:manage</code>, <code>usage:read</code>, <code>audit:read</code>, <code>audit:manage</code>, <code>backup:read</code>, <code>backup:manage</code>.
 
+Allows (each entry describes one authorization clause; other clauses and assignment restrictions still apply):
+
+#### GraphHistory
+
+- [GetGraphHistory](operations/API_GetGraphHistory.md) at <code>organization</code>.
+- [ListGraphHistories](operations/API_ListGraphHistories.md) at <code>organization</code>; returns only what it covers.
+- [RestoreGraphHistory](operations/API_RestoreGraphHistory.md) at <code>organization</code>.
+
+#### Organization
+
+- [CreateBackup](operations/API_CreateBackup.md) at <code>organization</code>.
+- [GetOrganization](operations/API_GetOrganization.md) at <code>organization</code>.
+- [GetUsage](operations/API_GetUsage.md) at <code>organization</code>.
+- [ListAuditEvents](operations/API_ListAuditEvents.md) at <code>organization</code>.
+- [PutRoleBinding](operations/API_PutRoleBinding.md) at <code>organization</code>; granting or revoking <code>accessAdmin</code> requires holders of <code>owner</code> at a scope covering the binding; granting or revoking <code>auditAdmin</code> requires holders of <code>owner</code> at a scope covering the binding; granting or revoking <code>owner</code> requires holders of <code>owner</code> at a scope covering the binding.
+- [RevokeRoleBinding](operations/API_RevokeRoleBinding.md) at <code>organization</code>; granting or revoking <code>accessAdmin</code> requires holders of <code>owner</code> at a scope covering the binding; granting or revoking <code>auditAdmin</code> requires holders of <code>owner</code> at a scope covering the binding; granting or revoking <code>owner</code> requires holders of <code>owner</code> at a scope covering the binding.
+
 ### `accessAdmin`
 
 <p>Who belongs to the organization, its keys, and who holds which role.</p>
@@ -32,6 +49,14 @@ What a role binding names: a role and an instance of one of its scopes. A bindin
 - Assigned by: holders of <code>owner</code> only.
 - Grants: <code>organization:read</code>, <code>settings:read</code>, <code>member:read</code>, <code>member:manage</code>, <code>apiKey:read</code>, <code>apiKey:manage</code>, <code>roleBinding:read</code>, <code>roleBinding:manage</code>.
 
+Allows (each entry describes one authorization clause; other clauses and assignment restrictions still apply):
+
+#### Organization
+
+- [GetOrganization](operations/API_GetOrganization.md) at <code>organization</code>.
+- [PutRoleBinding](operations/API_PutRoleBinding.md) at <code>organization</code>; granting or revoking <code>accessAdmin</code> requires holders of <code>owner</code> at a scope covering the binding; granting or revoking <code>auditAdmin</code> requires holders of <code>owner</code> at a scope covering the binding; granting or revoking <code>owner</code> requires holders of <code>owner</code> at a scope covering the binding.
+- [RevokeRoleBinding](operations/API_RevokeRoleBinding.md) at <code>organization</code>; granting or revoking <code>accessAdmin</code> requires holders of <code>owner</code> at a scope covering the binding; granting or revoking <code>auditAdmin</code> requires holders of <code>owner</code> at a scope covering the binding; granting or revoking <code>owner</code> requires holders of <code>owner</code> at a scope covering the binding.
+
 ### `graphGroupAdmin`
 
 <p>The organization's graph groups.</p>
@@ -39,6 +64,12 @@ What a role binding names: a role and an instance of one of its scopes. A bindin
 - Scopes: <code>organization</code>.
 - Held by: any principal.
 - Grants: <code>organization:read</code>, <code>graphGroup:read</code>, <code>graphGroup:manage</code>.
+
+Allows (each entry describes one authorization clause; other clauses and assignment restrictions still apply):
+
+#### Organization
+
+- [GetOrganization](operations/API_GetOrganization.md) at <code>organization</code>.
 
 ### `usageViewer`
 
@@ -48,6 +79,13 @@ What a role binding names: a role and an instance of one of its scopes. A bindin
 - Held by: any principal.
 - Grants: <code>organization:read</code>, <code>usage:read</code>.
 
+Allows (each entry describes one authorization clause; other clauses and assignment restrictions still apply):
+
+#### Organization
+
+- [GetOrganization](operations/API_GetOrganization.md) at <code>organization</code>.
+- [GetUsage](operations/API_GetUsage.md) at <code>organization</code>.
+
 ### `auditViewer`
 
 <p>The organization's audit log.</p>
@@ -55,6 +93,13 @@ What a role binding names: a role and an instance of one of its scopes. A bindin
 - Scopes: <code>organization</code>.
 - Held by: any principal.
 - Grants: <code>organization:read</code>, <code>audit:read</code>.
+
+Allows (each entry describes one authorization clause; other clauses and assignment restrictions still apply):
+
+#### Organization
+
+- [GetOrganization](operations/API_GetOrganization.md) at <code>organization</code>.
+- [ListAuditEvents](operations/API_ListAuditEvents.md) at <code>organization</code>.
 
 ### `auditAdmin`
 
@@ -65,6 +110,13 @@ What a role binding names: a role and an instance of one of its scopes. A bindin
 - Assigned by: holders of <code>owner</code> only.
 - Grants: <code>organization:read</code>, <code>audit:read</code>, <code>audit:manage</code>.
 
+Allows (each entry describes one authorization clause; other clauses and assignment restrictions still apply):
+
+#### Organization
+
+- [GetOrganization](operations/API_GetOrganization.md) at <code>organization</code>.
+- [ListAuditEvents](operations/API_ListAuditEvents.md) at <code>organization</code>.
+
 ### `backupViewer`
 
 <p>The organization's backups.</p>
@@ -72,6 +124,12 @@ What a role binding names: a role and an instance of one of its scopes. A bindin
 - Scopes: <code>organization</code>.
 - Held by: any principal.
 - Grants: <code>organization:read</code>, <code>backup:read</code>.
+
+Allows (each entry describes one authorization clause; other clauses and assignment restrictions still apply):
+
+#### Organization
+
+- [GetOrganization](operations/API_GetOrganization.md) at <code>organization</code>.
 
 ### `backupAdmin`
 
@@ -81,6 +139,13 @@ What a role binding names: a role and an instance of one of its scopes. A bindin
 - Held by: any principal.
 - Grants: <code>organization:read</code>, <code>backup:read</code>, <code>backup:manage</code>.
 
+Allows (each entry describes one authorization clause; other clauses and assignment restrictions still apply):
+
+#### Organization
+
+- [CreateBackup](operations/API_CreateBackup.md) at <code>organization</code>.
+- [GetOrganization](operations/API_GetOrganization.md) at <code>organization</code>.
+
 ### `graphCreator`
 
 <p>Create graphs; the create handler makes the creator <code>graphAdmin</code> on each.</p>
@@ -88,6 +153,12 @@ What a role binding names: a role and an instance of one of its scopes. A bindin
 - Scopes: <code>organization</code>.
 - Held by: any principal.
 - Grants: <code>graph:create</code>.
+
+Allows (each entry describes one authorization clause; other clauses and assignment restrictions still apply):
+
+#### Graph
+
+- [CreateGraph](operations/API_CreateGraph.md) at <code>organization</code>.
 
 ### `graphReader`
 
@@ -97,6 +168,12 @@ What a role binding names: a role and an instance of one of its scopes. A bindin
 - Held by: any principal.
 - Grants: <code>graph:read</code>.
 
+Allows (each entry describes one authorization clause; other clauses and assignment restrictions still apply):
+
+#### Graph
+
+- [GetGraph](operations/API_GetGraph.md) at <code>allGraphs</code>, <code>graph</code>.
+
 ### `graphWriter`
 
 <p>Read and write graph data.</p>
@@ -104,6 +181,13 @@ What a role binding names: a role and an instance of one of its scopes. A bindin
 - Scopes: <code>allGraphs</code>, <code>graph</code>.
 - Held by: any principal.
 - Grants: <code>graph:read</code>, <code>graph:write</code>.
+
+Allows (each entry describes one authorization clause; other clauses and assignment restrictions still apply):
+
+#### Graph
+
+- [GetGraph](operations/API_GetGraph.md) at <code>allGraphs</code>, <code>graph</code>.
+- [WriteGraph](operations/API_WriteGraph.md) at <code>allGraphs</code>, <code>graph</code>.
 
 ### `graphAdmin`
 
@@ -114,6 +198,20 @@ What a role binding names: a role and an instance of one of its scopes. A bindin
 - Grants: <code>graph:read</code>, <code>graph:write</code>, <code>graph:manage</code>, <code>graph:create</code>.
 - Grants <code>history:read</code> as the service decides: The history of a graph this binding covers, while the graph is live.
 
+Allows (each entry describes one authorization clause; other clauses and assignment restrictions still apply):
+
+#### Graph
+
+- [CreateGraph](operations/API_CreateGraph.md) at <code>allGraphs</code>.
+- [DeleteGraph](operations/API_DeleteGraph.md) at <code>allGraphs</code>, <code>graph</code>.
+- [GetGraph](operations/API_GetGraph.md) at <code>allGraphs</code>, <code>graph</code>.
+- [WriteGraph](operations/API_WriteGraph.md) at <code>allGraphs</code>, <code>graph</code>.
+
+#### GraphHistory
+
+- [GetGraphHistory](operations/API_GetGraphHistory.md) at <code>allGraphs</code>, <code>graph</code>; as the service decides: The history of a graph this binding covers, while the graph is live.
+- [ListGraphHistories](operations/API_ListGraphHistories.md) at <code>allGraphs</code>, <code>graph</code>; returns only what it covers; as the service decides: The history of a graph this binding covers, while the graph is live.
+
 ### `historyReader`
 
 <p>Read graph histories.</p>
@@ -122,6 +220,13 @@ What a role binding names: a role and an instance of one of its scopes. A bindin
 - Held by: any principal.
 - Grants: <code>history:read</code>.
 
+Allows (each entry describes one authorization clause; other clauses and assignment restrictions still apply):
+
+#### GraphHistory
+
+- [GetGraphHistory](operations/API_GetGraphHistory.md) at <code>allHistories</code>, <code>history</code>.
+- [ListGraphHistories](operations/API_ListGraphHistories.md) at <code>allHistories</code>, <code>history</code>; returns only what it covers.
+
 ### `historyAdmin`
 
 <p>Read and restore graph histories.</p>
@@ -129,3 +234,11 @@ What a role binding names: a role and an instance of one of its scopes. A bindin
 - Scopes: <code>allHistories</code>, <code>history</code>.
 - Held by: any principal.
 - Grants: <code>history:read</code>, <code>history:restore</code>.
+
+Allows (each entry describes one authorization clause; other clauses and assignment restrictions still apply):
+
+#### GraphHistory
+
+- [GetGraphHistory](operations/API_GetGraphHistory.md) at <code>allHistories</code>, <code>history</code>.
+- [ListGraphHistories](operations/API_ListGraphHistories.md) at <code>allHistories</code>, <code>history</code>; returns only what it covers.
+- [RestoreGraphHistory](operations/API_RestoreGraphHistory.md) at <code>allHistories</code>, <code>history</code>.

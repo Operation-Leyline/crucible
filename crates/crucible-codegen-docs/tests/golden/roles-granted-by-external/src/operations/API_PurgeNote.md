@@ -10,8 +10,6 @@ Protocol: <code>crucibleJson</code>.
 
 ## Authorization
 
-Requires permissions internal to the service.
-
 <p>Granted by <code>owner</code> at <code>workspace</code>.</p>
 
 ## Request syntax

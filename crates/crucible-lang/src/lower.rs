@@ -5333,6 +5333,7 @@ impl<'a> Lowerer<'a> {
             requirements,
             sender: annotations.sender,
             granted_by: Vec::new(),
+            assignment_roles: Vec::new(),
             assigns,
         })
     }

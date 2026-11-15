@@ -582,7 +582,7 @@ test("an operation states what the caller must hold, and the overview lists the 
 
   // The client audience names no internal permission.
   const external = x.index(PERMISSIONS_EXTERNAL);
-  assert.match(textOf(x.operationView(external, "example.leyline#GetOrganization", null)), /Requires permissions internal to the service\./);
+  assert.match(htmlOf(x.operationView(external, "example.leyline#GetOrganization", null)), /Requires permissions internal to the service\./);
   assert.ok(!textOf(x.overviewView(external)).includes("organization:read"));
   // `requires none` keeps its reason, rendered as model Markdown after the
   // sentence; without one it says the sentence alone.
@@ -604,8 +604,8 @@ test("an operation says which roles grant it, and the overview lists the roles",
   // roles and scopes that grant each operation, and no permission.
   const external = x.index(ROLES_EXTERNAL);
   const graph = textOf(x.operationView(external, "example.leyline#GetGraph", null));
-  assert.match(graph, /Requires permissions internal to the service\./);
   const html = htmlOf(x.operationView(external, "example.leyline#GetGraph", null));
+  assert.doesNotMatch(html, /Requires permissions internal to the service\./);
   assert.ok(
     html.includes("Granted by <code>graphReader</code>, <code>graphWriter</code> or <code>graphAdmin</code> at <code>allGraphs</code> or <code>graph</code>."),
     html,
@@ -621,6 +621,10 @@ test("an operation says which roles grant it, and the overview lists the roles",
     assert.ok(!overview.includes(value), value);
     assert.ok(!graph.includes(value), value);
   }
+  assert.ok(htmlOf(x.overviewView(external)).includes("graphReader</code> allows") && overview.includes("GetGraph"));
+  assert.ok(overview.includes("returns only what it covers"));
+  assert.ok(htmlOf(x.overviewView(external)).includes("granting or revoking <code>owner</code> requires holders of <code>owner</code>"));
+  assert.ok(htmlOf(x.overviewView(external)).includes('href="#/op/example.leyline%23GetGraph"'));
   // The server audience lists what each role grants, internal permissions too.
   assert.ok(textOf(x.overviewView(x.index(ROLES))).includes("graph:read"));
 

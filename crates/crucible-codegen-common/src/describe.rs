@@ -21,6 +21,11 @@ use crate::{documentation, json_schema, sample};
 pub struct Description {
     pub format: String,
     pub service: Value,
+    /// Role and scope catalogues, absent for a service without roles.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub roles: Option<Value>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub scopes: Option<Value>,
     pub resources: BTreeMap<String, Value>,
     pub operations: BTreeMap<String, Value>,
     pub shapes: BTreeMap<String, Value>,
@@ -632,6 +637,8 @@ fn describe_inner(
             "authSchemes":service.auth_schemes.iter().map(|(id,s)|(id.to_string(),s)).collect::<BTreeMap<_,_>>(),
             "errors":service.errors.iter().map(ToString::to_string).collect::<Vec<_>>(),
             "resourceRoots":service.resource_roots.iter().map(ToString::to_string).collect::<Vec<_>>()}),
+        roles: None,
+        scopes: None,
         resources,
         operations,
         shapes,
@@ -665,8 +672,11 @@ fn describe_inner(
     // server-audience description. Absent for a service without roles.
     let roles = crate::roles::roles_registry(service, true);
     if roles.as_array().is_some_and(|entries| !entries.is_empty()) {
+        description.roles = Some(roles.clone());
+        let scopes = crate::roles::scopes_registry(service, true);
+        description.scopes = Some(scopes.clone());
         description.service["roles"] = roles;
-        description.service["scopes"] = crate::roles::scopes_registry(service, true);
+        description.service["scopes"] = scopes;
         if crate::roles::custom(service) {
             description.service["customRoles"] = json!(true);
         }

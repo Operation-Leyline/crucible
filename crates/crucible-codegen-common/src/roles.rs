@@ -461,6 +461,7 @@ fn scope_target(target: &ScopeTarget) -> (&'static str, Option<&ShapeId>) {
 /// their internal scopes and assigners, and internal permissions, for
 /// server-audience output only; a client's has [`client_roles`]' entries.
 pub fn roles_registry(service: &Service, internal: bool) -> Value {
+    let allowed = crucible_ir::roles::allowed_operations(service);
     Value::Array(
         service
             .roles
@@ -506,6 +507,7 @@ pub fn roles_registry(service: &Service, internal: bool) -> Value {
                     })
                     .collect();
                 let mut value = json!({
+                    "name": role.symbol,
                     "value": role.value,
                     "description": role.docs.as_deref().map(str::trim).unwrap_or_default(),
                     "scopes": scopes,
@@ -514,6 +516,14 @@ pub fn roles_registry(service: &Service, internal: bool) -> Value {
                     "permissions": permissions,
                     "deprecated": role.notes.deprecated.is_some(),
                 });
+                value["allowedOperations"] = json!(
+                    allowed
+                        .get(&role.symbol)
+                        .into_iter()
+                        .flatten()
+                        .filter_map(|entry| allowed_data(service, entry, internal))
+                        .collect::<Vec<_>>()
+                );
                 if !by_service.is_empty() {
                     value["byService"] = json!(by_service);
                 }
@@ -524,6 +534,51 @@ pub fn roles_registry(service: &Service, internal: bool) -> Value {
             })
             .collect(),
     )
+}
+
+/// Present the shared inverse with public catalogue values, never permission
+/// names. An SDK built from a server view still omits internal operations.
+fn allowed_data(
+    service: &Service,
+    entry: &crucible_ir::roles::AllowedOperation,
+    internal: bool,
+) -> Option<Value> {
+    let op = service
+        .operations
+        .iter()
+        .find(|op| op.id == entry.operation)?;
+    if !internal && op.internal {
+        return None;
+    }
+    let scopes: Vec<_> = entry
+        .scopes
+        .iter()
+        .filter_map(|symbol| service.scope(symbol))
+        .filter(|scope| scope_visible(scope, internal))
+        .map(|scope| &scope.value)
+        .collect();
+    if scopes.is_empty() {
+        return None;
+    }
+    let assignments: Vec<_> = entry
+        .assignment_roles
+        .iter()
+        .filter_map(|symbol| service.role(symbol))
+        .filter(|role| role_visible(role, internal))
+        .map(|role| {
+            json!({"role": role.value, "assignedBy": role.assigned_by.iter()
+            .filter_map(|symbol| service.role(symbol)).filter(|role| role_visible(role, internal))
+            .map(|role| &role.value).collect::<Vec<_>>()})
+        })
+        .collect();
+    let mut value = json!({"operation": entry.operation.to_string(),
+        "resource": entry.resource.as_ref().map(ToString::to_string), "scopes": scopes,
+        "mode": mode_name(entry.mode), "conditional": entry.conditional,
+        "byService": entry.by_service, "assignments": assignments});
+    if let Some(docs) = &entry.docs {
+        value["documentation"] = json!(docs);
+    }
+    Some(value)
 }
 
 /// The scope registry as data (the description's and OpenAPI's
@@ -539,6 +594,7 @@ pub fn scopes_registry(service: &Service, internal: bool) -> Value {
             .map(|scope| {
                 let (kind, resource) = scope_target(&scope.on);
                 let mut value = json!({
+                    "name": scope.symbol,
                     "value": scope.value,
                     "description": scope.docs.as_deref().map(str::trim).unwrap_or_default(),
                     "kind": kind,

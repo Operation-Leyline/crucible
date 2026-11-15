@@ -273,7 +273,8 @@ fn role_registry_matches_golden() {
     );
     let client = file(&external, "src/client.ts");
     assert!(
-        client.contains("Requires permissions internal to the service.\n   *\n   * Granted by `owner` at `workspace`."),
+        !client.contains("Requires permissions internal to the service.")
+            && client.contains("Granted by `owner` at `workspace`."),
         "{client}"
     );
     assert!(

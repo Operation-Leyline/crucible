@@ -516,8 +516,9 @@
     } else if (r.kind === "pending") {
       body.push(h("p", {}, "Requirements not declared yet; the service checks them itself: ", r.reason));
       reason();
-    } else if (r.kind === "internal") body.push(h("p", {}, "Requires permissions internal to the service."));
-    else {
+    } else if (r.kind === "internal") {
+      for (const s of list(op.requirementDocumentation)) body.push(rich(s.html, m));
+    } else {
       // Markdown holding model text, rendered and sanitised at build time.
       for (const s of list(op.requirementDocumentation)) body.push(rich(s.html, m));
       const rows = list(r.clauses).map((c) => [
@@ -552,7 +553,7 @@
 
   // The role and scope registries (docs/roles.md §5), in catalogue order:
   // where each role binds, who may hold and assign it, and what it grants.
-  function rolesSection(s) {
+  function rolesSection(s, m) {
     if (!list(s.roles).length) return [];
     const codes = (values) => list(values).map((v, i) => [i ? ", " : "", code(v)]);
     const flags = (e) => [e.internal ? " Internal." : "", e.deprecated ? " Deprecated." : ""];
@@ -580,6 +581,30 @@
         ]),
         "Roles",
       ),
+      ...list(s.roles).flatMap((r) => {
+        const groups = new Map();
+        for (const entry of list(r.allowedOperations)) {
+          const resource = entry.resource || "";
+          if (!groups.has(resource)) groups.set(resource, []);
+          groups.get(resource).push(entry);
+        }
+        if (!groups.size) return [];
+        return [h("h3", {}, code(r.value), " allows"),
+          h("p", {}, "Each entry describes one authorization clause; other clauses and assignment restrictions still apply."),
+          ...Array.from(groups).sort(([a], [b]) => a < b ? -1 : a > b ? 1 : 0).flatMap(([resource, entries]) => [
+            h("h4", {}, (m.resources[resource] || {}).name || "Service"),
+            h("ul", {}, entries.map((e) => {
+              const op = m.operations[e.operation];
+              if (!op) return null;
+              return h("li", {}, link("op", op.id, op.name), " at ", codes(e.scopes),
+                e.mode === "filter" ? "; returns only what it covers" : "",
+                e.mode === "handler" ? "; checked by the service" : "",
+                e.conditional ? "; when a condition on the input holds" : "",
+                e.byService ? ["; as the service decides", e.documentation ? [": ", e.documentation] : ""] : "",
+                list(e.assignments).map((a) => ["; granting or revoking ", code(a.role), " requires holders of ", codes(a.assignedBy), " at a scope covering the binding"]));
+            })),
+          ])];
+      }),
     ];
   }
 
@@ -696,7 +721,7 @@
         : h("p", { class: "cx-muted" }, "No default authentication schemes."),
     );
     out.push(...permissionsSection(s));
-    out.push(...rolesSection(s));
+    out.push(...rolesSection(s, m));
     out.push(h("h2", {}, "Service errors"), errorsTable(m, s.errors));
     out.push(h("h2", {}, "Operations"));
     for (const group of navigation(m).filter((g) => g.kind === "resource" || g.kind === "service")) {
