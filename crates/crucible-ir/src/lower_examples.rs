@@ -22,7 +22,7 @@ pub(crate) struct Check<'a> {
 
 impl Check<'_> {
     /// An operation's input, output or error, where no shape means Unit.
-    pub(crate) fn io(&mut self, path: &str, shape: Option<&ShapeId>, value: &Value) {
+    pub(crate) fn io(&mut self, path: &str, shape: Option<&ShapeId>, value: &Value, input: bool) {
         if let Some(id) = shape
             && matches!(self.shapes.get(id), Some(Shape::Union(_)))
         {
@@ -35,7 +35,7 @@ impl Check<'_> {
             return;
         };
         match shape.and_then(|shape| self.shapes.get(shape)) {
-            Some(Shape::Structure(structure)) => self.structure(path, structure, members),
+            Some(Shape::Structure(structure)) => self.structure(path, structure, members, input),
             _ if members.is_empty() => {}
             _ => self
                 .problems
@@ -50,17 +50,22 @@ impl Check<'_> {
         }
     }
 
-    fn structure(&mut self, path: &str, shape: &Structure, members: &Map<String, Value>) {
+    fn structure(
+        &mut self,
+        path: &str,
+        shape: &Structure,
+        members: &Map<String, Value>,
+        input: bool,
+    ) {
         for (name, value) in members {
             match shape.member(name) {
-                // A document's null is a value of its own, distinct on the
-                // wire from leaving the member out. Nullability is the
-                // server's: an example is a request the server must accept,
-                // and it refuses null for a member it requires.
+                // Clearing is an input action, not a value of the target
+                // type. A document's own null remains valid on optional
+                // members independently of clearing.
                 Some(member)
                     if value.is_null()
                         && member.optional_on_server()
-                        && self.is_document(&member.target) => {}
+                        && (input && member.clearable || self.is_document(&member.target)) => {}
                 Some(member) => self.member(&format!("{path}.{name}"), member, value, false),
                 None => self.problems.push(format!("{path}.{name} is not a member")),
             }
@@ -154,7 +159,7 @@ impl Check<'_> {
                 }
             }
             Shape::Structure(structure) => match value.as_object() {
-                Some(members) => self.structure(path, structure, members),
+                Some(members) => self.structure(path, structure, members, false),
                 None => self.mismatch(path, "object", value),
             },
             Shape::Union(union) => {
@@ -459,6 +464,92 @@ impl Service {
 mod tests {
     use super::*;
     use crate::ir::Bounds;
+
+    fn null_member_problems(input: bool, clearable: bool) -> Vec<String> {
+        let string = ShapeId::new("test", "Text");
+        let root = ShapeId::new("test", "Root");
+        let member = Member {
+            clearable,
+            internal: false,
+            sensitive: false,
+            name: "value".into(),
+            target: string.clone(),
+            required: false,
+            default: None,
+            wire_default: None,
+            idempotency_token: false,
+            mutability: None,
+            constraints: Constraints::default(),
+            timestamp_format: None,
+            wire_timestamp_format: TimestampFormat::DateTime,
+            docs: None,
+            notes: Default::default(),
+            traits: Default::default(),
+        };
+        let shapes = BTreeMap::from([
+            (
+                string,
+                Shape::Simple(Simple {
+                    internal: false,
+                    sensitive: false,
+                    kind: SimpleKind::String,
+                    constraints: Constraints::default(),
+                    timestamp_format: None,
+                    docs: None,
+                    notes: Default::default(),
+                    traits: Default::default(),
+                }),
+            ),
+            (
+                root.clone(),
+                Shape::Structure(Structure {
+                    internal: false,
+                    sensitive: false,
+                    strict: false,
+                    input: true,
+                    members: vec![member],
+                    error: None,
+                    docs: None,
+                    notes: Default::default(),
+                    traits: Default::default(),
+                }),
+            ),
+        ]);
+        let mut check = Check {
+            shapes: &shapes,
+            allow_constraint_errors: false,
+            problems: Vec::new(),
+        };
+        check.io(
+            if input { "input" } else { "output" },
+            Some(&root),
+            &serde_json::json!({"value": null}),
+            input,
+        );
+        check.problems
+    }
+
+    #[test]
+    fn clearable_input_examples_accept_null() {
+        let problems = null_member_problems(true, true);
+        assert!(problems.is_empty(), "{problems:?}");
+    }
+
+    #[test]
+    fn ordinary_optional_input_examples_reject_null() {
+        assert_eq!(
+            null_member_problems(true, false),
+            ["input.value must not be null"]
+        );
+    }
+
+    #[test]
+    fn output_examples_reject_clearable_null() {
+        assert_eq!(
+            null_member_problems(false, true),
+            ["output.value must not be null"]
+        );
+    }
 
     /// Problems with `value` as a `kind` member ranged `min..max`.
     fn problems(

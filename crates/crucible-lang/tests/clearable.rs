@@ -142,3 +142,123 @@ fn parser_retains_the_member_modifier() {
         assert_eq!(body.members[0].modifiers[0].name, "clearable");
     }
 }
+
+fn null_input_example(modifier: &str) -> crucible_lang::Compiled {
+    let text = format!(
+        r#"
+service Notes {{ version "1" protocol json operations [Update] }}
+operation Update {{
+    http PATCH "/notes"
+    input {{ {modifier} description?: string }}
+    example "Clear description" {{ input {{ description: null }} }}
+}}
+"#
+    );
+    crucible_lang::compile(
+        &crucible_lang::Package::new(
+            "example.clearable",
+            vec![crucible_lang::SourceFile {
+                path: "notes.cru".into(),
+                text,
+            }],
+        ),
+        None,
+    )
+}
+
+#[test]
+fn clearable_null_input_example_compiles() {
+    let compiled = null_input_example("clearable");
+    assert!(!compiled.has_errors(), "{}", compiled.render());
+    let service = compiled.service.unwrap();
+    assert_eq!(
+        service.operations[0].examples[0]
+            .input
+            .as_ref()
+            .unwrap()
+            .get("description"),
+        Some(&serde_json::Value::Null)
+    );
+}
+
+#[test]
+fn ordinary_optional_null_input_example_is_refused() {
+    let compiled = null_input_example("");
+    assert!(compiled.has_errors());
+    assert!(
+        compiled
+            .render()
+            .contains("input.description must not be null"),
+        "{}",
+        compiled.render()
+    );
+}
+
+#[test]
+fn metadata_modifier_names_are_not_reserved() {
+    for name in ["sensitive", "internal", "clearable"] {
+        let text = format!(
+            r#"
+metadata {name} on member
+service Notes {{ version "1" protocol json operations [Update] }}
+operation Update {{
+    http PATCH "/notes"
+    input {{ @{name} description?: string }}
+}}
+"#
+        );
+        let compiled = crucible_lang::compile(
+            &crucible_lang::Package::new(
+                "example.clearable",
+                vec![crucible_lang::SourceFile {
+                    path: "notes.cru".into(),
+                    text,
+                }],
+            ),
+            None,
+        );
+        assert!(!compiled.has_errors(), "{}", compiled.render());
+        let service = compiled.service.unwrap();
+        let Shape::Structure(input) = service
+            .shape(service.operations[0].input.as_ref().unwrap())
+            .unwrap()
+        else {
+            panic!("input structure");
+        };
+        let member = input.member("description").unwrap();
+        assert!(!member.internal && !member.sensitive && !member.clearable);
+        assert!(
+            member
+                .traits
+                .contains_key(&crucible_ir::ShapeId::new("example.clearable", name))
+        );
+    }
+}
+
+#[test]
+fn metadata_conflicts_can_name_the_clearable_modifier() {
+    let package = crucible_lang::Package::new(
+        "example.clearable",
+        vec![crucible_lang::SourceFile {
+            path: "notes.cru".into(),
+            text: r#"
+metadata secret on member conflicts clearable
+service Notes { version "1" protocol json operations [Update] }
+operation Update {
+    http PATCH "/notes"
+    input { @secret clearable description?: string }
+}
+"#
+            .into(),
+        }],
+    );
+    let compiled = crucible_lang::compile(&package, None);
+    assert!(compiled.has_errors());
+    assert!(
+        compiled
+            .render()
+            .contains("`@secret` conflicts with `clearable`"),
+        "{}",
+        compiled.render()
+    );
+}

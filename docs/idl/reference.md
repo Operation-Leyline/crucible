@@ -330,7 +330,9 @@ language's own checks include:
   `crucible_ir::validate`);
 - a metadata declaration is checked once (targets, conflicts, retention,
   value type, no built-in annotation's name) and each use's value against
-  its type;
+  its type. Modifier names such as `sensitive`, `internal` and `clearable`
+  remain available as custom metadata names; `@name` and a bare modifier
+  are distinct;
 - resources: the parent is a resource with no cycle, identifier names are
   unique across the chain, a property's name differs from every identifier
   the resource has (inherited ones too) and from its other properties,

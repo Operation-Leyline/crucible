@@ -2248,6 +2248,8 @@ impl<'a> Lowerer<'a> {
             "roleTypes",
             "scopeTypes",
         ];
+        // Modifier names are valid conflict operands, not reserved
+        // metadata names: custom annotations use a distinct `@` spelling.
         const MODIFIERS: &[&str] = &[
             "internal",
             "sensitive",
