@@ -563,10 +563,11 @@ It adds no stored inverse table to release snapshots. `Operation` keeps
 assignment qualifier survives removal of private assignment paths. `describe.json`
 exposes root `roles` and `scopes` catalogues, including allowed operations,
 while keeping the existing `service.roles` and `service.scopes` registries.
-When all requirements are internal and a visible granted-by answer exists,
-operation documentation uses that answer alone. The reference, OpenAPI and
+When all requirements are internal and every mandatory check has a visible
+granted-by answer, operation documentation uses those answers alone. The reference, OpenAPI and
 SDK comments keep “Requires permissions internal to the service.” only
-when there is no such answer for an all-internal operation.
+when a mandatory check has no visible grantor, even if a filter or another
+check has one.
 
 ## 6. Checks
 

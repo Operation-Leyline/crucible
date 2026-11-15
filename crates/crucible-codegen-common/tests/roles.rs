@@ -372,3 +372,54 @@ fn a_public_filter_does_not_restore_the_empty_internal_requirement_sentence() {
         );
     }
 }
+
+#[test]
+fn filter_or_other_check_answers_do_not_hide_an_unexplained_internal_check() {
+    let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../tests/models/roles-granted-by");
+    let mut package = crucible_lang::load_package(&dir).unwrap();
+    for file in &mut package.files {
+        file.text = file
+            .text
+            .replace("grants Workspace [*]", "grants Workspace [read, admin]")
+            .replace(
+                "    filters read on Note\n",
+                "    filters read on Note\n    requires audit on Workspace\n",
+            )
+            .replace(
+                "    requires purge\n",
+                "    requires purge\n    requires audit on Workspace\n",
+            );
+    }
+    let compiled = crucible_lang::compile(&package, None);
+    assert!(compiled.diagnostics.is_empty(), "{}", compiled.render());
+    let server = compiled.service.unwrap();
+    let client = project(&server, Audience::External).unwrap();
+    for name in ["ListNotes", "PurgeNote"] {
+        for (view, internal) in [(&server, false), (&client, false), (&client, true)] {
+            let op = view
+                .operations
+                .iter()
+                .find(|op| op.id.name() == name)
+                .unwrap();
+            assert!(!granted_by_sentences(view, op, internal).is_empty());
+            let required =
+                crucible_codegen_common::permissions::requirement_sentences(view, op, internal);
+            assert!(
+                required
+                    .iter()
+                    .any(|s| s == crucible_codegen_common::permissions::INTERNAL_REQUIREMENTS),
+                "{name}: {required:?}"
+            );
+            assert!(
+                crucible_codegen_common::permissions::requirement_paragraph(view, op, internal)
+                    .unwrap()
+                    .contains(crucible_codegen_common::permissions::INTERNAL_REQUIREMENTS)
+            );
+            assert!(
+                crucible_codegen_common::documentation::operation(view, op)
+                    .contains(crucible_codegen_common::permissions::INTERNAL_REQUIREMENTS)
+            );
+        }
+    }
+}

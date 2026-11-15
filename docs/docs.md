@@ -614,11 +614,11 @@ catalogue. Only operations visible to the audience appear.
 The Roles page shows these entries as linked **Allows** lists grouped by
 resource. A filter says “returns only what it covers”; service-decided grants
 state their condition. Assignment entries retain their `assignedBy`
-restriction. When every requirement is internal and the operation has a
-visible granted-by answer, its authorization prose consists of that answer
-alone. `requirementSentences` and `requirementDocumentation` omit the empty
+restriction. When every requirement is internal and each mandatory check
+has a visible granted-by answer, its authorization prose uses those answers
+alone. A filter answer cannot explain a separate mandatory check. `requirementSentences` and `requirementDocumentation` omit the empty
 internal sentence, as do OpenAPI descriptions and SDK comments. With no
-visible granted-by answer, the internal sentence remains.
+visible grantor for a mandatory check, the internal sentence remains.
 
 The Markdown reference shows the granted-by sentences under each
 operation's *Authorization* and lists the registries on a `roles.md` page

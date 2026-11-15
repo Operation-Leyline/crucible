@@ -210,6 +210,28 @@ pub fn granted_by_sentences(service: &Service, op: &Operation, internal: bool) -
         .collect()
 }
 
+/// Whether every hidden mandatory check has a visible role answer.
+/// A filter only narrows results; its answer cannot explain a check that
+/// can refuse the call. No settled checks (older snapshots) means no answer.
+pub(crate) fn hidden_checks_have_grantors(
+    service: &Service,
+    op: &Operation,
+    internal: bool,
+) -> bool {
+    let mut has_check = false;
+    for grants in op
+        .granted_by
+        .iter()
+        .filter(|g| g.mode != Mode::Filter && named_clause(service, op, g, internal).is_none())
+    {
+        has_check = true;
+        if grantors(service, op, grants, internal).is_none() {
+            return false;
+        }
+    }
+    has_check
+}
+
 /// [`granted_by_sentences`] as one Markdown paragraph, or `None`.
 pub fn granted_by_paragraph(service: &Service, op: &Operation, internal: bool) -> Option<String> {
     let sentences = granted_by_sentences(service, op, internal);
