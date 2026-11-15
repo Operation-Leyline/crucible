@@ -118,7 +118,8 @@ fn typed_contract(service: &mut Service) {
             example.docs = None;
         }
         match &mut op.requirements {
-            crate::ir::Requirements::List(clauses) | crate::ir::Requirements::Partial(clauses) => {
+            crate::ir::Requirements::List { clauses, .. }
+            | crate::ir::Requirements::Partial { clauses, .. } => {
                 for clause in clauses {
                     clause.docs = None;
                 }

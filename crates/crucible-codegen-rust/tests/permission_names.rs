@@ -143,7 +143,7 @@ readonly operation Measure on Graph {
         .iter_mut()
         .find(|op| op.id.name() == "Measure")
         .unwrap();
-    let Requirements::List(clauses) = &mut op.requirements else {
+    let Requirements::List { clauses, .. } = &mut op.requirements else {
         panic!("Measure declares its requirements");
     };
     clauses[0].when = Some(Condition::Equals(

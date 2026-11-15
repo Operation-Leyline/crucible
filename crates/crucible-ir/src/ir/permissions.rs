@@ -153,7 +153,11 @@ pub enum Requirements {
     },
     /// Every clause, in source order, which is the refusal order. Never
     /// empty: the checks refuse an empty list.
-    List(Vec<Requirement>),
+    List {
+        clauses: Vec<Requirement>,
+        /// Internal filters removed by client projection still narrow the answer.
+        filtered: bool,
+    },
     /// Only in a client-audience projection (`crate::project`): the
     /// operation has requirements, and every one names an internal
     /// permission, which the projection removed. A front end never produces
@@ -164,7 +168,11 @@ pub enum Requirements {
     /// an internal permission and was removed. A client must not read the
     /// list as complete: holding every permission it names may still be
     /// refused.
-    Partial(Vec<Requirement>),
+    Partial {
+        clauses: Vec<Requirement>,
+        /// Internal filters removed by client projection still narrow the answer.
+        filtered: bool,
+    },
 }
 
 impl Requirements {
@@ -181,15 +189,16 @@ impl Requirements {
     /// The clauses, empty unless this is a list (complete or partial).
     pub fn clauses(&self) -> &[Requirement] {
         match self {
-            Self::List(list) | Self::Partial(list) => list,
+            Self::List { clauses, .. } | Self::Partial { clauses, .. } => clauses,
             _ => &[],
         }
     }
 }
 
 /// The serde form of [`Requirements`], a release snapshot's: externally
-/// tagged, as derived, except that `requires none` with neither field set
-/// is written as the bare `"None"`, and both spellings read.
+/// tagged. `requires none` with neither field set is the bare `"None"`;
+/// unfiltered lists retain their legacy array payload. Readers accept both
+/// legacy forms and the fields used by client projections.
 mod requirements_serde {
     use serde::de::value::{MapAccessDeserializer, StrDeserializer};
     use serde::de::{Error, MapAccess, Visitor};
@@ -216,9 +225,9 @@ mod requirements_serde {
             #[serde(skip_serializing_if = "Option::is_none")]
             docs: &'a Option<String>,
         },
-        List(&'a [Requirement]),
+        List(ListWrite<'a>),
         Internal,
-        Partial(&'a [Requirement]),
+        Partial(ListWrite<'a>),
     }
 
     #[derive(Deserialize)]
@@ -236,9 +245,50 @@ mod requirements_serde {
             #[serde(default)]
             docs: Option<String>,
         },
-        List(Vec<Requirement>),
+        List(ListRead),
         Internal,
-        Partial(Vec<Requirement>),
+        Partial(ListRead),
+    }
+
+    // Keep unfiltered lists byte-compatible with frozen releases.
+    #[derive(Serialize)]
+    #[serde(untagged)]
+    enum ListWrite<'a> {
+        Legacy(&'a [Requirement]),
+        Filtered {
+            clauses: &'a [Requirement],
+            filtered: bool,
+        },
+    }
+
+    impl<'a> ListWrite<'a> {
+        fn new(clauses: &'a [Requirement], filtered: bool) -> Self {
+            if filtered {
+                Self::Filtered { clauses, filtered }
+            } else {
+                Self::Legacy(clauses)
+            }
+        }
+    }
+
+    #[derive(Deserialize)]
+    #[serde(untagged)]
+    enum ListRead {
+        Legacy(Vec<Requirement>),
+        Current {
+            clauses: Vec<Requirement>,
+            #[serde(default)]
+            filtered: bool,
+        },
+    }
+
+    impl ListRead {
+        fn parts(self) -> (Vec<Requirement>, bool) {
+            match self {
+                Self::Legacy(clauses) => (clauses, false),
+                Self::Current { clauses, filtered } => (clauses, filtered),
+            }
+        }
     }
 
     impl Serialize for Requirements {
@@ -257,9 +307,13 @@ mod requirements_serde {
                 Self::Pending { reason, docs } => {
                     Write::Pending { reason, docs }.serialize(serializer)
                 }
-                Self::List(clauses) => Write::List(clauses).serialize(serializer),
+                Self::List { clauses, filtered } => {
+                    Write::List(ListWrite::new(clauses, *filtered)).serialize(serializer)
+                }
                 Self::Internal => Write::Internal.serialize(serializer),
-                Self::Partial(clauses) => Write::Partial(clauses).serialize(serializer),
+                Self::Partial { clauses, filtered } => {
+                    Write::Partial(ListWrite::new(clauses, *filtered)).serialize(serializer)
+                }
             }
         }
     }
@@ -291,9 +345,15 @@ mod requirements_serde {
                 Read::Undeclared => Self::Undeclared,
                 Read::None { docs, filtered } => Self::None { docs, filtered },
                 Read::Pending { reason, docs } => Self::Pending { reason, docs },
-                Read::List(clauses) => Self::List(clauses),
+                Read::List(list) => {
+                    let (clauses, filtered) = list.parts();
+                    Self::List { clauses, filtered }
+                }
                 Read::Internal => Self::Internal,
-                Read::Partial(clauses) => Self::Partial(clauses),
+                Read::Partial(list) => {
+                    let (clauses, filtered) = list.parts();
+                    Self::Partial { clauses, filtered }
+                }
             })
         }
     }
@@ -370,8 +430,29 @@ mod requirements_serde {
                 when: Option::None,
                 docs: Option::None,
             };
-            round_trip(&Requirements::List(vec![clause.clone()]));
-            round_trip(&Requirements::Partial(vec![clause]));
+            round_trip(&Requirements::List {
+                clauses: vec![clause.clone()],
+                filtered: false,
+            });
+            round_trip(&Requirements::Partial {
+                clauses: vec![clause],
+                filtered: false,
+            });
+        }
+
+        #[test]
+        fn old_lists_read_and_filtered_lists_round_trip() {
+            for variant in ["List", "Partial"] {
+                let legacy = format!(r#"{{"{variant}":[]}}"#);
+                let old: Requirements = serde_json::from_str(&legacy).unwrap();
+                assert_eq!(round_trip(&old), legacy);
+                let defaulted: Requirements =
+                    serde_json::from_str(&format!(r#"{{"{variant}":{{"clauses":[]}}}}"#)).unwrap();
+                assert_eq!(old, defaulted);
+                let filtered = format!(r#"{{"{variant}":{{"clauses":[],"filtered":true}}}}"#);
+                let new: Requirements = serde_json::from_str(&filtered).unwrap();
+                assert_eq!(round_trip(&new), filtered);
+            }
         }
 
         #[test]

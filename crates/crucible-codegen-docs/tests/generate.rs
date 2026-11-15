@@ -2152,3 +2152,46 @@ fn upgrade_guide_names_the_working_header() {
     }
     assert_eq!(fs::read_to_string(path).unwrap(), text);
 }
+
+#[test]
+fn mixed_internal_filters_match_reviewed_goldens() {
+    let service = documented("permissions-mixed-filter");
+    let client = project(&service, Audience::External).unwrap();
+    let generated = generate(&client).unwrap();
+    let describe = generated
+        .iter()
+        .find(|file| file.path == "describe.json")
+        .unwrap();
+    let description: Value = serde_json::from_str(&describe.contents).unwrap();
+    for name in ["ListNotes", "ListAuditedNotes"] {
+        assert_eq!(
+            description["operations"][format!("example.gaps#{name}")]["requirements"]["filtered"],
+            true
+        );
+    }
+    for file in &generated {
+        assert!(!file.contents.contains("note:secretRead"), "{}", file.path);
+        assert!(!file.contents.contains("workspace:audit"), "{}", file.path);
+        if file.path.ends_with("ListNotes.md")
+            || file.path.ends_with("ListAuditedNotes.md")
+            || file.path == "llms-full.txt"
+        {
+            assert!(
+                file.contents
+                    .contains("Returns only what the caller may see."),
+                "{}",
+                file.path
+            );
+        }
+    }
+    let goldens: Vec<_> = generated
+        .into_iter()
+        .filter(|file| {
+            file.path == "describe.json"
+                || file.path.ends_with("ListNotes.md")
+                || file.path.ends_with("ListAuditedNotes.md")
+        })
+        .collect();
+    assert_eq!(goldens.len(), 3);
+    golden_files("mixed-internal-filters", goldens);
+}

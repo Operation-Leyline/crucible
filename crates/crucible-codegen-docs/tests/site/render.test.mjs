@@ -22,6 +22,7 @@ const WEATHER_EXTERNAL = golden("weather-external");
 const CATALOG = golden("catalog-internal");
 const PERMISSIONS = golden("permissions-internal");
 const PERMISSIONS_EXTERNAL = golden("permissions-external");
+const MIXED_FILTERS = golden("mixed-internal-filters");
 const SAMPLES = golden("samples-external");
 const LINKS = golden("links-internal");
 const LINKS_EXTERNAL = golden("links-external");
@@ -40,7 +41,7 @@ const GRANTED_EXTERNAL = golden("roles-granted-by-external");
 const schemas = (name) => JSON.parse(readFileSync(join(crate, "tests", "golden", "schemas", `${name}.json`), "utf8"));
 const WEATHER_SHARED = schemas("weather-shared");
 const WEATHER_OMIT = schemas("weather-omit");
-const DESCRIPTIONS = { VERSION_HEADER_REQUIRED, WEATHER, WEATHER_EXTERNAL, CATALOG, PERMISSIONS, PERMISSIONS_EXTERNAL, SAMPLES, LINKS, LINKS_EXTERNAL, HISTORY, HISTORY_EXTERNAL, VERSIONED, VERSIONED_V1, VERSIONED_V2, WEATHER_SHARED, WEATHER_OMIT, SENDER, ROLES, ROLES_EXTERNAL, GRANTED, GRANTED_EXTERNAL };
+const DESCRIPTIONS = { MIXED_FILTERS, VERSION_HEADER_REQUIRED, WEATHER, WEATHER_EXTERNAL, CATALOG, PERMISSIONS, PERMISSIONS_EXTERNAL, SAMPLES, LINKS, LINKS_EXTERNAL, HISTORY, HISTORY_EXTERNAL, VERSIONED, VERSIONED_V1, VERSIONED_V2, WEATHER_SHARED, WEATHER_OMIT, SENDER, ROLES, ROLES_EXTERNAL, GRANTED, GRANTED_EXTERNAL };
 
 // ---- walking rendered nodes ----------------------------------------------
 
@@ -635,6 +636,18 @@ test("an operation says which roles grant it, and the overview lists the roles",
   assert.ok(server.includes("auditor") && server.includes("backOffice"));
 });
 
+test("mixed requirement lists retain the hidden-filter note without internal permission names", () => {
+  const model = x.index(MIXED_FILTERS);
+  for (const name of ["ListNotes", "ListAuditedNotes"]) {
+    const view = x.operationView(model, `example.gaps#${name}`, null);
+    const text = textOf(view);
+    assert.ok(text.includes("workspace:read"));
+    const html = htmlOf(view);
+    assert.ok(html.includes("Returns only what the caller may see."));
+    assert.ok(!html.includes("note:secretRead") && !html.includes("workspace:audit"));
+  }
+});
+
 test("the test fixtures cover all goldens the generator ships", () => {
   // `schemas` holds Weather's description in the other schema modes, and
   // `upgrade` upgrade guides, Markdown with no description.
@@ -648,6 +661,7 @@ test("the test fixtures cover all goldens the generator ships", () => {
     "history-internal",
     "links-external",
     "links-internal",
+    "mixed-internal-filters",
     "permissions-external",
     "permissions-internal",
     "roles-granted-by-external",

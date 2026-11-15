@@ -1079,6 +1079,12 @@ a bundle its customers already store as a permission.
 
 ## 9. Left out
 
+- **Per-release catalogues.** The role catalogue is unversioned: every API
+  release uses the current roles, scopes and grants. Rebuilding an older
+  release from the current model therefore skips role compatibility findings;
+  it does not restore that release's catalogue. Reuse of retired role and
+  scope values is still checked against every frozen release (§6). A service
+  that needs separate catalogues per API release needs a separate design.
 - **Bindings created by an operation** (GitHub and Leyline make a
   resource's creator its admin). This is a write the handler performs; a
   declaration would be a fact the runtime does not read. Reconsider if a

@@ -606,7 +606,7 @@ pub(crate) fn marker_items(
         Requirements::Undeclared | Requirements::Internal => return out,
         // Likewise a client projection's: generating a server from it
         // would drop the clauses it removed.
-        Requirements::Partial(_) => {
+        Requirements::Partial { .. } => {
             diagnostics.push(
                 &op.id,
                 "the requirements were projected for a client audience; server bindings read the full contract",
@@ -618,7 +618,7 @@ pub(crate) fn marker_items(
             "{P}::Requirements::Pending {{ reason: {} }}",
             literal(reason)
         ),
-        Requirements::List(clauses) => {
+        Requirements::List { clauses, .. } => {
             let items: Vec<String> = clauses
                 .iter()
                 .map(|clause| {

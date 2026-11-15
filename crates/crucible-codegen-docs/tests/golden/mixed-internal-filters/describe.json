@@ -1,0 +1,1076 @@
+{
+  "format": "crucible.describe/1",
+  "navigation": [
+    {
+      "level": 0,
+      "operations": [],
+      "resource": "example.gaps#Workspace"
+    },
+    {
+      "level": 1,
+      "operations": [
+        "example.gaps#ListAuditedNotes",
+        "example.gaps#ListNotes"
+      ],
+      "resource": "example.gaps#Note"
+    }
+  ],
+  "operations": {
+    "example.gaps#ListAuditedNotes": {
+      "auth": [
+        "crucible.api#httpBearerAuth"
+      ],
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "errors": [
+        "crucible.errors#NotFoundException"
+      ],
+      "examples": [],
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
+      "id": "example.gaps#ListAuditedNotes",
+      "idempotencyToken": null,
+      "idempotent": false,
+      "input": "example.gaps#ListAuditedNotesInput",
+      "inputSchema": {
+        "$defs": {
+          "crucible.api.String": {
+            "type": "string"
+          },
+          "example.gaps.ListAuditedNotesInput": {
+            "properties": {
+              "workspaceId": {
+                "$ref": "#/$defs/crucible.api.String"
+              }
+            },
+            "required": [
+              "workspaceId"
+            ],
+            "type": "object"
+          }
+        },
+        "properties": {
+          "workspaceId": {
+            "$ref": "#/$defs/crucible.api.String"
+          }
+        },
+        "required": [
+          "workspaceId"
+        ],
+        "type": "object"
+      },
+      "internal": false,
+      "method": "GET",
+      "name": "ListAuditedNotes",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "output": "example.gaps#ListAuditedNotesOutput",
+      "outputSchema": {
+        "$defs": {
+          "crucible.api.String": {
+            "type": "string"
+          },
+          "example.gaps.ListAuditedNotesOutput": {
+            "properties": {
+              "names": {
+                "$ref": "#/$defs/example.gaps.Names"
+              }
+            },
+            "required": [
+              "names"
+            ],
+            "type": "object"
+          },
+          "example.gaps.Names": {
+            "items": {
+              "$ref": "#/$defs/crucible.api.String"
+            },
+            "type": "array",
+            "uniqueItems": false
+          }
+        },
+        "properties": {
+          "names": {
+            "$ref": "#/$defs/example.gaps.Names"
+          }
+        },
+        "required": [
+          "names"
+        ],
+        "type": "object"
+      },
+      "pagination": null,
+      "protocol": "crucibleJson",
+      "protocolHeaders": {},
+      "readonly": true,
+      "request": {
+        "body": [],
+        "headerEncodings": {},
+        "headers": [],
+        "labels": [
+          "workspaceId"
+        ],
+        "payload": null,
+        "query": [],
+        "timestampFormats": {}
+      },
+      "requirementDocumentation": [
+        {
+          "html": "<p>Requires <code>workspace:read</code> on the workspace; and further permissions internal to the service.</p>\n",
+          "markdown": "Requires `workspace:read` on the workspace; and further permissions internal to the service.",
+          "text": "Requires workspace:read on the workspace; and further permissions internal to the service."
+        },
+        {
+          "html": "<p>Returns only what the caller may see.</p>\n",
+          "markdown": "Returns only what the caller may see.",
+          "text": "Returns only what the caller may see."
+        }
+      ],
+      "requirementSentences": [
+        "Requires `workspace:read` on the workspace; and further permissions internal to the service.",
+        "Returns only what the caller may see."
+      ],
+      "requirements": {
+        "clauses": [
+          {
+            "bindings": [
+              {
+                "identifier": "workspaceId",
+                "value": "workspaceId"
+              }
+            ],
+            "mode": "check",
+            "permission": "workspace:read",
+            "resourceType": "workspace",
+            "tier": "public"
+          }
+        ],
+        "filtered": true,
+        "kind": "list",
+        "partial": true
+      },
+      "resources": [
+        "example.gaps#Note"
+      ],
+      "response": {
+        "body": [
+          "names"
+        ],
+        "headerEncodings": {},
+        "headers": [],
+        "labels": [],
+        "payload": null,
+        "query": [],
+        "timestampFormats": {}
+      },
+      "responseProtocolHeaders": {
+        "Content-Type": "application/json"
+      },
+      "sample": {
+        "fallbacks": [],
+        "generated": true,
+        "input": {
+          "body": null,
+          "headers": {},
+          "labels": {
+            "workspaceId": "workspaceId"
+          },
+          "method": "GET",
+          "payload": null,
+          "query": [],
+          "uri": "/workspaces/workspaceId/audited-notes"
+        },
+        "minimalInput": {
+          "body": null,
+          "headers": {},
+          "labels": {
+            "workspaceId": "workspaceId"
+          },
+          "method": "GET",
+          "payload": null,
+          "query": [],
+          "uri": "/workspaces/workspaceId/audited-notes"
+        },
+        "output": {
+          "body": {
+            "names": [
+              "names"
+            ]
+          },
+          "headers": {
+            "Content-Type": "application/json"
+          },
+          "labels": {},
+          "payload": null,
+          "query": []
+        }
+      },
+      "status": 200,
+      "summary": "",
+      "uri": "/workspaces/{workspaceId}/audited-notes"
+    },
+    "example.gaps#ListNotes": {
+      "auth": [
+        "crucible.api#httpBearerAuth"
+      ],
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "errors": [
+        "crucible.errors#NotFoundException"
+      ],
+      "examples": [],
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
+      "id": "example.gaps#ListNotes",
+      "idempotencyToken": null,
+      "idempotent": false,
+      "input": "example.gaps#ListNotesInput",
+      "inputSchema": {
+        "$defs": {
+          "crucible.api.String": {
+            "type": "string"
+          },
+          "example.gaps.ListNotesInput": {
+            "properties": {
+              "workspaceId": {
+                "$ref": "#/$defs/crucible.api.String"
+              }
+            },
+            "required": [
+              "workspaceId"
+            ],
+            "type": "object"
+          }
+        },
+        "properties": {
+          "workspaceId": {
+            "$ref": "#/$defs/crucible.api.String"
+          }
+        },
+        "required": [
+          "workspaceId"
+        ],
+        "type": "object"
+      },
+      "internal": false,
+      "method": "GET",
+      "name": "ListNotes",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "output": "example.gaps#ListNotesOutput",
+      "outputSchema": {
+        "$defs": {
+          "crucible.api.String": {
+            "type": "string"
+          },
+          "example.gaps.ListNotesOutput": {
+            "properties": {
+              "names": {
+                "$ref": "#/$defs/example.gaps.Names"
+              }
+            },
+            "required": [
+              "names"
+            ],
+            "type": "object"
+          },
+          "example.gaps.Names": {
+            "items": {
+              "$ref": "#/$defs/crucible.api.String"
+            },
+            "type": "array",
+            "uniqueItems": false
+          }
+        },
+        "properties": {
+          "names": {
+            "$ref": "#/$defs/example.gaps.Names"
+          }
+        },
+        "required": [
+          "names"
+        ],
+        "type": "object"
+      },
+      "pagination": null,
+      "protocol": "crucibleJson",
+      "protocolHeaders": {},
+      "readonly": true,
+      "request": {
+        "body": [],
+        "headerEncodings": {},
+        "headers": [],
+        "labels": [
+          "workspaceId"
+        ],
+        "payload": null,
+        "query": [],
+        "timestampFormats": {}
+      },
+      "requirementDocumentation": [
+        {
+          "html": "<p>Requires <code>workspace:read</code> on the workspace.</p>\n",
+          "markdown": "Requires `workspace:read` on the workspace.",
+          "text": "Requires workspace:read on the workspace."
+        },
+        {
+          "html": "<p>Returns only what the caller may see.</p>\n",
+          "markdown": "Returns only what the caller may see.",
+          "text": "Returns only what the caller may see."
+        }
+      ],
+      "requirementSentences": [
+        "Requires `workspace:read` on the workspace.",
+        "Returns only what the caller may see."
+      ],
+      "requirements": {
+        "clauses": [
+          {
+            "bindings": [
+              {
+                "identifier": "workspaceId",
+                "value": "workspaceId"
+              }
+            ],
+            "mode": "check",
+            "permission": "workspace:read",
+            "resourceType": "workspace",
+            "tier": "public"
+          }
+        ],
+        "filtered": true,
+        "kind": "list"
+      },
+      "resources": [
+        "example.gaps#Note"
+      ],
+      "response": {
+        "body": [
+          "names"
+        ],
+        "headerEncodings": {},
+        "headers": [],
+        "labels": [],
+        "payload": null,
+        "query": [],
+        "timestampFormats": {}
+      },
+      "responseProtocolHeaders": {
+        "Content-Type": "application/json"
+      },
+      "sample": {
+        "fallbacks": [],
+        "generated": true,
+        "input": {
+          "body": null,
+          "headers": {},
+          "labels": {
+            "workspaceId": "workspaceId"
+          },
+          "method": "GET",
+          "payload": null,
+          "query": [],
+          "uri": "/workspaces/workspaceId/notes"
+        },
+        "minimalInput": {
+          "body": null,
+          "headers": {},
+          "labels": {
+            "workspaceId": "workspaceId"
+          },
+          "method": "GET",
+          "payload": null,
+          "query": [],
+          "uri": "/workspaces/workspaceId/notes"
+        },
+        "output": {
+          "body": {
+            "names": [
+              "names"
+            ]
+          },
+          "headers": {
+            "Content-Type": "application/json"
+          },
+          "labels": {},
+          "payload": null,
+          "query": []
+        }
+      },
+      "status": 200,
+      "summary": "",
+      "uri": "/workspaces/{workspaceId}/notes"
+    }
+  },
+  "resources": {
+    "example.gaps#Note": {
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "id": "example.gaps#Note",
+      "identifiers": {
+        "noteId": "crucible.api#String",
+        "workspaceId": "crucible.api#String"
+      },
+      "internal": false,
+      "lifecycle": {
+        "create": null,
+        "delete": null,
+        "list": null,
+        "put": null,
+        "read": null,
+        "update": null
+      },
+      "name": "Note",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "operations": [
+        "example.gaps#ListAuditedNotes",
+        "example.gaps#ListNotes"
+      ],
+      "properties": {},
+      "resources": [],
+      "summary": ""
+    },
+    "example.gaps#Workspace": {
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "id": "example.gaps#Workspace",
+      "identifiers": {
+        "workspaceId": "crucible.api#String"
+      },
+      "internal": false,
+      "lifecycle": {
+        "create": null,
+        "delete": null,
+        "list": null,
+        "put": null,
+        "read": null,
+        "update": null
+      },
+      "name": "Workspace",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "operations": [],
+      "properties": {},
+      "resources": [
+        "example.gaps#Note"
+      ],
+      "summary": ""
+    }
+  },
+  "service": {
+    "auth": [
+      "crucible.api#httpBearerAuth"
+    ],
+    "authSchemes": {
+      "crucible.api#httpBearerAuth": {
+        "kind": "bearer"
+      }
+    },
+    "documentation": {
+      "html": "",
+      "markdown": "",
+      "text": ""
+    },
+    "errors": [],
+    "id": "example.gaps#Lists",
+    "internal": false,
+    "name": "Lists",
+    "notes": {
+      "deprecated": null,
+      "externalDocs": {},
+      "since": null,
+      "unstable": false
+    },
+    "permissions": [
+      {
+        "identifiers": [
+          "workspaceId"
+        ],
+        "permissions": [
+          {
+            "deprecated": false,
+            "description": "",
+            "grantable": true,
+            "symbol": "read",
+            "tier": "public",
+            "value": "workspace:read"
+          }
+        ],
+        "resourceType": "workspace"
+      }
+    ],
+    "protocol": "crucibleJson",
+    "resourceRoots": [
+      "example.gaps#Workspace"
+    ],
+    "summary": "",
+    "title": "Lists",
+    "version": "1"
+  },
+  "shapes": {
+    "crucible.api#String": {
+      "constraints": {
+        "length": null,
+        "pattern": null,
+        "range": null,
+        "uniqueItems": false
+      },
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
+      "id": "crucible.api#String",
+      "internal": false,
+      "kind": "string",
+      "members": [],
+      "name": "String",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false,
+      "summary": ""
+    },
+    "crucible.errors#NotFoundException": {
+      "documentation": {
+        "html": "<p>The resource does not exist, or the caller may not know that it does.</p>\n",
+        "markdown": "The resource does not exist, or the caller may not know that it does.",
+        "text": "The resource does not exist, or the caller may not know that it does."
+      },
+      "error": {
+        "bindings": {
+          "body": [
+            "message",
+            "resourceType"
+          ],
+          "headerEncodings": {},
+          "headers": [],
+          "labels": [],
+          "payload": null,
+          "query": [],
+          "timestampFormats": {}
+        },
+        "bodyDiscriminator": "NotFoundException",
+        "discriminatorHeader": "X-Crucible-Error",
+        "fault": "client",
+        "protocolHeaders": {
+          "Content-Type": "application/json"
+        },
+        "reasons": [],
+        "retryable": null,
+        "sample": {
+          "fallbacks": [],
+          "generated": true,
+          "message": {
+            "body": {
+              "__type": "NotFoundException",
+              "message": "message",
+              "resourceType": "resourceType"
+            },
+            "headers": {
+              "Content-Type": "application/json",
+              "X-Crucible-Error": "NotFoundException"
+            },
+            "labels": {},
+            "payload": null,
+            "query": []
+          }
+        },
+        "shape": "crucible.errors#NotFoundException",
+        "status": 404,
+        "wireCode": "NotFoundException"
+      },
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
+      "id": "crucible.errors#NotFoundException",
+      "internal": false,
+      "kind": "structure",
+      "members": [
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "message",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": false,
+          "required": true,
+          "sensitive": false,
+          "target": "crucible.api#String",
+          "targetName": "String",
+          "targetType": "string",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "message"
+        },
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "resourceType",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": false,
+          "required": true,
+          "sensitive": false,
+          "target": "crucible.api#String",
+          "targetName": "String",
+          "targetType": "string",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "resourceType"
+        }
+      ],
+      "name": "NotFoundException",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false,
+      "summary": "The resource does not exist, or the caller may not know that it does."
+    },
+    "example.gaps#ListAuditedNotesInput": {
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "error": null,
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
+      "id": "example.gaps#ListAuditedNotesInput",
+      "internal": false,
+      "kind": "structure",
+      "members": [
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "workspaceId",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": false,
+          "required": true,
+          "sensitive": false,
+          "target": "crucible.api#String",
+          "targetName": "String",
+          "targetType": "string",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "workspaceId"
+        }
+      ],
+      "name": "ListAuditedNotesInput",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false,
+      "summary": ""
+    },
+    "example.gaps#ListAuditedNotesOutput": {
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "error": null,
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
+      "id": "example.gaps#ListAuditedNotesOutput",
+      "internal": false,
+      "kind": "structure",
+      "members": [
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "names",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": false,
+          "required": true,
+          "sensitive": false,
+          "target": "example.gaps#Names",
+          "targetName": "Names",
+          "targetType": "list",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "names"
+        }
+      ],
+      "name": "ListAuditedNotesOutput",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false,
+      "summary": ""
+    },
+    "example.gaps#ListNotesInput": {
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "error": null,
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
+      "id": "example.gaps#ListNotesInput",
+      "internal": false,
+      "kind": "structure",
+      "members": [
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "workspaceId",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": false,
+          "required": true,
+          "sensitive": false,
+          "target": "crucible.api#String",
+          "targetName": "String",
+          "targetType": "string",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "workspaceId"
+        }
+      ],
+      "name": "ListNotesInput",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false,
+      "summary": ""
+    },
+    "example.gaps#ListNotesOutput": {
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "error": null,
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
+      "id": "example.gaps#ListNotesOutput",
+      "internal": false,
+      "kind": "structure",
+      "members": [
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "names",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": false,
+          "required": true,
+          "sensitive": false,
+          "target": "example.gaps#Names",
+          "targetName": "Names",
+          "targetType": "list",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "names"
+        }
+      ],
+      "name": "ListNotesOutput",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false,
+      "summary": ""
+    },
+    "example.gaps#Names": {
+      "constraints": {
+        "length": null,
+        "pattern": null,
+        "range": null,
+        "uniqueItems": false
+      },
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
+      "id": "example.gaps#Names",
+      "internal": false,
+      "kind": "list",
+      "members": [
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "member",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": true,
+          "required": false,
+          "sensitive": false,
+          "target": "crucible.api#String",
+          "targetName": "String",
+          "targetType": "string",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "member"
+        }
+      ],
+      "name": "Names",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false,
+      "set": false,
+      "sparse": false,
+      "summary": ""
+    }
+  },
+  "versions": {
+    "carrier": {
+      "kind": "header",
+      "name": "Crucible-Version"
+    },
+    "current": "1",
+    "releases": [
+      {
+        "changes": [],
+        "current": true,
+        "documentation": {
+          "html": "",
+          "markdown": "",
+          "text": ""
+        },
+        "from": null,
+        "name": "1",
+        "retired": [],
+        "sunset": null,
+        "sunsetDocumentation": {
+          "html": "",
+          "markdown": "",
+          "text": ""
+        }
+      }
+    ],
+    "unversioned": "oldest"
+  }
+}

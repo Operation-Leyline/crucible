@@ -592,7 +592,7 @@ impl<'a> Checker<'a> {
                 }
                 return;
             }
-            Requirements::List(list) if list.is_empty() => {
+            Requirements::List { clauses: list, .. } if list.is_empty() => {
                 self.error(
                     "permissions.requires",
                     id,
@@ -604,7 +604,7 @@ impl<'a> Checker<'a> {
                 );
                 return;
             }
-            Requirements::List(_) | Requirements::Partial(_) => {}
+            Requirements::List { .. } | Requirements::Partial { .. } => {}
         }
         let clauses = op.requirements.clauses();
         let mut seen: Vec<&Requirement> = Vec::new();

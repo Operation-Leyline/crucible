@@ -1866,7 +1866,7 @@ fn permissions_summary(service: &Service) -> String {
             .map(|r| r.permissions.len())
             .sum::<usize>(),
         service.permissions.len(),
-        count(|r| matches!(r, Requirements::List(_))),
+        count(|r| matches!(r, Requirements::List { .. })),
         count(|r| matches!(r, Requirements::None { .. })),
         count(|r| matches!(r, Requirements::Pending { .. })),
     );

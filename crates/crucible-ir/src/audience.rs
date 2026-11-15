@@ -749,7 +749,7 @@ fn project_permissions(result: &mut Service) {
         if matches!(op.requirements, Requirements::Pending { .. }) {
             op.requirements = Requirements::Undeclared;
         }
-        if let Requirements::List(clauses) = &mut op.requirements {
+        if let Requirements::List { clauses, filtered } = &mut op.requirements {
             let visible = |clause: &Requirement| {
                 permissions
                     .get(&clause.resource)
@@ -760,6 +760,9 @@ fn project_permissions(result: &mut Service) {
             let refusing = clauses
                 .iter()
                 .any(|clause| !visible(clause) && clause.mode != Mode::Filter);
+            *filtered |= clauses
+                .iter()
+                .any(|clause| !visible(clause) && clause.mode == Mode::Filter);
             clauses.retain(visible);
             // Requirements the client may not see are still requirements:
             // an empty list would read as a model that lists none, and a
@@ -768,7 +771,10 @@ fn project_permissions(result: &mut Service) {
                 op.requirements = if clauses.is_empty() {
                     Requirements::Internal
                 } else {
-                    Requirements::Partial(std::mem::take(clauses))
+                    Requirements::Partial {
+                        clauses: std::mem::take(clauses),
+                        filtered: *filtered,
+                    }
                 };
             } else if clauses.is_empty() {
                 // Only internal filters: no caller is refused for lacking a

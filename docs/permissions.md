@@ -793,7 +793,8 @@ pub enum Requirements {
            filtered: bool },              // client projection only (§6.3)
     Pending { reason: String,             // `requires pending because`
               docs: Option<String> },
-    List(Vec<Requirement>),               // source order, which is the refusal order
+    List { clauses: Vec<Requirement>,    // source order, which is the refusal order
+           filtered: bool },             // internal filters removed in client projection
 }
 
 pub struct Requirement {
@@ -999,7 +1000,10 @@ none in the client view, but with `filtered: true`
 (`{"kind": "none", "filtered": true}`): every client-audience output
 follows "Requires no permission." with "Returns only what the caller may
 see.", so the narrowed answer does not read as unrestricted, and names no
-internal permission. A clause a client sees
+internal permission. When visible clauses remain alongside an internal
+filter, `List` or `Partial` also retains `filtered: true`; the client
+outputs append the same “Returns only…” note after the visible requirement
+sentences. A clause a client sees
 never reads an internal member: binding or testing one, or comparing with
 an internal enum value, is refused (`permissions.internal-member`), since
 the client contract would name what the projection removes and the clause
