@@ -29,11 +29,21 @@ version's section when it is prepared.
 
 ### Added
 
+- Rust server clearable inputs preserve omission, explicit null and a value
+  with `Field<T>`. The runtime re-exports `Field`; its additive `is_clear`,
+  `as_value` and `map` helpers preserve these states. Constraints apply only
+  to values, and permission presence guards include explicit clears.
+- Lowering refuses clearable raw string, enum and blob payloads, which cannot
+  carry an explicit JSON null. JSON payloads retain clearing support.
+- JSON Schema and OpenAPI mark clearable members with
+  `x-crucible-clearable: true` and explain how to clear a value. Ordinary
+  optional nullability is retained: null is accepted and read as absent.
+
 - Optional operation input members can use `clearable`: absent leaves the
   value unchanged, JSON null clears it, and a value sets it. The IR,
   formatter, editor help, describe metadata and API references retain the
   flag. Client and server generation requires the new `clearable`
-  capability; no target supports it yet.
+  capability; the Rust server supports it while clients remain unsupported.
 
 - Role references list the operations each role allows, grouped by resource
   with scopes and authorization qualifiers. `describe.json` adds root

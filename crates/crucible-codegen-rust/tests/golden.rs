@@ -1017,16 +1017,21 @@ fn rust_response_stream_client_exposes_native_typed_iteration() {
 }
 
 #[test]
-fn clearable_models_require_generator_support() {
+fn clearable_models_require_rust_client_support() {
     let service = common::load("clearable");
-    let errors = generate(&service, &Options::default()).unwrap_err();
+    let errors = generate_client(&service).unwrap_err();
     assert!(
         format!("{errors:?}").contains("unsupported target capability clearable"),
         "{errors:?}"
     );
-    let errors = crucible_codegen_rust::generate_client(&service).unwrap_err();
-    assert!(
-        format!("{errors:?}").contains("unsupported target capability clearable"),
-        "{errors:?}"
-    );
+}
+
+#[test]
+fn clearable_server_bindings_match_golden() {
+    let service = common::load("clearable");
+    let code = generate(&service, &Options::default()).unwrap();
+    assert!(code.contains("pub description: ::crucible_server_runtime_rust::__generated::Field<"));
+    assert!(code.contains("pub other: ::std::option::Option<"));
+    assert!(code.contains("Send `null` to clear."));
+    matches_golden(&code, "clearable.rs");
 }

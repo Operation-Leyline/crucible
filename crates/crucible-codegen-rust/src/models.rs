@@ -384,7 +384,7 @@ pub(crate) fn member_field(
         out,
         Links::child(service, client),
         "    ",
-        member.docs.as_deref(),
+        crucible_codegen_common::docs::member_documentation(member).as_deref(),
         &member.notes,
     );
     let mut serde = vec![format!("rename = {}", literal(&member.name))];
@@ -399,7 +399,7 @@ pub(crate) fn member_field(
             serde.push("default".to_owned());
         }
         serde.push(
-            if client {
+            if client || member.clearable {
                 "skip_serializing_if = \"::crucible_server_runtime_rust::__generated::Field::is_absent\""
             } else {
                 "skip_serializing_if = \"::std::option::Option::is_none\""
@@ -449,7 +449,11 @@ pub(crate) fn member_field(
         if optional {
             codec = format!(
                 "::crucible_server_runtime_rust::__generated::codec::{}<{codec}>",
-                if client { "Field" } else { "Optional" }
+                if client || member.clearable {
+                    "Field"
+                } else {
+                    "Optional"
+                }
             );
         }
         serde.push(format!(
@@ -657,7 +661,9 @@ fn validate_impl(
                 if checks.is_empty() {
                     continue;
                 }
-                let access = if client && member.optional_on_client() {
+                let access = if (client && member.optional_on_client())
+                    || (!client && member.clearable)
+                {
                     format!(
                         "if let ::crucible_server_runtime_rust::__generated::Field::Value(value) = &self.{} {{\n",
                         field(&member.name)

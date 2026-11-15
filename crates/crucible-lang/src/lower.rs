@@ -4639,6 +4639,12 @@ impl<'a> Lowerer<'a> {
                 }
                 .to_owned()
             });
+        if member.clearable && kind != PayloadKind::Document {
+            self.error_at(
+                &owner.with_member(&member.name),
+                "`clearable` does not apply to a raw `@payload` member",
+            );
+        }
         if kind != PayloadKind::Blob {
             self.require(
                 &owner.with_member(&member.name),

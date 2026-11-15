@@ -981,3 +981,34 @@ fn mixed_internal_filters_keep_the_note_and_extension() {
         );
     }
 }
+
+#[test]
+fn clearable_members_distinguish_clear_from_ignored_null() {
+    let document: Value =
+        serde_json::from_str(&generate(&load("clearable"), &Options::default()).unwrap()).unwrap();
+    let input = &document["components"]["schemas"]["example.clearable.UpdateInput"]["properties"];
+    assert_eq!(input["description"]["anyOf"][1]["type"], "null");
+    assert_eq!(input["description"]["x-crucible-clearable"], true);
+    assert_eq!(input["other"]["anyOf"][1]["type"], "null");
+    assert!(input["other"].get("x-crucible-clearable").is_none());
+}
+
+#[test]
+fn clearable_json_payloads_advertise_null() {
+    let document: Value = serde_json::from_str(
+        &generate(&load("clearable-json-payload"), &Options::default()).unwrap(),
+    )
+    .unwrap();
+    for path in ["/document", "/structure", "/union"] {
+        assert_eq!(
+            document["paths"][path]["put"]["requestBody"]["content"]["application/json"]["schema"]
+                ["x-crucible-clearable"],
+            true
+        );
+        assert_eq!(
+            document["paths"][path]["put"]["requestBody"]["content"]["application/json"]["schema"]
+                ["anyOf"][1]["type"],
+            "null"
+        );
+    }
+}

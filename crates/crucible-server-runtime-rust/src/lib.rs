@@ -90,6 +90,7 @@ pub mod versioning;
 // What the server shares with clients lives in crucible-wire, re-exported
 // at the paths generated code names.
 pub use crucible_wire::blob::Blob;
+pub use crucible_wire::field::Field;
 pub use crucible_wire::{blob, number, operation, time, validate};
 
 pub use async_interceptor::AsyncInterceptor;
@@ -153,6 +154,7 @@ pub mod __generated {
     pub use __crucible_check_abi as check_abi;
     pub use crucible_wire::__generated::{error_info, member_info, operation_info, service_info};
     pub use crucible_wire::blob::Blob;
+    pub use crucible_wire::field::Field;
     pub use crucible_wire::number::{BigDecimal, BigInteger};
     pub use crucible_wire::{
         codec, error, field, number, open, operation, permissions, time, validate,

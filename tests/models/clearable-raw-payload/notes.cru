@@ -1,0 +1,20 @@
+service Notes {
+    version "1"
+    protocol json
+    operations [SetText, SetBlob, SetChoice]
+}
+string RawText
+blob RawBytes
+enum RawChoice { TEXT = "text" }
+idempotent operation SetText {
+    http PUT "/text"
+    input { @payload clearable value?: RawText }
+}
+idempotent operation SetBlob {
+    http PUT "/blob"
+    input { @payload clearable value?: RawBytes }
+}
+idempotent operation SetChoice {
+    http PUT "/choice"
+    input { @payload clearable value?: RawChoice }
+}

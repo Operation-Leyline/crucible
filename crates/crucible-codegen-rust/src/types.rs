@@ -63,7 +63,8 @@ pub(crate) fn public_builtin(kind: SimpleKind) -> &'static str {
     }
 }
 
-/// Optional members use client `Field` or server `Option`; recursive values are boxed.
+/// Optional members use client `Field` or server `Option`, except clearable
+/// server inputs use `Field`. Recursive values are boxed.
 pub(crate) fn field_type(
     service: &Service,
     member: &Member,
@@ -75,7 +76,7 @@ pub(crate) fn field_type(
     if boxed {
         ty = format!("::std::boxed::Box<{ty}>");
     }
-    if client && member.optional_on_client() {
+    if (client && member.optional_on_client()) || (!client && member.clearable) {
         ty = format!("::crucible_server_runtime_rust::__generated::Field<{ty}>");
     } else if !client && member.optional_on_server() {
         ty = format!("::std::option::Option<{ty}>");

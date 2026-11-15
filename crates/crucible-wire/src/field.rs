@@ -1,4 +1,4 @@
-//! Presence of a client model member, independently of its value's nullability.
+//! Presence of a model member, independently of its value's nullability.
 use std::ops::Deref;
 
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
@@ -30,6 +30,22 @@ impl<T> Field<T> {
     }
     pub fn is_null(&self) -> bool {
         matches!(self, Self::Null)
+    }
+    /// Whether this field is explicit null, clearing a clearable input member.
+    pub fn is_clear(&self) -> bool {
+        self.is_null()
+    }
+    /// Borrow the modeled value, if present.
+    pub fn as_value(&self) -> Option<&T> {
+        self.value()
+    }
+    /// Transform a value while preserving omission and explicit null.
+    pub fn map<U>(self, f: impl FnOnce(T) -> U) -> Field<U> {
+        match self {
+            Self::Absent => Field::Absent,
+            Self::Null => Field::Null,
+            Self::Value(value) => Field::Value(f(value)),
+        }
     }
     /// Absent or null: what a protocol that omits null members leaves out.
     pub fn is_unset(&self) -> bool {
@@ -93,6 +109,39 @@ mod tests {
         document: Field<Value>,
         #[serde(default, skip_serializing_if = "Field::is_absent")]
         values: Field<Vec<String>>,
+    }
+
+    #[test]
+    fn clearing_helpers_distinguish_presence_and_borrow_the_value() {
+        let absent = Field::<String>::Absent;
+        let clear = Field::<String>::Null;
+        let value = Field::Value("set".to_owned());
+        assert!(!absent.is_clear());
+        assert!(clear.is_clear());
+        assert!(!value.is_clear());
+        assert_eq!(absent.as_value(), None);
+        assert_eq!(clear.as_value(), None);
+        assert_eq!(value.as_value().map(String::as_str), Some("set"));
+        assert!(!Field::Value(Value::Null).is_clear());
+    }
+
+    #[test]
+    fn map_transforms_only_a_present_value() {
+        let calls = std::cell::Cell::new(0);
+        for (input, expected) in [
+            (Field::Absent, Field::Absent),
+            (Field::Null, Field::Null),
+            (Field::Value(3), Field::Value("3".to_owned())),
+        ] {
+            assert_eq!(
+                input.map(|value: i32| {
+                    calls.set(calls.get() + 1);
+                    value.to_string()
+                }),
+                expected
+            );
+        }
+        assert_eq!(calls.get(), 1);
     }
 
     #[test]

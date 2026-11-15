@@ -30,6 +30,7 @@ const REFUSED: &[&str] = &[
     "clearable-output",
     "clearable-path",
     "clearable-query",
+    "clearable-raw-payload",
     "clearable-required",
     "clearable-union",
     "doc-links-unresolved",

@@ -1865,10 +1865,22 @@ is absent instead; required-member validation still applies. A structure,
 union or document payload of JSON `null` is the member's explicit null, read
 as the same member would be from a JSON body: Crucible JSON clients send an
 explicitly null payload that way. An optional structure or union is then
-absent; a document is absent. A structure, as the whole body, a payload
+absent; a document is absent. On a `clearable` input member, the generated
+Rust server uses `Field<T>` (re-exported by the runtime): omission gives
+`Field::Absent`, JSON null gives `Field::Null`, and a value gives
+`Field::Value`. Constraints apply only to `Value`. `is_clear`, `as_value`
+and `map` let a handler inspect or transform the field. Ordinary optional
+members remain `Option<T>` and read null as absent. Their schema nullability
+is unchanged; `x-crucible-clearable: true` distinguishes a clear in JSON
+Schema and OpenAPI. A permission guard
+`when has member` includes an explicit clear; a null resource identifier
+cannot supply a permission binding and fails closed. A structure, as the whole body, a payload
 or a member at any depth, is read only from a JSON object: an array of
 positional values is malformed. Other whitespace
-bytes are invalid JSON. Raw text and blob payloads retain every byte.
+bytes are invalid JSON. Raw text and blob payloads retain every byte;
+raw string, enum and blob `@payload` members cannot be `clearable`, since
+they cannot carry an explicit JSON null. Clearable JSON document, structure
+and union payloads preserve the same three Field states as body members.
 
 A buffered request body over the limit is refused during reading, as the
 validation error. Other body transport failures report a malformed request

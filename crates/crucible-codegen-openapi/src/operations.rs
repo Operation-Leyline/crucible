@@ -219,7 +219,7 @@ fn content(service: &Service, structure: &Structure, bindings: &Bindings) -> Val
             PayloadKind::String | PayloadKind::Document => schemas::member(
                 service,
                 member,
-                false,
+                member.clearable,
                 bindings.timestamp_formats.get(&member.name).copied(),
                 None,
             ),

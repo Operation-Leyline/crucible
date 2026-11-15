@@ -23,6 +23,7 @@ pub struct Options {
 pub fn capabilities() -> Capabilities {
     Capabilities::new([
         Feature::Sparse,
+        Feature::Clearable,
         Feature::IntEnum,
         Feature::BigInteger,
         Feature::BigDecimal,

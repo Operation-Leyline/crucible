@@ -200,14 +200,18 @@ pub fn member(
     if nullable {
         value = json!({"anyOf": [value, {"type": "null"}]});
     }
+    if member.clearable {
+        value["x-crucible-clearable"] = json!(true);
+    }
+    let member_docs = crate::docs::member_documentation(member);
     if member.idempotency_token {
-        let docs = member.docs.as_deref().map_or_else(
+        let docs = member_docs.as_deref().map_or_else(
             || crate::docs::IDEMPOTENCY_TOKEN_NOTE.to_owned(),
             |docs| format!("{docs}\n\n{}", crate::docs::IDEMPOTENCY_TOKEN_NOTE),
         );
         description(service, &mut value, Some(&docs));
     } else {
-        description(service, &mut value, member.docs.as_deref());
+        description(service, &mut value, member_docs.as_deref());
     }
     annotate(&mut value, &member.notes, Slot::Native);
     if !member.traits.is_empty() {
