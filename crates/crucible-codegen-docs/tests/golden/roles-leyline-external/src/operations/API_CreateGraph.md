@@ -9,8 +9,6 @@ Protocol: <code>crucibleJson</code>.
 
 ## Authorization
 
-Requires permissions internal to the service.
-
 <p>Granted by <code>graphCreator</code> at <code>organization</code>; <code>graphAdmin</code> at <code>allGraphs</code>.</p>
 
 ## Request syntax

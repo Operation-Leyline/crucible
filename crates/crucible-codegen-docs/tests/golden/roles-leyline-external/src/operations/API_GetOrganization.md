@@ -9,8 +9,6 @@ Protocol: <code>crucibleJson</code>.
 
 ## Authorization
 
-Requires permissions internal to the service.
-
 <p>Granted by <code>owner</code>, <code>accessAdmin</code>, <code>graphGroupAdmin</code>, <code>usageViewer</code>, <code>auditViewer</code>, <code>auditAdmin</code>, <code>backupViewer</code> or <code>backupAdmin</code> at <code>organization</code>.</p>
 
 ## Request syntax

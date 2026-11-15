@@ -548,6 +548,27 @@ in `crucible_codegen_common::roles` writes the sentences
 SDK documentation, the reference, MCP tool descriptions and OpenAPI all
 call it. `tests/models/roles-granted-by` exercises every clause kind.
 
+*As built (#490).* The Roles page also answers what each role allows.
+Its **Allows** lists group linked operations by resource and name the
+scopes for each operation. Qualifiers distinguish listings that return only
+what the binding covers, conditional and handler checks, grants the service
+decides (with their documented condition), and role assignments subject to
+`assignedBy`. These lists include only operations visible to the audience;
+a public role's internal permission names remain hidden.
+
+The inverse analysis lives beside granted-by in `crucible_ir::roles` and
+reads the settled server answers retained through audience projection.
+It adds no stored inverse table to release snapshots. `Operation` keeps
+`assignment_roles` (role symbols only, with `#[serde(default)]`) so the
+assignment qualifier survives removal of private assignment paths. `describe.json`
+exposes root `roles` and `scopes` catalogues, including allowed operations,
+while keeping the existing `service.roles` and `service.scopes` registries.
+When all requirements are internal and every mandatory check has a visible
+granted-by answer, operation documentation uses those answers alone. The reference, OpenAPI and
+SDK comments keep “Requires permissions internal to the service.” only
+when a mandatory check has no visible grantor, even if a filter or another
+check has one.
+
 ## 6. Checks
 
 Compile errors:

@@ -11,8 +11,6 @@ Protocol: <code>crucibleJson</code>.
 
 ## Authorization
 
-Requires permissions internal to the service.
-
 <p>Granted by <code>owner</code> or <code>accessAdmin</code> at <code>organization</code>.</p>
 
 ## Request syntax

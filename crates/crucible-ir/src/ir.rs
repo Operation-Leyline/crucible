@@ -1115,6 +1115,11 @@ pub struct Operation {
     /// A snapshot frozen before `assigns` existed has none.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub assigns: Option<Assigns>,
+    /// Roles whose assignment is restricted by `assignedBy` when this
+    /// operation writes bindings. Settled before projection removes private
+    /// assignment paths; contains catalogue role symbols only.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub assignment_roles: Vec<String>,
 }
 
 /// A sender-signed operation's caller (decision 81).

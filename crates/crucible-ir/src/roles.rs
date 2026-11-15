@@ -328,7 +328,8 @@ pub fn effective(service: &Service, role: &Role) -> (Vec<GrantedPermission>, Vec
 
 /// Fills every role's [`Role::effective`] and [`Role::by_service`] from the
 /// catalogue as declared, then every operation's [`Operation::granted_by`]
-/// from them. The `.cru` lowering calls it once the service is built; a
+/// from them, and its public assignment restrictions. The `.cru` lowering
+/// calls it once the service is built; a
 /// front end that builds IR by hand calls it too. It reads the server
 /// contract: a client-audience projection no longer has a public role's
 /// internal grants, so it keeps what this settled instead
@@ -343,13 +344,14 @@ pub fn settle(service: &mut Service) {
         role.effective = model;
         role.by_service = by_service;
     }
-    let granted: Vec<Vec<ClauseGrants>> = service
+    let granted: Vec<_> = service
         .operations
         .iter()
-        .map(|op| granted_by(service, op))
+        .map(|op| (granted_by(service, op), assignment_roles(service, op)))
         .collect();
-    for (op, granted) in service.operations.iter_mut().zip(granted) {
+    for (op, (granted, assignment_roles)) in service.operations.iter_mut().zip(granted) {
         op.granted_by = granted;
+        op.assignment_roles = assignment_roles;
     }
 }
 
@@ -402,6 +404,99 @@ pub fn granted_by(service: &Service, op: &Operation) -> Vec<ClauseGrants> {
         .enumerate()
         .map(|(index, clause)| clause_grants(service, clause, index))
         .collect()
+}
+
+/// A restricted role the operation may assign within its declared target.
+/// Only catalogue names survive; assignment paths may be private.
+pub(crate) fn assignment_roles(service: &Service, op: &Operation) -> Vec<String> {
+    let Some(crate::ir::Assigns::Roles { at, .. }) = &op.assigns else {
+        return Vec::new();
+    };
+    let target = if at.bindings.last() == Some(&Binding::All) {
+        ScopeTarget::Every(at.resource.clone())
+    } else {
+        ScopeTarget::Instance(at.resource.clone())
+    };
+    let mut roles: Vec<_> = service
+        .roles
+        .iter()
+        .filter(|role| {
+            !role.assigned_by.is_empty()
+                && role.scopes.iter().any(|symbol| {
+                    service
+                        .scope(symbol)
+                        .is_some_and(|scope| covers_scope(service, &target, &scope.on))
+                })
+        })
+        .map(|role| role.symbol.clone())
+        .collect();
+    roles.sort();
+    roles
+}
+
+/// One clause a role allows through a binding at the listed scopes.
+/// This is an inverse of settled granted-by, not a claim that this role
+/// alone satisfies an operation's other clauses or assignment gates.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AllowedOperation {
+    pub operation: ShapeId,
+    pub resource: Option<ShapeId>,
+    pub clause: Option<usize>,
+    pub scopes: Vec<String>,
+    pub mode: Mode,
+    pub conditional: bool,
+    pub by_service: bool,
+    pub docs: Option<String>,
+    pub assignment_roles: Vec<String>,
+}
+
+/// The inverse of `Operation::granted_by`, keyed by role symbol. Reads the
+/// server-settled answers, including those retained by audience projection,
+/// so internal permissions need never be inspected or named. Entries are
+/// sorted by operation ID, then retain clause order; scopes by symbol.
+/// Roles with no allowed operations still have an empty entry.
+pub fn allowed_operations(service: &Service) -> BTreeMap<String, Vec<AllowedOperation>> {
+    let mut result: BTreeMap<String, Vec<AllowedOperation>> = service
+        .roles
+        .iter()
+        .map(|role| (role.symbol.clone(), Vec::new()))
+        .collect();
+    let mut operations: Vec<_> = service.operations.iter().collect();
+    operations.sort_by(|a, b| a.id.cmp(&b.id));
+    for op in operations {
+        let assignments = if op.assigns.is_some() {
+            assignment_roles(service, op)
+        } else {
+            op.assignment_roles.clone()
+        };
+        for grants in &op.granted_by {
+            for (by_service, grant) in grants
+                .roles
+                .iter()
+                .map(|g| (false, g))
+                .chain(grants.by_service.iter().map(|g| (true, g)))
+            {
+                let Some(entries) = result.get_mut(&grant.role) else {
+                    continue;
+                };
+                let mut scopes = grant.scopes.clone();
+                scopes.sort();
+                scopes.dedup();
+                entries.push(AllowedOperation {
+                    operation: op.id.clone(),
+                    resource: op.resource.clone(),
+                    clause: grants.clause,
+                    scopes,
+                    mode: grants.mode,
+                    conditional: grants.conditional,
+                    by_service,
+                    docs: grant.docs.clone(),
+                    assignment_roles: assignments.clone(),
+                });
+            }
+        }
+    }
+    result
 }
 
 fn clause_grants(service: &Service, clause: &Requirement, index: usize) -> ClauseGrants {

@@ -2089,6 +2089,508 @@
       "summary": "A team's workspace."
     }
   },
+  "roles": [
+    {
+      "allowedOperations": [
+        {
+          "assignments": [],
+          "byService": false,
+          "conditional": false,
+          "mode": "check",
+          "operation": "example.notes#CreateNote",
+          "resource": "example.notes#Note",
+          "scopes": [
+            "workspace"
+          ]
+        },
+        {
+          "assignments": [],
+          "byService": false,
+          "conditional": false,
+          "mode": "check",
+          "operation": "example.notes#GetNote",
+          "resource": "example.notes#Note",
+          "scopes": [
+            "workspace"
+          ]
+        },
+        {
+          "assignments": [],
+          "byService": false,
+          "conditional": false,
+          "mode": "check",
+          "operation": "example.notes#GetWorkspace",
+          "resource": "example.notes#Workspace",
+          "scopes": [
+            "workspace"
+          ]
+        },
+        {
+          "assignments": [],
+          "byService": false,
+          "conditional": false,
+          "mode": "filter",
+          "operation": "example.notes#ListNotes",
+          "resource": "example.notes#Note",
+          "scopes": [
+            "workspace"
+          ]
+        },
+        {
+          "assignments": [],
+          "byService": false,
+          "conditional": false,
+          "mode": "check",
+          "operation": "example.notes#PurgeNote",
+          "resource": "example.notes#Note",
+          "scopes": [
+            "workspace"
+          ]
+        },
+        {
+          "assignments": [],
+          "byService": false,
+          "conditional": false,
+          "mode": "check",
+          "operation": "example.notes#ShareNote",
+          "resource": "example.notes#Note",
+          "scopes": [
+            "workspace"
+          ]
+        },
+        {
+          "assignments": [],
+          "byService": false,
+          "conditional": false,
+          "mode": "handler",
+          "operation": "example.notes#ShareNote",
+          "resource": "example.notes#Note",
+          "scopes": [
+            "workspace"
+          ]
+        },
+        {
+          "assignments": [],
+          "byService": false,
+          "conditional": false,
+          "mode": "check",
+          "operation": "example.notes#UpdateNote",
+          "resource": "example.notes#Note",
+          "scopes": [
+            "workspace"
+          ]
+        },
+        {
+          "assignments": [],
+          "byService": false,
+          "conditional": true,
+          "mode": "check",
+          "operation": "example.notes#UpdateNote",
+          "resource": "example.notes#Note",
+          "scopes": [
+            "workspace"
+          ]
+        }
+      ],
+      "assignedBy": [
+        "owner"
+      ],
+      "deprecated": false,
+      "description": "Runs the workspace.",
+      "holders": [
+        "user"
+      ],
+      "name": "owner",
+      "permissions": [
+        {
+          "permission": "note:read",
+          "resourceType": "note"
+        },
+        {
+          "permission": "note:write",
+          "resourceType": "note"
+        },
+        {
+          "permission": "note:create",
+          "resourceType": "note"
+        },
+        {
+          "permission": "note:purge",
+          "resourceType": "note"
+        },
+        {
+          "permission": "workspace:read",
+          "resourceType": "workspace"
+        },
+        {
+          "permission": "workspace:admin",
+          "resourceType": "workspace"
+        },
+        {
+          "permission": "workspace:audit",
+          "resourceType": "workspace"
+        }
+      ],
+      "scopes": [
+        "workspace"
+      ],
+      "value": "owner"
+    },
+    {
+      "allowedOperations": [
+        {
+          "assignments": [],
+          "byService": false,
+          "conditional": false,
+          "mode": "check",
+          "operation": "example.notes#GetNote",
+          "resource": "example.notes#Note",
+          "scopes": [
+            "allNotes",
+            "note",
+            "workspace"
+          ]
+        },
+        {
+          "assignments": [],
+          "byService": false,
+          "conditional": false,
+          "mode": "filter",
+          "operation": "example.notes#ListNotes",
+          "resource": "example.notes#Note",
+          "scopes": [
+            "allNotes",
+            "note",
+            "workspace"
+          ]
+        },
+        {
+          "assignments": [],
+          "byService": false,
+          "conditional": false,
+          "mode": "check",
+          "operation": "example.notes#ShareNote",
+          "resource": "example.notes#Note",
+          "scopes": [
+            "allNotes",
+            "note",
+            "workspace"
+          ]
+        }
+      ],
+      "assignedBy": [],
+      "deprecated": false,
+      "description": "Reads notes.",
+      "holders": [],
+      "name": "viewer",
+      "permissions": [
+        {
+          "permission": "note:read",
+          "resourceType": "note"
+        }
+      ],
+      "scopes": [
+        "workspace",
+        "allNotes",
+        "note"
+      ],
+      "value": "viewer"
+    },
+    {
+      "allowedOperations": [
+        {
+          "assignments": [],
+          "byService": false,
+          "conditional": false,
+          "mode": "check",
+          "operation": "example.notes#CreateNote",
+          "resource": "example.notes#Note",
+          "scopes": [
+            "allNotes"
+          ]
+        },
+        {
+          "assignments": [],
+          "byService": false,
+          "conditional": false,
+          "mode": "check",
+          "operation": "example.notes#GetNote",
+          "resource": "example.notes#Note",
+          "scopes": [
+            "allNotes",
+            "note"
+          ]
+        },
+        {
+          "assignments": [],
+          "byService": false,
+          "conditional": false,
+          "mode": "filter",
+          "operation": "example.notes#ListNotes",
+          "resource": "example.notes#Note",
+          "scopes": [
+            "allNotes",
+            "note"
+          ]
+        },
+        {
+          "assignments": [],
+          "byService": false,
+          "conditional": false,
+          "mode": "check",
+          "operation": "example.notes#ShareNote",
+          "resource": "example.notes#Note",
+          "scopes": [
+            "allNotes",
+            "note"
+          ]
+        },
+        {
+          "assignments": [],
+          "byService": false,
+          "conditional": false,
+          "mode": "handler",
+          "operation": "example.notes#ShareNote",
+          "resource": "example.notes#Note",
+          "scopes": [
+            "allNotes",
+            "note"
+          ]
+        },
+        {
+          "assignments": [],
+          "byService": false,
+          "conditional": false,
+          "mode": "check",
+          "operation": "example.notes#UpdateNote",
+          "resource": "example.notes#Note",
+          "scopes": [
+            "allNotes",
+            "note"
+          ]
+        }
+      ],
+      "assignedBy": [],
+      "deprecated": false,
+      "description": "Reads, changes and writes notes.",
+      "holders": [],
+      "name": "editor",
+      "permissions": [
+        {
+          "permission": "note:read",
+          "resourceType": "note"
+        },
+        {
+          "permission": "note:write",
+          "resourceType": "note"
+        },
+        {
+          "permission": "note:create",
+          "resourceType": "note"
+        }
+      ],
+      "scopes": [
+        "allNotes",
+        "note"
+      ],
+      "value": "editor"
+    },
+    {
+      "allowedOperations": [
+        {
+          "assignments": [],
+          "byService": false,
+          "conditional": false,
+          "mode": "check",
+          "operation": "example.notes#CreateNote",
+          "resource": "example.notes#Note",
+          "scopes": [
+            "allNotes"
+          ]
+        },
+        {
+          "assignments": [],
+          "byService": true,
+          "conditional": false,
+          "documentation": "The archives of the notes this binding covers, while they are retained.",
+          "mode": "check",
+          "operation": "example.notes#GetArchive",
+          "resource": "example.notes#Archive",
+          "scopes": [
+            "allNotes"
+          ]
+        },
+        {
+          "assignments": [],
+          "byService": false,
+          "conditional": false,
+          "mode": "check",
+          "operation": "example.notes#GetNote",
+          "resource": "example.notes#Note",
+          "scopes": [
+            "allNotes"
+          ]
+        },
+        {
+          "assignments": [],
+          "byService": false,
+          "conditional": false,
+          "mode": "filter",
+          "operation": "example.notes#ListNotes",
+          "resource": "example.notes#Note",
+          "scopes": [
+            "allNotes"
+          ]
+        },
+        {
+          "assignments": [],
+          "byService": false,
+          "conditional": false,
+          "mode": "check",
+          "operation": "example.notes#ShareNote",
+          "resource": "example.notes#Note",
+          "scopes": [
+            "allNotes"
+          ]
+        },
+        {
+          "assignments": [],
+          "byService": false,
+          "conditional": false,
+          "mode": "handler",
+          "operation": "example.notes#ShareNote",
+          "resource": "example.notes#Note",
+          "scopes": [
+            "allNotes"
+          ]
+        },
+        {
+          "assignments": [],
+          "byService": false,
+          "conditional": false,
+          "mode": "check",
+          "operation": "example.notes#UpdateNote",
+          "resource": "example.notes#Note",
+          "scopes": [
+            "allNotes"
+          ]
+        }
+      ],
+      "assignedBy": [],
+      "byService": [
+        {
+          "documentation": "The archives of the notes this binding covers, while they are retained.",
+          "permission": "archive:read",
+          "resourceType": "archive"
+        }
+      ],
+      "deprecated": false,
+      "description": "Edits notes and reads the archives they came from.",
+      "holders": [],
+      "name": "archivist",
+      "permissions": [
+        {
+          "permission": "note:read",
+          "resourceType": "note"
+        },
+        {
+          "permission": "note:write",
+          "resourceType": "note"
+        },
+        {
+          "permission": "note:create",
+          "resourceType": "note"
+        }
+      ],
+      "scopes": [
+        "allNotes"
+      ],
+      "value": "archivist"
+    },
+    {
+      "allowedOperations": [
+        {
+          "assignments": [],
+          "byService": false,
+          "conditional": false,
+          "mode": "check",
+          "operation": "example.notes#PurgeNote",
+          "resource": "example.notes#Note",
+          "scopes": [
+            "backOffice"
+          ]
+        },
+        {
+          "assignments": [],
+          "byService": false,
+          "conditional": true,
+          "mode": "check",
+          "operation": "example.notes#UpdateNote",
+          "resource": "example.notes#Note",
+          "scopes": [
+            "backOffice"
+          ]
+        }
+      ],
+      "assignedBy": [],
+      "deprecated": false,
+      "description": "The service's own audits.",
+      "holders": [],
+      "internal": true,
+      "name": "auditor",
+      "permissions": [
+        {
+          "permission": "note:purge",
+          "resourceType": "note"
+        },
+        {
+          "permission": "workspace:audit",
+          "resourceType": "workspace"
+        }
+      ],
+      "scopes": [
+        "backOffice"
+      ],
+      "value": "auditor"
+    }
+  ],
+  "scopes": [
+    {
+      "deprecated": false,
+      "description": "The workspace and everything in it.",
+      "kind": "instance",
+      "name": "workspace",
+      "resource": "example.notes#Workspace",
+      "resourceType": "workspace",
+      "value": "workspace"
+    },
+    {
+      "deprecated": false,
+      "description": "Every note in the workspace, including notes written later.",
+      "kind": "every",
+      "name": "allNotes",
+      "resource": "example.notes#Note",
+      "resourceType": "note",
+      "value": "allNotes"
+    },
+    {
+      "deprecated": false,
+      "description": "One note.",
+      "kind": "instance",
+      "name": "note",
+      "resource": "example.notes#Note",
+      "resourceType": "note",
+      "value": "note"
+    },
+    {
+      "deprecated": false,
+      "description": "The service's own jobs, everywhere.",
+      "internal": true,
+      "kind": "service",
+      "name": "backOffice",
+      "value": "backOffice"
+    }
+  ],
   "service": {
     "auth": [
       "crucible.api#httpBearerAuth"
@@ -2212,6 +2714,107 @@
     ],
     "roles": [
       {
+        "allowedOperations": [
+          {
+            "assignments": [],
+            "byService": false,
+            "conditional": false,
+            "mode": "check",
+            "operation": "example.notes#CreateNote",
+            "resource": "example.notes#Note",
+            "scopes": [
+              "workspace"
+            ]
+          },
+          {
+            "assignments": [],
+            "byService": false,
+            "conditional": false,
+            "mode": "check",
+            "operation": "example.notes#GetNote",
+            "resource": "example.notes#Note",
+            "scopes": [
+              "workspace"
+            ]
+          },
+          {
+            "assignments": [],
+            "byService": false,
+            "conditional": false,
+            "mode": "check",
+            "operation": "example.notes#GetWorkspace",
+            "resource": "example.notes#Workspace",
+            "scopes": [
+              "workspace"
+            ]
+          },
+          {
+            "assignments": [],
+            "byService": false,
+            "conditional": false,
+            "mode": "filter",
+            "operation": "example.notes#ListNotes",
+            "resource": "example.notes#Note",
+            "scopes": [
+              "workspace"
+            ]
+          },
+          {
+            "assignments": [],
+            "byService": false,
+            "conditional": false,
+            "mode": "check",
+            "operation": "example.notes#PurgeNote",
+            "resource": "example.notes#Note",
+            "scopes": [
+              "workspace"
+            ]
+          },
+          {
+            "assignments": [],
+            "byService": false,
+            "conditional": false,
+            "mode": "check",
+            "operation": "example.notes#ShareNote",
+            "resource": "example.notes#Note",
+            "scopes": [
+              "workspace"
+            ]
+          },
+          {
+            "assignments": [],
+            "byService": false,
+            "conditional": false,
+            "mode": "handler",
+            "operation": "example.notes#ShareNote",
+            "resource": "example.notes#Note",
+            "scopes": [
+              "workspace"
+            ]
+          },
+          {
+            "assignments": [],
+            "byService": false,
+            "conditional": false,
+            "mode": "check",
+            "operation": "example.notes#UpdateNote",
+            "resource": "example.notes#Note",
+            "scopes": [
+              "workspace"
+            ]
+          },
+          {
+            "assignments": [],
+            "byService": false,
+            "conditional": true,
+            "mode": "check",
+            "operation": "example.notes#UpdateNote",
+            "resource": "example.notes#Note",
+            "scopes": [
+              "workspace"
+            ]
+          }
+        ],
         "assignedBy": [
           "owner"
         ],
@@ -2220,6 +2823,7 @@
         "holders": [
           "user"
         ],
+        "name": "owner",
         "permissions": [
           {
             "permission": "note:read",
@@ -2256,10 +2860,52 @@
         "value": "owner"
       },
       {
+        "allowedOperations": [
+          {
+            "assignments": [],
+            "byService": false,
+            "conditional": false,
+            "mode": "check",
+            "operation": "example.notes#GetNote",
+            "resource": "example.notes#Note",
+            "scopes": [
+              "allNotes",
+              "note",
+              "workspace"
+            ]
+          },
+          {
+            "assignments": [],
+            "byService": false,
+            "conditional": false,
+            "mode": "filter",
+            "operation": "example.notes#ListNotes",
+            "resource": "example.notes#Note",
+            "scopes": [
+              "allNotes",
+              "note",
+              "workspace"
+            ]
+          },
+          {
+            "assignments": [],
+            "byService": false,
+            "conditional": false,
+            "mode": "check",
+            "operation": "example.notes#ShareNote",
+            "resource": "example.notes#Note",
+            "scopes": [
+              "allNotes",
+              "note",
+              "workspace"
+            ]
+          }
+        ],
         "assignedBy": [],
         "deprecated": false,
         "description": "Reads notes.",
         "holders": [],
+        "name": "viewer",
         "permissions": [
           {
             "permission": "note:read",
@@ -2274,10 +2920,84 @@
         "value": "viewer"
       },
       {
+        "allowedOperations": [
+          {
+            "assignments": [],
+            "byService": false,
+            "conditional": false,
+            "mode": "check",
+            "operation": "example.notes#CreateNote",
+            "resource": "example.notes#Note",
+            "scopes": [
+              "allNotes"
+            ]
+          },
+          {
+            "assignments": [],
+            "byService": false,
+            "conditional": false,
+            "mode": "check",
+            "operation": "example.notes#GetNote",
+            "resource": "example.notes#Note",
+            "scopes": [
+              "allNotes",
+              "note"
+            ]
+          },
+          {
+            "assignments": [],
+            "byService": false,
+            "conditional": false,
+            "mode": "filter",
+            "operation": "example.notes#ListNotes",
+            "resource": "example.notes#Note",
+            "scopes": [
+              "allNotes",
+              "note"
+            ]
+          },
+          {
+            "assignments": [],
+            "byService": false,
+            "conditional": false,
+            "mode": "check",
+            "operation": "example.notes#ShareNote",
+            "resource": "example.notes#Note",
+            "scopes": [
+              "allNotes",
+              "note"
+            ]
+          },
+          {
+            "assignments": [],
+            "byService": false,
+            "conditional": false,
+            "mode": "handler",
+            "operation": "example.notes#ShareNote",
+            "resource": "example.notes#Note",
+            "scopes": [
+              "allNotes",
+              "note"
+            ]
+          },
+          {
+            "assignments": [],
+            "byService": false,
+            "conditional": false,
+            "mode": "check",
+            "operation": "example.notes#UpdateNote",
+            "resource": "example.notes#Note",
+            "scopes": [
+              "allNotes",
+              "note"
+            ]
+          }
+        ],
         "assignedBy": [],
         "deprecated": false,
         "description": "Reads, changes and writes notes.",
         "holders": [],
+        "name": "editor",
         "permissions": [
           {
             "permission": "note:read",
@@ -2299,6 +3019,86 @@
         "value": "editor"
       },
       {
+        "allowedOperations": [
+          {
+            "assignments": [],
+            "byService": false,
+            "conditional": false,
+            "mode": "check",
+            "operation": "example.notes#CreateNote",
+            "resource": "example.notes#Note",
+            "scopes": [
+              "allNotes"
+            ]
+          },
+          {
+            "assignments": [],
+            "byService": true,
+            "conditional": false,
+            "documentation": "The archives of the notes this binding covers, while they are retained.",
+            "mode": "check",
+            "operation": "example.notes#GetArchive",
+            "resource": "example.notes#Archive",
+            "scopes": [
+              "allNotes"
+            ]
+          },
+          {
+            "assignments": [],
+            "byService": false,
+            "conditional": false,
+            "mode": "check",
+            "operation": "example.notes#GetNote",
+            "resource": "example.notes#Note",
+            "scopes": [
+              "allNotes"
+            ]
+          },
+          {
+            "assignments": [],
+            "byService": false,
+            "conditional": false,
+            "mode": "filter",
+            "operation": "example.notes#ListNotes",
+            "resource": "example.notes#Note",
+            "scopes": [
+              "allNotes"
+            ]
+          },
+          {
+            "assignments": [],
+            "byService": false,
+            "conditional": false,
+            "mode": "check",
+            "operation": "example.notes#ShareNote",
+            "resource": "example.notes#Note",
+            "scopes": [
+              "allNotes"
+            ]
+          },
+          {
+            "assignments": [],
+            "byService": false,
+            "conditional": false,
+            "mode": "handler",
+            "operation": "example.notes#ShareNote",
+            "resource": "example.notes#Note",
+            "scopes": [
+              "allNotes"
+            ]
+          },
+          {
+            "assignments": [],
+            "byService": false,
+            "conditional": false,
+            "mode": "check",
+            "operation": "example.notes#UpdateNote",
+            "resource": "example.notes#Note",
+            "scopes": [
+              "allNotes"
+            ]
+          }
+        ],
         "assignedBy": [],
         "byService": [
           {
@@ -2310,6 +3110,7 @@
         "deprecated": false,
         "description": "Edits notes and reads the archives they came from.",
         "holders": [],
+        "name": "archivist",
         "permissions": [
           {
             "permission": "note:read",
@@ -2330,11 +3131,36 @@
         "value": "archivist"
       },
       {
+        "allowedOperations": [
+          {
+            "assignments": [],
+            "byService": false,
+            "conditional": false,
+            "mode": "check",
+            "operation": "example.notes#PurgeNote",
+            "resource": "example.notes#Note",
+            "scopes": [
+              "backOffice"
+            ]
+          },
+          {
+            "assignments": [],
+            "byService": false,
+            "conditional": true,
+            "mode": "check",
+            "operation": "example.notes#UpdateNote",
+            "resource": "example.notes#Note",
+            "scopes": [
+              "backOffice"
+            ]
+          }
+        ],
         "assignedBy": [],
         "deprecated": false,
         "description": "The service's own audits.",
         "holders": [],
         "internal": true,
+        "name": "auditor",
         "permissions": [
           {
             "permission": "note:purge",
@@ -2356,6 +3182,7 @@
         "deprecated": false,
         "description": "The workspace and everything in it.",
         "kind": "instance",
+        "name": "workspace",
         "resource": "example.notes#Workspace",
         "resourceType": "workspace",
         "value": "workspace"
@@ -2364,6 +3191,7 @@
         "deprecated": false,
         "description": "Every note in the workspace, including notes written later.",
         "kind": "every",
+        "name": "allNotes",
         "resource": "example.notes#Note",
         "resourceType": "note",
         "value": "allNotes"
@@ -2372,6 +3200,7 @@
         "deprecated": false,
         "description": "One note.",
         "kind": "instance",
+        "name": "note",
         "resource": "example.notes#Note",
         "resourceType": "note",
         "value": "note"
@@ -2381,6 +3210,7 @@
         "description": "The service's own jobs, everywhere.",
         "internal": true,
         "kind": "service",
+        "name": "backOffice",
         "value": "backOffice"
       }
     ],

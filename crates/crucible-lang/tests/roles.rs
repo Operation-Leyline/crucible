@@ -1381,3 +1381,120 @@ fn permissionless_resources_keep_identifier_declaration_order() {
         ["aParent", "zParent", "aChild", "zChild"]
     );
 }
+
+/// The inverse reads exactly the server-settled edges, including their
+/// qualifiers, before and after permissions disappear from a client view.
+#[test]
+fn allowed_operations_are_exactly_the_inverse_of_granted_by() {
+    for package in ["roles-leyline", "roles-granted-by"] {
+        let server = service(package);
+        for view in [
+            server.clone(),
+            project(&server, Audience::External).unwrap(),
+        ] {
+            let inverse = crucible_ir::roles::allowed_operations(&view);
+            let mut forward = Vec::new();
+            for op in &view.operations {
+                for grants in &op.granted_by {
+                    for (by_service, grant) in grants
+                        .roles
+                        .iter()
+                        .map(|g| (false, g))
+                        .chain(grants.by_service.iter().map(|g| (true, g)))
+                    {
+                        for scope in &grant.scopes {
+                            forward.push(
+                                serde_json::to_string(&(
+                                    &grant.role,
+                                    &op.id,
+                                    &op.resource,
+                                    grants.clause,
+                                    scope,
+                                    grants.mode,
+                                    grants.conditional,
+                                    by_service,
+                                    &grant.docs,
+                                    &op.assignment_roles,
+                                ))
+                                .unwrap(),
+                            );
+                        }
+                    }
+                }
+            }
+            let mut backward = Vec::new();
+            for (role, entries) in inverse {
+                assert!(
+                    entries
+                        .windows(2)
+                        .all(|pair| pair[0].operation <= pair[1].operation)
+                );
+                for entry in entries {
+                    assert!(entry.scopes.windows(2).all(|pair| pair[0] < pair[1]));
+                    for scope in &entry.scopes {
+                        backward.push(
+                            serde_json::to_string(&(
+                                &role,
+                                &entry.operation,
+                                &entry.resource,
+                                entry.clause,
+                                scope,
+                                entry.mode,
+                                entry.conditional,
+                                entry.by_service,
+                                &entry.docs,
+                                &entry.assignment_roles,
+                            ))
+                            .unwrap(),
+                        );
+                    }
+                }
+            }
+            // A sorted list preserves duplicate edges, so this checks both
+            // directions and their multiplicity, not just set membership.
+            forward.sort();
+            backward.sort();
+            assert_eq!(forward, backward, "{package}");
+        }
+    }
+}
+
+#[test]
+fn assignment_qualifiers_survive_projection_of_an_older_snapshot() {
+    let server = leyline();
+    let mut old: serde_json::Value =
+        serde_json::from_str(&snapshot::write(&server, "test")).unwrap();
+    for op in old["service"]["operations"].as_array_mut().unwrap() {
+        op.as_object_mut().unwrap().remove("assignment_roles");
+    }
+    let restored = snapshot::read(&old.to_string()).unwrap();
+    let client = project(&restored, Audience::External).unwrap();
+    let put = operation(&client, "PutRoleBinding");
+    assert!(put.assigns.is_none());
+    assert_eq!(put.assignment_roles, ["accessAdmin", "auditAdmin", "owner"]);
+    assert_eq!(
+        crucible_ir::roles::allowed_operations(&client),
+        crucible_ir::roles::allowed_operations(&project(&server, Audience::External).unwrap())
+    );
+}
+
+#[test]
+fn assignment_qualifiers_include_a_collection_scope_at_a_wildcard_target() {
+    let compiled = compiled_with("roles-leyline", |text| {
+        text.replace(
+        "role graphReader = \"graphReader\" { at [allGraphs, graph]; grants Graph [read] }",
+        "role graphReader = \"graphReader\" { at [allGraphs]; assignedBy [owner]; grants Graph [read] }",
+    ).replace("assigns role at Organization", "assigns role at Graph(*)")
+    });
+    assert!(compiled.diagnostics.is_empty(), "{}", compiled.render());
+    let server = compiled.service.unwrap();
+    assert_eq!(
+        operation(&server, "PutRoleBinding").assignment_roles,
+        ["graphReader"]
+    );
+    let client = project(&server, Audience::External).unwrap();
+    assert_eq!(
+        operation(&client, "PutRoleBinding").assignment_roles,
+        ["graphReader"]
+    );
+}

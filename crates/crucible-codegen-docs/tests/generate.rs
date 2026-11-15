@@ -1130,6 +1130,121 @@ fn roles_match_reviewed_goldens() {
 }
 
 #[test]
+fn roles_catalogue_links_every_grant_and_lists_allowed_operations() {
+    for package in ["roles-leyline", "roles-granted-by"] {
+        let generated = files(package, Audience::External);
+        let get = |path: &str| &generated.iter().find(|f| f.path == path).unwrap().contents;
+        let d: Value = serde_json::from_str(get("describe.json")).unwrap();
+        assert_eq!(d["roles"], d["service"]["roles"]);
+        assert_eq!(d["scopes"], d["service"]["scopes"]);
+        let roles = d["roles"].as_array().unwrap();
+        let scopes = d["scopes"].as_array().unwrap();
+        for op in d["operations"].as_object().unwrap().values() {
+            let r = &op["requirements"];
+            let clauses = r["clauses"]
+                .as_array()
+                .into_iter()
+                .flatten()
+                .chain(r["internalClauses"].as_array().into_iter().flatten());
+            for clause in clauses {
+                for grant in ["roles", "byService"]
+                    .into_iter()
+                    .flat_map(|key| clause["grantedBy"][key].as_array().into_iter().flatten())
+                {
+                    assert!(roles.iter().any(|r| r["value"] == grant["role"]));
+                    for scope in grant["scopes"].as_array().unwrap() {
+                        assert!(scopes.iter().any(|s| s["value"] == *scope));
+                    }
+                }
+            }
+            if op["requirements"]["kind"] == "internal"
+                && op["grantedBySentences"]
+                    .as_array()
+                    .is_some_and(|s| !s.is_empty())
+            {
+                assert!(
+                    !op["requirementSentences"]
+                        .to_string()
+                        .contains("Requires permissions internal to the service.")
+                );
+                assert!(
+                    !get(&format!(
+                        "src/operations/API_{}.md",
+                        op["name"].as_str().unwrap()
+                    ))
+                    .contains("Requires permissions internal to the service.")
+                );
+            }
+        }
+        for role in roles {
+            for entry in role["allowedOperations"].as_array().unwrap() {
+                assert!(
+                    d["operations"]
+                        .get(entry["operation"].as_str().unwrap())
+                        .is_some()
+                );
+                for scope in entry["scopes"].as_array().unwrap() {
+                    assert!(scopes.iter().any(|s| s["value"] == *scope));
+                }
+            }
+        }
+        if package == "roles-leyline" {
+            let role = |value: &str| roles.iter().find(|r| r["value"] == value).unwrap();
+            let allows = |value: &str, operation: &str| {
+                role(value)["allowedOperations"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .find(|e| {
+                        e["operation"]
+                            .as_str()
+                            .unwrap()
+                            .ends_with(&format!("#{operation}"))
+                    })
+                    .unwrap()
+            };
+            assert_eq!(
+                allows("owner", "GetOrganization")["scopes"],
+                serde_json::json!(["organization"])
+            );
+            assert_eq!(
+                allows("graphReader", "GetGraph")["scopes"],
+                serde_json::json!(["allGraphs", "graph"])
+            );
+            let history = allows("graphAdmin", "GetGraphHistory");
+            assert_eq!(history["byService"], true);
+            assert!(
+                history["documentation"]
+                    .as_str()
+                    .unwrap()
+                    .contains("while the graph is live")
+            );
+            let page = get("src/roles.md");
+            for (value, operation) in [
+                ("owner", "GetOrganization"),
+                ("graphReader", "GetGraph"),
+                ("graphAdmin", "GetGraphHistory"),
+            ] {
+                let section = page
+                    .split(&format!("### `{value}`\n"))
+                    .nth(1)
+                    .unwrap()
+                    .split("\n### `")
+                    .next()
+                    .unwrap();
+                assert!(
+                    section.contains(&format!("[{operation}](operations/API_{operation}.md)")),
+                    "{section}"
+                );
+            }
+            assert!(page.contains(
+                "granting or revoking <code>owner</code> requires holders of <code>owner</code>"
+            ));
+        }
+    }
+}
+
+#[test]
 fn site_files_match_reviewed_goldens() {
     let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/golden/site");
     let generated = files(WEATHER, Audience::External);

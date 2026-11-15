@@ -322,6 +322,10 @@ fn external(service: &Service, lenient: bool) -> Result<Service, Diagnostics> {
     // `assigns` is the server's obligation (docs/roles.md §4.5), and its
     // paths may name members this view removed.
     for op in &mut result.operations {
+        // Older snapshots have `assigns` but predate its public qualifier.
+        if op.assigns.is_some() {
+            op.assignment_roles = crate::roles::assignment_roles(service, op);
+        }
         op.assigns = None;
     }
     project_permissions(&mut result);
@@ -930,6 +934,7 @@ fn project_roles(result: &mut Service) {
     // Granted-by names roles and scopes, which this view keeps when they
     // are public, whatever the permission's tier.
     for op in &mut result.operations {
+        op.assignment_roles.retain(|role| roles.contains(role));
         for grants in &mut op.granted_by {
             for list in [&mut grants.roles, &mut grants.by_service] {
                 list.retain(|g| roles.contains(&g.role));

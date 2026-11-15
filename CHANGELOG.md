@@ -29,6 +29,13 @@ version's section when it is prepared.
 
 ### Added
 
+- Role references list the operations each role allows, grouped by resource
+  with scopes and authorization qualifiers. `describe.json` adds root
+  role and scope catalogues and allowed operations. The shared IR analysis
+  inverts settled granted-by answers without exposing internal permissions.
+  Operation references, OpenAPI and SDK comments omit the empty internal
+  requirement sentence when a visible granted-by answer already explains it.
+
 - Service clauses `versionHeader "Example-Version"` and `unversioned
   oldest|required` define the release carrier and the contract for a
   request without a release. The IR validates and freezes the settings;

@@ -267,3 +267,159 @@ fn mixed_lists_keep_the_hidden_filter_note_for_every_client_reader() {
         );
     }
 }
+
+#[test]
+fn an_internal_requirement_uses_the_visible_granted_by_answer_alone() {
+    use crucible_codegen_common::{documentation, permissions};
+    for package in ["roles-leyline", "roles-granted-by"] {
+        let server = load(package);
+        let client = project(&server, Audience::External).unwrap();
+        for view in [&server, &client] {
+            for op in &view.operations {
+                let granted = granted_by_sentences(view, op, false);
+                let required = permissions::requirement_sentences(view, op, false);
+                if !granted.is_empty() {
+                    assert!(
+                        !required
+                            .iter()
+                            .any(|s| s == permissions::INTERNAL_REQUIREMENTS),
+                        "{}",
+                        op.id
+                    );
+                    assert!(
+                        !documentation::operation(view, op)
+                            .contains(permissions::INTERNAL_REQUIREMENTS)
+                    );
+                }
+            }
+        }
+        let mut op = client
+            .operations
+            .iter()
+            .find(|op| matches!(op.requirements, crucible_ir::ir::Requirements::Internal))
+            .unwrap()
+            .clone();
+        op.granted_by.clear();
+        assert_eq!(
+            permissions::requirement_sentences(&client, &op, false),
+            [permissions::INTERNAL_REQUIREMENTS]
+        );
+        assert!(
+            documentation::operation(&client, &op).contains(permissions::INTERNAL_REQUIREMENTS)
+        );
+    }
+}
+
+#[test]
+fn allowed_operations_never_link_to_an_internal_operation_for_a_client() {
+    let mut server = load("roles-granted-by");
+    server
+        .operations
+        .iter_mut()
+        .find(|op| op.id.name() == "GetArchive")
+        .unwrap()
+        .internal = true;
+    let client = project(&server, Audience::External).unwrap();
+    for view in [&server, &client] {
+        for role in roles_registry(view, false).as_array().unwrap() {
+            for entry in role["allowedOperations"].as_array().unwrap() {
+                assert!(
+                    !entry["operation"]
+                        .as_str()
+                        .unwrap()
+                        .ends_with("#GetArchive")
+                );
+            }
+        }
+    }
+}
+
+#[test]
+fn a_public_filter_does_not_restore_the_empty_internal_requirement_sentence() {
+    let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../tests/models/roles-granted-by");
+    let mut package = crucible_lang::load_package(&dir).unwrap();
+    for file in &mut package.files {
+        file.text = file.text.replace(
+            "    filters read on Note\n",
+            "    filters read on Note\n    requires audit on Workspace\n",
+        );
+    }
+    let compiled = crucible_lang::compile(&package, None);
+    assert!(compiled.diagnostics.is_empty(), "{}", compiled.render());
+    let server = compiled.service.unwrap();
+    let client = project(&server, Audience::External).unwrap();
+    for view in [&server, &client] {
+        let op = view
+            .operations
+            .iter()
+            .find(|op| op.id.name() == "ListNotes")
+            .unwrap();
+        let required = crucible_codegen_common::permissions::requirement_sentences(view, op, false);
+        assert!(required.iter().any(|s| s.starts_with("Returns")));
+        assert!(!granted_by_sentences(view, op, false).is_empty());
+        assert!(
+            !required
+                .iter()
+                .any(|s| s == crucible_codegen_common::permissions::INTERNAL_REQUIREMENTS)
+        );
+        let mut no_roles = op.clone();
+        no_roles.granted_by.clear();
+        assert!(
+            crucible_codegen_common::permissions::requirement_sentences(view, &no_roles, false)
+                .iter()
+                .any(|s| s == crucible_codegen_common::permissions::INTERNAL_REQUIREMENTS)
+        );
+    }
+}
+
+#[test]
+fn filter_or_other_check_answers_do_not_hide_an_unexplained_internal_check() {
+    let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../tests/models/roles-granted-by");
+    let mut package = crucible_lang::load_package(&dir).unwrap();
+    for file in &mut package.files {
+        file.text = file
+            .text
+            .replace("grants Workspace [*]", "grants Workspace [read, admin]")
+            .replace(
+                "    filters read on Note\n",
+                "    filters read on Note\n    requires audit on Workspace\n",
+            )
+            .replace(
+                "    requires purge\n",
+                "    requires purge\n    requires audit on Workspace\n",
+            );
+    }
+    let compiled = crucible_lang::compile(&package, None);
+    assert!(compiled.diagnostics.is_empty(), "{}", compiled.render());
+    let server = compiled.service.unwrap();
+    let client = project(&server, Audience::External).unwrap();
+    for name in ["ListNotes", "PurgeNote"] {
+        for (view, internal) in [(&server, false), (&client, false), (&client, true)] {
+            let op = view
+                .operations
+                .iter()
+                .find(|op| op.id.name() == name)
+                .unwrap();
+            assert!(!granted_by_sentences(view, op, internal).is_empty());
+            let required =
+                crucible_codegen_common::permissions::requirement_sentences(view, op, internal);
+            assert!(
+                required
+                    .iter()
+                    .any(|s| s == crucible_codegen_common::permissions::INTERNAL_REQUIREMENTS),
+                "{name}: {required:?}"
+            );
+            assert!(
+                crucible_codegen_common::permissions::requirement_paragraph(view, op, internal)
+                    .unwrap()
+                    .contains(crucible_codegen_common::permissions::INTERNAL_REQUIREMENTS)
+            );
+            assert!(
+                crucible_codegen_common::documentation::operation(view, op)
+                    .contains(crucible_codegen_common::permissions::INTERNAL_REQUIREMENTS)
+            );
+        }
+    }
+}

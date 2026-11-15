@@ -1,3 +1,5 @@
+use std::collections::BTreeMap;
+
 use crucible_codegen_common::describe::Description;
 use crucible_codegen_common::documentation;
 use crucible_codegen_common::permissions::{FILTERED_RESULTS, NO_PERMISSION};
@@ -1542,7 +1544,12 @@ fn authorization(op: &Value) -> String {
             ));
             reason(&mut out);
         }
-        "internal" => out.push_str("Requires permissions internal to the service.\n\n"),
+        "internal" => {
+            for sentence in list(&op["requirementSentences"]) {
+                out.push_str(string(sentence));
+                out.push_str("\n\n");
+            }
+        }
         _ => {
             for sentence in list(&op["requirementDocumentation"]) {
                 out.push_str(&html_block(string(&sentence["html"])));
@@ -1722,6 +1729,68 @@ fn roles_page(service: &Service, d: &Description) -> Option<String> {
             out.push_str(&format!("{}\n", line.trim_end()));
         }
         out.push('\n');
+        let mut grouped: BTreeMap<String, Vec<&Value>> = BTreeMap::new();
+        for entry in list(&role["allowedOperations"]) {
+            let resource = entry["resource"].as_str().unwrap_or_default();
+            grouped.entry(resource.to_owned()).or_default().push(entry);
+        }
+        if !grouped.is_empty() {
+            out.push_str("Allows (each entry describes one authorization clause; other clauses and assignment restrictions still apply):\n\n");
+        }
+        for (resource, entries) in grouped {
+            let label = d
+                .resources
+                .get(&resource)
+                .map(|r| string(&r["name"]))
+                .unwrap_or("Service");
+            out.push_str(&format!("#### {}\n\n", escaped(label)));
+            for entry in entries {
+                let Some(op) = d.operations.get(string(&entry["operation"])) else {
+                    continue;
+                };
+                let mut qualifiers = Vec::new();
+                if entry["mode"] == "filter" {
+                    qualifiers.push("returns only what it covers".to_owned());
+                }
+                if entry["mode"] == "handler" {
+                    qualifiers.push("checked by the service".to_owned());
+                }
+                if entry["conditional"] == true {
+                    qualifiers.push("when a condition on the input holds".to_owned());
+                }
+                if entry["byService"] == true {
+                    let mut text = "as the service decides".to_owned();
+                    if let Some(docs) = entry["documentation"].as_str() {
+                        let docs = docs.trim();
+                        let docs = docs
+                            .strip_suffix('.')
+                            .filter(|s| !s.ends_with('.'))
+                            .unwrap_or(docs);
+                        text.push_str(&format!(": {}", inline(&cell(service, docs))));
+                    }
+                    qualifiers.push(text);
+                }
+                for assignment in list(&entry["assignments"]) {
+                    qualifiers.push(format!(
+                        "granting or revoking {} requires holders of {} at a scope covering the binding",
+                        code(string(&assignment["role"])),
+                        codes(&assignment["assignedBy"])
+                    ));
+                }
+                let suffix = if qualifiers.is_empty() {
+                    String::new()
+                } else {
+                    format!("; {}", qualifiers.join("; "))
+                };
+                out.push_str(&format!(
+                    "- {} at {}{}.\n",
+                    link(string(&op["name"]), &operation_path(op)),
+                    codes(&entry["scopes"]),
+                    suffix
+                ));
+            }
+            out.push('\n');
+        }
     }
     Some(out)
 }

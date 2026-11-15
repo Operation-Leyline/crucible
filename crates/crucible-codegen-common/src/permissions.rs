@@ -443,7 +443,11 @@ fn requirement_parts(
             "Requires {}; and further permissions internal to the service.",
             required.join("; ")
         )),
-        (true, true) => sentences.push(INTERNAL_REQUIREMENTS.to_owned()),
+        (true, true) => {
+            if !crate::roles::hidden_checks_have_grantors(service, op, internal) {
+                sentences.push(INTERNAL_REQUIREMENTS.to_owned());
+            }
+        }
         (true, false) => {}
     }
     for clause in clauses.iter().filter(|clause| clause.mode == Mode::Filter) {
@@ -481,7 +485,8 @@ fn requirement_parts(
 /// what its registry has. A clause left out, here or by the client
 /// audience projection, is still a requirement: the sentence ends "and
 /// further permissions internal to the service", and an operation with no
-/// clause left says [`INTERNAL_REQUIREMENTS`].
+/// clause left says [`INTERNAL_REQUIREMENTS`] unless a visible granted-by
+/// answer explains every hidden mandatory check.
 pub fn requirement_sentences(service: &Service, op: &Operation, internal: bool) -> Vec<String> {
     let (mut sentences, blocks) = requirement_parts(service, op, internal);
     sentences.extend(blocks);

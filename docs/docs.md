@@ -592,11 +592,33 @@ which resources.
 
 | Field | Type and meaning |
 |---|---|
-| `service.roles` | Array in the service's catalogue order (its `roles [..]` list). Each: `value`, `description` (the model's Markdown, empty when none), `scopes` (scope values, catalogue order), `holders` (values of the service's `principals` enum; empty: any principal), `assignedBy` (role values whose holders alone assign it; empty: whoever may write bindings), `permissions` (`{resourceType, permission}`, what the model grants), optional `byService` (`{resourceType, permission, documentation?}`, what the service decides), `deprecated`, and `internal: true` on an internal role. A client-audience description lists only public roles, scopes, assigners and permissions |
-| `service.scopes` | Array in catalogue order. Each: `value`, `description`, `kind` (`service`, `instance` or `every`: on the whole service, one instance of `resource`, or every instance of it under one parent), `resource` (resource ID) and `resourceType` (its authorization name) unless `kind` is `service`, `deprecated`, and `internal: true` on an internal scope |
+| `service.roles` | Array in the service's catalogue order (its `roles [..]` list). Each: `name` (model symbol), `value`, `description` (the model's Markdown, empty when none), `scopes` (scope values, catalogue order), `holders` (values of the service's `principals` enum; empty: any principal), `assignedBy` (role values whose holders alone assign it; empty: whoever may write bindings), `permissions` (`{resourceType, permission}`, what the model grants), optional `byService` (`{resourceType, permission, documentation?}`, what the service decides), `deprecated`, and `internal: true` on an internal role. A client-audience description lists only public roles, scopes, assigners and permissions |
+| `service.scopes` | Array in catalogue order. Each: `name` (model symbol), `value`, `description`, `kind` (`service`, `instance` or `every`: on the whole service, one instance of `resource`, or every instance of it under one parent), `resource` (resource ID) and `resourceType` (its authorization name) unless `kind` is `service`, `deprecated`, and `internal: true` on an internal scope |
 | `service.customRoles` | `true` when customers may define further roles (`roles [..] custom`); absent otherwise |
 | `requirements.clauses[].grantedBy` | `{roles?, byService?, custom?}`: `roles` is `[{role, scopes}]`, the roles whose grants include the clause's permission in catalogue order, each with the scopes whose instances cover the clause's target (for a `filter` clause, any one instance it may return; for a check past a `*` binding, the whole collection); `byService` is `[{role, scopes, documentation?}]`, the roles that grant it as the service decides, with all their scopes and the grant's documentation; `custom: true` when a custom role may grant it (the service has custom roles and the permission is grantable). Values, not symbols |
 | `requirements.internalClauses` | Only where this audience does not see every clause (`kind` `internal`, or `partial`): one `{mode, conditional?, grantedBy}` per clause it does not see, in source order, naming roles and scopes and never the permission. `conditional: true` for a clause with a `when` condition |
+
+The root `roles` and `scopes` arrays provide the same catalogues for consumers
+that render a role picker or a Roles page. They are absent when there are no
+roles. Each role also has `name` (its model symbol) and `allowedOperations`.
+Each allowed entry identifies an `operation` and its `resource`, names its
+`scopes`, and preserves the clause's `mode`, `conditional` and `byService`
+qualifiers. Service-decided grants include `documentation` when supplied.
+`assignments` lists `{role, assignedBy}` restrictions that apply when those
+roles are assigned; it does not claim the entry bypasses another requirement.
+Every entry describes one clause, so a role may appear more than once for an
+operation. Scope and role names in entries are wire values.
+Entries are sorted by operation ID; scope names resolve against the scope
+catalogue. Only operations visible to the audience appear.
+
+The Roles page shows these entries as linked **Allows** lists grouped by
+resource. A filter says “returns only what it covers”; service-decided grants
+state their condition. Assignment entries retain their `assignedBy`
+restriction. When every requirement is internal and each mandatory check
+has a visible granted-by answer, its authorization prose uses those answers
+alone. A filter answer cannot explain a separate mandatory check. `requirementSentences` and `requirementDocumentation` omit the empty
+internal sentence, as do OpenAPI descriptions and SDK comments. With no
+visible grantor for a mandatory check, the internal sentence remains.
 
 The Markdown reference shows the granted-by sentences under each
 operation's *Authorization* and lists the registries on a `roles.md` page

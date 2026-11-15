@@ -9,8 +9,6 @@ Protocol: <code>crucibleJson</code>.
 
 ## Authorization
 
-Requires permissions internal to the service.
-
 <p>Granted by <code>owner</code> at <code>organization</code>; <code>historyReader</code> or <code>historyAdmin</code> at <code>allHistories</code> or <code>history</code>; <code>graphAdmin</code> at <code>allGraphs</code> or <code>graph</code>, as the service decides (the history of a graph this binding covers, while the graph is live).</p>
 
 ## Request syntax
