@@ -2257,6 +2257,7 @@ impl<'a> Lowerer<'a> {
             "anonymous",
             "public",
             "sparse",
+            "clearable",
         ];
         let decls: Vec<DeclRef<'a>> = self.decls.values().copied().collect();
         let mut types = Vec::new();
@@ -3504,6 +3505,7 @@ impl<'a> Lowerer<'a> {
         let constraints = self.constraints_of(target);
         let explicit = self.explicit_format(target);
         IrMember {
+            clearable: false,
             internal: false,
             sensitive: false,
             name: name.to_owned(),
@@ -3708,6 +3710,13 @@ impl<'a> Lowerer<'a> {
                 }
             }
             if let MemberKind::Include(name) = &member.kind {
+                if member.modifiers.iter().any(|m| m.name == "clearable") {
+                    self.error(
+                        file,
+                        member.span,
+                        "`clearable` marks an optional member, not an `include` directive",
+                    );
+                }
                 if !member.annotations.is_empty() {
                     self.error(file, member.span, "`include` takes no annotations");
                 }
@@ -4352,16 +4361,70 @@ impl<'a> Lowerer<'a> {
         }
         let mut internal = false;
         let mut sensitive = false;
+        let mut clearable = false;
         for modifier in &member.modifiers {
             match modifier.name.as_str() {
                 "internal" => internal = true,
                 "sensitive" => sensitive = true,
+                "clearable" => clearable = true,
                 other => self.error(
                     file,
                     modifier.span,
-                    format!("`{other}` does not apply to a member; `internal` and `sensitive` do"),
+                    format!("`{other}` does not apply to a member; `internal`, `sensitive` and `clearable` do"),
                 ),
             }
+        }
+        if clearable {
+            if context.union {
+                self.error(
+                    file,
+                    member.span,
+                    "`clearable` does not apply to a union arm",
+                );
+            } else if context.site != Site::Input {
+                self.misplaced(
+                    file,
+                    member.span,
+                    match context.site {
+                        Site::Output => "`clearable` does not apply to an output member",
+                        Site::Error => "`clearable` does not apply to an error member",
+                        _ => "`clearable` applies only to an operation input member",
+                    }
+                    .to_owned(),
+                    context,
+                );
+            }
+            if default.is_some() {
+                self.error(
+                    file,
+                    member.span,
+                    "`clearable` does not apply to a defaulted member",
+                );
+            } else if required {
+                self.error(
+                    file,
+                    member.span,
+                    "`clearable` requires an optional (`?`) member",
+                );
+            }
+            for (binding, bound) in [
+                ("header", annotations.header.is_some()),
+                ("query", annotations.query.is_some()),
+                ("path", context.labels.contains(&name)),
+            ] {
+                if bound {
+                    self.error(
+                        file,
+                        member.span,
+                        format!("`clearable` does not apply to a {binding} member"),
+                    );
+                }
+            }
+            self.require(
+                &context.owner.with_member(&name),
+                Feature::Clearable,
+                builtin("clearable"),
+            );
         }
         if internal {
             traits.insert(builtin("internal"), Json::Object(JsonMap::new()));
@@ -4475,6 +4538,7 @@ impl<'a> Lowerer<'a> {
             self.carry(context.owner, &name, resource, found.entry);
         }
         Some(IrMember {
+            clearable,
             internal,
             sensitive,
             name: name.clone(),

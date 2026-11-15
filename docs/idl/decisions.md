@@ -415,7 +415,7 @@ trait when a project defines it.
 > rejected as written. Built: 34a's keywords, checks and lowering, `$*`
 > (34d), property presence (34e), identifier spelling (34f) and 34h's two
 > warnings. Not built: `references` (34b) and 34c's default-view shorthand;
-> 34i is open. The compiler still refuses annotations on resource entries.
+> 34i defines explicit clearing. The compiler still refuses annotations on resource entries.
 > Resources and their bindings are lowered (decision 67).
 
 34a. **Property mutability is declared on the property, from a closed set
@@ -639,23 +639,22 @@ trait when a project defines it.
     view that takes the union or intersection of differing members
     silently; a shared member that means two things is a model error.
 
-34i. **OPEN: update semantics.** Clearing an optional property, merge
-    versus replace, and field masks are left to their own decision. `$x?`
-    in an `updates` input says the member may be absent, not what absence
-    does. Decision 20 defines required, optional and defaulted members but
-    not what an explicit null means for an optional input: the Rust wire
-    layer keeps absent, null and value apart (`Field`), clients keep an
-    explicit null distinct from absence ([clients.md](../clients.md)), and
-    a protocol that omits null members reads one as absence (`NullAbsent`),
-    so the model cannot yet say "leave unchanged" apart from "clear".
-    Pigeon's `UpdateTemplate` shows both in one input: an omitted `name` is
-    kept, while giving any of `subject`, `text` or `html` replaces all
-    three, so an omitted `html` removes it; only its documentation says so.
-    Candidates are a `merge`/`replace` declaration per operation or member,
-    an explicit clear (JSON Merge Patch's null, which would need every
-    protocol to keep null distinct), and an update mask (AIP-134); each
-    needs runtime support. *Why open:* the choice changes every SDK's update builders, and 34a's
-    validation holds whichever is chosen.
+34i. **An optional input member can be `clearable`.** On a member marked
+    `clearable`, absence leaves its value unchanged, JSON `null` clears it,
+    and a value sets it. The member's type itself never admits null.
+    Write `clearable description?: string` or `clearable $description?`
+    in an operation input. Required and defaulted members, outputs, errors,
+    HTTP headers, URI labels, query parameters and union arms cannot be
+    `clearable`. No field mask or merge keyword is needed. Decision 20's
+    required, optional and defaulted states remain the same.
+    The IR records `Member.clearable`; a client or server generator must
+    declare the `clearable` capability before generating bindings for it.
+    Language support precedes runtime and client support: no generator
+    declares that capability yet. Docs and describe exports carry the
+    flag without a capability gate. A protocol that loses explicit null
+    cannot implement clearing. *Why:* callers need to distinguish keeping
+    an optional value from removing it, and the model must state that
+    meaning for every generated interface.
 
 ## Protocols, auth and transport
 

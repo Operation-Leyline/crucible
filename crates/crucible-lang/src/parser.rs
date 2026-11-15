@@ -30,6 +30,7 @@ const MODIFIERS: &[&str] = &[
     "strict",
     "internal",
     "sensitive",
+    "clearable",
     "sparse",
 ];
 
@@ -810,9 +811,11 @@ impl<'s> Parser<'s> {
 
     fn modifiers(&mut self) -> Vec<Ident> {
         let mut out = Vec::new();
+        // Look ahead so a modifier word can still be a member name; `$`
+        // starts an elided member that may carry modifiers of its own.
         while self.at(TokenKind::Ident)
             && MODIFIERS.contains(&self.text(0))
-            && self.kind(1) == Some(TokenKind::Ident)
+            && matches!(self.kind(1), Some(TokenKind::Ident | TokenKind::Dollar))
         {
             out.push(self.ident("a modifier"));
         }

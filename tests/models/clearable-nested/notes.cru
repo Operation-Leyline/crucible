@@ -1,0 +1,3 @@
+service Notes { version "1" protocol json operations [Update] }
+structure Nested { clearable description?: string }
+operation Update { http POST "/notes" input { nested: Nested } }

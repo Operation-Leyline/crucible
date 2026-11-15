@@ -1,0 +1,3 @@
+service Notes { version "1" protocol json operations [Update] }
+error Failure { status 400 clearable description?: string }
+operation Update { http POST "/notes" errors [Failure] }

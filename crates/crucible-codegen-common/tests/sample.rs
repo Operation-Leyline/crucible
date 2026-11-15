@@ -22,6 +22,16 @@ fn load(name: &str) -> Service {
 /// The packages written for the compiler to refuse: nothing to sample.
 const REFUSED: &[&str] = &[
     "body-name-collision-refusal",
+    "clearable-defaulted",
+    "clearable-error",
+    "clearable-header",
+    "clearable-include",
+    "clearable-nested",
+    "clearable-output",
+    "clearable-path",
+    "clearable-query",
+    "clearable-required",
+    "clearable-union",
     "doc-links-unresolved",
     "error-docs-invalid",
     "example-range-refusals",

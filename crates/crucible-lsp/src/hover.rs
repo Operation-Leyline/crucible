@@ -196,6 +196,12 @@ const KEYWORDS: &[Row] = &[
         "Marks a shape, member or operation whose values are redacted from logs and debug output.",
         "structure Login {\n    user: string\n    sensitive password: string\n}",
     ),
+    (
+        "clearable",
+        ANYWHERE,
+        "Marks an optional operation input member: absence leaves the value unchanged, JSON null clears it, and a value sets it. The member's own type does not admit null. Requires generator support for the clearable capability.",
+        "operation UpdateNote {\n    input {\n        clearable description?: string\n    }\n}",
+    ),
     // ---- resources ---------------------------------------------------------
     (
         "id",

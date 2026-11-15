@@ -1015,3 +1015,18 @@ fn rust_response_stream_client_exposes_native_typed_iteration() {
     assert!(client.contains("fn decode_document("));
     matches_golden(&client, "server_stream_client.rs");
 }
+
+#[test]
+fn clearable_models_require_generator_support() {
+    let service = common::load("clearable");
+    let errors = generate(&service, &Options::default()).unwrap_err();
+    assert!(
+        format!("{errors:?}").contains("unsupported target capability clearable"),
+        "{errors:?}"
+    );
+    let errors = crucible_codegen_rust::generate_client(&service).unwrap_err();
+    assert!(
+        format!("{errors:?}").contains("unsupported target capability clearable"),
+        "{errors:?}"
+    );
+}
