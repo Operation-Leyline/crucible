@@ -2184,12 +2184,14 @@ fn mixed_internal_filters_match_reviewed_goldens() {
             );
         }
     }
-    let pages: Vec<_> = generated
+    let goldens: Vec<_> = generated
         .into_iter()
         .filter(|file| {
-            file.path.ends_with("ListNotes.md") || file.path.ends_with("ListAuditedNotes.md")
+            file.path == "describe.json"
+                || file.path.ends_with("ListNotes.md")
+                || file.path.ends_with("ListAuditedNotes.md")
         })
         .collect();
-    assert_eq!(pages.len(), 2);
-    golden_files("mixed-internal-filters", pages);
+    assert_eq!(goldens.len(), 3);
+    golden_files("mixed-internal-filters", goldens);
 }
