@@ -68,6 +68,7 @@ impl Checker<'_> {
                 if !matches!(
                     usage.feature,
                     Feature::GreedyLabels
+                        | Feature::Clearable
                         | Feature::Sparse
                         | Feature::IntEnum
                         | Feature::BigInteger
@@ -489,6 +490,24 @@ impl Checker<'_> {
                 "input became mandatory or output lost its non-null guarantee",
             );
         }
+        // Required/defaulted transitions already have presence/default findings.
+        // For optional inputs, changing null from no-op to clear (or back) is
+        // observable even though both versions accept the same JSON values.
+        if direction == Direction::Input
+            && old_optional
+            && new_optional
+            && old.clearable != new.clearable
+        {
+            self.push(
+                "compatibility.clearable",
+                id,
+                if new.clearable {
+                    "adding clearable makes JSON null clear a value it previously left unchanged"
+                } else {
+                    "removing clearable makes existing clear requests ignored or refused"
+                },
+            );
+        }
         if old.wire_default != new.wire_default || old.default != new.default {
             self.push(
                 "compatibility.default",
@@ -620,7 +639,16 @@ impl Checker<'_> {
                         match b.member(&member.name) {
                             Some(new)
                                 if member.target == new.target
-                                    && member.optional_on_client() == new.optional_on_client() => {}
+                                    && member.optional_on_client() == new.optional_on_client() =>
+                            {
+                                if member.clearable && !new.clearable {
+                                    self.push(
+                                        "compatibility.sdk",
+                                        &id.with_member(&member.name),
+                                        "clearable input lost its public clear method and nullable input type",
+                                    );
+                                }
+                            }
                             _ => self.push(
                                 "compatibility.sdk",
                                 &id.with_member(&member.name),

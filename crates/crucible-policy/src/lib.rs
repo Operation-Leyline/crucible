@@ -64,6 +64,7 @@ pub const RULE_IDS: &[&str] = &[
     "compatibility.member",
     "compatibility.required",
     "compatibility.nullability",
+    "compatibility.clearable",
     "compatibility.constraints",
     "compatibility.enum",
     "compatibility.default",
