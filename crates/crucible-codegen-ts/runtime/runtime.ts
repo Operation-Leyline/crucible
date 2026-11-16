@@ -418,7 +418,7 @@ function convertMembers(
     if (!Object.hasOwn(native, name) || native[name] === undefined) throw new TypeError(`missing required member: ${name}`);
     if (native[name] === null && schema.members[name]?.kind !== "document") throw new TypeError(`null required member: ${name}`);
   }
-  return Object.fromEntries(Object.keys(native).map(name => {
+  return Object.fromEntries(Object.keys(native).filter(name => convert !== toWire || native[name] !== undefined).map(name => {
     const member = Object.hasOwn(schema.members, name) ? schema.members[name] : undefined;
     return [name, convert(member, native[name])];
   }));

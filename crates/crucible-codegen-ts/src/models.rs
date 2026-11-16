@@ -152,10 +152,21 @@ pub(crate) fn fields(
     prefix: &str,
 ) {
     for member in &structure.members {
-        documented_linked(out, links, "  ", member.docs.as_deref(), &member.notes);
+        documented_linked(
+            out,
+            links,
+            "  ",
+            crucible_codegen_common::docs::member_documentation(member).as_deref(),
+            &member.notes,
+        );
         let marker = if optional(structure, member) { "?" } else { "" };
+        let clear = if structure.input && member.clearable {
+            " | null"
+        } else {
+            ""
+        };
         out.push_str(&format!(
-            "  {}{marker}: {};\n",
+            "  {}{marker}: {}{clear};\n",
             property(&member.name),
             ts_type(service, &member.target, prefix)
         ));

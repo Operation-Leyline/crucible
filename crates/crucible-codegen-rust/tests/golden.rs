@@ -1017,13 +1017,27 @@ fn rust_response_stream_client_exposes_native_typed_iteration() {
 }
 
 #[test]
-fn clearable_models_require_rust_client_support() {
-    let service = common::load("clearable");
-    let errors = generate_client(&service).unwrap_err();
-    assert!(
-        format!("{errors:?}").contains("unsupported target capability clearable"),
-        "{errors:?}"
-    );
+fn clearable_client_bindings_match_golden() {
+    let code = generate_client(&common::load("clearable")).unwrap();
+    assert!(code.contains("pub fn clear_description(mut self) -> Self"));
+    assert!(!code.contains("pub fn clear_other("));
+    assert!(code.contains("pub description: ::crucible_client_runtime_rust::__generated::Field<"));
+    matches_golden(&code, "clearable_client.rs");
+}
+
+#[test]
+fn clear_methods_do_not_rename_or_collide_with_value_setters() {
+    let service = common::load_with("clearable", |package| {
+        for file in &mut package.files {
+            file.text = file.text.replace(
+                "other?: string",
+                "other?: string\n        clearDescription?: string",
+            );
+        }
+    });
+    let code = generate_client(&service).unwrap();
+    assert!(code.contains("pub fn clear_description(mut self, value:"));
+    assert!(code.contains("pub fn clear_description2(mut self) -> Self"));
 }
 
 #[test]

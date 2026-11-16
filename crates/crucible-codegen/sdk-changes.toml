@@ -165,3 +165,15 @@ id = 25
 languages = ["csharp"]
 kind = "additive"
 summary = "C# clients expose demand-driven typed response streams with opening metadata, cancellation, total-call deadlines, bounded SSE parsing, opening retries, terminal EOF validation and document-decoded late errors."
+
+[[change]]
+id = 26
+languages = ["rust"]
+kind = "additive"
+summary = "Rust clients support clearable inputs and add clear_<member>() builder methods while retaining public Field storage and value setters."
+
+[[change]]
+id = 27
+languages = ["ts"]
+kind = "additive"
+summary = "TypeScript clients support clearable inputs as optional T | null members; ordinary optional inputs and outputs retain their existing types."

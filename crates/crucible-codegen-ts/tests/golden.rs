@@ -1195,3 +1195,24 @@ fn mixed_internal_filters_are_documented_in_client_methods() {
     }
     assert_eq!(fs::read_to_string(path).unwrap(), code.contents);
 }
+
+#[test]
+fn clearable_client_typing_is_input_only() {
+    let service = compile_with("clearable", |s| {
+        s.replace(
+            "    input {\n        clearable description",
+            "    output { reply?: string }\n    input {\n        clearable description",
+        )
+    })
+    .unwrap();
+    let files = emit(&service, &options("@example/notes")).unwrap();
+    let model = &files
+        .iter()
+        .find(|file| file.path == "src/models.ts")
+        .unwrap()
+        .contents;
+    assert!(model.contains("description?: string | null;"), "{model}");
+    assert!(model.contains("other?: string;"), "{model}");
+    assert!(model.contains("reply?: string;"), "{model}");
+    assert!(!model.contains("reply?: string | null;"));
+}

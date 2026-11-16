@@ -11,7 +11,7 @@ use crucible_codegen_common::surface::Middleware;
 use crucible_ir::ShapeId;
 use crucible_ir::ir::{Service, Shape, SimpleKind};
 
-use crate::builders::{fallible, getter_names, setter_names};
+use crate::builders::{clearer_names, fallible, getter_names, setter_names};
 use crate::client::{client_name, error_type};
 use crate::names::{literal, variant};
 use crate::types::boxed_members;
@@ -146,22 +146,27 @@ impl Renderer<'_> {
                 };
                 let name = self.service.name_of(node.target);
                 let setters = setter_names(shape);
+                let clearers = clearer_names(shape);
                 let build = if fallible(shape) {
                     ".build()?"
                 } else {
                     ".build()"
                 };
-                // An explicit null cannot go through a setter: the member
-                // stays absent, which every optional member allows.
+                // Clearable nulls use the builder's clear method; ordinary
+                // optional nulls retain their existing omission behavior.
                 let members: Vec<_> = members
                     .iter()
-                    .filter(|(_, value)| !matches!(value.kind, Kind::Null))
+                    .filter(|(member, value)| member.clearable || !matches!(value.kind, Kind::Null))
                     .collect();
                 if members.is_empty() {
                     return format!("{name}::builder(){build}");
                 }
                 let mut out = format!("{name}::builder()\n");
                 for (member, value) in members {
+                    if member.clearable && matches!(value.kind, Kind::Null) {
+                        out.push_str(&format!("{inner}.{}()\n", clearers[&member.name]));
+                        continue;
+                    }
                     out.push_str(&format!(
                         "{inner}.{}({})\n",
                         setters[&member.name],

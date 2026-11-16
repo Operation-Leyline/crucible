@@ -17,6 +17,13 @@ version's section when it is prepared.
 
 ### Fixed
 
+- Rust and TypeScript call snippets preserve explicit clears from model examples.
+  Rust snippets use the builder’s clear method, including collision suffixes;
+  TypeScript snippets keep the member as `null`.
+
+- Lowering refuses `clearable` on `@token` members: idempotency tokens identify
+  requests, and clearing one would remove the key that makes retries safe.
+
 - Client-audience outputs retain the “Returns only what the caller may see.”
   note when visible requirements accompany an internal filter. Descriptions
   and OpenAPI mark these requirement lists with `filtered: true`. Resource
@@ -28,6 +35,11 @@ version's section when it is prepared.
   release value from overwriting middleware or protocol metadata.
 
 ### Added
+
+- Rust and TypeScript clients support clearable inputs. Rust builders add
+  `clear_<member>()` without changing public fields or value setters;
+  TypeScript adds `| null` only to clearable inputs. Omission stays unchanged,
+  explicit null clears, and ordinary optional input/output types stay the same.
 
 - Compatibility checks assess clearable inputs: changing an existing optional
   member's null semantics requires review under `compatibility.clearable`, and

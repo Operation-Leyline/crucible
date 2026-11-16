@@ -293,8 +293,9 @@ operation UpdateNote {
 For this member, absence leaves the value unchanged, JSON `null` clears it,
 and a value sets it. The member's own type never admits null. The modifier
 is refused on required or defaulted members, outputs, errors, headers,
-URI path labels, query parameters, union arms and raw string, enum or blob
-`@payload` members. JSON document, structure and union payloads can be
+URI path labels, query parameters, `@token` members, union arms and raw
+string, enum or blob `@payload` members. JSON document, structure and union
+payloads can be
 clearable. Client and server generators must support the `clearable`
 capability. The Rust server supports
 it; Rust client generation remains unsupported. JSON Schema and OpenAPI
