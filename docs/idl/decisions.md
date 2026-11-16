@@ -644,9 +644,11 @@ trait when a project defines it.
     and a value sets it. The member's type itself never admits null.
     Write `clearable description?: string` or `clearable $description?`
     in an operation input. Required and defaulted members, outputs, errors,
-    HTTP headers, URI labels, query parameters, union arms and raw string,
-    enum or blob `@payload` members cannot be `clearable`. JSON document,
+    HTTP headers, URI labels, query parameters, `@token` members, union arms
+    and raw string, enum or blob `@payload` members cannot be `clearable`. JSON document,
     structure and union payloads preserve explicit null and can be clearable.
+    Idempotency tokens identify requests rather than stored data, so clearing
+    one has no meaning and would remove the key that makes retries safe.
     No field mask or merge keyword is needed. Decision 20's
     required, optional and defaulted states remain the same.
     The IR records `Member.clearable`; a client or server generator must

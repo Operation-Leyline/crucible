@@ -22,7 +22,6 @@ impl notes::PatchOperation for NotesHandler {
         Ok(notes::PatchOutput {
             description_state: state(input.description),
             rating_state: state(input.rating),
-            token_state: state(input.token),
             ordinary_present: input.ordinary.is_some(),
         })
     }

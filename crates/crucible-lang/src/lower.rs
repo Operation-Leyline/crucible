@@ -4409,6 +4409,13 @@ impl<'a> Lowerer<'a> {
                     "`clearable` requires an optional (`?`) member",
                 );
             }
+            if annotations.token {
+                self.error(
+                    file,
+                    member.span,
+                    "`clearable` does not apply to an `@token` member",
+                );
+            }
             for (binding, bound) in [
                 ("header", annotations.header.is_some()),
                 ("query", annotations.query.is_some()),

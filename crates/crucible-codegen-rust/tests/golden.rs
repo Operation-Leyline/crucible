@@ -730,7 +730,7 @@ fn a_paginated_operation_fills_a_fresh_token_per_page_unless_the_caller_set_one(
     );
     let code = generate_client(&service).unwrap();
     assert!(
-        code.contains("let fresh = input.client_token.is_absent();"),
+        code.contains("let fresh = input.client_token.value().is_none();"),
         "{code}"
     );
     assert!(code.contains(
@@ -1023,19 +1023,6 @@ fn clearable_client_bindings_match_golden() {
     assert!(!code.contains("pub fn clear_other("));
     assert!(code.contains("pub description: ::crucible_client_runtime_rust::__generated::Field<"));
     matches_golden(&code, "clearable_client.rs");
-}
-
-#[test]
-fn clearable_tokens_are_filled_only_when_absent() {
-    let service = common::load_replacing(
-        "clearable",
-        "        other?: string",
-        "        @token\n        clearable token?: string\n        other?: string",
-    );
-    let code = generate_client(&service).unwrap();
-    assert!(code.contains("pub fn clear_token(mut self) -> Self"));
-    assert!(code.contains("if input.token.is_absent() {"));
-    matches_golden(&code, "clearable_token_client.rs");
 }
 
 #[test]

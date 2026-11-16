@@ -17,6 +17,9 @@ version's section when it is prepared.
 
 ### Fixed
 
+- Lowering refuses `clearable` on `@token` members: idempotency tokens identify
+  requests, and clearing one would remove the key that makes retries safe.
+
 - Client-audience outputs retain the “Returns only what the caller may see.”
   note when visible requirements accompany an internal filter. Descriptions
   and OpenAPI mark these requirement lists with `filtered: true`. Resource

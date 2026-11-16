@@ -24,14 +24,11 @@ operation Patch updates Note {
         clearable $description?
         clearable rating?: Rating
         clearable otherId?: string
-        @token
-        clearable token?: string
         ordinary?: string
     }
     output {
         descriptionState: string
         ratingState: string
         ordinaryPresent: boolean
-        tokenState: string
     }
 }

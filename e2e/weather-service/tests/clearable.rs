@@ -180,7 +180,6 @@ async fn generated_client_sends_absent_clear_and_value_to_the_handler() {
             sdk::PatchInput::builder()
                 .note_id("n-1")
                 .clear_description()
-                .clear_token()
                 .build()
                 .unwrap(),
             "null",
@@ -189,7 +188,6 @@ async fn generated_client_sends_absent_clear_and_value_to_the_handler() {
             sdk::PatchInput::builder()
                 .note_id("n-1")
                 .description("alpha")
-                .token("caller-token")
                 .build()
                 .unwrap(),
             "value:alpha",
@@ -203,15 +201,6 @@ async fn generated_client_sends_absent_clear_and_value_to_the_handler() {
         }
         let output = client.patch(input).await.unwrap();
         assert_eq!(output.description_state, expected);
-        match expected {
-            "absent" => {
-                let token = output.token_state.strip_prefix("value:").unwrap();
-                assert_eq!(token.len(), 36);
-                assert_ne!(token, "caller-token");
-            }
-            "null" => assert_eq!(output.token_state, "null"),
-            _ => assert_eq!(output.token_state, "value:caller-token"),
-        }
     }
     server.abort();
     assert_eq!(calls.load(Ordering::SeqCst), 3);

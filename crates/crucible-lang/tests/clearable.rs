@@ -86,6 +86,13 @@ fn header_member_is_refused() {
     );
 }
 #[test]
+fn token_member_is_refused() {
+    refuses(
+        "clearable-token",
+        "`clearable` does not apply to an `@token` member",
+    );
+}
+#[test]
 fn raw_payload_members_are_refused() {
     let error = crucible_lang::load_service(&package("clearable-raw-payload")).unwrap_err();
     assert_eq!(
