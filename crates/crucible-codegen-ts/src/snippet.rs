@@ -94,11 +94,11 @@ fn expr(node: &Node<'_>, indent: &str, decimal: &mut bool) -> String {
             object(&entries, indent)
         }
         Kind::Structure(members) => {
-            // An optional property takes no null: an explicit null leaves
-            // the member out, which every optional member allows.
+            // Clearable members retain null to distinguish clearing from
+            // omission; ordinary optional properties still leave it out.
             let entries: Vec<(String, String)> = members
                 .iter()
-                .filter(|(_, value)| !matches!(value.kind, Kind::Null))
+                .filter(|(member, value)| member.clearable || !matches!(value.kind, Kind::Null))
                 .map(|(member, value)| (property(&member.name), expr(value, &inner, decimal)))
                 .collect();
             object(&entries, indent)

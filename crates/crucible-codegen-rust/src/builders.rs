@@ -82,7 +82,7 @@ pub(crate) fn setter_names(structure: &Structure) -> BTreeMap<String, String> {
 }
 
 /// Clear methods never displace existing value setters.
-fn clearer_names(structure: &Structure) -> BTreeMap<String, String> {
+pub(crate) fn clearer_names(structure: &Structure) -> BTreeMap<String, String> {
     let mut used: BTreeSet<String> = setter_names(structure).into_values().collect();
     used.extend(["build", "default", "clone"].into_iter().map(str::to_owned));
     let mut names = BTreeMap::new();

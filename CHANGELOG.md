@@ -17,6 +17,10 @@ version's section when it is prepared.
 
 ### Fixed
 
+- Rust and TypeScript call snippets preserve explicit clears from model examples.
+  Rust snippets use the builder’s clear method, including collision suffixes;
+  TypeScript snippets keep the member as `null`.
+
 - Lowering refuses `clearable` on `@token` members: idempotency tokens identify
   requests, and clearing one would remove the key that makes retries safe.
 

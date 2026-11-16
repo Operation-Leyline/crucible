@@ -1,0 +1,23 @@
+service Notes {
+    version "1"
+    protocol json
+    operations [Clear, Collision]
+}
+operation Clear {
+    http PATCH "/notes"
+    input {
+        clearable description?: string
+        other?: string
+    }
+    example "Clear description" { input { description: null, other: "keep" } }
+}
+operation Collision {
+    http PATCH "/collision"
+    input {
+        clearable description?: string
+        clearDescription?: string
+    }
+    example "Clear description with a collision" {
+        input { description: null, clearDescription: "keep" }
+    }
+}

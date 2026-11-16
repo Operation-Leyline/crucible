@@ -292,3 +292,45 @@ fn input_optionality_is_the_interfaces_own() {
         [("name", false), ("count", false), ("note", true)]
     );
 }
+
+fn clearable_snippet(operation: &str, expected: &str, name: &str) {
+    let service = load("clearable-snippets");
+    let surface = surface(&service, &options());
+    let snippet = &surface.operations[&format!("example.clearable#{operation}")].snippet;
+    assert!(snippet.contains(expected), "{snippet}");
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/golden")
+        .join(name);
+    if std::env::var_os("CRUCIBLE_BLESS").is_some() {
+        std::fs::write(&path, snippet).unwrap();
+    }
+    assert_eq!(std::fs::read_to_string(path).unwrap(), *snippet);
+}
+
+#[test]
+fn clearable_examples_preserve_null_in_snippets() {
+    clearable_snippet("Clear", "description: null", "clearable_snippet.ts");
+}
+
+#[test]
+fn clearable_examples_preserve_null_with_a_name_collision() {
+    clearable_snippet(
+        "Collision",
+        "description: null",
+        "clearable_collision_snippet.ts",
+    );
+}
+
+#[test]
+fn ordinary_optional_null_in_a_snippet_stays_omitted() {
+    let mut service = load("clearable-snippets");
+    let operation = service
+        .operations
+        .iter_mut()
+        .find(|op| op.name() == "Clear")
+        .unwrap();
+    operation.examples[0].input.as_mut().unwrap()["other"] = serde_json::Value::Null;
+    let surface = surface(&service, &options());
+    let snippet = &surface.operations["example.clearable#Clear"].snippet;
+    assert!(!snippet.contains("other:"), "{snippet}");
+}

@@ -1,0 +1,7 @@
+schema_version = 1
+
+[model]
+namespace = "example.clearable"
+language = 1
+sources = ["."]
+imports = []

@@ -327,3 +327,45 @@ fn defaults_and_documents_match_the_emitted_client() {
         "Document is public, outside __generated"
     );
 }
+
+fn clearable_snippet(operation: &str, expected: &str, name: &str) {
+    let service = common::load("clearable-snippets");
+    let surface = surface(&service, &ClientOptions::default());
+    let snippet = &surface.operations[&format!("example.clearable#{operation}")].snippet;
+    assert!(snippet.contains(expected), "{snippet}");
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/golden")
+        .join(name);
+    if std::env::var_os("CRUCIBLE_BLESS").is_some() {
+        std::fs::write(&path, snippet).unwrap();
+    }
+    assert_eq!(std::fs::read_to_string(path).unwrap(), *snippet);
+}
+
+#[test]
+fn clearable_examples_preserve_null_in_snippets() {
+    clearable_snippet("Clear", ".clear_description()", "clearable_snippet.rs");
+}
+
+#[test]
+fn clearable_examples_preserve_null_with_a_name_collision() {
+    clearable_snippet(
+        "Collision",
+        ".clear_description2()",
+        "clearable_collision_snippet.rs",
+    );
+}
+
+#[test]
+fn ordinary_optional_null_in_a_snippet_stays_omitted() {
+    let mut service = common::load("clearable-snippets");
+    let operation = service
+        .operations
+        .iter_mut()
+        .find(|op| op.name() == "Clear")
+        .unwrap();
+    operation.examples[0].input.as_mut().unwrap()["other"] = serde_json::Value::Null;
+    let surface = surface(&service, &ClientOptions::default());
+    let snippet = &surface.operations["example.clearable#Clear"].snippet;
+    assert!(!snippet.contains(".other("), "{snippet}");
+}
