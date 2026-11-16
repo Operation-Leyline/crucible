@@ -37,6 +37,11 @@ version's section when it is prepared.
   TypeScript adds `| null` only to clearable inputs. Omission stays unchanged,
   explicit null clears, and ordinary optional input/output types stay the same.
 
+- Compatibility checks assess clearable inputs: changing an existing optional
+  member's null semantics requires review under `compatibility.clearable`, and
+  removing its public clear API is also an SDK source break. New optional
+  clearable members remain compatible.
+
 - Rust server clearable inputs preserve omission, explicit null and a value
   with `Field<T>`. The runtime re-exports `Field`; its additive `is_clear`,
   `as_value` and `map` helpers preserve these states. Constraints apply only

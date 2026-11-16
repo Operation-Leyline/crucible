@@ -368,6 +368,16 @@ are conservative findings when inclusion cannot be proven. Member removal is
 conservative because some readers reject unknown fields. New modelled errors
 are reported for callers relying on the previous exhaustive error contract.
 
+Adding `clearable` to an existing optional input is a
+`compatibility.clearable` error: JSON null that previously left a value
+unchanged would now clear it. Removing `clearable` is also an error because
+existing clear requests would be ignored or refused; it also produces a
+`compatibility.sdk` finding when the public clear API disappears. Each finding
+can be excepted by its rule and exact `namespace#Input$member`, with a reason.
+A new optional clearable member and an unchanged clearable member pass.
+Making the member required or defaulted, removing it, or changing its type
+continues to use the existing presence, default, member and type rules.
+
 Wire coverage currently supports Crucible JSON. Unassessed advanced features produce `compatibility.unchecked` findings.
 They require an explicit assessment or exception; they do not silently pass.
 

@@ -853,3 +853,126 @@ fn reordering_permissionless_composite_identifiers_changes_scope_identity() {
         "{findings:#?}"
     );
 }
+
+const OPTIONAL_NAME: &str = "        name?: Name\n";
+const CLEARABLE_NAME: &str = "        clearable name?: Name\n";
+
+#[test]
+fn adding_clearable_changes_existing_null_semantics() {
+    let report = diff(&model(), &with(OPTIONAL_NAME, CLEARABLE_NAME), &wire());
+    assert!(report.has_errors(), "{report}");
+    assert_eq!(report.findings.len(), 1, "{report}");
+    let finding = &report.findings[0];
+    assert_eq!(finding.rule, "compatibility.clearable");
+    assert_eq!(finding.shape, "example.api#GetItemInput$name");
+    assert_eq!(finding.severity, Severity::Error);
+    assert!(finding.message.contains("previously left unchanged"));
+}
+
+#[test]
+fn clearable_addition_can_be_excepted_for_an_exact_member() {
+    let config = Config::parse(
+        "[[exceptions]]\nrule = 'compatibility.clearable'\nshape = 'example.api#GetItemInput$name'\nreason = 'Reviewed null semantics migration'\n",
+    )
+    .unwrap();
+    let old = model();
+    let new = with(OPTIONAL_NAME, CLEARABLE_NAME);
+    let report = diff(&old, &new, &config);
+    assert!(!report.has_errors(), "{report}");
+    assert_eq!(report.findings.len(), 1, "{report}");
+    assert_eq!(report.findings[0].rule, "compatibility.clearable");
+    assert_eq!(
+        report.findings[0].exception.as_deref(),
+        Some("Reviewed null semantics migration")
+    );
+
+    // An exception on name must not hide the same change on filter.
+    let new = contract(
+        &[
+            (OPTIONAL_NAME, CLEARABLE_NAME),
+            ("filter?: State", "clearable filter?: State"),
+        ],
+        "",
+    );
+    let report = diff(&old, &new, &config);
+    assert!(report.has_errors(), "{report}");
+    assert!(
+        report
+            .findings
+            .iter()
+            .any(|f| f.rule == "compatibility.clearable"
+                && f.shape == "example.api#GetItemInput$filter"
+                && f.exception.is_none())
+    );
+}
+
+#[test]
+fn a_new_clearable_input_member_has_no_finding() {
+    let new = with(
+        INPUT,
+        &INPUT.replace("    }\n", "        clearable zzz?: string\n    }\n"),
+    );
+    let report = diff(&model(), &new, &Config::default());
+    assert!(report.findings.is_empty(), "{report}");
+}
+
+#[test]
+fn removing_clearable_changes_existing_null_semantics() {
+    let report = diff(&with(OPTIONAL_NAME, CLEARABLE_NAME), &model(), &wire());
+    assert!(report.has_errors(), "{report}");
+    assert_eq!(report.findings.len(), 1, "{report}");
+    let finding = &report.findings[0];
+    assert_eq!(finding.rule, "compatibility.clearable");
+    assert_eq!(finding.shape, "example.api#GetItemInput$name");
+    assert!(finding.message.contains("ignored or refused"));
+}
+
+#[test]
+fn removing_clearable_breaks_sdk_source() {
+    let old = with(OPTIONAL_NAME, CLEARABLE_NAME);
+    let config = Config::parse("[compatibility]\nwire = false\n").unwrap();
+    let report = diff(&old, &model(), &config);
+    assert!(report.has_errors(), "{report}");
+    assert_eq!(report.findings.len(), 1, "{report}");
+    let finding = &report.findings[0];
+    assert_eq!(finding.rule, "compatibility.sdk");
+    assert_eq!(finding.shape, "example.api#GetItemInput$name");
+    assert!(finding.message.contains("clear"));
+    // Adding the API is source-compatible even though null semantics need review.
+    assert!(diff(&model(), &old, &config).findings.is_empty());
+}
+
+#[test]
+fn unchanged_clearable_has_no_findings() {
+    let service = with(OPTIONAL_NAME, CLEARABLE_NAME);
+    let report = diff(&service, &service, &Config::default());
+    assert!(report.findings.is_empty(), "{report}");
+}
+
+#[test]
+fn clearable_becoming_required_uses_the_existing_nullability_rule() {
+    let old = with(OPTIONAL_NAME, CLEARABLE_NAME);
+    let new = with(OPTIONAL_NAME, "        name: Name\n");
+    assert_eq!(rules(&old, &new), ["compatibility.nullability"]);
+}
+
+#[test]
+fn clearable_becoming_defaulted_uses_the_existing_default_rule() {
+    let old = with(OPTIONAL_NAME, CLEARABLE_NAME);
+    let new = with(OPTIONAL_NAME, "        name: Name = \"known\"\n");
+    assert_eq!(rules(&old, &new), ["compatibility.default"]);
+}
+
+#[test]
+fn clearable_member_removal_uses_the_existing_member_rule() {
+    let old = with(OPTIONAL_NAME, CLEARABLE_NAME);
+    let new = with(OPTIONAL_NAME, "");
+    assert_eq!(rules(&old, &new), ["compatibility.member"]);
+}
+
+#[test]
+fn clearable_type_changes_use_the_existing_type_rule() {
+    let old = with(OPTIONAL_NAME, CLEARABLE_NAME);
+    let new = with(OPTIONAL_NAME, "        clearable name?: integer\n");
+    assert_eq!(rules(&old, &new), ["compatibility.type"]);
+}
