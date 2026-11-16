@@ -466,7 +466,7 @@ fn method(service: &Service, op: &Operation, options_name: Option<&str>) -> Stri
     let token = token_member(service, op).map(|member| {
         let rust = field(&member.name);
         format!(
-            "        if input.{rust}.value().is_none() {{\n            input.{rust} = ::crucible_server_runtime_rust::__generated::Field::Value(::crucible_server_runtime_rust::__generated::idempotency_token());\n        }}\n"
+            "        if input.{rust}.is_absent() {{\n            input.{rust} = ::crucible_server_runtime_rust::__generated::Field::Value(::crucible_server_runtime_rust::__generated::idempotency_token());\n        }}\n"
         )
     });
     let binding = if token.is_some() {
@@ -536,7 +536,7 @@ fn pages(
         Some(member) if member.name != input.name => {
             let rust = field(&member.name);
             (
-                format!("let fresh = input.{rust}.value().is_none();\n        let pages = "),
+                format!("let fresh = input.{rust}.is_absent();\n        let pages = "),
                 format!(
                     ";\n        if fresh {{\n            pages.fresh_token(|input| input.{rust} = ::crucible_server_runtime_rust::__generated::Field::Value(::crucible_server_runtime_rust::__generated::idempotency_token()))\n        }} else {{\n            pages\n        }}"
                 ),

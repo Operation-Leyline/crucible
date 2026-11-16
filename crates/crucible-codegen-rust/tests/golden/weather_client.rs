@@ -2260,7 +2260,7 @@ impl WeatherClient {
     ///
     /// An omitted clientToken idempotency token is generated once per call and reused for retries.
     pub async fn create_city(&self, mut input: CreateCityInput) -> ::std::result::Result<CreateCityOutput, ::crucible_client_runtime_rust::__generated::Error<CreateCityError>> {
-        if input.client_token.value().is_none() {
+        if input.client_token.is_absent() {
             input.client_token = ::crucible_client_runtime_rust::__generated::Field::Value(::crucible_client_runtime_rust::__generated::idempotency_token());
         }
         self.transport.send::<CreateCity, CreateCityError>(&input).await
@@ -2276,7 +2276,7 @@ impl WeatherClient {
     ///
     /// An omitted clientToken idempotency token is generated once per call and reused for retries.
     pub async fn create_city_with_options(&self, mut input: CreateCityInput, options: ::crucible_client_runtime_rust::__generated::CallOptions) -> ::std::result::Result<CreateCityOutput, ::crucible_client_runtime_rust::__generated::Error<CreateCityError>> {
-        if input.client_token.value().is_none() {
+        if input.client_token.is_absent() {
             input.client_token = ::crucible_client_runtime_rust::__generated::Field::Value(::crucible_client_runtime_rust::__generated::idempotency_token());
         }
         self.transport.send_with_options::<CreateCity, CreateCityError>(&input, &options).await
