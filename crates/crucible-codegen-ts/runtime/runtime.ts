@@ -480,6 +480,8 @@ export function stringifyJson(value: unknown, space?: number | string): string {
     if (typeof item === "bigint") return item.toString();
     if (item === null || typeof item !== "object") {
       if (typeof item === "number" && !Number.isFinite(item)) throw new TypeError("non-finite JSON number");
+      // A fractional token keeps negative zero distinct from integer zero.
+      if (typeof item === "number" && Object.is(item, -0)) return "-0.0";
       const encoded = JSON.stringify(item);
       if (encoded === undefined) throw new TypeError("not a JSON value");
       return encoded;

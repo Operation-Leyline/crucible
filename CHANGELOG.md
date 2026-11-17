@@ -21,6 +21,9 @@ version's section when it is prepared.
   grammar (for example `parameters/p` and `items/1/count`). Malformed JSON,
   including HTTP JSON payloads, keeps its empty field path.
 
+- TypeScript JSON serialization preserves negative zero as `-0.0` for float
+  members and decoded documents. Positive zero remains `0`.
+
 - Rust and TypeScript call snippets preserve explicit clears from model examples.
   Rust snippets use the builder’s clear method, including collision suffixes;
   TypeScript snippets keep the member as `null`.
