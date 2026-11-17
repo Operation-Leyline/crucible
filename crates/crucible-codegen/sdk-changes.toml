@@ -177,3 +177,9 @@ id = 27
 languages = ["ts"]
 kind = "additive"
 summary = "TypeScript clients support clearable inputs as optional T | null members; ordinary optional inputs and outputs retain their existing types."
+
+[[change]]
+id = 28
+languages = ["ts"]
+kind = "patch"
+summary = "TypeScript JSON serialization preserves negative zero as -0.0 for floating-point members and decoded documents; positive zero remains 0."
