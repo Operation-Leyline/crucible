@@ -84,8 +84,7 @@ impl Rejection {
     }
 
     /// Keeps a reader's existing summary when it adds a more precise field path.
-    #[doc(hidden)]
-    pub fn with_summary(mut self, summary: String) -> Self {
+    pub(crate) fn with_summary(mut self, summary: String) -> Self {
         self.summary = Some(summary);
         self
     }

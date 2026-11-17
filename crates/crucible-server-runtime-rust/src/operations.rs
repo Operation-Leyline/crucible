@@ -264,7 +264,7 @@ fn unreadable_at(
         .collect::<Vec<_>>()
         .join("/");
     let message = crucible_wire::text::without_values(&message).into_owned();
-    Rejection::malformed(path, message.clone()).with_summary(message)
+    crucible_wire::__generated::unreadable_input(path, message)
 }
 
 fn deserialize_input<

@@ -143,9 +143,28 @@ pub fn read_http_tracked<'a, T: DeserializeOwned>(
     bound: Vec<(&'static str, BoundValue<'a>)>,
     members: &[MemberInfo],
 ) -> Result<T, serde_path_to_error::Error<serde_json::Error>> {
+    // HTTP has at most one JSON payload, carried outside the ordinary body.
+    let payload = bound.iter().find_map(|(_, value)| match value {
+        BoundValue::RawJson(json) => Some(*json),
+        _ => None,
+    });
     let mut track = serde_path_to_error::Track::new();
-    read_excluding(body, bound, members, Some(&mut track))
-        .map_err(|error| serde_path_to_error::Error::new(track.path(), error))
+    read_excluding(body, bound, members, Some(&mut track)).map_err(|error| {
+        // raw_json forwards syntax/EOF errors through de::Error::custom, losing
+        // their category. On failure only, parse the payload to check syntax.
+        // Value also validates UTF-8 and surrogates, which IgnoredAny skips.
+        // Keep the original message, but omit a path for invalid JSON.
+        let malformed_payload = payload.is_some_and(|json| {
+            serde_json::from_slice::<serde_json::Value>(json)
+                .is_err_and(|error| error.is_syntax() || error.is_eof())
+        });
+        let path = if malformed_payload {
+            serde_path_to_error::Track::new().path()
+        } else {
+            track.path()
+        };
+        serde_path_to_error::Error::new(path, error)
+    })
 }
 
 /// Body members named by `bound` or declared outside the body in `members`
@@ -729,6 +748,29 @@ mod tests {
             BoundValue::Text("1969-12-31T23:59:59.750Z".into())
         );
         assert!(BoundValue::parse("soon".into(), epoch).is_err());
+    }
+
+    #[test]
+    fn tracked_payload_errors_drop_syntax_paths_but_keep_data_paths_and_messages() {
+        for (json, expected) in [
+            (b"not JSON".as_slice(), "."),
+            (br#"{"x":"\uD800"}"#, "."),
+            (b"{\"x\":\"\xff\"}", "."),
+            (b"{", "."),
+            (br#"{"x":"#, "."),
+            (br#"{"x":[1,}}"#, "."),
+            (br#"{"x":1} trailing"#, "."),
+            (br#"{"x":"wrong"}"#, "nested.x"),
+        ] {
+            let bound = vec![
+                ("cityId", BoundValue::Text("c".into())),
+                ("nested", BoundValue::RawJson(json)),
+            ];
+            let original = read_http::<Input>(b"", bound.clone(), &[]).unwrap_err();
+            let tracked = read_http_tracked::<Input>(b"", bound, &[]).unwrap_err();
+            assert_eq!(tracked.path().to_string(), expected, "{json:?}");
+            assert_eq!(tracked.inner().to_string(), original.to_string());
+        }
     }
 
     #[test]

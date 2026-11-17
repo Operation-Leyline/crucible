@@ -711,3 +711,26 @@ async fn decode_failures_name_the_member_in_validation_path_grammar() {
         assert_eq!(body["error"]["fieldList"][0]["path"], expected, "{body}");
     }
 }
+
+#[tokio::test]
+async fn malformed_json_keeps_an_empty_path_including_http_payloads() {
+    let service = service("valid", Records::default(), Records::default());
+    for bytes in [
+        b"not JSON".as_slice(),
+        br#"{"body":"\uD800"}"#,
+        b"{\"body\":\"\xff\"}",
+        b"{",
+        br#"{"body":"#,
+        br#"{"nested":{"items":[1,}}"#,
+        br#"{"body":"ok"} trailing"#,
+    ] {
+        for path in ["/body", "/bound", "/document"] {
+            let (status, body) = answer(&service, path, bytes).await;
+            assert_eq!(status, 400, "{path}: {body}");
+            assert_eq!(body["__type"], "ValidationError");
+            assert_eq!(body["reason"], "cannotParse");
+            assert_eq!(body["fieldList"][0]["path"], "", "{path}: {body}");
+            assert_eq!(body["message"], body["fieldList"][0]["message"]);
+        }
+    }
+}
