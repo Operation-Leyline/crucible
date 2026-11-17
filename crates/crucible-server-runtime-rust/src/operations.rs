@@ -211,15 +211,17 @@ pub(crate) fn unreadable_message(message: &str) -> Rejection {
 fn unreadable_at(
     error: serde_path_to_error::Error<serde_json::Error>,
     members: &[crate::operation::MemberInfo],
+    source: Option<&[u8]>,
 ) -> Rejection {
     let inner = error.inner();
     let message = inner.to_string();
-    // Missing and unknown fields already have their established classification
-    // and naming policy. Syntax errors have no reliable model member path.
-    if !inner.is_data()
-        || message.starts_with("missing field `")
-        || message.starts_with("unknown field")
-    {
+    // serde_json also calls a number in place of a tagged enum a syntax error.
+    // The tracked pass retained its path; check the complete JSON on failure
+    // before treating that path as unreliable. Value also checks Unicode.
+    let malformed = !inner.is_data()
+        && source.is_none_or(|bytes| serde_json::from_slice::<Value>(bytes).is_err());
+    // Missing and unknown fields keep their established naming policy.
+    if malformed || message.starts_with("missing field `") || message.starts_with("unknown field") {
         return unreadable_message(&message);
     }
     use crate::operation::Redaction;
@@ -274,13 +276,14 @@ fn deserialize_input<
 >(
     deserializer: D,
     members: &[crate::operation::MemberInfo],
+    source: Option<&[u8]>,
 ) -> std::result::Result<T, Rejection> {
     serde_path_to_error::deserialize(crucible_wire::object::Objects(deserializer))
-        .map_err(|error| unreadable_at(error, members))
+        .map_err(|error| unreadable_at(error, members, source))
 }
 
 pub(crate) fn decode<O: Operation>(value: Value) -> std::result::Result<Box<dyn Input>, Rejection> {
-    let input: O::Input = deserialize_input(value, O::INFO.input)?;
+    let input: O::Input = deserialize_input(value, O::INFO.input, None)?;
     Validator::check(&input)?;
     Ok(Box::new(input))
 }
@@ -296,7 +299,7 @@ pub(crate) fn decode_json<O: Operation>(
         bytes
     };
     let mut json = serde_json::Deserializer::from_slice(bytes);
-    let input: O::Input = deserialize_input(&mut json, O::INFO.input)?;
+    let input: O::Input = deserialize_input(&mut json, O::INFO.input, Some(bytes))?;
     json.end().map_err(unreadable)?;
     Validator::check(&input)?;
     Ok(Box::new(input))
@@ -308,7 +311,7 @@ pub(crate) fn decode_bound<'a, O: Operation>(
     bound: Vec<(&'static str, BoundValue<'a>)>,
 ) -> std::result::Result<Box<dyn Input>, Rejection> {
     let input: O::Input = crucible_wire::bound::read_http_tracked(body, bound, O::INFO.input)
-        .map_err(|error| unreadable_at(error, O::INFO.input))?;
+        .map_err(|error| unreadable_at(error, O::INFO.input, Some(body)))?;
     Validator::check(&input)?;
     Ok(Box::new(input))
 }

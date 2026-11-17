@@ -25,6 +25,13 @@ const fn member(name: &'static str, location: Location) -> MemberInfo {
 }
 const BODY: MemberInfo = member("body", Location::Body);
 const HEADER: MemberInfo = member("header", Location::Header("x-header"));
+const SECRET: MemberInfo = generated::member_info(
+    "secret",
+    Location::Body,
+    Scalar::Json,
+    &Redaction::Sensitive,
+    &[],
+);
 static BODY_ONLY: OperationInfo = {
     let base = weather::Ping::INFO;
     generated::operation_info(
@@ -35,7 +42,7 @@ static BODY_ONLY: OperationInfo = {
         &[Segment::Literal("body")],
         base.literal_query,
         base.status,
-        &[BODY],
+        &[BODY, SECRET],
         &[BODY],
         base.errors,
         base.readonly,
@@ -55,7 +62,7 @@ static BOUND: OperationInfo = {
         &[Segment::Literal("bound")],
         base.literal_query,
         base.status,
-        &[BODY, HEADER],
+        &[BODY, HEADER, SECRET],
         &[BODY],
         base.errors,
         base.readonly,
@@ -262,10 +269,19 @@ enum DecodeChoice {
     Flag { flag: bool },
 }
 #[derive(Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+enum TaggedChoice {
+    Text(String),
+    Flag(bool),
+}
+#[derive(Serialize, Deserialize)]
 struct OptionalBody {
     nested: Option<DecodeNested>,
     parameters: Option<std::collections::BTreeMap<String, DecodeChoice>>,
     items: Option<Vec<DecodeNested>>,
+    tagged: Option<std::collections::BTreeMap<String, TaggedChoice>>,
+    choices: Option<Vec<TaggedChoice>>,
+    secret: Option<std::collections::BTreeMap<String, TaggedChoice>>,
     body: Option<String>,
     header: Option<String>,
 }
@@ -723,6 +739,7 @@ async fn malformed_json_keeps_an_empty_path_including_http_payloads() {
         br#"{"body":"#,
         br#"{"nested":{"items":[1,}}"#,
         br#"{"body":"ok"} trailing"#,
+        br#"{"tagged":{"p":42}} trailing"#,
     ] {
         for path in ["/body", "/bound", "/document"] {
             let (status, body) = answer(&service, path, bytes).await;
@@ -734,3 +751,6 @@ async fn malformed_json_keeps_an_empty_path_including_http_payloads() {
         }
     }
 }
+
+#[path = "wire_validation/tagged.rs"]
+mod tagged;

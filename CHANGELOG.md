@@ -17,6 +17,9 @@ version's section when it is prepared.
 
 ### Fixed
 
+- A number in place of a tagged enum keeps its member, map-entry or list-index
+  path when the JSON is valid. Malformed bodies still have an empty path.
+
 - Server request decoding names the failing member using the validation path
   grammar (for example `parameters/p` and `items/1/count`). Malformed JSON,
   including HTTP JSON payloads, keeps its empty field path.
