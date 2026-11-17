@@ -1,4 +1,4 @@
-//! Compile-time construction of descriptions owned by generated bindings.
+//! Construction helpers behind the generated-code boundary.
 
 use crate::operation::{
     Classify, ErrorInfo, Fault, InternalFn, Location, MemberInfo, OperationInfo, Redaction,
@@ -105,4 +105,9 @@ pub const fn error_info(
         throttling,
         members,
     }
+}
+
+/// Names a request decode failure without changing its existing summary.
+pub fn unreadable_input(path: String, message: String) -> crate::validate::Rejection {
+    crate::validate::Rejection::malformed(path, message.clone()).with_summary(message)
 }

@@ -206,8 +206,81 @@ pub(crate) fn unreadable_message(message: &str) -> Rejection {
     Rejection::malformed("", crucible_wire::text::without_values(message))
 }
 
+/// Use the validator's slash-separated member/key/index grammar rather than
+/// serde_path_to_error's dotted members and bracketed list indexes.
+fn unreadable_at(
+    error: serde_path_to_error::Error<serde_json::Error>,
+    members: &[crate::operation::MemberInfo],
+) -> Rejection {
+    let inner = error.inner();
+    let message = inner.to_string();
+    // Missing and unknown fields already have their established classification
+    // and naming policy. Syntax errors have no reliable model member path.
+    if !inner.is_data()
+        || message.starts_with("missing field `")
+        || message.starts_with("unknown field")
+    {
+        return unreadable_message(&message);
+    }
+    use crate::operation::Redaction;
+    use serde_path_to_error::Segment;
+
+    let mut policy = &Redaction::Public;
+    let path = error
+        .path()
+        .iter()
+        .enumerate()
+        .map(|(depth, segment)| {
+            let hidden = matches!(policy, Redaction::Sensitive) && depth > 0;
+            let step = match segment {
+                Segment::Seq { index } => index.to_string(),
+                Segment::Map { key } | Segment::Enum { variant: key } if !hidden => key.clone(),
+                _ => "[key]".to_owned(),
+            };
+            // Metadata for a wholly sensitive shape intentionally omits its
+            // internals. Conservatively hide names below it, preserving indexes.
+            policy = if depth == 0 {
+                members
+                    .iter()
+                    .find(|member| member.name == step)
+                    .map_or(&Redaction::Public, |member| member.redaction)
+            } else {
+                match (policy, segment) {
+                    (
+                        Redaction::Structure(members),
+                        Segment::Map { key } | Segment::Enum { variant: key },
+                    ) => members
+                        .iter()
+                        .find(|(name, _)| name == key)
+                        .map_or(&Redaction::Public, |(_, policy)| *policy),
+                    (Redaction::List(item), Segment::Seq { .. })
+                    | (Redaction::Map(item), Segment::Map { .. }) => item,
+                    (Redaction::Sensitive, _) => &Redaction::Sensitive,
+                    _ => &Redaction::Public,
+                }
+            };
+            step
+        })
+        .collect::<Vec<_>>()
+        .join("/");
+    let message = crucible_wire::text::without_values(&message).into_owned();
+    crucible_wire::__generated::unreadable_input(path, message)
+}
+
+fn deserialize_input<
+    'de,
+    T: serde::Deserialize<'de>,
+    D: serde::Deserializer<'de, Error = serde_json::Error>,
+>(
+    deserializer: D,
+    members: &[crate::operation::MemberInfo],
+) -> std::result::Result<T, Rejection> {
+    serde_path_to_error::deserialize(crucible_wire::object::Objects(deserializer))
+        .map_err(|error| unreadable_at(error, members))
+}
+
 pub(crate) fn decode<O: Operation>(value: Value) -> std::result::Result<Box<dyn Input>, Rejection> {
-    let input: O::Input = crucible_wire::object::from_value(value).map_err(unreadable)?;
+    let input: O::Input = deserialize_input(value, O::INFO.input)?;
     Validator::check(&input)?;
     Ok(Box::new(input))
 }
@@ -222,7 +295,9 @@ pub(crate) fn decode_json<O: Operation>(
     } else {
         bytes
     };
-    let input: O::Input = crucible_wire::object::from_slice(bytes).map_err(unreadable)?;
+    let mut json = serde_json::Deserializer::from_slice(bytes);
+    let input: O::Input = deserialize_input(&mut json, O::INFO.input)?;
+    json.end().map_err(unreadable)?;
     Validator::check(&input)?;
     Ok(Box::new(input))
 }
@@ -232,8 +307,8 @@ pub(crate) fn decode_bound<'a, O: Operation>(
     body: &'a [u8],
     bound: Vec<(&'static str, BoundValue<'a>)>,
 ) -> std::result::Result<Box<dyn Input>, Rejection> {
-    let input: O::Input =
-        crucible_wire::bound::read_http(body, bound, O::INFO.input).map_err(unreadable)?;
+    let input: O::Input = crucible_wire::bound::read_http_tracked(body, bound, O::INFO.input)
+        .map_err(|error| unreadable_at(error, O::INFO.input))?;
     Validator::check(&input)?;
     Ok(Box::new(input))
 }

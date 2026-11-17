@@ -252,7 +252,20 @@ static SERVICE: ServiceInfo = {
 };
 
 #[derive(Serialize, Deserialize)]
+struct DecodeNested {
+    count: i32,
+}
+#[derive(Serialize, Deserialize)]
+#[serde(untagged)]
+enum DecodeChoice {
+    Text { text: String },
+    Flag { flag: bool },
+}
+#[derive(Serialize, Deserialize)]
 struct OptionalBody {
+    nested: Option<DecodeNested>,
+    parameters: Option<std::collections::BTreeMap<String, DecodeChoice>>,
+    items: Option<Vec<DecodeNested>>,
     body: Option<String>,
     header: Option<String>,
 }
@@ -663,5 +676,61 @@ async fn crucible_json_refuses_an_array_where_a_structure_is_modelled() {
     for body in [city("invoke", "[59.9, 10.7]"), r#"["Oslo"]"#.to_owned()] {
         let answer = invoke(body.clone()).await;
         assert!(answer.get("error").is_some(), "{body}: {answer}");
+    }
+}
+
+#[tokio::test]
+async fn decode_failures_name_the_member_in_validation_path_grammar() {
+    let service = service("valid", Records::default(), Records::default());
+    for (bytes, expected) in [
+        (
+            br#"{"nested":{"count":"wrong"}}"#.as_slice(),
+            "nested/count",
+        ),
+        (br#"{"parameters":{"p":42}}"#, "parameters/p"),
+        (
+            br#"{"items":[{"count":1},{"count":"wrong"}]}"#,
+            "items/1/count",
+        ),
+        (b"not JSON", ""),
+    ] {
+        for path in ["/body", "/bound"] {
+            let (status, body) = answer(&service, path, bytes).await;
+            assert_eq!(status, 400, "{path}: {body}");
+            assert_eq!(body["__type"], "ValidationError");
+            assert_eq!(body["reason"], "cannotParse");
+            assert_eq!(body["fieldList"][0]["path"], expected, "{path}: {body}");
+        }
+        if bytes != b"not JSON" {
+            let value = serde_json::from_slice(bytes).unwrap();
+            let body = service.invoke("BodyOnly", value).await;
+            assert_eq!(body["error"]["fieldList"][0]["path"], expected, "{body}");
+        }
+        let body: Value =
+            serde_json::from_slice(&service.invoke_json("BodyOnly", bytes).await).unwrap();
+        assert_eq!(body["error"]["fieldList"][0]["path"], expected, "{body}");
+    }
+}
+
+#[tokio::test]
+async fn malformed_json_keeps_an_empty_path_including_http_payloads() {
+    let service = service("valid", Records::default(), Records::default());
+    for bytes in [
+        b"not JSON".as_slice(),
+        br#"{"body":"\uD800"}"#,
+        b"{\"body\":\"\xff\"}",
+        b"{",
+        br#"{"body":"#,
+        br#"{"nested":{"items":[1,}}"#,
+        br#"{"body":"ok"} trailing"#,
+    ] {
+        for path in ["/body", "/bound", "/document"] {
+            let (status, body) = answer(&service, path, bytes).await;
+            assert_eq!(status, 400, "{path}: {body}");
+            assert_eq!(body["__type"], "ValidationError");
+            assert_eq!(body["reason"], "cannotParse");
+            assert_eq!(body["fieldList"][0]["path"], "", "{path}: {body}");
+            assert_eq!(body["message"], body["fieldList"][0]["message"]);
+        }
     }
 }

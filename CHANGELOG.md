@@ -17,6 +17,10 @@ version's section when it is prepared.
 
 ### Fixed
 
+- Server request decoding names the failing member using the validation path
+  grammar (for example `parameters/p` and `items/1/count`). Malformed JSON,
+  including HTTP JSON payloads, keeps its empty field path.
+
 - TypeScript JSON serialization preserves negative zero as `-0.0` for float
   members and decoded documents. Positive zero remains `0`.
 
