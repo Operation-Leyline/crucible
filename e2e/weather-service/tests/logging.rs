@@ -371,3 +371,25 @@ async fn serialization_faults_are_logged_after_writing_and_scopes_still_apply() 
         assert_eq!(record["cause"], "cannot serialize test output");
     }
 }
+
+#[tokio::test]
+async fn decode_paths_name_no_sensitive_map_key() {
+    let records = Records::default();
+    let service = service(ServiceLog::new(LogPolicy::everything()).sink(records.clone()));
+    for member in ["secretScores", "privateScores"] {
+        let answer = service
+            .invoke("Echo", json!({member: {"hunter2": "wrong"}}))
+            .await;
+        assert_eq!(answer["error"]["__type"], "ValidationError");
+    }
+    let records = records.0.lock().unwrap();
+    assert_eq!(records.len(), 2);
+    for (record, member) in records.iter().zip(["secretScores", "privateScores"]) {
+        assert_eq!(record["violations"][0]["path"], format!("{member}/[key]"));
+    }
+    assert!(
+        !serde_json::to_string(&*records)
+            .unwrap()
+            .contains("hunter2")
+    );
+}

@@ -17,6 +17,10 @@ version's section when it is prepared.
 
 ### Fixed
 
+- Server request decoding names the failing member using the validation path
+  grammar (for example `parameters/p` and `items/1/count`). Malformed JSON
+  keeps its empty field path.
+
 - Rust and TypeScript call snippets preserve explicit clears from model examples.
   Rust snippets use the builder’s clear method, including collision suffixes;
   TypeScript snippets keep the member as `null`.

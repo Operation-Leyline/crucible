@@ -1037,6 +1037,7 @@ dependencies = [
  "regex",
  "serde",
  "serde_json",
+ "serde_path_to_error",
  "sha2",
  "tokio",
  "tower",
@@ -1059,6 +1060,7 @@ dependencies = [
  "regex",
  "serde",
  "serde_json",
+ "serde_path_to_error",
 ]
 
 [[package]]

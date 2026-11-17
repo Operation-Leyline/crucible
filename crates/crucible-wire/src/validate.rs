@@ -52,6 +52,7 @@ pub struct Rejection {
     // field let a literal or a `push` list any number of violations, and
     // the response, log record and field list copy all of them.
     violations: Vec<Violation>,
+    summary: Option<String>,
 }
 
 impl Rejection {
@@ -73,12 +74,20 @@ impl Rejection {
 
     fn of(kind: ViolationKind, path: impl Into<String>, message: impl Into<String>) -> Self {
         Self {
+            summary: None,
             violations: vec![Violation {
                 path: path.into(),
                 message: message.into(),
                 kind,
             }],
         }
+    }
+
+    /// Keeps a reader's existing summary when it adds a more precise field path.
+    #[doc(hidden)]
+    pub fn with_summary(mut self, summary: String) -> Self {
+        self.summary = Some(summary);
+        self
     }
 
     /// The violations listed: at most [`MAX_VIOLATIONS`], then, when there
@@ -113,6 +122,9 @@ impl Rejection {
 
     /// One line for an error message: the first violation, and how many more.
     pub fn summary(&self) -> String {
+        if let Some(summary) = &self.summary {
+            return summary.clone();
+        }
         match self.violations.first() {
             None => "the request is invalid".to_owned(),
             Some(first) => match self.count() {
@@ -192,6 +204,7 @@ impl Violations {
             });
         }
         Rejection {
+            summary: None,
             violations: self.listed,
         }
     }

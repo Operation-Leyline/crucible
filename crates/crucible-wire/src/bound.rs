@@ -124,7 +124,7 @@ pub fn read<'a, T: DeserializeOwned>(
     body: &'a [u8],
     bound: Vec<(&'static str, BoundValue<'a>)>,
 ) -> Result<T, serde_json::Error> {
-    read_excluding(body, bound, &[])
+    read_excluding(body, bound, &[], None)
 }
 
 /// Reads an HTTP input, keeping every member declared outside the body
@@ -134,7 +134,18 @@ pub fn read_http<'a, T: DeserializeOwned>(
     bound: Vec<(&'static str, BoundValue<'a>)>,
     members: &[MemberInfo],
 ) -> Result<T, serde_json::Error> {
-    read_excluding(body, bound, members)
+    read_excluding(body, bound, members, None)
+}
+
+/// Reads an HTTP input while retaining the path of a deserialization failure.
+pub fn read_http_tracked<'a, T: DeserializeOwned>(
+    body: &'a [u8],
+    bound: Vec<(&'static str, BoundValue<'a>)>,
+    members: &[MemberInfo],
+) -> Result<T, serde_path_to_error::Error<serde_json::Error>> {
+    let mut track = serde_path_to_error::Track::new();
+    read_excluding(body, bound, members, Some(&mut track))
+        .map_err(|error| serde_path_to_error::Error::new(track.path(), error))
 }
 
 /// Body members named by `bound` or declared outside the body in `members`
@@ -143,13 +154,15 @@ fn read_excluding<'a, T: DeserializeOwned>(
     body: &'a [u8],
     bound: Vec<(&'static str, BoundValue<'a>)>,
     members: &[MemberInfo],
+    track: Option<&mut serde_path_to_error::Track>,
 ) -> Result<T, serde_json::Error> {
     // A structure is read only from an object, in the body or a payload.
     if text::empty_json_body(body) {
-        return T::deserialize(Objects(BoundOnly { bound }));
+        return deserialize_tracked(Objects(BoundOnly { bound }), track);
     }
     let mut json = serde_json::Deserializer::from_slice(body);
     let value = json.deserialize_map(Bridge {
+        track,
         bound,
         members,
         target: PhantomData::<T>,
@@ -158,15 +171,26 @@ fn read_excluding<'a, T: DeserializeOwned>(
     Ok(value)
 }
 
+fn deserialize_tracked<'de, T: serde::Deserialize<'de>, D: Deserializer<'de>>(
+    deserializer: D,
+    track: Option<&mut serde_path_to_error::Track>,
+) -> Result<T, D::Error> {
+    match track {
+        Some(track) => T::deserialize(serde_path_to_error::Deserializer::new(deserializer, track)),
+        None => T::deserialize(deserializer),
+    }
+}
+
 /// Hands serde_json's map access to the target type, chained after the
 /// bound members.
-struct Bridge<'b, 'm, T> {
+struct Bridge<'b, 'm, 't, T> {
+    track: Option<&'t mut serde_path_to_error::Track>,
     bound: Vec<(&'static str, BoundValue<'b>)>,
     members: &'m [MemberInfo],
     target: PhantomData<T>,
 }
 
-impl<'de, T: DeserializeOwned> Visitor<'de> for Bridge<'de, '_, T> {
+impl<'de, T: DeserializeOwned> Visitor<'de> for Bridge<'de, '_, '_, T> {
     type Value = T;
 
     fn expecting(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -174,15 +198,18 @@ impl<'de, T: DeserializeOwned> Visitor<'de> for Bridge<'de, '_, T> {
     }
 
     fn visit_map<A: MapAccess<'de>>(self, json: A) -> Result<T, A::Error> {
-        T::deserialize(Objects(Merged {
-            access: Chain {
-                bound: self.bound,
-                next: 0,
-                members: self.members,
-                value: None,
-                json: Some(json),
-            },
-        }))
+        deserialize_tracked(
+            Objects(Merged {
+                access: Chain {
+                    bound: self.bound,
+                    next: 0,
+                    members: self.members,
+                    value: None,
+                    json: Some(json),
+                },
+            }),
+            self.track,
+        )
     }
 }
 
