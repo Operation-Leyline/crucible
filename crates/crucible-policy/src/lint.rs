@@ -321,7 +321,7 @@ fn examples(
     let operations: Vec<_> = service
         .operations
         .iter()
-        .filter(|operation| selected(&operation.id))
+        .filter(|operation| selected(&operation.id) && !(rule.public_only && operation.internal))
         .collect();
     if rule.operations.value {
         for operation in &operations {

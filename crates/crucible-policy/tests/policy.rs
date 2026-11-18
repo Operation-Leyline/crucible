@@ -673,6 +673,12 @@ fn example_coverage_warns_by_default_and_honours_exceptions() {
                 false
             ),
             (
+                "examples.errors".to_owned(),
+                "example.coverage#Ping".to_owned(),
+                Severity::Warning,
+                false
+            ),
+            (
                 "examples.operations".to_owned(),
                 "example.coverage#Ping".to_owned(),
                 Severity::Warning,
@@ -683,7 +689,7 @@ fn example_coverage_warns_by_default_and_honours_exceptions() {
     let errors: Vec<_> = report
         .findings
         .iter()
-        .filter(|f| f.rule == "examples.errors")
+        .filter(|f| f.rule == "examples.errors" && f.shape == "example.coverage#GetNote")
         .map(|f| f.message.as_str())
         .collect();
     assert_eq!(
@@ -711,20 +717,95 @@ fn example_coverage_checks_take_their_own_severity_or_turn_off() {
     assert!(report.has_errors());
     assert_eq!(
         findings(&report),
-        [(
+        ["GetNote", "Ping"].map(|operation| (
             "examples.errors".to_owned(),
-            "example.coverage#GetNote".to_owned(),
+            format!("example.coverage#{operation}"),
             Severity::Error,
             false
-        )]
+        ))
     );
     let config = Config::parse("[rules.examples]\nseverity = \"error\"\n").unwrap();
-    assert_eq!(check(&service, &config).findings.len(), 3);
+    assert_eq!(check(&service, &config).findings.len(), 4);
     let config = Config::parse("[rules.examples]\nseverity = \"off\"\n").unwrap();
     assert!(check(&service, &config).findings.is_empty());
     // Without the table, nothing is checked.
     assert!(check(&service, &Config::default()).findings.is_empty());
     assert!(Config::parse("[rules.examples]\nshapes = true\n").is_err());
+}
+
+#[test]
+fn example_coverage_public_only_requires_examples_on_public_operations() {
+    let (service, _) = coverage();
+    let config =
+        Config::parse("[rules.examples]\nseverity = 'error'\npublic_only = true\nerrors = false")
+            .unwrap();
+    let report = check(&service, &config);
+    assert!(report.has_errors(), "{report}");
+    assert!(
+        report
+            .findings
+            .iter()
+            .any(|f| f.rule == "examples.operations"
+                && f.shape == "example.coverage#ListNotes"
+                && f.severity == Severity::Error)
+    );
+}
+
+#[test]
+fn example_coverage_public_only_skips_internal_operations() {
+    let (service, _) = coverage();
+    let config =
+        Config::parse("[rules.examples]\nseverity = 'error'\npublic_only = true\nerrors = false")
+            .unwrap();
+    let report = check(&service, &config);
+    assert!(
+        report
+            .findings
+            .iter()
+            .all(|f| f.shape != "example.coverage#Ping"),
+        "{report}"
+    );
+}
+
+#[test]
+fn example_coverage_with_public_only_off_requires_examples_on_internal_operations() {
+    let (service, _) = coverage();
+    let config =
+        Config::parse("[rules.examples]\nseverity = 'error'\npublic_only = false\nerrors = false")
+            .unwrap();
+    let report = check(&service, &config);
+    assert!(
+        report
+            .findings
+            .iter()
+            .any(|f| f.rule == "examples.operations"
+                && f.shape == "example.coverage#Ping"
+                && f.severity == Severity::Error)
+    );
+}
+
+#[test]
+fn example_coverage_errors_respect_public_only() {
+    let (service, _) = coverage();
+    for (public_only, operations) in [(true, &["GetNote"][..]), (false, &["GetNote", "Ping"][..])] {
+        let config = Config::parse(&format!(
+            "[rules.examples]\nseverity = 'error'\npublic_only = {public_only}\noperations = false"
+        ))
+        .unwrap();
+        let report = check(&service, &config);
+        assert_eq!(
+            findings(&report),
+            operations
+                .iter()
+                .map(|operation| (
+                    "examples.errors".to_owned(),
+                    format!("example.coverage#{operation}"),
+                    Severity::Error,
+                    false,
+                ))
+                .collect::<Vec<_>>()
+        );
+    }
 }
 
 /// A released operation that becomes sender-signed (decision 81) leaves

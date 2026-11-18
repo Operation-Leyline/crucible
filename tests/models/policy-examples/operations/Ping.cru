@@ -1,4 +1,5 @@
 /// Has no example, excepted in the manifest.
-readonly operation Ping {
+readonly internal operation Ping {
     http GET "/ping"
+    errors [NoteLocked]
 }
