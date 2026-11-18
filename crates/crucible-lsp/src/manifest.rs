@@ -25,6 +25,8 @@ enum Kind {
     Pattern,
     /// An absolute path prefix, bare or `{ path = .., severity = .. }`.
     Prefix,
+    /// A plain `true` or `false`.
+    Bool,
     /// `true`/`false`, bare or `{ enabled = .., severity = .. }`.
     Enabled,
     /// Documentation targets, each bare or `{ target = .., severity = .. }`.
@@ -293,6 +295,12 @@ const TABLES: &[Table] = &[
                 sample: "\"error\"",
             },
             Key {
+                name: "public_only",
+                kind: Kind::Bool,
+                doc: "Set to `true` to skip operations marked `internal` in both example coverage checks. Defaults to `false`.",
+                sample: "true",
+            },
+            Key {
                 name: "operations",
                 kind: Kind::Enabled,
                 doc: "Each operation declares at least one `example`; without one, the reference shows a generated sample.",
@@ -507,7 +515,7 @@ pub fn complete(text: &str, offset: usize) -> Vec<CompletionItem> {
             Kind::Imports => crucible_lang::bundled_packages()
                 .map(|package| enum_value(package, "A package bundled with the compiler."))
                 .collect(),
-            Kind::Enabled => ["true", "false"]
+            Kind::Bool | Kind::Enabled => ["true", "false"]
                 .iter()
                 .map(|value| item(value, CompletionItemKind::VALUE, "", (*value).to_owned()))
                 .collect(),
@@ -516,14 +524,14 @@ pub fn complete(text: &str, offset: usize) -> Vec<CompletionItem> {
         }
     };
     if let Some(inline) = inline {
+        let Some(check_key) = key.kind.check_key() else {
+            return Vec::new();
+        };
         let field = inline.rsplit(',').next().unwrap_or(inline);
         return match field.split_once('=') {
             // A field: the check's value field and `severity`.
-            None => key
-                .kind
-                .check_key()
+            None => [check_key, "severity"]
                 .into_iter()
-                .chain(["severity"])
                 .map(|field| {
                     item(
                         field,
@@ -644,6 +652,21 @@ mod tests {
                 .unwrap()
                 .contains("`warning` by default")
         );
+    }
+
+    #[test]
+    fn example_rule_public_only_completion_and_hover() {
+        assert!(labels("[rules.examples]\n|").contains(&"public_only".to_owned()));
+        assert_eq!(
+            labels("[rules.examples]\npublic_only = |"),
+            ["true", "false"]
+        );
+        assert!(labels("[rules.examples]\npublic_only = { |").is_empty());
+
+        let text = "[rules.examples]\npublic_only = true";
+        let doc = hover(text, text.find("public_only").unwrap() + 2).unwrap();
+        assert!(doc.contains("skip operations marked `internal`"));
+        assert!(doc.contains("Defaults to `false`"));
     }
 
     /// Every key and sample value in the vocabulary is one the parsers accept.
