@@ -9,6 +9,8 @@ use serde::Deserialize;
 #[serde(default, deny_unknown_fields)]
 pub struct Examples {
     pub severity: Severity,
+    /// Skip internal operations in both coverage checks.
+    pub public_only: bool,
     /// Each operation declares at least one `example`.
     #[serde(deserialize_with = "check::enabled")]
     pub operations: Check<bool>,
@@ -22,6 +24,7 @@ impl Default for Examples {
     fn default() -> Self {
         Self {
             severity: Severity::Warning,
+            public_only: false,
             operations: Check::new(true),
             errors: Check::new(true),
         }

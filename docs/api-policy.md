@@ -135,7 +135,7 @@ or as a table naming its value and severity:
 | `rules.paths` | `prefix`: absolute literal path with segment-boundary matching; `segment_case` checks literals; `parameter_case` checks labels |
 | `rules.documentation` | `targets`: any of `service`, `operations`, `shapes`, `members`, `errors`, `enums`; empty means no documentation checks |
 | `rules.intent` | Nonempty `Use when` and `Don't use when` operation documentation sections; severity defaults to `"warning"` |
-| `rules.examples` | `operations`, `errors`: an `example` on each operation, and one showing each error the operation declares; both default to true, and the group's severity defaults to `"warning"` |
+| `rules.examples` | `operations`, `errors`: an `example` on each operation and one showing each error the operation declares, both enabled by default. `public_only` defaults to false, and severity defaults to `"warning"`. |
 | `compatibility` | `wire`, `sdk_source`: independently select wire and model-level public-symbol checks; both default to true |
 
 ### Operation intent
@@ -164,9 +164,15 @@ can adopt it before every operation has an example:
 
 ```toml
 [rules.examples]
+public_only = true
 operations = true                                # examples.operations
 errors = { enabled = true, severity = "error" }  # examples.errors
 ```
+
+`rules.namespaces` selects which namespaces both checks cover.
+Set `public_only = true` to skip operations marked `internal` in those
+namespaces. With the default `false`, both checks cover public and internal
+operations in the selected namespaces.
 
 `examples.operations` reports each selected operation that declares no
 `example`; its reference page shows a [generated sample](docs.md#generated-samples)

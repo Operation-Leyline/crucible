@@ -46,6 +46,9 @@ version's section when it is prepared.
 
 ### Added
 
+- API policy can limit operation and error example coverage to public
+  operations with `[rules.examples]` and `public_only = true`.
+
 - Rust and TypeScript clients support clearable inputs. Rust builders add
   `clear_<member>()` without changing public fields or value setters;
   TypeScript adds `| null` only to clearable inputs. Omission stays unchanged,
